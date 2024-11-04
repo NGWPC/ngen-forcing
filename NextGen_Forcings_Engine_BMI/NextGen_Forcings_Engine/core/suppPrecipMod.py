@@ -157,7 +157,7 @@ class supplemental_precip:
 
         netcdf_variables = {
             1: ['RadarOnlyQPE01H_0mabovemeansealevel'],
-            2: ['GaugeCorrQPE01H_0mabovemeansealevel'],
+            2: ['MultiSensorQPE01H_0mabovemeansealevel'],
             3: ['APCP_surface'],
             4: ['APCP_surface'],
             5: ['MultiSensorQPE01H_0mabovemeansealevel'],

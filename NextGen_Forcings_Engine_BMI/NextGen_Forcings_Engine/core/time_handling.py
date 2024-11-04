@@ -713,7 +713,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     tmp_file2 = input_forcings.inDir + '/hrrr.' + current_hrrr_cycle.strftime(
         '%Y%m%d') + "/hrrr.t" + current_hrrr_cycle.strftime('%H') + 'z.wrfsfcf' \
         + str(next_hrrr_forecast_hour).zfill(2) + input_forcings.file_ext
-
+    print(f"temp_file_names", tmp_file1, tmp_file2)
     # Check to see if we need to change pathway extension for HRRR data
     # to HPSS tape storage naming conventions
     if (os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False):
@@ -1982,31 +1982,27 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
     #supplemental_precip.pcp_date2 = next_mrms_date
     supplemental_precip.pcp_date2 = prev_mrms_date
 
+    # Used to populate paths below
+    date_path1 = supplemental_precip.pcp_date1.strftime('%Y%m%d')
+    date_path2 = supplemental_precip.pcp_date2.strftime('%Y%m%d')
+
     # Calculate expected file paths.
+    #TODO: Update for keyValue 6 and 10
+    #TODO: Update to fall back to Pass1 if Pass2 is not available
     if supplemental_precip.keyValue == 1:
-        tmp_file1 = supplemental_precip.inDir + "/RadarOnly_QPE/" + \
-            "MRMS_RadarOnly_QPE_01H_00.00_" + \
-            supplemental_precip.pcp_date1.strftime('%Y%m%d') + \
-            "-" + supplemental_precip.pcp_date1.strftime('%H') + \
+        tmp_file1 = supplemental_precip.inDir + "/RadarOnly_QPE/" + date_path1 + "/" + \
+            "MRMS_RadarOnly_QPE_01H_00.00_" + date_path1 + "-" + supplemental_precip.pcp_date1.strftime('%H') + \
             "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
-        tmp_file2 = supplemental_precip.inDir + "/RadarOnly_QPE/" + \
-            "MRMS_RadarOnly_QPE_01H_00.00_" + \
-            supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
-            "-" + supplemental_precip.pcp_date2.strftime('%H') + \
+        tmp_file2 = supplemental_precip.inDir + "/RadarOnly_QPE/" + date_path2 + "/" + \
+            "MRMS_RadarOnly_QPE_01H_00.00_" + date_path2 + "-" + supplemental_precip.pcp_date2.strftime('%H') + \
             "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
-
     elif supplemental_precip.keyValue == 2:
-        tmp_file1 = supplemental_precip.inDir + "/GaugeCorr_QPE/" + \
-                   "GaugeCorr_QPE_01H_00.00_" + \
-                   supplemental_precip.pcp_date1.strftime('%Y%m%d') + \
-                   "-" + supplemental_precip.pcp_date1.strftime('%H') + \
+        tmp_file1 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass2/" + date_path1 + "/" + \
+                   "MRMS_MultiSensor_QPE_01H_Pass2_00.00_" + date_path1 + "-" + supplemental_precip.pcp_date1.strftime('%H') + \
                    "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
-        tmp_file2 = supplemental_precip.inDir + "/GaugeCorr_QPE/" + \
-                   "GaugeCorr_QPE_01H_00.00_" + \
-                   supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
-                   "-" + supplemental_precip.pcp_date2.strftime('%H') + \
+        tmp_file2 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass2/" + date_path2 + "/" + \
+                   "MRMS_MultiSensor_QPE_01H_Pass2_00.00_" + date_path2 + "-" + supplemental_precip.pcp_date2.strftime('%H') + \
                    "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
-
     elif supplemental_precip.keyValue == 5 or supplemental_precip.keyValue == 6:
         tmp_file1 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass1/" + \
                     "MRMS_MultiSensor_QPE_01H_Pass1_00.00_" + \
@@ -2034,16 +2030,17 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
 
     # Compose the RQI paths.
     if supplemental_precip.keyValue == 1 or supplemental_precip.keyValue == 2:
-       tmp_rqi_file1 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
-           "RadarQualityIndex_00.00_" + \
-           supplemental_precip.pcp_date1.strftime('%Y%m%d') + \
+       tmp_rqi_file1 = supplemental_precip.inDir + "/RadarQualityIndex/" + date_path1 + "/" + \
+           "MRMS_RadarQualityIndex_00.00_" + \
+           date_path1 + \
            "-" + supplemental_precip.pcp_date1.strftime('%H') + \
            "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
-       tmp_rqi_file2 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
-           "RadarQualityIndex_00.00_" + \
-           supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
+       tmp_rqi_file2 = supplemental_precip.inDir + "/RadarQualityIndex/" + date_path2 + "/" + \
+           "MRMS_RadarQualityIndex_00.00_" + \
+           date_path2 + \
            "-" + supplemental_precip.pcp_date2.strftime('%H') + \
            "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+
     #elif supplemental_precip.keyValue == 5:
     #   tmp_rqi_file1 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
     #       "MRMS_EXP_RadarQualityIndex_00.00_" + \
@@ -2055,6 +2052,16 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
     #       supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
     #       "-" + supplemental_precip.pcp_date2.strftime('%H') + \
     #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+    
+        #Accounting for potentially missing RQI files - KSL
+        # Original code required RQI files, but according to readme, this should only be necessary if using original NWM-Hydro domain
+
+       if not os.path.isfile(tmp_rqi_file1) or not os.path.isfile(tmp_rqi_file2):
+           if mpi_config.rank == 0:
+               config_options.statusMsg = "RQI files not found. Continuing without RQI data as it's only required for original NWM WRF-Hydro domain."
+               err_handler.log_warning(config_options, mpi_config)
+               tmp_rqi_file1 = ""
+               tmp_rqi_file2 = ""    
     else:
        tmp_rqi_file1 = tmp_rqi_file2 = ""
 
@@ -2063,10 +2070,11 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
         err_handler.log_msg(config_options, mpi_config)
         config_options.statusMsg = "Next MRMS supplemental file: " + tmp_file2
         err_handler.log_msg(config_options, mpi_config)
-        config_options.statusMsg = "Previous MRMS RQI supplemental file: " + tmp_rqi_file1
-        err_handler.log_msg(config_options, mpi_config)
-        config_options.statusMsg = "Next MRMS RQI supplemental file: " + tmp_rqi_file2
-        err_handler.log_msg(config_options, mpi_config)
+        if os.path.isfile(tmp_rqi_file1) and os.path.isfile(tmp_rqi_file2):
+            config_options.statusMsg = "Previous MRMS RQI supplemental file: " + tmp_rqi_file1
+            err_handler.log_msg(config_options, mpi_config)
+            config_options.statusMsg = "Next MRMS RQI supplemental file: " + tmp_rqi_file2
+            err_handler.log_msg(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -2075,13 +2083,21 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
         if config_options.current_output_step == 1:
             supplemental_precip.regridded_precip1 = supplemental_precip.regridded_precip1
             supplemental_precip.regridded_precip2 = supplemental_precip.regridded_precip2
-            supplemental_precip.regridded_rqi1 = supplemental_precip.regridded_rqi1
-            supplemental_precip.regridded_rqi2 = supplemental_precip.regridded_rqi2
+            if os.path.isfile(tmp_rqi_file1) and os.path.isfile(tmp_rqi_file2):
+                supplemental_precip.regridded_rqi1 = supplemental_precip.regridded_rqi1
+                supplemental_precip.regridded_rqi2 = supplemental_precip.regridded_rqi2
+            else:
+                supplemental_precip.regridded_rqi1 = config_options.globalNdv
+                supplemental_precip.regridded_rqi2 = config_options.globalNdv
             if(config_options.grid_type == "unstructured"):
                 supplemental_precip.regridded_precip1_elem = supplemental_precip.regridded_precip1_elem
                 supplemental_precip.regridded_precip2_elem = supplemental_precip.regridded_precip2_elem
-                supplemental_precip.regridded_rqi1_elem = supplemental_precip.regridded_rqi1_elem
-                supplemental_precip.regridded_rqi2_elem = supplemental_precip.regridded_rqi2_elem
+                if os.path.isfile(tmp_rqi_file1) and os.path.isfile(tmp_rqi_file2):
+                    supplemental_precip.regridded_rqi1_elem = supplemental_precip.regridded_rqi1_elem
+                    supplemental_precip.regridded_rqi2_elem = supplemental_precip.regridded_rqi2_elem
+                else:
+                    supplemental_precip.regridded_rqi1_elem = config_options.globalNdv
+                    supplemental_precip.regridded_rqi2_elem = config_options.globalNdv
         else:
             # The forecast window has shifted. Reset fields 2 to
             # be fields 1.
@@ -3239,6 +3255,10 @@ def find_hourly_mrms_precip_flag(supplemental_precip, config_options, d_current,
     :param mpi_config:
     :return:
     """
+    
+    #debug - ksl
+    print(f"Starting find_hourly_mrms_precip_flag method.")
+    
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
     current_yr = d_current.year
@@ -3342,9 +3362,22 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
 
     # First find the current input forecast cycle that we are using.
-    ana_offset = 1 if config_options.ana_flag else 0
+
+    '''    
+    # KSL - altering ana_offset behavior because it causes questionable behavior here
+    #ana_offset = 1 if config_options.ana_flag else 0
+    ana_offset = 0
     current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0 * 60)
+    '''
+    
+    if config_options.ana_flag:
+        # For analysis runs, use the cycle from start of lookback period
+        current_input_cycle = config_options.b_date_proc
+    else:
+        # Original behavior for non-ana runs
+        current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(seconds=(input_forcings.userCycleOffset) * 60.0 * 60)
+    
     input_horizon = input_forcings.forecast_horizons[current_input_cycle.hour]
 
     # If the user has specified a forcing horizon that is greater than what is available
@@ -3400,12 +3433,12 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         input_forcings.fcst_min1 = prev_input_forecast_min
 
     err_handler.check_program_status(config_options, mpi_config)
-    # Calculate expected file paths.
     
+    # Calculate expected file paths.
 
     pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
     pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
-
+    
     files1 = glob.glob(pattern1) + glob.glob(pattern2)
     tmp_file1 = files1[0]
     if mpi_config.rank == 0:
