@@ -12,3 +12,6 @@ This directory contains a series of scripts for each NWM domain subdirectory (CO
 
 # ESMF Mesh Domain Configuration Production Directory
 This directory contains Python scripts that are only focused on coverting model domain file formats into a ESMF mesh compliant netcdf file that can be directly utilized by the NextGen Forcings Engine BMI. So far, this repository contains scripts to convert a NextGen hydrofabric geopackage or coastal model mesh file inputs (D-FlowFM, SCHISM) into ESMF mesh compliant netcdf files. Future updates to this repository will reflect more NextGen model formulations as they become available
+
+# Streamflow Scripts Directory
+This directory contains Python scripts for downloading and time-slicing real-time streamflow data from the USGS, US Army Corps of Engineers and Environment Canada. The time-slicing scripts process the native files into NetCDF files that can be directly used by T-Route for streamflow data assimilation. Setup, installation, and examples of utilizing these Python tools are further described within The README.md file in the directory.
