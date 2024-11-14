@@ -15,3 +15,6 @@ This directory contains Python scripts that are only focused on coverting model 
 
 # Streamflow Scripts Directory
 This directory contains Python scripts for downloading and time-slicing real-time streamflow data from the USGS, US Army Corps of Engineers and Environment Canada. The time-slicing scripts process the native files into NetCDF files that can be directly used by T-Route for streamflow data assimilation. Setup, installation, and examples of utilizing these Python tools are further described within The README.md file in the directory.
+
+# Observed Waterlevel Scripts Directory
+This directory contains Python scripts for downloading and observed water level data from the NOAA CO-OPS. Setup, installation, and examples of utilizing these Python tools are further described within The README.md file in the directory.
