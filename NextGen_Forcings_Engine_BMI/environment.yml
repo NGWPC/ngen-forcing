@@ -7,12 +7,12 @@ dependencies:
   - bmipy
   - bokeh
   - pandas
-  - python
+  - python~=3.10.0
   - ruamel.yaml
   - netCDF4
-  - mpi4py
+  - mpi4py>3.1.4
   - scipy
-  - esmpy
+  - esmpy=8.6.0
   - numpy
   - dask
   - zarr
