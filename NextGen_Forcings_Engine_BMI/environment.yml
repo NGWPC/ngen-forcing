@@ -18,3 +18,4 @@ dependencies:
   - zarr
   - s3fs
   - xarray
+  - wgrib2

@@ -1,0 +1,85 @@
+## TODO: replace with base image created under NGWPC-3223 ##
+## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
+FROM rockylinux:8
+
+# ensure local python is preferred over distribution python
+ENV PATH="/usr/local/bin:$PATH"
+
+# cannot remove LANG even though https://bugs.python.org/issue19846 is fixed
+# last attempted removal of LANG broke many users:
+# https://github.com/docker-library/python/pull/570
+ENV LANG="C.UTF-8"
+
+
+## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
+
+# runtime dependencies
+RUN set -eux; \
+    dnf install -y epel-release; \
+    dnf config-manager --set-enabled powertools; \
+    dnf install -y \
+        autoconf \
+        automake \
+        bzip2 bzip2-devel \
+        cmake \
+        conda \
+        curl curl-devel \
+        file \
+        findutils \
+        git \
+## FIXME: replace GNU compilers with Intel compiler ##
+        gcc-toolset-10 \
+        gcc-toolset-10-libasan-devel \
+        jasper-libs jasper-devel \
+        libaec libaec-devel \
+        libasan6 \
+        libffi libffi-devel \
+        libpng libpng-devel \
+        m4 \ 
+## FIXME: replace openmpi with Intel MPI libraries ##
+#       openmpi openmpi-devel \
+        openssl openssl-devel \
+        rsync \
+        uuid uuid-devel \ 
+        which \ 
+        zlib zlib-devel \
+    ; \
+    dnf clean all
+
+## FIXME: replace GNU compilers with Intel compiler ##
+SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
+## FIXME: replace openmpi with Intel MPI libraries ##
+#ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
+
+# Fix OpenMPI support within container
+#ENV PSM3_HAL=loopback
+#ENV PSM3_DEVICES=self
+
+COPY ./NextGen_Forcings_Engine_BMI/environment.yml forcings-environment.yaml
+COPY ./Forcing_Extraction_Scripts/environment.yml extract-environment.yaml
+COPY ./Streamflow_Scripts/environment.yml streamflow-environment.yaml
+
+ARG CONDA_ENV_PATH=/ngen-app/conda
+RUN set -eux; \
+	\
+    mkdir --parents ${CONDA_ENV_PATH} ; \
+    conda env create --prefix ${CONDA_ENV_PATH} --file=forcings-environment.yaml ; \
+    conda env update --prefix ${CONDA_ENV_PATH} --file=extract-environment.yaml ; \
+    conda env update --prefix ${CONDA_ENV_PATH} --file=streamflow-environment.yaml ; \
+    conda clean --all ; \
+    rm --force forcings-environment.yaml extract-environment.yaml streamflow-environment.yaml
+
+RUN set -eux; \
+    \
+    conda init bash
+ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
+ENV WGRIB2=${CONDA_ENV_PATH}/bin/wgrib2
+
+COPY . /ngen-app/ngen-forcing/
+WORKDIR /ngen-app/
+
+
+WORKDIR /
+SHELL ["/bin/bash", "-c"]
+
+ENTRYPOINT [ "/bin/bash" ] 
