@@ -7,14 +7,15 @@ dependencies:
   - bmipy
   - bokeh
   - pandas
-  - python
+  - python~=3.10.0
   - ruamel.yaml
   - netCDF4
   - mpi4py
   - scipy
-  - esmpy
+  - esmpy=8.6.0
   - numpy
   - dask
   - zarr
   - s3fs
   - xarray
+  - wgrib2
