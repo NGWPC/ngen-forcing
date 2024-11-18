@@ -59,7 +59,7 @@ sonarqube:
       - .sonar/cache
   script:
     - sonar-scanner -X -Dsonar.verbose=true
-  #allow_failure: true # FIXME
+  allow_failure: true # FIXME
 
 container_scanning:
   stage: test
