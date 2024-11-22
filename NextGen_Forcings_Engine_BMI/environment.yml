@@ -13,6 +13,7 @@ dependencies:
   - mpi4py>3.1.4
   - scipy
   - esmpy=8.6.0
+  - esmf=8.6.0=mpi_mpich_*
   - numpy
   - dask
   - zarr
