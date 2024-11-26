@@ -1,0 +1,14 @@
+global:
+  mesh_script_path: "/home/kyle.larkin/ngen-forcing/ESMF_Mesh_Domain_Configuration_Production/NextGen_hyfab_to_ESMF_Mesh.py"
+  mesh_in_base_path: "/srv/data/hydrofab_gpkg/"
+  mesh_out_base_path: "/srv/data/esmf_mesh/"
+  extraction_script_path: "/home/kyle.larkin/ngen-forcing/Forcing_Extraction_Scripts"
+  extraction_out_path: "/srv/data/raw_input"
+  bmi_script_path: "/home/kyle.larkin/ngen-forcing/NextGen_Forcings_Engine_BMI/run_bmi_model.py"
+short_range:
+  sr_config_path: "/srv/data/configs/CONUS/sr_config.yml"
+  hrrr_out_path: "/HRRR"
+  rap_out_path: "/RAP"
+#medium_range:
+  #mr_config_path: "/srv/data/configs/CONUS/mr_config.yml"
+  #gfs_out_path: "/GFS"
