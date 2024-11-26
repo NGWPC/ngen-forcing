@@ -16,7 +16,7 @@ class ConfigOptions:
     specified by the user.
     """
 
-    def __init__(self, config):
+    def __init__(self, config, b_date, geogrid_arg):
         """
         Initialize the configuration class to empty None attributes
         param config: The user-specified path to the configuration file.
@@ -50,7 +50,7 @@ class ConfigOptions:
         self.realtime_flag = None
         self.refcst_flag = None
         self.ana_flag = None
-        self.b_date_proc = None
+        self.b_date_proc = b_date
         self.e_date_proc = None
         self.first_fcst_cycle = None
         self.current_fcst_cycle = None
@@ -125,15 +125,16 @@ class ConfigOptions:
         self.forcing_output = None
         self.aws = None
         self.aws_obj = None
+        self.aws_time = None
         self.aorc_source = "s3://noaa-nws-aorc-v1-1-1km"
-        self.aorc_year_url = "{source}/{year}.zarr"
+        self.aorc_year_url = "{source}/{year}.zarr" 
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
         self.nwm_url = None
         self.nwm_domain = None
-        self.aws_time = None
         self.nwm_geogrid = None
+        self.geogrid = geogrid_arg
 
-    def read_config(self, cfg):
+    def read_config(self, cfg, b_date, geogrid_arg):
         """
         Read in options from the configuration file and check that proper options
         were provided.
@@ -412,16 +413,21 @@ class ConfigOptions:
                                         'file. Please verify entries exist.')
 
         # Process the beginning date of reforecast forcings to process
-        try:
-            beg_date_tmp = cfg['RefcstBDateProc']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
+        
+        if b_date != None:
+            beg_date_tmp = b_date
+            print(f"beg_date_tmp: {beg_date_tmp}")
+        else:
+            try:
+                beg_date_tmp = cfg['RefcstBDateProc']
+            except KeyError:
+                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
                                         'configuration file.')
-            beg_date_tmp = None
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
+                beg_date_tmp = None
+            except configparser.NoOptionError:
+                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
                                         'configuration file.')
-            beg_date_tmp = None
+                beg_date_tmp = None
         if beg_date_tmp != -9999:
             if len(beg_date_tmp) != 12:
                 err_handler.err_out_screen('Improper RefcstBDateProc length entered into the '
@@ -694,12 +700,17 @@ class ConfigOptions:
                 err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
 
         # Process geospatial information
-        try:
-            self.geogrid = cfg['GeogridIn']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
+        
+        if geogrid_arg != None:
+            self.geogrid=geogrid_arg
+            print(f"self.geogrid: {self.geogrid}")
+        else:
+            try:
+                self.geogrid = cfg['GeogridIn']
+            except KeyError:
+                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
+            except configparser.NoOptionError:
+                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
 
         # Check for the optional geospatial land metadata file.
         try:

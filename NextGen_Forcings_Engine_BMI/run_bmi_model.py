@@ -37,10 +37,10 @@ def execute(args):
     # Initializing the BMI
     print('Initializing the BMI')
     if(args.config_path != None):
-        model.initialize(bmi_cfg_file_name=str(args.config_path))
+        model.initialize(bmi_cfg_file_name=str(args.config_path), b_date=args.b_date, geogrid=args.geogrid)
     else:
         current_dir = Path(__file__).parent.resolve()
-        model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')))
+        model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')),b_date=args.b_date, geogrid=args.geogrid)
 
     # Now loop through the inputs, set the forcing values, and update the model
     print('Now loop through the inputs, updating the model, and extracting forcing data')
@@ -190,6 +190,8 @@ def get_options():
     parser.add_argument('start_time', help="Start time should correspond to the forecast cycle time + 1 timestep. Format = 'YYYY-MM-DD HH:mm:ss' ")
     parser.add_argument('end_time', help="End time should correspond to the last forecast time step you want to calculate. Format = 'YYYY-MM-DD HH:mm:ss' ")
     parser.add_argument('-config_path', type=pathlib.Path, help="Config path for config.yml, otherwise defaults to ./config.yml")
+    parser.add_argument('-b_date', help="Begin date, should be the start date/time for the forecast cycle, format= 'YYYYMMDDHHmm'. If omitted, reads from configuration file.")
+    parser.add_argument('-geogrid', help="Full path for geogrid/ESMF Mesh file. If omitted, reads from configuration file.")
 
     return parser.parse_args()
 

@@ -90,7 +90,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     #------------------------------------------------------------
 
     #-------------------------------------------------------------------
-    def initialize( self, bmi_cfg_file_name: str ):
+    def initialize( self, bmi_cfg_file_name: str, b_date, geogrid):
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(bmi_cfg_file_name, str) or len(bmi_cfg_file_name) == 0:
@@ -106,12 +106,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Initialize the configuration object that will contain all
         # user-specified options within Forcings Engine BMI config file.
-        self._job_meta = config.ConfigOptions(bmi_cfg_file)
+        self._job_meta = config.ConfigOptions(bmi_cfg_file,b_date, geogrid)
 
 
         # Parse the configuration options
         try:
-            self._job_meta.read_config(self.cfg_bmi)
+            self._job_meta.read_config(self.cfg_bmi, b_date, geogrid)
         except KeyboardInterrupt:
             err_handler.err_out_screen('User keyboard interrupt')
         except ImportError:
@@ -499,7 +499,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # ------------- Set time to initial value -----------------------#
         self._values['current_model_time'] = self.cfg_bmi['initial_time']
-        
         # ------------- Set time step size -----------------------#
         self._values['time_step_size'] = self.cfg_bmi['time_step_seconds']
 
@@ -534,7 +533,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Flag to see if update is just a single model time step
         # otherwise we must perform a time loop to iterate data until
         # requested time stamp
-        if(future_time != self._values['current_model_time']):
+        if(future_time != self._values['current_model_time']): 
             while(self._values['current_model_time'] < future_time):
                 self._values['current_model_time'] += self._values['time_step_size']
                 self._model.run(self._values, self._values['current_model_time'], self._job_meta, self._WrfHydroGeoMeta, self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
