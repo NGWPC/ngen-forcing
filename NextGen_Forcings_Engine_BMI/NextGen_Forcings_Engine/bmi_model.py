@@ -90,7 +90,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     #------------------------------------------------------------
 
     #-------------------------------------------------------------------
-    def initialize( self, bmi_cfg_file_name: str, b_date, geogrid):
+    def initialize( self, bmi_cfg_file_name: str, b_date, geogrid, output_path):
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(bmi_cfg_file_name, str) or len(bmi_cfg_file_name) == 0:
@@ -439,7 +439,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 ext = 'HYDROFABRIC'
             elif(self._job_meta.grid_type=='unstructured'):
                 ext = 'MESH'
-            self._OutputObj.outPath = self._job_meta.scratch_dir + "/NextGen_Forcings_Engine_" + ext + "_output_" + pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') + ".nc"
+            
+            if (output_path != None):
+                self._OutputObj.outPath = output_path
+            else:
+                self._OutputObj.outPath = self._job_meta.scratch_dir + "/NextGen_Forcings_Engine_" + ext + "_output_" + pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') + ".nc"
 
             self._OutputObj.init_forcing_file(self._job_meta,self._WrfHydroGeoMeta,self._mpi_meta)
 

@@ -3,7 +3,7 @@ BMI Forcings Engine standalone mode wrapper script.
 
 Provides ability to run the BMI Forcings Engine pipeline in standalone mode using a single command.
 
-example usage: python bmi_wrapper.py short_range Gage_01011000.gpkg ./wrapper_config.yml
+example usage: python bmi_wrapper.py short_range Gage_01011000.gpkg
 '''
 
 import argparse
@@ -11,6 +11,7 @@ import datetime
 import subprocess
 import yaml
 import os
+import mpi4py
 
 def execute(args):
 
@@ -22,17 +23,25 @@ def execute(args):
     args:
         cycle_name (str): The NWM Forecast cycle to execute (ie: short_range)
         hyfab_name (str): The name of the hydrofabric domain file to use (ie: Gage_01011000.gpkg)
-        config_input (str): The path to the wrapper config file.
+        -config_input (str): Optional path to the wrapper config file.
+        -output_path (str): Optional full path to specify forcing engine output location.
+        -np (str): Optional number of processes to use.
     '''
     
     #read in user-provided arguments
     cycle_name=args.cycle_name
     hyfab_name=args.hyfab_name
     config_input=args.config_input
+    output_path=args.output_path
+    num_processes=args.np
     
     #read in config file
-    with open(config_input, 'r') as config_file:
-        config = yaml.safe_load(config_file)
+    if config_input != None:
+        config_read = config_input
+    else:
+        config_read = './wrapper_config.yml'  
+    with open(config_read, 'r') as config_file:
+        config= yaml.safe_load(config_file)
     
     #use the Gage_######## string to construct ESMF mesh filename
     base_geo_name = hyfab_name.split('.')[0]
@@ -100,11 +109,34 @@ def execute(args):
         subprocess.run(cmd2, check=True)        
         
         #run the forcing engine BMI
-        cmd3 = [
-            "conda", "run", "-n", "NextGen_Forcings_Engine",
-            "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-            start_time, end_time        
-        ]
+        if output_path != None:
+            if num_processes != None:
+                cmd3 = [
+                    "conda", "run", "-n", "NextGen_Forcings_Engine",
+                    "mpirun", "-np", str(num_processes), 
+                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                    f"-output_path={output_path}", start_time, end_time        
+                ]
+            else:
+                cmd3 = [
+                    "conda", "run", "-n", "NextGen_Forcings_Engine",
+                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                    f"-output_path={output_path}",start_time, end_time        
+                ]
+        else:
+            if num_processes != None:
+                cmd3 = [
+                    "conda", "run", "-n", "NextGen_Forcings_Engine",
+                    "mpirun", "-np", str(num_processes), 
+                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                    start_time, end_time
+                ]
+            else:
+                cmd3 = [
+                    "conda", "run", "-n", "NextGen_Forcings_Engine",
+                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                    start_time, end_time
+                ]       
         subprocess.run(cmd3, check=True)
     #TODO: Add additional NWM forecast cycles
     #elif cycle_name == medium_range:
@@ -121,7 +153,9 @@ def get_options():
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle_name', help='Name of NWM cycle, for example short_range')
     parser.add_argument('hyfab_name', help='Name of hydrofabric file for conversion to ESMF. Ex: Gage_01123000.gpkg')
-    parser.add_argument('config_input', help='Path to wrapper config file.')
+    parser.add_argument('-config_input', help='Path to wrapper config file. If omitted, defaults to ./wrapper_config.yml')
+    parser.add_argument('-output_path', help='Full path for nc output file. If omitted, filename will be generated automatically, and placed in the ScratchDir configured in config file.') 
+    parser.add_argument('-np', help='The number of processes to use when executing the forcing engine. If omitted, will default to one process.')
     
     return parser.parse_args()
 
