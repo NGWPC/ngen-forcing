@@ -7731,7 +7731,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Calculating NBM {tag} regridding weights."
                     err_handler.log_msg(config_options, mpi_config)
-                calculate_supp_pcp_weights(forcings_or_precip, id_tmp, forcings_or_precip.file_in1, config_options, mpi_config)
+                calculate_supp_pcp_weights(forcings_or_precip, id_tmp, forcings_or_precip.file_in1, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
             else:
                 if mpi_config.rank == 0:
@@ -9506,38 +9506,55 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
             latdim = londim = -1
             config_options.errMsg = "Unable to determine lat/lon grid size from " + tmp_file
             err_handler.err_out(config_options)
-        # --- Reducing domain size up front --- 
-        try:
-            # Get hydrofabric bounds first to determine reduced domain size
-            min_lat = np.min(wrf_hydro_geo_meta.esmf_grid.coords[0][1])
-            max_lat = np.max(wrf_hydro_geo_meta.esmf_grid.coords[0][1])
-            min_lon = np.min(wrf_hydro_geo_meta.esmf_grid.coords[0][0])
-            max_lon = np.max(wrf_hydro_geo_meta.esmf_grid.coords[0][0])
             
-            # Add buffer - may not be ideal or necessary -KSL
-            #TODO: Determine if we really need this.
-            buffer = 0.1
-            min_lat -= buffer
-            max_lat += buffer
-            min_lon -= buffer
-            max_lon += buffer
-
-            # Get lat/lon values         
-            lat_vals = id_tmp.variables[lat_var][:]
-            lon_vals = id_tmp.variables[lon_var][:]
-
-            # Indices create boolean values for masking
-            supplemental_precip.lat_indices = (lat_vals >= min_lat) & (lat_vals <= max_lat)
-            supplemental_precip.lon_indices = (lon_vals >= min_lon) & (lon_vals <= max_lon)
+        if 1 in config_options.supp_precip_forcings or 2 in config_options.supp_precip_forcings:
+            # --- Reducing domain size up front --- 
+            try:
+                # Get hydrofabric bounds first to determine reduced domain size
+                min_lat = np.min(wrf_hydro_geo_meta.esmf_grid.coords[0][1])
+                max_lat = np.max(wrf_hydro_geo_meta.esmf_grid.coords[0][1])
+                min_lon = np.min(wrf_hydro_geo_meta.esmf_grid.coords[0][0])
+                max_lon = np.max(wrf_hydro_geo_meta.esmf_grid.coords[0][0])
             
-            # Set global dimensions to reduced size
-            supplemental_precip.ny_global = np.sum(supplemental_precip.lat_indices)
-            supplemental_precip.nx_global = np.sum(supplemental_precip.lon_indices)
+                # Add buffer - may not be ideal or necessary -KSL
+                #TODO: Determine if we really need this.
+                buffer = 0.1
+                min_lat -= buffer
+                max_lat += buffer
+                min_lon -= buffer
+                max_lon += buffer
 
-        except (ValueError, KeyError, AttributeError, Exception) as err:
-            config_options.errMsg = "Unable to determine reduced domain dimensions from: " + \
-                                    tmp_file + " (" + str(err) + ")"
-            err_handler.err_out(config_options)
+                # Get lat/lon values         
+                lat_vals = id_tmp.variables[lat_var][:]
+                lon_vals = id_tmp.variables[lon_var][:]
+
+                # Indices create boolean values for masking
+                supplemental_precip.lat_indices = (lat_vals >= min_lat) & (lat_vals <= max_lat)
+                supplemental_precip.lon_indices = (lon_vals >= min_lon) & (lon_vals <= max_lon)
+            
+                # Set global dimensions to reduced size
+                supplemental_precip.ny_global = np.sum(supplemental_precip.lat_indices)
+                supplemental_precip.nx_global = np.sum(supplemental_precip.lon_indices)
+
+            except (ValueError, KeyError, AttributeError, Exception) as err:
+                config_options.errMsg = "Unable to determine reduced domain dimensions from: " + \
+                                        tmp_file + " (" + str(err) + ")"
+                err_handler.err_out(config_options)
+        else:
+            try:
+                supplemental_precip.ny_global = id_tmp.variables[supplemental_precip.netcdf_var_names[0]].shape[latdim]
+            except (ValueError, KeyError, AttributeError, Exception) as err:
+                config_options.errMsg = "Unable to extract Y shape size from: " + \
+                                        supplemental_precip.netcdf_var_names[0] + " from: " + \
+                                        tmp_file + " (" + str(err) + ", " + type(err) + ")"
+                err_handler.err_out(config_options)
+            try:
+                supplemental_precip.nx_global = id_tmp.variables[supplemental_precip.netcdf_var_names[0]].shape[londim]
+            except (ValueError, KeyError, AttributeError, Exception) as err:
+                config_options.errMsg = "Unable to extract X shape size from: " + \
+                                        supplemental_precip.netcdf_var_names[0] + " from: " + \
+                                        tmp_file + " (" + str(err) + ", " + type(err) + ")"
+                err_handler.err_out(config_options)
 
     #mpi_config.comm.barrier()
     
@@ -9585,13 +9602,29 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
  
     lat_tmp = lon_tmp = None
     if mpi_config.rank == 0:
-        # _indices booleans used to select only values within the grid dimensions
-        lat_tmp = id_tmp.variables[lat_var][supplemental_precip.lat_indices]
-        lon_tmp = id_tmp.variables[lon_var][supplemental_precip.lon_indices]     
-        # Create 2D grids if needed
-        if len(id_tmp.variables[lat_var].shape) == 1:
-            lat_tmp = np.repeat(lat_tmp[:, np.newaxis], supplemental_precip.nx_global, axis=1)
-            lon_tmp = np.tile(lon_tmp[:], (supplemental_precip.ny_global, 1))
+        if 1 in config_options.supp_precip_forcings or 2 in config_options.supp_precip_forcings:
+            # _indices booleans used to select only values within the grid dimensions
+            lat_tmp = id_tmp.variables[lat_var][supplemental_precip.lat_indices]
+            lon_tmp = id_tmp.variables[lon_var][supplemental_precip.lon_indices]     
+            # Create 2D grids if needed
+            if len(id_tmp.variables[lat_var].shape) == 1:
+                lat_tmp = np.repeat(lat_tmp[:, np.newaxis], supplemental_precip.nx_global, axis=1)
+                lon_tmp = np.tile(lon_tmp[:], (supplemental_precip.ny_global, 1))
+        else:
+            # Process lat/lon values from the GFS grid.
+            if len(id_tmp.variables[lat_var].shape) == 3:
+                # We have 2D grids already in place.
+                lat_tmp = id_tmp.variables[lat_var][0, :]
+                lon_tmp = id_tmp.variables[lon_var][0, :]
+            elif len(id_tmp.variables[lon_var].shape) == 2:
+                # We have 2D grids already in place.
+                lat_tmp = id_tmp.variables[lat_var][:]
+                lon_tmp = id_tmp.variables[lon_var][:]
+            elif len(id_tmp.variables[lat_var].shape) == 1:
+                # We have 1D lat/lons we need to translate into
+                # 2D grids.
+                lat_tmp = np.repeat(id_tmp.variables[lat_var][:][:, np.newaxis], supplemental_precip.nx_global, axis=1)
+                lon_tmp = np.tile(id_tmp.variables[lon_var][:], (supplemental_precip.ny_global, 1))
     
     # mpi_config.comm.barrier()
 
@@ -9763,12 +9796,20 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         # mpi_config.comm.barrier()
         # Scatter global grid to processors..
         if mpi_config.rank == 0:
-            if ndims == 3:
-                var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][0, supplemental_precip.lat_indices][:, supplemental_precip.lon_indices]
-            elif ndims == 2:
-                var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][supplemental_precip.lat_indices][:, supplemental_precip.lon_indices]
+            if 1 in config_options.supp_precip_forcings or 2 in config_options.supp_precip_forcings:
+                if ndims == 3:
+                    var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][0, supplemental_precip.lat_indices][:, supplemental_precip.lon_indices]
+                elif ndims == 2:
+                    var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][supplemental_precip.lat_indices][:, supplemental_precip.lon_indices]
+                else:
+                    var_tmp = None
             else:
-                var_tmp = None
+                if ndims == 3:
+                    var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][0, :]
+                elif ndims == 2:
+                    var_tmp = id_tmp[supplemental_precip.netcdf_var_names[0]][:]
+                else:
+                    var_tmp = None
             # Set all valid values to 1.0, and all missing values to 0.0. This will
             # be used to generate an output mask that is used later on in downscaling, layering,
             # etc.
@@ -9798,5 +9839,6 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.esmf_field_out = supplemental_precip.regridObj(supplemental_precip.esmf_field_in,
                                                                            supplemental_precip.esmf_field_out)
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[:]
+
 
 

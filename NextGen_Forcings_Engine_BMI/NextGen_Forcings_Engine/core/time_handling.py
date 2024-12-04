@@ -1436,7 +1436,11 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
 
         input_forcings.regridComplete = False
     err_handler.check_program_status(config_options, mpi_config)
-
+    
+    #debug - ksl
+    print(f"file_in1: {input_forcings.file_in1}")
+    print(f"file_in2: {input_forcings.file_in2}")
+    
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
@@ -1988,7 +1992,7 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
 
     # Calculate expected file paths.
     #TODO: Update for keyValue 6 and 10
-    #TODO: Update to fall back to Pass1 if Pass2 is not available
+
     if supplemental_precip.keyValue == 1:
         tmp_file1 = supplemental_precip.inDir + "/RadarOnly_QPE/" + date_path1 + "/" + \
             "MRMS_RadarOnly_QPE_01H_00.00_" + date_path1 + "-" + supplemental_precip.pcp_date1.strftime('%H') + \
@@ -2003,6 +2007,13 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
         tmp_file2 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass2/" + date_path2 + "/" + \
                    "MRMS_MultiSensor_QPE_01H_Pass2_00.00_" + date_path2 + "-" + supplemental_precip.pcp_date2.strftime('%H') + \
                    "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+        if not (os.path.isfile(tmp_file1) or os.path.isfile(tmp_file2)):
+            tmp_file1 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass1/" + date_path1 + "/" + \
+                       "MRMS_MultiSensor_QPE_01H_Pass1_00.00_" + date_path1 + "-" + supplemental_precip.pcp_date1.strftime('%H') + \
+                       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+            tmp_file2 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass1/" + date_path2 + "/" + \
+                       "MRMS_MultiSensor_QPE_01H_Pass1_00.00_" + date_path2 + "-" + supplemental_precip.pcp_date2.strftime('%H') + \
+                       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')            
     elif supplemental_precip.keyValue == 5 or supplemental_precip.keyValue == 6:
         tmp_file1 = supplemental_precip.inDir + "/MultiSensor_QPE_01H_Pass1/" + \
                     "MRMS_MultiSensor_QPE_01H_Pass1_00.00_" + \
@@ -2134,6 +2145,7 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
     # errMod.check_program_status(ConfigOptions, MpiConfig)
 
     # Ensure we have the necessary new file
+    
     if mpi_config.rank == 0:
         if not os.path.isfile(supplemental_precip.file_in2) and (supplemental_precip.keyValue == 5 or supplemental_precip.keyValue == 6):
             config_options.statusMsg = "MRMS file {} not found, will attempt to use {} instead.".format(
@@ -2861,7 +2873,7 @@ def _find_conus_ext_ana_precip_mrms(supplemental_precip, config_options, d_curre
         mrms_in_dir = supplemental_precip.inDir.split(',')[1]
     except IndexError:
         mrms_in_dir = None
-
+        
     # Calculate expected file paths.
     if supplemental_precip.keyValue == 12:
         tmp_file1 = mrms_in_dir + "/MultiSensor_QPE_01H_Pass1/" + \
@@ -2989,7 +3001,11 @@ def find_conus_ext_ana_precip_neighbors(supplemental_precip, config_options, d_c
     """
     # For extended AnA configuration, always try to find MRMS data first
     # and if not, then MRMS function will automatically switch to StageIV precipitation
-    _find_conus_ext_ana_precip_mrms(supplemental_precip, config_options, d_current, mpi_config)
+    
+    if 1 not in config_options.supp_precip_forcings and 2 not in config_options.supp_precip_forcings:
+        _find_conus_ext_ana_precip_stage4(supplemental_precip, config_options, d_current, mpi_config)
+    else:
+        _find_conus_ext_ana_precip_mrms(supplemental_precip, config_options, d_current, mpi_config)
 
 
 def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mpi_config):
@@ -3363,20 +3379,23 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # First find the current input forecast cycle that we are using.
 
-    '''    
-    # KSL - altering ana_offset behavior because it causes questionable behavior here
-    #ana_offset = 1 if config_options.ana_flag else 0
-    ana_offset = 0
+   
+    # KSL - original ana_offset behavior
+    ana_offset = 1 if config_options.ana_flag else 0
+
     current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0 * 60)
+
     '''
-    
+    Altered code for MRMS testing, possibly/probably incorrect - KSL
+    ana_offset = 0   
     if config_options.ana_flag:
         # For analysis runs, use the cycle from start of lookback period
         current_input_cycle = config_options.b_date_proc
     else:
         # Original behavior for non-ana runs
         current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(seconds=(input_forcings.userCycleOffset) * 60.0 * 60)
+    '''
     
     input_horizon = input_forcings.forecast_horizons[current_input_cycle.hour]
 

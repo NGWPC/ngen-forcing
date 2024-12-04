@@ -37,10 +37,10 @@ def execute(args):
     # Initializing the BMI
     print('Initializing the BMI')
     if(args.config_path != None):
-        model.initialize(bmi_cfg_file_name=str(args.config_path), b_date=args.b_date, geogrid=args.geogrid)
+        model.initialize(bmi_cfg_file_name=str(args.config_path), b_date=args.b_date, geogrid=args.geogrid, output_path=args.output_path)
     else:
         current_dir = Path(__file__).parent.resolve()
-        model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')),b_date=args.b_date, geogrid=args.geogrid)
+        model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')),b_date=args.b_date, geogrid=args.geogrid, output_path=args.output_path)
 
     # Now loop through the inputs, set the forcing values, and update the model
     print('Now loop through the inputs, updating the model, and extracting forcing data')
@@ -192,6 +192,7 @@ def get_options():
     parser.add_argument('-config_path', type=pathlib.Path, help="Config path for config.yml, otherwise defaults to ./config.yml")
     parser.add_argument('-b_date', help="Begin date, should be the start date/time for the forecast cycle, format= 'YYYYMMDDHHmm'. If omitted, reads from configuration file.")
     parser.add_argument('-geogrid', help="Full path for geogrid/ESMF Mesh file. If omitted, reads from configuration file.")
+    parser.add_argument('-output_path', help="A user-provided output path - must include full directory and filename. If omitted, a filename will be automatically generated, in the ScratchDir specified in the config file.")
 
     return parser.parse_args()
 
