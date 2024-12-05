@@ -54,6 +54,9 @@ def execute(args):
     extraction_scriptPath = config['global']['extraction_script_path']
     extraction_outPath = config['global']['extraction_out_path']
     bmi_scriptPath = config['global']['bmi_script_path']
+    mesh_env = config['global']['mesh_env']
+    extraction_env = config['global']['extract_env']
+    engine_env = config['global']['engine_env']
     
     #Get the current time in UTC
     dNowUTC = datetime.datetime.utcnow()
@@ -62,7 +65,7 @@ def execute(args):
     if not os.path.exists(mesh_outPath):
         # Execute hyfab to ESMF mesh conversion
         cmd0 = [
-                "conda", "run", "-n", "ngen_esmf_mesh_prod",
+                "conda", "run", "-n", mesh_env,
                 "python", mesh_scriptPath, mesh_inPath, mesh_outPath
         ]   
         subprocess.run(cmd0, check=True)
@@ -91,7 +94,7 @@ def execute(args):
         
         #Run the forcing_extraction script for HRRR
         cmd1 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             "--lookBackHours=2",
             "--lagBackHours=1"
@@ -100,7 +103,7 @@ def execute(args):
         
         #Run the forcing_extraction script for RAP
         cmd2 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", rap_extract_scriptPath, rap_extract_outPath,
             "--lookBackHours=2",
             "--lagBackHours=1"
@@ -137,7 +140,7 @@ def execute(args):
 
         #Run the forcing_extraction script for GFS        
         cmd1 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", gfs_extract_scriptPath, gfs_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -147,7 +150,7 @@ def execute(args):
         #Run the forcing_extraction script for NBM
                 
         cmd2 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", nbm_extract_scriptPath, nbm_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -185,7 +188,7 @@ def execute(args):
 
         #Run the forcing_extraction script for HRRR        
         cmd1a = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}", 
@@ -196,7 +199,7 @@ def execute(args):
         #Run the forcing_extraction script for RAP
                 
         cmd1b = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", rap_extract_scriptPath, rap_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}", 
@@ -206,7 +209,7 @@ def execute(args):
         
         #Run the forcing_extraction script for MRMS_MS        
         cmd2a = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", mrms_ms_extract_scriptPath, mrms_ms_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -216,7 +219,7 @@ def execute(args):
         #Run the forcing_extraction script for MRMS_RO
                 
         cmd2b = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", mrms_ro_extract_scriptPath, mrms_ro_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -252,7 +255,7 @@ def execute(args):
         
         #Run the forcing_extraction script for CFS
         cmd1 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", cfs_extract_scriptPath, cfs_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -293,7 +296,7 @@ def execute(args):
 
         #Run the forcing_extraction script for HRRR        
         cmd1a = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}", 
@@ -304,7 +307,7 @@ def execute(args):
         #Run the forcing_extraction script for RAP
                 
         cmd1b = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", rap_extract_scriptPath, rap_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}", 
@@ -314,7 +317,7 @@ def execute(args):
         
         #Run the forcing_extraction script for stage_iv        
         cmd2 = [
-            "conda", "run", "-n", "forcing_extraction",
+            "conda", "run", "-n", extraction_env,
             "python", stage_iv_extract_scriptPath, stage_iv_extract_outPath,
             f"--lookBackHours={int(lookback)}",
             f"--lagBackHours={int(lagback)}"
@@ -328,28 +331,28 @@ def execute(args):
     if output_path != None:
         if num_processes != None:
             cmd3 = [
-                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes), 
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}", start_time, end_time        
             ]
         else:
             cmd3 = [
-                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "conda", "run", "-n", engine_env,
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}",start_time, end_time        
             ]
     else:
         if num_processes != None:
             cmd3 = [
-                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes), 
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
         else:
             cmd3 = [
-                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "conda", "run", "-n", engine_env,
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]       

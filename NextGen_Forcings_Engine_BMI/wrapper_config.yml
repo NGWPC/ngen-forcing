@@ -5,6 +5,9 @@ global:
   extraction_script_path: "/home/kyle.larkin/ngen-forcing/Forcing_Extraction_Scripts"
   extraction_out_path: "/srv/data/raw_input"
   bmi_script_path: "/home/kyle.larkin/ngen-forcing/NextGen_Forcings_Engine_BMI/run_bmi_model.py"
+  mesh_env: "ngen_esmf_mesh_prod"
+  extract_env: "forcing_extraction"
+  engine_env: "NextGen_Forcings_Engine"
 short_range:
   sr_config_path: "/srv/data/configs/CONUS/sr_config.yml"
   hrrr_out_path: "/HRRR"
