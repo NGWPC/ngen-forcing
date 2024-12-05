@@ -84,7 +84,8 @@ def main(args):
                 print('Making directory: ' + gfsOutDir2)
                 os.makedirs(gfsOutDir2)
             # Download hourly files from NCEP to hour 120.
-            for hrDownload in range(1,121):
+            #Modified to hour 18 for testing/demo
+            for hrDownload in range(1,19):
                 fileDownload = "gfs.t" + dCurrent.strftime('%H') + \
                        "z.sfluxgrbf" + str(hrDownload).zfill(3) + \
                        ".grib2"
@@ -106,6 +107,7 @@ def main(args):
                         print("Unable to retrieve: " + url)
                         print("Data may not available yet...")
                         continue
+            '''
             # Download 3-hour files from hour 120 to hour 384.
             for hrDownload in range(123,387,3):
                 fileDownload = "gfs.t" + dCurrent.strftime('%H') + \
@@ -129,6 +131,7 @@ def main(args):
                         print("Unable to retrieve: " + url)
                         print("Data may not available yet...")
                         continue
+            '''
     # Remove the LOCK file.
     os.remove(lockFile)
 

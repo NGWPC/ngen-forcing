@@ -1418,6 +1418,8 @@ class ConfigOptions:
                 if optTmp == 7:
                     try:
                         self.cfsv2EnsMember = cfg['cfsEnsNumber']
+                        print(f"ens mem: {self.cfsv2EnsMember}")
+                        print(f"cfg ens mem: {cfg['cfsEnsNumber']}")
                     except KeyError:
                         err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles '
                                                    'section of the configuration file')
@@ -1426,7 +1428,7 @@ class ConfigOptions:
                                                    'section of the configuration file')
                     except json.JSONDecodeError:
                         err_handler.err_out_screen('Improper cfsEnsNumber options specified in the configuration file')
-                    if self.cfsv2EnsMember < 1 or self.cfsv2EnsMember > 4:
+                    if int(self.cfsv2EnsMember) < 1 or int(self.cfsv2EnsMember) > 4:
                         err_handler.err_out_screen('Please chose an cfsEnsNumber value of 1,2,3 or 4.')
 
             # Read in information for the custom input NetCDF files that are to be processed.

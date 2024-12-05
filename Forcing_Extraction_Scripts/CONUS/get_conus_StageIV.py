@@ -66,17 +66,20 @@ def main(args):
         fileDownload = "st4_conus." + dCurrent.strftime('%Y%m%d%H') + ".01h.grb2"
         url = httpDownloadDir + "/" + fileDownload
         outFile = pcpanlOutDir + "/" + fileDownload
-        if not os.path.isfile(outFile):
-            download_complete = False
-            start_time = time.time()
-            timer = 0.0
-            print("Pulling CONUS StageIV file: " + url)
-            while(download_complete == False and timer < 120.0):
-                try:
-                    request.urlretrieve(url,outFile)
-                    download_complete = True
-                except:
-                    timer = time.time() - start_time
+        if os.path.isfile(outFile):
+            print(f"Skipping download ... File exists: {outFile}")
+            continue
+            
+        download_complete = False
+        start_time = time.time()
+        timer = 0.0
+        print("Pulling CONUS StageIV file: " + url)
+        while(download_complete == False and timer < 120.0):
+            try:
+                request.urlretrieve(url,outFile)
+                download_complete = True
+            except:
+                timer = time.time() - start_time
 
         if(download_complete == False):
             print("Unable to retrieve: " + url)

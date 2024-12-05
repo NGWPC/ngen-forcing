@@ -12,3 +12,21 @@ short_range:
 #medium_range:
   #mr_config_path: "/srv/data/configs/CONUS/mr_config.yml"
   #gfs_out_path: "/GFS"
+medium_range_blend:
+  mrb_config_path: "/srv/data/configs/CONUS/mrb_config.yml"
+  gfs_out_path: "/GFS"
+  nbm_out_path: "/NBM"
+standard_ana:
+  ana_config_path: "/srv/data/configs/CONUS/ana_config.yml"
+  mrms_ms_out_path: "/MRMS_MS"
+  mrms_ro_out_path: "/MRMS_RO"
+  hrrr_out_path: "/HRRR_ANA"
+  rap_out_path: "/RAP_ANA"
+long_range:
+  lr_config_path: "/srv/data/configs/CONUS/lr_config.yml"
+  cfs_out_path: "/CFS"
+extended_ana:
+  ana_config_path: "/srv/data/configs/CONUS/ext_ana_config.yml"
+  stage_iv_out_path: "/STAGE_IV"
+  hrrr_out_path: "/HRRR_ANA"
+  rap_out_path: "/RAP_ANA"

@@ -1,9 +1,5 @@
-# Quick and dirty program to pull down operational 
-# conus Rapid Refresh data (surface files).
+# conus Rapid Refresh data (surface files) - modified to download only f01, f02 files
 
-# Logan Karsten
-# National Center for Atmospheric Research
-# Research Applications Laboratory
 
 import datetime
 import urllib
@@ -29,8 +25,7 @@ def main(args):
     pid = os.getpid()
     lockFile = outDir + "/GET_Conus_RAP.lock"
 
-    # First check to see if lock file exists, if it does, throw error message as
-    # another pull program is running. If lock file not found, create one with PID.
+    # Check for lock file
     if os.path.isfile(lockFile):
         fileLock = open(lockFile,'r')
         pid = fileLock.readline()
@@ -41,43 +36,34 @@ def main(args):
         fileLock.write(str(os.getpid()))
         fileLock.close()
 
+    # Clean old directories if needed
     for hour in range(cleanBackHours,lagBackHours,-1):
-        # Calculate current hour.
         dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
-
-        # Compose path to directory containing data.
         rapCleanDir = outDir + "/rap." + dCurrent.strftime('%Y%m%d')
-
-        # Check to see if directory exists. If it does, remove it. 
         if os.path.isdir(rapCleanDir):
             print("Removing old CONUS RAP data from: " + rapCleanDir)
             shutil.rmtree(rapCleanDir)
 
-    # Now that cleaning is done, download files within the download window. 
+    # Download only the first file (f00) from each forecast cycle
     for hour in range(lookBackHours,lagBackHours,-1):
-        # Calculate current hour.
         dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
-
+        
         rapOutDir = outDir + "/rap." + dCurrent.strftime('%Y%m%d')
         if not os.path.isdir(rapOutDir):
             os.mkdir(rapOutDir)
 
-        if dCurrent.hour == 3 or dCurrent.hour == 9 or dCurrent.hour == 15 or dCurrent.hour == 21:
-            # RAP cycles every six hours produce forecasts out to 39 hours.
-            nFcstHrs = 39
-        else:
-            # Otherwise, 21 hour forecasts. 
-            nFcstHrs = 21
-
-        for hrDownload in range(0,nFcstHrs+1):
+        # Construct URL for f00 and f01
+        for fhr in ['01','02']:
             httpDownloadDir = ncepHTTP + "/rap." + dCurrent.strftime('%Y%m%d')
-            fileDownload = "rap.t" + dCurrent.strftime('%H') + \
-                       "z.awp130bgrbf" + str(hrDownload).zfill(2) + ".grib2"
+            fileDownload = "rap.t" + dCurrent.strftime('%H') + "z.awp130bgrbf" + fhr + ".grib2"
+            #str(int(fhr) + 1).zfill(2)
             url = httpDownloadDir + "/" + fileDownload
             outFile = rapOutDir + "/" + fileDownload
+
             if os.path.isfile(outFile):
-                print(f"Skipping download ... File already exists: {outFile}")
+                print(f"Skipping download ... File exists: {outFile}")
                 continue
+                
             download_complete = False
             start_time = time.time()
             timer = 0.0
@@ -89,11 +75,11 @@ def main(args):
                 except:
                     timer = time.time() - start_time
 
-        if(download_complete == False):
-            print("Unable to retrieve: " + url)
-            print("Data may not available yet...")
+            if(download_complete == False):
+                print("Unable to retrieve: " + url)
+                print("Data may not be available yet...")
 
-    # Remove the LOCK file.
+    # Remove the LOCK file
     os.remove(lockFile)
 
 def get_options():
@@ -103,7 +89,6 @@ def get_options():
     parser.add_argument('--lookBackHours', type=int, default=30, help="How many hours to look back for forecast data cycles")
     parser.add_argument('--cleanBackHours', type=int, default=240, help="Period between this time and the beginning of the lookback period to cleanout old data")
     parser.add_argument('--lagBackHours', type=int, default=1, help="Wait at least this long back before searching for files")
-
 
     return parser.parse_args()
 

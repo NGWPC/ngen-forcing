@@ -40,7 +40,8 @@ def main(args):
 
     dNowUTC = datetime.datetime.utcnow()
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
-    fcstHrsDownload = 768
+    fcstHrsDownload = 60
+    #fcstHrsDownload = 768
     ensNum = "01"
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
 

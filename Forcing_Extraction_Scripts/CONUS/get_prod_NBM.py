@@ -94,7 +94,8 @@ def main(args):
         # their forecast output intervals are inconsistent
         ext = ".co.grib2"
         nbm_urls = get_url_paths(httpDownloadDir,ext)
-        for i in range(len(nbm_urls)):
+        #for i in range(len(nbm_urls)):
+        for i in range(18):
             fileDownload = nbm_urls[i].split('/')[-1]
             outFile = nbmOutDir2 + "/" + fileDownload
             if not os.path.isfile(outFile):

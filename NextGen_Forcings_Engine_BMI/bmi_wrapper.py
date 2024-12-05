@@ -73,12 +73,11 @@ def execute(args):
     if cycle_name=="short_range":
         
         #Set cycle-specific path variables
-        #TODO: use os.path.join
-        sr_configPath = config['short_range']['sr_config_path']
-        hrrr_extract_scriptPath = f"{extraction_scriptPath}/CONUS/get_conus_HRRR.py"
-        hrrr_extract_outPath = f"{extraction_outPath}/{config['short_range']['hrrr_out_path']}"     
-        rap_extract_scriptPath = f"{extraction_scriptPath}/CONUS/get_conus_RAP.py"
-        rap_extract_outPath = f"{extraction_outPath}/{config['short_range']['rap_out_path']}"
+        configPath = config['short_range']['sr_config_path']
+        hrrr_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_HRRR.py")
+        hrrr_extract_outPath = os.path.join(extraction_outPath, config['short_range']['hrrr_out_path'].lstrip('/'))     
+        rap_extract_scriptPath = os.path.join(extraction_scriptPath,"CONUS", "get_conus_RAP.py")
+        rap_extract_outPath = os.path.join(extraction_outPath, config['short_range']['rap_out_path'].lstrip('/'))
         
         #set cycle-specific time variables
         #TODO: Make timesteps configurable with defaults set in config file?
@@ -107,42 +106,256 @@ def execute(args):
             "--lagBackHours=1"
         ]
         subprocess.run(cmd2, check=True)        
+
+    elif cycle_name == 'medium_range_blend':
         
-        #run the forcing engine BMI
-        if output_path != None:
-            if num_processes != None:
-                cmd3 = [
-                    "conda", "run", "-n", "NextGen_Forcings_Engine",
-                    "mpirun", "-np", str(num_processes), 
-                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                    f"-output_path={output_path}", start_time, end_time        
-                ]
-            else:
-                cmd3 = [
-                    "conda", "run", "-n", "NextGen_Forcings_Engine",
-                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                    f"-output_path={output_path}",start_time, end_time        
-                ]
-        else:
-            if num_processes != None:
-                cmd3 = [
-                    "conda", "run", "-n", "NextGen_Forcings_Engine",
-                    "mpirun", "-np", str(num_processes), 
-                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                    start_time, end_time
-                ]
-            else:
-                cmd3 = [
-                    "conda", "run", "-n", "NextGen_Forcings_Engine",
-                    "python", bmi_scriptPath, f"-config_path={sr_configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                    start_time, end_time
-                ]       
-        subprocess.run(cmd3, check=True)
-    #TODO: Add additional NWM forecast cycles
-    #elif cycle_name == medium_range:
+        #Set cycle-specific path variables
+        configPath = config['medium_range_blend']['mrb_config_path']
+        gfs_extract_scriptPath = os.path.join(extraction_scriptPath, "Global", "get_prod_GFS.py")
+        gfs_extract_outPath = os.path.join(extraction_outPath, config['medium_range_blend']['gfs_out_path'].lstrip('/'))
+        nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_prod_NBM.py")
+        nbm_extract_outPath = os.path.join(extraction_outPath, config['medium_range_blend']['nbm_out_path'].lstrip('/'))
+                
+        #set cycle-specific time variables
+        #TODO: Make timesteps configurable with defaults set in config file?
+        #TODO: Set end time to actual NWM cycle (10-day)
+        
+        b_date_dt = dNow - datetime.timedelta(seconds=3600*3)
+        b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
+        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600*1)
+        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600*17)      
+        #create strings from datetime objects for use in commands
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")     
+
+        #calculate lookback window since GFS is on a 6-hourly cycle
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+        lagback = hours_difference - 1
+        lookback = hours_difference
+
+
+        #Run the forcing_extraction script for GFS        
+        cmd1 = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", gfs_extract_scriptPath, gfs_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd1, check=True)
+        
+        #Run the forcing_extraction script for NBM
+                
+        cmd2 = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", nbm_extract_scriptPath, nbm_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd2, check=True)  
+
+    elif cycle_name == 'standard_ana':
+        
+        #Set cycle-specific path variables
+        configPath = config['standard_ana']['ana_config_path']
+        hrrr_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_HRRR_AnA.py")
+        hrrr_extract_outPath = os.path.join(extraction_outPath, config['standard_ana']['hrrr_out_path'].lstrip('/'))
+        rap_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_RAP_AnA.py")
+        rap_extract_outPath = os.path.join(extraction_outPath, config['standard_ana']['rap_out_path'].lstrip('/'))
+        mrms_ms_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_MRMS_MultiSensor.py")
+        mrms_ms_extract_outPath = os.path.join(extraction_outPath, config['standard_ana']['mrms_ms_out_path'].lstrip('/'))  
+        mrms_ro_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_MRMS_Radar.py")
+        mrms_ro_extract_outPath = os.path.join(extraction_outPath, config['standard_ana']['mrms_ro_out_path'].lstrip('/'))  
+                     
+        #set cycle-specific time variables
+        #TODO: Make timesteps configurable with defaults set in config file?
+        
+        b_date_dt = dNow - datetime.timedelta(seconds=3600*1)
+        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600*3)
+        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600*1)
+        #create strings from datetime objects for use in commands
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")     
+
+        #calculate lookback window since this is an AnA run
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+        lagback = 0
+        lookback = hours_difference + 4
+
+        #Run the forcing_extraction script for HRRR        
+        cmd1a = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}", 
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1a, check=True)
+        
+        #Run the forcing_extraction script for RAP
+                
+        cmd1b = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", rap_extract_scriptPath, rap_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}", 
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1b, check=True)  
+        
+        #Run the forcing_extraction script for MRMS_MS        
+        cmd2a = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", mrms_ms_extract_scriptPath, mrms_ms_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd2a, check=True)
+        
+        #Run the forcing_extraction script for MRMS_RO
+                
+        cmd2b = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", mrms_ro_extract_scriptPath, mrms_ro_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd2b, check=True)  
+
+    if cycle_name=="long_range":
+        
+        #TODO: alter for NWM cycle -  ensemble forecasting, 30 day
+        
+        #Set cycle-specific path variables
+        configPath = config['long_range']['lr_config_path']
+        cfs_extract_scriptPath = os.path.join(extraction_scriptPath, "Global", "get_CFSv2.py")
+        cfs_extract_outPath = os.path.join(extraction_outPath, config['long_range']['cfs_out_path'].lstrip('/'))     
+
+        #set cycle-specific time variables
+        #TODO: Make timesteps configurable with defaults set in config file?
+        #TODO: Set end time to actual NWM cycle (30-day)
+        
+        b_date_dt = dNow - datetime.timedelta(seconds=3600*3)
+        b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
+        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600*1)
+        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600*48)      
+        #create strings from datetime objects for use in commands
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")     
+
+        #calculate lookback window since CFS is on a 6-hourly cycle
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+        lagback = hours_difference - 1
+        lookback = hours_difference
+        
+        #Run the forcing_extraction script for CFS
+        cmd1 = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", cfs_extract_scriptPath, cfs_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd1, check=True)
+
+    elif cycle_name == 'extended_ana':
+        
+        #Set cycle-specific path variables
+        configPath = config['extended_ana']['ana_config_path']
+        hrrr_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_HRRR_AnA.py")
+        hrrr_extract_outPath = os.path.join(extraction_outPath, config['extended_ana']['hrrr_out_path'].lstrip('/'))
+        rap_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_RAP_AnA.py")
+        rap_extract_outPath = os.path.join(extraction_outPath, config['extended_ana']['rap_out_path'].lstrip('/'))
+        stage_iv_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_StageIV.py")
+        stage_iv_extract_outPath = os.path.join(extraction_outPath, config['extended_ana']['stage_iv_out_path'].lstrip('/'))  
+                 
+        #set cycle-specific time variables
+        #TODO: Make timesteps configurable with defaults set in config file?
+        
+        b_date_dt = dNow - datetime.timedelta(seconds=3600*1)
+        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600*16)
+        print(f"start_time_dt: {start_time_dt}")
+        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600*1)
+        print(f"end_time_dt: {end_time_dt}")      
+        #create strings from datetime objects for use in commands
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")     
+
+        #calculate lookback window since this is an AnA run
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+        lagback = 0
+        lookback = hours_difference + 17
+        print(f"lagback = {lagback}")
+        print(f"lookback = {lookback}")
+
+
+        #Run the forcing_extraction script for HRRR        
+        cmd1a = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}", 
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1a, check=True)
+        
+        #Run the forcing_extraction script for RAP
+                
+        cmd1b = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", rap_extract_scriptPath, rap_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}", 
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1b, check=True)  
+        
+        #Run the forcing_extraction script for stage_iv        
+        cmd2 = [
+            "conda", "run", "-n", "forcing_extraction",
+            "python", stage_iv_extract_scriptPath, stage_iv_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}"
+        ]
+        subprocess.run(cmd2, check=True)      
+   
     else:
-        print("Only short_range cycle currently implemented")
-        print("cycle_name argument must match 'short_range' exactly")
+        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana")     
+    
+    #run the forcing engine BMI
+    if output_path != None:
+        if num_processes != None:
+            cmd3 = [
+                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "mpirun", "-np", str(num_processes), 
+                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                f"-output_path={output_path}", start_time, end_time        
+            ]
+        else:
+            cmd3 = [
+                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                f"-output_path={output_path}",start_time, end_time        
+            ]
+    else:
+        if num_processes != None:
+            cmd3 = [
+                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "mpirun", "-np", str(num_processes), 
+                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                start_time, end_time
+            ]
+        else:
+            cmd3 = [
+                "conda", "run", "-n", "NextGen_Forcings_Engine",
+                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
+                start_time, end_time
+            ]       
+    subprocess.run(cmd3, check=True)
+
+  
 
 def get_options():
     '''
