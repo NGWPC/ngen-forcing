@@ -18,3 +18,6 @@ This directory contains Python scripts for downloading and time-slicing real-tim
 
 # Observed Waterlevel Scripts Directory
 This directory contains Python scripts for downloading and observed water level data from the NOAA CO-OPS. Setup, installation, and examples of utilizing these Python tools are further described within The README.md file in the directory.
+
+# Coastal Forcing Scripts Directory
+This directory contains Python scripts for creating forcing input files for coastal models. Meteorological forcings and tidal water levels input files for SFINCS and SCHISM can be created by these scripts. Setup, installation, and examples of utilizing these Python tools are further described within The README.md file in the directory.
