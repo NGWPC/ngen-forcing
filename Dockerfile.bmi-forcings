@@ -58,16 +58,20 @@ SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 COPY ./NextGen_Forcings_Engine_BMI/environment.yml forcings-environment.yaml
 COPY ./Forcing_Extraction_Scripts/environment.yml extract-environment.yaml
 COPY ./Streamflow_Scripts/environment.yml streamflow-environment.yaml
+## FIXME: why does this create so many package conflicts?? ##
+# COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml esmf-environment.yaml
 
-ARG CONDA_ENV_PATH=/ngen-app/conda
+ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
+ARG CONDA_ENV_PATH=/root/.conda/envs/${CONDA_ENV_NAME}
 RUN set -eux; \
 	\
-    mkdir --parents ${CONDA_ENV_PATH} ; \
-    conda env create --prefix ${CONDA_ENV_PATH} --file=forcings-environment.yaml ; \
-    conda env update --prefix ${CONDA_ENV_PATH} --file=extract-environment.yaml ; \
-    conda env update --prefix ${CONDA_ENV_PATH} --file=streamflow-environment.yaml ; \
+    conda env create --name ${CONDA_ENV_NAME} --file=forcings-environment.yaml ; \
+    conda env update --name ${CONDA_ENV_NAME} --file=extract-environment.yaml ; \
+    conda env update --name ${CONDA_ENV_NAME} --file=streamflow-environment.yaml ; \
+    ## FIXME: why does this create so many package conflicts?? ##
+    # conda env update --name ${CONDA_ENV_NAME} --file=esmf-environment.yaml ; \
     conda clean --all ; \
-    rm --force forcings-environment.yaml extract-environment.yaml streamflow-environment.yaml
+    rm --force forcings-environment.yaml extract-environment.yaml streamflow-environment.yaml esmf-environment.yaml
 
 RUN set -eux; \
     \
