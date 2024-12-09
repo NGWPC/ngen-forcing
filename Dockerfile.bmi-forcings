@@ -62,7 +62,8 @@ COPY ./Streamflow_Scripts/environment.yml streamflow-environment.yaml
 # COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml esmf-environment.yaml
 
 ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
-ARG CONDA_ENV_PATH=/root/.conda/envs/${CONDA_ENV_NAME}
+ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
+ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 RUN set -eux; \
 	\
     conda env create --name ${CONDA_ENV_NAME} --file=forcings-environment.yaml ; \
