@@ -4,7 +4,7 @@ channels:
   - anaconda
   - conda-forge
 dependencies:
-  - python
+  - python~=3.10.0
   - geopandas
   - netCDF4
   - pandas
