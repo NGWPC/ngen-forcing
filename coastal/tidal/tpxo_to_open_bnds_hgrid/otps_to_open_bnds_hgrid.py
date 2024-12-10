@@ -3,6 +3,7 @@
 import os, sys, time, urllib, getopt
 import logging
 import argparse
+import math
 from datetime import datetime
 import numpy as np
 import netCDF4
@@ -35,6 +36,7 @@ def main():
                   tpxo.df['Lon'].between( coords[0][0] -0.001, coords[0][0] + 0.001) ]
     start = datetime.strptime( f'{tpxo.df["mm.dd.yyyy"].iloc[0]} {tpxo.df["hh:mm:ss"].iloc[0]}', "%m.%d.%Y %H:%M:%S")
     end = datetime.strptime( f'{tpxo.df["mm.dd.yyyy"].iloc[-1]} {tpxo.df["hh:mm:ss"].iloc[-1]}', "%m.%d.%Y %H:%M:%S")
+    nsteps = math.floor( (end -start).total_seconds() / 3600 ) + 1
 
     #create the output file
     with netCDF4.Dataset(args.output, "w", format="NETCDF4") as f_out:
@@ -56,15 +58,18 @@ def main():
         time_var.start_time = 0. ;
 
         time_step_var[:] = np.array([time_step])
-        time_var[:] = np.arange(0, len(df_selected)*time_step, time_step)
+        #time_var[:] = np.arange(0, len(df_selected)*time_step, time_step)
+        time_var[:] = np.arange(0, nsteps*time_step, time_step)
 
         for c in range(0, len(coords)):
-           df_selected = tpxo.df[ tpxo.df['Lat'].between( coords[c][1] - 0.001, coords[c][1] + 0.001 ) & \
-                  tpxo.df['Lon'].between( coords[c][0] -0.001, coords[c][0] + 0.001) ]
+           df_selected = tpxo.df[ tpxo.df['Lat'].between( coords[c][1] - 0.0001, coords[c][1] + 0.0001 ) & \
+                  tpxo.df['Lon'].between( coords[c][0] -0.0001, coords[c][0] + 0.0001) ]
            if not df_selected.empty:
                data = df_selected["z(m)"]
                data = np.where(data > missing, data, 0)
-               time_series_var[:, c, 0, 0] = data
+               time_series_var[:, c, 0, 0] = data[0:nsteps]
+           else:
+               time_series_var[:, c, 0, 0] = 0
 
 t0 = time.time()
 

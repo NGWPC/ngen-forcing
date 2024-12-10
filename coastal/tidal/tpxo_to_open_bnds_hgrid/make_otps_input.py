@@ -6,7 +6,6 @@ import argparse
 from datetime import datetime, timedelta
 import numpy as np
 import netCDF4
-from TPXOOut import TPXOOut, isclose
 
 schism_coord_name = "nodeCoords"
 schism_open_boundary_name = "openBndNodes"
@@ -17,7 +16,7 @@ def main():
     parser.add_argument('start_time', type=str, help='start time of the timeseries, YYYYmmddHH')
     parser.add_argument('end_time', type=str, help='end time of the timeseries, YYYYmmddHH')
     parser.add_argument('time_step', type=str, help='time step in seconds')
-    parser.add_argument('output', type=str, help='the OTPSnc input filename')
+    parser.add_argument('output', type=str, help='OTPSnc inputfile')
 
     args = parser.parse_args()
 
