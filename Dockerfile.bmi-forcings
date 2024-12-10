@@ -13,9 +13,19 @@ ENV LANG="C.UTF-8"
 
 ## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
 
+# Add conda repo
+RUN <<EOF cat > /etc/yum.repos.d/conda.repo
+[conda]
+name=Conda
+baseurl=https://repo.anaconda.com/pkgs/misc/rpmrepo/conda
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.anaconda.com/pkgs/misc/gpgkeys/anaconda.asc
+EOF
+
 # runtime dependencies
 RUN set -eux; \
-    dnf install -y epel-release; \
+    dnf install -y dnf-plugins-core; \
     dnf config-manager --set-enabled powertools; \
     dnf install -y \
         autoconf \
@@ -46,6 +56,9 @@ RUN set -eux; \
     ; \
     dnf clean all
 
+# add conda to the PATH
+ENV PATH=/opt/conda/bin:${PATH}
+
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 ## FIXME: replace openmpi with Intel MPI libraries ##
@@ -55,36 +68,49 @@ SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 #ENV PSM3_HAL=loopback
 #ENV PSM3_DEVICES=self
 
-COPY ./NextGen_Forcings_Engine_BMI/environment.yml forcings-environment.yaml
-COPY ./Forcing_Extraction_Scripts/environment.yml extract-environment.yaml
-COPY ./Streamflow_Scripts/environment.yml streamflow-environment.yaml
-## FIXME: why does this create so many package conflicts?? ##
-# COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml esmf-environment.yaml
+ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
+
+ARG CONDA_ENV_NAME=ngen_forcing_extraction
+COPY ./Forcing_Extraction_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=ngen_streamflow
+COPY ./Streamflow_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
+COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
 
 ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
-ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
-ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
+COPY ./NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
 RUN set -eux; \
-	\
-    conda env create --name ${CONDA_ENV_NAME} --file=forcings-environment.yaml ; \
-    conda env update --name ${CONDA_ENV_NAME} --file=extract-environment.yaml ; \
-    conda env update --name ${CONDA_ENV_NAME} --file=streamflow-environment.yaml ; \
-    ## FIXME: why does this create so many package conflicts?? ##
-    # conda env update --name ${CONDA_ENV_NAME} --file=esmf-environment.yaml ; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
     conda clean --all ; \
-    rm --force forcings-environment.yaml extract-environment.yaml streamflow-environment.yaml esmf-environment.yaml
+    rm --force environment.yaml
 
+ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 RUN set -eux; \
     \
     conda init bash
-ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
 ENV WGRIB2=${CONDA_ENV_PATH}/bin/wgrib2
 
 COPY . /ngen-app/ngen-forcing/
-WORKDIR /ngen-app/
 
-
-WORKDIR /
+# Reset SHELL so we're not locked into the gcc-10 build environment
 SHELL ["/bin/bash", "-c"]
 
 ENTRYPOINT [ "/bin/bash" ] 
