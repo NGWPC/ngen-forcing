@@ -13,9 +13,6 @@ import netCDF4 as nc
 import os
 from os import path
 
-from pprint import pprint
-
-
 def round_down(n, decimals=0):
     import math
     multiplier = 10 ** decimals
