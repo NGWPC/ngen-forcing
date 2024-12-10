@@ -10,9 +10,19 @@ ENV LANG="C.UTF-8"
 
 ## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
 
+# Add conda repo
+RUN <<EOF cat > /etc/yum.repos.d/conda.repo
+[conda]
+name=Conda
+baseurl=https://repo.anaconda.com/pkgs/misc/rpmrepo/conda
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.anaconda.com/pkgs/misc/gpgkeys/anaconda.asc
+EOF
+
 # runtime dependencies
 RUN set -eux; \
-    dnf install -y epel-release; \
+    dnf install -y dnf-plugins-core epel-release; \
     dnf config-manager --set-enabled powertools; \
     dnf install -y \
         autoconf \
@@ -38,6 +48,9 @@ RUN set -eux; \
     ; \
     dnf clean all
 
+# add conda to the PATH
+ENV PATH=/opt/conda/bin:${PATH}
+
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 ## FIXME: replace openmpi with Intel MPI libraries ##
@@ -47,24 +60,38 @@ SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 #ENV PSM3_HAL=loopback
 #ENV PSM3_DEVICES=self
 
-COPY ./NextGen_Lumped_Forcings_Driver/environment.yml lumped-environment.yaml
-COPY ./Forcing_Extraction_Scripts/environment.yml extract-environment.yaml
-COPY ./Streamflow_Scripts/environment.yml streamflow-environment.yaml
+ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
+
+ARG CONDA_ENV_NAME=ngen_forcing_extraction
+COPY ./Forcing_Extraction_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=ngen_streamflow
+COPY ./Streamflow_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
 
 ARG CONDA_ENV_NAME=ngen_lumped_forcings_driver
-ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
-ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
+COPY ./NextGen_Lumped_Forcings_Driver/environment.yml environment.yaml
 RUN set -eux; \
-	\
-    conda env create --prefix ${CONDA_ENV_PATH} --file=lumped-environment.yaml ; \
-    conda env update --prefix ${CONDA_ENV_PATH} --file=extract-environment.yaml ; \
-    conda env update --prefix ${CONDA_ENV_PATH} --file=streamflow-environment.yaml ; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
     conda clean --all ; \
-    rm --force lumped-environment.yaml extract-environment.yaml streamflow-environment.yaml
+    rm --force environment.yaml
 
 RUN set -eux; \
     \
     conda init bash
+
+ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
+ARG OLD_PATH=${PATH}
 ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
 
 ## TODO: use isciences official release of ExactExtract instead of this older fork
@@ -78,6 +105,8 @@ RUN set -eux; \
     pip3 cache purge ; \
     conda clean --all ; \
     rm --force --recursive /usr/src/exactextract
+
+ENV PATH=${OLD_PATH}
 
 COPY . /ngen-app/ngen-forcing/
 WORKDIR /ngen-app/
