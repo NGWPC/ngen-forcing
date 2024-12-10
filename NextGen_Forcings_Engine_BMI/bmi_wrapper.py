@@ -226,7 +226,7 @@ def execute(args):
         ]
         subprocess.run(cmd2b, check=True)  
 
-    if cycle_name=="long_range":
+    elif cycle_name=="long_range":
         
         #TODO: alter for NWM cycle -  ensemble forecasting, 30 day
         
@@ -238,8 +238,12 @@ def execute(args):
         #set cycle-specific time variables
         #TODO: Make timesteps configurable with defaults set in config file?
         #TODO: Set end time to actual NWM cycle (30-day)
-        
-        b_date_dt = dNow - datetime.timedelta(seconds=3600*3)
+
+        if dNowUTC.hour in [1, 2, 7, 8, 13, 14, 19, 20]:
+            b_date_dt = dNow - datetime.timedelta(seconds=3600*3)
+        else: 
+            b_date_dt = dNow - datetime.timedelta(seconds=3600*7)
+
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
         start_time_dt = b_date_dt + datetime.timedelta(seconds=3600*1)
         end_time_dt = start_time_dt + datetime.timedelta(seconds=3600*48)      
