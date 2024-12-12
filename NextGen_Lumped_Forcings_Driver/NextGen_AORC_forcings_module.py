@@ -1,7 +1,8 @@
 import multiprocessing
 if multiprocessing.get_start_method(allow_none=True) != 'spawn':
     multiprocessing.set_start_method('spawn', force=True)
-from multiprocessing import Process, Lock, Queue, Manager
+from multiprocessing import Process, Lock, Queue, Manager, current_process
+from multiprocessing.pool import ThreadPool
 import numpy as np
 import geopandas as gpd
 import netCDF4 as nc4
@@ -29,7 +30,89 @@ import zarr
 import resource
 from osgeo import osr
 import json
+import shutil
+import threading
+from functools import lru_cache
 
+
+dask.config.set(pool=ThreadPool(1))
+
+# Thread-safe cache with size limit
+class YearCache:
+    def __init__(self, max_size=4):
+        #self.mangager = Manager()
+        self.max_size = max_size
+        self._cache = {}
+        self._lock = threading.Lock()
+        
+    def get(self, year):
+        with self._lock:
+            return self._cache.get(year)
+            
+    def set(self, year, data):
+        with self._lock:
+            if len(self._cache) >= self.max_size and year not in self._cache:
+                # Remove least recently used year
+                lru_year = min(self._cache.keys())
+                del self._cache[lru_year]
+            self._cache[year] = data
+            
+    def contains(self, year):
+        with self._lock:
+            return year in self._cache
+
+_year_cache = YearCache(max_size=4)
+
+def get_cached_subset(year, hyfabfile, AORC_met_vars):
+    """Get or create cached subset for a year"""
+    cached_data = _year_cache.get(year)
+    if cached_data is not None:
+        return cached_data
+        
+    # Get the full dataset reference
+    _s3 = s3fs.S3FileSystem(anon=True)
+    zarr_path = f"s3://noaa-nws-aorc-v1-1-1km/{year}.zarr"
+    store = s3fs.S3Map(root=zarr_path, s3=_s3, check=False)
+    ds = xr.open_dataset(store, engine='zarr')
+    
+    # Do spatial subsetting and compute once
+    ds_subset = subset_zarr_by_bounds(ds, hyfabfile)
+    t0 = time.time()
+    print(f"Computing and caching subset for {year}.")
+    ds_subset = ds_subset[AORC_met_vars].compute()
+    t1 = time.time()
+    print(f"finished computing cached subset for {year}: {t1-t0:.3f}s")
+    
+    _year_cache.set(year, ds_subset)
+    return ds_subset
+
+def process_years_chunk(years_chunk, data, lock, shared_results, thread_num, 
+                       met_dataset_pathway, output_root, hyfabfile, weights,
+                       add_offset, scale_factor, AORC_met_vars, AORC_missing_value,
+                       aorc_ncfile, NN_table, gapfill, zarr_data):
+    """Process a chunk of years for a given thread"""
+    EE_df_final = pd.DataFrame()
+    time_subset = data["time_periods"]
+    
+    for year in years_chunk:
+        year_periods = time_subset[time_subset.year == year]
+        
+        for timestamp in year_periods:
+            EE_df = python_ExactExtract_zarr(
+                met_dataset_pathway,
+                hyfabfile,
+                add_offset,
+                scale_factor,
+                zarr_data['variables'],
+                NN_table,
+                gapfill,
+                timestamp.to_timestamp(),
+                len(time_subset)
+            )
+            EE_df_final = pd.concat([EE_df_final, EE_df])
+            
+    shared_results.append(EE_df_final)
+        
 def get_memory_usage():
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0
 
@@ -759,28 +842,45 @@ def python_ExactExtract_Manual_Weights(aorc_file, AORC_weights, add_offset, scal
 
     return csv_results
 
-def subset_zarr_by_bounds(ds, bounds, buff=0.1):
+
+
+def subset_zarr_by_bounds(ds, hyfabfile, buff=0.1):
     """
     Subset zarr data by geographical bounds with buffer
     bounds: (minx, miny, maxx, maxy)
     buff: degrees
     """
+    gdf = gpd.read_file(hyfabfile)
+    bounds = gdf.total_bounds    
+    
+    #t0=time.time()
     bounds_with_buffer = (
         bounds[0] - buff,
         bounds[1] - buff, 
         bounds[2] + buff,
         bounds[3] + buff
     )
+    #t1=time.time()
     
+    #subset=ds.sel(
     return ds.sel(
         latitude=slice(bounds_with_buffer[1], bounds_with_buffer[3]),
         longitude=slice(bounds_with_buffer[0], bounds_with_buffer[2])
     )
+    #t2 = time.time()
+    
+    #print(f"Bounds calc: {t1-t0:.3f}s")
+    #print(f"Selection op: {t2-t1:.3f}s")
+    #print(f"Subset shape: {subset.dims}")
+    
+    #lat_idx, lon_idx = get_spatial_indices(hyfabfile)
+    #return ds.isel(latitude=lat_idx, longitude=lon_idx)
 
 
 def python_ExactExtract_zarr(aorc_file, hyfabfile, add_offset, scale_factor, AORC_met_vars, NN_table, gapfill, timestamp=None, total_iterations=1):
-
     # time logging for performance metrics
+    #t0 = time.time()
+    
     if not hasattr(python_ExactExtract_zarr, "last_time"):
         python_ExactExtract_zarr.last_time = time.time()
         python_ExactExtract_zarr.elapsed_times = np.zeros(100)
@@ -792,28 +892,11 @@ def python_ExactExtract_zarr(aorc_file, hyfabfile, add_offset, scale_factor, AOR
     elapsed = current_time - python_ExactExtract_zarr.last_time
     
     avg_time = np.mean(python_ExactExtract_zarr.elapsed_times)
-    
-    # Initialize S3 and zarr access
-    _s3 = s3fs.S3FileSystem(anon=True)
-    year = timestamp.year
-    zarr_path = f"s3://noaa-nws-aorc-v1-1-1km/{year}.zarr"
-    
-    # Validate the path exists before proceeding
-    if not _s3.exists(zarr_path):
-        raise FileNotFoundError(f"Zarr store not found at: {zarr_path}")
-    
-    store = s3fs.S3Map(root=zarr_path, s3=_s3, check=False)
-    
-    ds = xr.open_dataset(store, engine='zarr', chunks={'time': 'auto'})
-    
-    # subsetting for speed
-    gdf = gpd.read_file(hyfabfile)
-    bounds = gdf.total_bounds
-    ds_subset = subset_zarr_by_bounds(ds, bounds)
 
-       
-    # Get dimensions and initialize with specific timestamp
-    all_vars_data = ds_subset.sel(time=timestamp.strftime('%Y-%m-%d %H:%M:%S')).compute()
+    #use cached subset
+    ds_subset = get_cached_subset(timestamp.year, hyfabfile, AORC_met_vars)
+    all_vars_data = ds_subset.sel(time=timestamp.strftime('%Y-%m-%d %H:%M:%S'))
+    
     lats = all_vars_data.latitude.values
     lons = all_vars_data.longitude.values   
         
@@ -824,70 +907,99 @@ def python_ExactExtract_zarr(aorc_file, hyfabfile, add_offset, scale_factor, AOR
     dy = (ymax - ymin) / (len(lats) - 1)
     geotransform = [xmin, dx, 0, ymax, 0, -dy]
     
-    # Initialize dictionaries for raster wrappers and operations
-    rsw_dict = {}
-    op_dict = {}
+    # Create process-specific temporary directory
+    process_id = current_process().pid
+    temp_dir = f"/tmp/aorc_process_{process_id}"
+    os.makedirs(temp_dir, exist_ok=True)
     
-    # Loop over each meteorological variable
-    for i, var in enumerate(AORC_met_vars):
-        # Create temporary GeoTIFF for this variable
-        temp_file = f"/tmp/temp_var_{i}.tif"
-        driver = gdal.GetDriverByName('GTiff')
-        rows, cols = all_vars_data[var].shape
-        dataset = driver.Create(temp_file, cols, rows, 1, gdal.GDT_Float32)
+    try:
+        # Initialize dictionaries for raster wrappers and operations
+        rsw_dict = {}
+        op_dict = {}
         
-        # Set projection and geotransform
-        srs = osr.SpatialReference()
-        srs.ImportFromEPSG(4326)
-        dataset.SetProjection(srs.ExportToWkt())
-        dataset.SetGeoTransform(geotransform)
+        gdal_start = time.time()
+        # Loop over each meteorological variable
         
-        # Write variable data
-        dataset.GetRasterBand(1).WriteArray(all_vars_data[var].values)
-        dataset.FlushCache()
-        dataset = None
+       
+        for i, var in enumerate(AORC_met_vars):
+            # Create temporary GeoTIFF for this variable
+            temp_file = os.path.join(temp_dir, f"var_{i}.tif")
+            driver = gdal.GetDriverByName('GTiff')
+            rows, cols = all_vars_data[var].shape
+            dataset = driver.Create(temp_file, cols, rows, 1, gdal.GDT_Float32)
+            
+            # Set projection and geotransform
+            srs = osr.SpatialReference()
+            srs.ImportFromEPSG(4326)
+            dataset.SetProjection(srs.ExportToWkt())
+            dataset.SetGeoTransform(geotransform)
+            
+            # Write variable data
+            dataset.GetRasterBand(1).WriteArray(all_vars_data[var].values)
+            dataset.FlushCache()
+            dataset = None
+            
+            # Create raster wrapper and operation
+            rsw_dict[f"rsw{i}"] = GDALRasterWrapper(temp_file)
+            op_dict[f"op{i}"] = Operation.from_descriptor(f'mean({var})', raster=rsw_dict[f"rsw{i}"])
+            
+       
+        gdal_setup_end = time.time()
         
-        # Create raster wrapper and operation
-        rsw_dict[f"rsw{i}"] = GDALRasterWrapper(temp_file)
-        op_dict[f"op{i}"] = Operation.from_descriptor(f'mean({var})', raster=rsw_dict[f"rsw{i}"])
-    
-    # Process features
-    dsw = GDALDatasetWrapper.from_descriptor(f"{hyfabfile}[hyfabfile_final]", field_name='divide_id')
-    writer = MapWriter()
-    processor = FeatureSequentialProcessor(dsw, writer, list(op_dict.values()))
-    processor.process()    
+        # Process features
+        #process_start = time.time()
+        dsw = GDALDatasetWrapper.from_descriptor(f"{hyfabfile}[hyfabfile_final]", field_name='divide_id')
+        writer = MapWriter()
+        processor = FeatureSequentialProcessor(dsw, writer, list(op_dict.values()))
+        processor.process()  
+        #process_end = time.time()  
 
-    # Process results
-    csv_results = pd.DataFrame(writer.output.values(), columns=AORC_met_vars)
-    for i, column in enumerate(csv_results):
-        csv_results[column] = csv_results[column] * scale_factor[i] + add_offset[i]
+        # Process results
+        #results_start = time.time()
+        csv_results = pd.DataFrame(writer.output.values(), columns=AORC_met_vars)
+        for i, column in enumerate(csv_results):
+            csv_results[column] = csv_results[column] * scale_factor[i] + add_offset[i]
         
-    csv_results['cat-id'] = writer.output.keys()
-    csv_results['time'] = (timestamp - pd.Timestamp("1970-01-01 00:00:00")).total_seconds()
+          
+        csv_results['cat-id'] = writer.output.keys()
+        csv_results['time'] = (timestamp - pd.Timestamp("1970-01-01 00:00:00")).total_seconds()
         
-    # Cleanup
-    for i in range(len(AORC_met_vars)):
-        os.remove(f"/tmp/temp_var_{i}.tif")
-    ds.close()
-    
-    if(gapfill):
-        csv_results = nearest_neighbor_correction(csv_results, NN_table, AORC_met_vars)
-    
-    # processing time metrics, continually updating
-    python_ExactExtract_zarr.elapsed_times[python_ExactExtract_zarr.index] = elapsed
-    python_ExactExtract_zarr.index = (python_ExactExtract_zarr.index + 1) % 100
-    python_ExactExtract_zarr.count = min(python_ExactExtract_zarr.count + 1, 100)
-   
-    avg_time = np.mean(python_ExactExtract_zarr.elapsed_times[:python_ExactExtract_zarr.count])
-    python_ExactExtract_zarr.current_iteration += 1
-    percent_done = (python_ExactExtract_zarr.current_iteration / total_iterations) * 100
+        if(gapfill):
+            csv_results = nearest_neighbor_correction(csv_results, NN_table, AORC_met_vars)
+        
+        #results_end = time.time()
+        
+        #total_time = time.time() - t0
+        
+        #print(f"Dataset retrieval: {t1-t0:.3f}s")
+        #print(f"Spatial subsetting: {t2-t1:.3f}s")
+        #print(f"Time selection and compute: {t3-t2:.3f}s")
+        #print(f"GDAL setup: {gdal_setup_end-gdal_start:.3f}s")
+        #print(f"Feature processing: {process_end-process_start:.3f}s")
+        #print(f"Results processing: {results_end-results_start:.3f}s")
+        #print(f"Total function time: {total_time:.3f}s")
+        
+        # processing time metrics, continually updating
+        python_ExactExtract_zarr.elapsed_times[python_ExactExtract_zarr.index] = elapsed
+        python_ExactExtract_zarr.index = (python_ExactExtract_zarr.index + 1) % 100
+        python_ExactExtract_zarr.count = min(python_ExactExtract_zarr.count + 1, 100)
+       
+        avg_time = np.mean(python_ExactExtract_zarr.elapsed_times[:python_ExactExtract_zarr.count])
+        python_ExactExtract_zarr.current_iteration += 1
+        percent_done = (python_ExactExtract_zarr.current_iteration / total_iterations) * 100
 
-    output = f"\r Processed {timestamp}, current: {elapsed:.4f}s, Avg: {avg_time:.4f}s, {percent_done:3.1f}%"
-    print(f"\r{output:<60}", end='', flush=True)
-    python_ExactExtract_zarr.last_time = current_time
+        output = f"\r Processed {timestamp}, current: {elapsed:.4f}s, Avg: {avg_time:.4f}s, {percent_done:3.1f}%"
+        print(f"\r{output:<60}", end='', flush=True)
+        python_ExactExtract_zarr.last_time = current_time
         
-    return csv_results[['cat-id', 'time'] + list(AORC_met_vars)]
-
+        return csv_results
+        
+    finally:
+        # Clean up resources
+        for rsw in rsw_dict.values():
+            del rsw
+        #ds.close()
+        shutil.rmtree(temp_dir, ignore_errors=True)
 
 def python_ExactExtract(aorc_file, hyfabfile, add_offset, scale_factor, AORC_met_vars, NN_table, gapfill):
     
@@ -1269,26 +1381,46 @@ def VPU_NGen_files(met_dataset_pathway, datafiles, aorc_filenames, output_root, 
     
     weights_data = pd.read_csv(weights) if weights else None
     
-    manager = Manager()
-    shared_results = manager.list()
-    process_list = []
-
     if met_dataset_pathway is not None and met_dataset_pathway.startswith('s3://'):
-        # Split time periods for zarr data
-        time_groups = np.array_split(pr, num_processes)
+        # Modified zarr processing with year chunks
+        years = sorted(pr.year.unique())
+        chunk_size = min(num_processes, len(years))
         
-        for i in range(num_processes):
-            data = {
-                "time_periods": time_groups[i],
-                "is_zarr": True,
-                "weights_data": weights_data
-            }
-            p = Process(target=process_sublist, 
-                       args=(data, None, shared_results, i, met_dataset_pathway, 
-                            output_root, hyfabfile, weights, add_offset, 
-                            scale_factor, AORC_met_vars, AORC_missing_value, 
-                            aorc_ncfile, NN_table, gapfill, zarr_data))
-            process_list.append(p)
+        manager = Manager()
+        shared_results = manager.list()
+        
+        # Process years in chunks equal to number of processes
+        for i in range(0, len(years), chunk_size):
+            years_chunk = years[i:i + chunk_size]
+            process_list = []
+            
+            # Create process for each year in chunk
+            for j, year in enumerate(years_chunk):
+                year_periods = pr[pr.year == year]
+                data = {
+                    "time_periods": year_periods,
+                    "weights_data" : weights_data,
+                    "is_zarr": True
+                }
+                
+                p = Process(
+                    target=process_years_chunk,
+                    args=([year], data, None, shared_results, j, 
+                          met_dataset_pathway, output_root, hyfabfile,
+                          weights, add_offset, scale_factor, AORC_met_vars,
+                          AORC_missing_value, aorc_ncfile, NN_table, 
+                          gapfill, zarr_data)
+                )
+                process_list.append(p)
+            
+            # Start and wait for processes in current chunk
+            for p in process_list:
+                p.start()
+            for p in process_list:
+                p.join()
+            
+            # Clear cache after chunk is complete
+            gc.collect()
     else:
         # Original non-zarr processing
         url_file_groups = np.array_split(np.array(datafiles), num_processes)
@@ -1307,11 +1439,11 @@ def VPU_NGen_files(met_dataset_pathway, datafiles, aorc_filenames, output_root, 
                             aorc_ncfile, NN_table, gapfill, zarr_data))
             process_list.append(p)
 
-    for p in process_list:
-        p.start()
+        for p in process_list:
+            p.start()
 
-    for p in process_list:
-        p.join()
+        for p in process_list:
+            p.join()
         
     final_df = pd.concat(list(shared_results))
     final_df = final_df.sort_values(by=['cat-id','time'])
