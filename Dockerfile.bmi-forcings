@@ -102,6 +102,14 @@ RUN set -eux; \
     conda clean --all ; \
     rm --force environment.yaml
 
+ARG CONDA_ENV_NAME=coastal_forcing
+COPY ./coastal/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
 ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 RUN set -eux; \
     \
