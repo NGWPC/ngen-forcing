@@ -94,6 +94,19 @@ RUN set -eux; \
     conda clean --all ; \
     rm --force environment.yaml
 
+ARG CONDA_ENV_NAME=coastal_forcing
+COPY ./coastal/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+#This section and the next section, the section to set
+# WGRIB2 env variable, should not be separated because
+# the CONDA_ENVS_PATH in the ngen_forcings_engine_bmi
+# is needed by WGRIB2
+# 
 ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
 COPY ./NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
 RUN set -eux; \
@@ -107,6 +120,7 @@ RUN set -eux; \
     \
     conda init bash
 ENV WGRIB2=${CONDA_ENV_PATH}/bin/wgrib2
+################################################
 
 COPY . /ngen-app/ngen-forcing/
 
