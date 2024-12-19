@@ -25,6 +25,7 @@ import gc
 import wget
 import s3fs
 import dask
+import dask.array
 import sys
 import zarr
 import resource
@@ -39,7 +40,7 @@ dask.config.set(pool=ThreadPool(1))
 
 # Thread-safe cache with size limit
 class YearCache:
-    def __init__(self, max_size=4):
+    def __init__(self, max_size=10):
         #self.mangager = Manager()
         self.max_size = max_size
         self._cache = {}
@@ -61,25 +62,63 @@ class YearCache:
         with self._lock:
             return year in self._cache
 
-_year_cache = YearCache(max_size=4)
+_year_cache = YearCache(max_size=10)
+
+def get_spatial_indices(ds, bounds):
+    """Helper function to get indices for spatial subset"""
+    lat_mask = (ds.latitude >= bounds[1]) & (ds.latitude <= bounds[3])
+    lon_mask = (ds.longitude >= bounds[0]) & (ds.longitude <= bounds[2])
+    return {
+        'latitude': lat_mask,
+        'longitude': lon_mask
+    }
 
 def get_cached_subset(year, hyfabfile, AORC_met_vars):
-    """Get or create cached subset for a year"""
     cached_data = _year_cache.get(year)
     if cached_data is not None:
         return cached_data
         
-    # Get the full dataset reference
     _s3 = s3fs.S3FileSystem(anon=True)
     zarr_path = f"s3://noaa-nws-aorc-v1-1-1km/{year}.zarr"
     store = s3fs.S3Map(root=zarr_path, s3=_s3, check=False)
-    ds = xr.open_dataset(store, engine='zarr')
     
-    # Do spatial subsetting and compute once
+    ds = xr.open_zarr(store)
     ds_subset = subset_zarr_by_bounds(ds, hyfabfile)
+    ds_subset = ds_subset[AORC_met_vars]
+
+    print("\nChunk investigation:")
+    print(f"Total chunks reported: {np.prod([len(c) for c in ds_subset.chunks])}")
+    
+    print("\nDask array investigation:")
+    for var in ds_subset.data_vars:
+        dask_array = ds_subset[var].data
+        print(f"\n{var}:")
+        print(f"Dask array shape: {dask_array.shape}")
+        print(f"Dask array numblocks: {dask_array.numblocks}")
+        print(f"Dask array chunks: {dask_array.chunks}")
+        print(f"Number of dask tasks: {len(dask_array.dask)}")
+        # Look at the first few task keys
+        print(f"Sample task keys: {list(dask_array.dask.keys())[:5]}")
+        
+    print("\nFull chunk structure:")
+    print(ds_subset.chunks)
+    
+    print("\nDetailed high-index task analysis:")
+    for var in list(ds_subset.data_vars)[:1]:  # Just look at first variable
+        dask_array = ds_subset[var].data
+        high_index_tasks = []
+        for key in dask_array.dask.keys():
+            if isinstance(key, tuple) and len(key) > 3 and key[3] > 30:
+                high_index_tasks.append(key)
+        print(f"\n{var} high index tasks:")
+        print(f"Tasks with index > 30: {sorted(high_index_tasks)[:10]}")
+
     t0 = time.time()
-    print(f"Computing and caching subset for {year}.")
-    ds_subset = ds_subset[AORC_met_vars].compute()
+    ds_subset = ds_subset.compute(
+        scheduler='threads',
+        num_workers=8,
+        optimize_graph=True
+    )
     t1 = time.time()
     print(f"finished computing cached subset for {year}: {t1-t0:.3f}s")
     
@@ -850,7 +889,11 @@ def subset_zarr_by_bounds(ds, hyfabfile, buff=0.1):
     bounds: (minx, miny, maxx, maxy)
     buff: degrees
     """
+    t0 = time.time()
     gdf = gpd.read_file(hyfabfile)
+    t1 = time.time()
+    print(f"Reading hyfabfile: {t1-t0:.3f}s")
+    
     bounds = gdf.total_bounds    
     
     #t0=time.time()
@@ -860,13 +903,23 @@ def subset_zarr_by_bounds(ds, hyfabfile, buff=0.1):
         bounds[2] + buff,
         bounds[3] + buff
     )
-    #t1=time.time()
+    t2=time.time()
+    print(f"Computing bounds: {t2-t1:.3f}s")
     
-    #subset=ds.sel(
-    return ds.sel(
+    print(f"About to select with bounds: {bounds_with_buffer}")
+    print(f"Dataset coords before selection: {ds.coords}")
+    
+    t3 = time.time()
+    subset=ds.sel(
+    #return ds.sel(
         latitude=slice(bounds_with_buffer[1], bounds_with_buffer[3]),
         longitude=slice(bounds_with_buffer[0], bounds_with_buffer[2])
     )
+    t4 = time.time()
+    
+    print(f"Selection operation: {t4-t3:.3f}s")
+    
+    return subset
     #t2 = time.time()
     
     #print(f"Bounds calc: {t1-t0:.3f}s")
@@ -959,6 +1012,7 @@ def python_ExactExtract_zarr(aorc_file, hyfabfile, add_offset, scale_factor, AOR
         csv_results = pd.DataFrame(writer.output.values(), columns=AORC_met_vars)
         for i, column in enumerate(csv_results):
             csv_results[column] = csv_results[column] * scale_factor[i] + add_offset[i]
+            print(f"Scale factor: {scale_factor}, i: {i}")
         
           
         csv_results['cat-id'] = writer.output.keys()
@@ -1538,14 +1592,15 @@ def NextGen_Forcings_AORC(output_root, met_dataset_pathway, AORC_start_time, AOR
     
         # Get scale factors and offsets (similar to NetCDF handling)
         add_offset = np.zeros([len(AORC_met_vars)])
-        scale_factor = np.zeros([len(AORC_met_vars)])
+        scale_factor = np.ones([len(AORC_met_vars)])
         
         metadata = json.loads(first_store['.zmetadata'].decode('utf-8'))
         
         for i, var in enumerate(AORC_met_vars):
             var_attrs = metadata['metadata'][f'{var}/.zattrs']
-            add_offset[i] = var_attrs.get('add_offset', 0.0)
-            scale_factor[i] = var_attrs.get('scale_factor', 1.0)
+            add_offset[i] = 0.0
+            scale_factor[i] = 1.0
+            print(f"{var} scale_factor: {scale_factor[i]}, add_offset: {add_offset[i]}")
         AORC_missing_value = ds[AORC_met_vars[0]].attrs.get('missing_value', -9999.0)
             
         # Store zarr info for later processing
