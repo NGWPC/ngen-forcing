@@ -85,38 +85,39 @@ def get_cached_subset(year, hyfabfile, AORC_met_vars):
     ds = xr.open_zarr(store)
     ds_subset = subset_zarr_by_bounds(ds, hyfabfile)
     ds_subset = ds_subset[AORC_met_vars]
-
-    print("\nChunk investigation:")
-    print(f"Total chunks reported: {np.prod([len(c) for c in ds_subset.chunks])}")
     
-    print("\nDask array investigation:")
-    for var in ds_subset.data_vars:
-        dask_array = ds_subset[var].data
-        print(f"\n{var}:")
-        print(f"Dask array shape: {dask_array.shape}")
-        print(f"Dask array numblocks: {dask_array.numblocks}")
-        print(f"Dask array chunks: {dask_array.chunks}")
-        print(f"Number of dask tasks: {len(dask_array.dask)}")
+    #print("\nChunk investigation:")
+    #print(f"Total chunks reported: {np.prod([len(c) for c in ds_subset.chunks])}")
+    
+    #print("\nDask array investigation:")
+    #for var in ds_subset.data_vars:
+    #    dask_array = ds_subset[var].data
+    #    print(f"\n{var}:")
+    #    print(f"Dask array shape: {dask_array.shape}")
+    #    print(f"Dask array numblocks: {dask_array.numblocks}")
+    #    print(f"Dask array chunks: {dask_array.chunks}")
+    #    print(f"Number of dask tasks: {len(dask_array.dask)}")
         # Look at the first few task keys
-        print(f"Sample task keys: {list(dask_array.dask.keys())[:5]}")
+    #    print(f"Sample task keys: {list(dask_array.dask.keys())[:5]}")
         
-    print("\nFull chunk structure:")
-    print(ds_subset.chunks)
+    #print("\nFull chunk structure:")
+    #print(ds_subset.chunks)
     
-    print("\nDetailed high-index task analysis:")
-    for var in list(ds_subset.data_vars)[:1]:  # Just look at first variable
-        dask_array = ds_subset[var].data
-        high_index_tasks = []
-        for key in dask_array.dask.keys():
-            if isinstance(key, tuple) and len(key) > 3 and key[3] > 30:
-                high_index_tasks.append(key)
-        print(f"\n{var} high index tasks:")
-        print(f"Tasks with index > 30: {sorted(high_index_tasks)[:10]}")
-
+    #print("\nDetailed high-index task analysis:")
+    #for var in list(ds_subset.data_vars)[:1]:  # Just look at first variable
+    #    dask_array = ds_subset[var].data
+    #    high_index_tasks = []
+    #    for key in dask_array.dask.keys():
+    #        if isinstance(key, tuple) and len(key) > 3 and key[3] > 30:
+    #            high_index_tasks.append(key)
+    #    print(f"\n{var} high index tasks:")
+    #    print(f"Tasks with index > 30: {sorted(high_index_tasks)[:10]}")
+    
+    print(f"Computing cached subset for {year}...")
     t0 = time.time()
     ds_subset = ds_subset.compute(
         scheduler='threads',
-        num_workers=8,
+        num_workers=24,
         optimize_graph=True
     )
     t1 = time.time()
@@ -906,8 +907,8 @@ def subset_zarr_by_bounds(ds, hyfabfile, buff=0.1):
     t2=time.time()
     print(f"Computing bounds: {t2-t1:.3f}s")
     
-    print(f"About to select with bounds: {bounds_with_buffer}")
-    print(f"Dataset coords before selection: {ds.coords}")
+    #print(f"About to select with bounds: {bounds_with_buffer}")
+    #print(f"Dataset coords before selection: {ds.coords}")
     
     t3 = time.time()
     subset=ds.sel(
@@ -1012,7 +1013,7 @@ def python_ExactExtract_zarr(aorc_file, hyfabfile, add_offset, scale_factor, AOR
         csv_results = pd.DataFrame(writer.output.values(), columns=AORC_met_vars)
         for i, column in enumerate(csv_results):
             csv_results[column] = csv_results[column] * scale_factor[i] + add_offset[i]
-            print(f"Scale factor: {scale_factor}, i: {i}")
+            #print(f"Scale factor: {scale_factor}, i: {i}")
         
           
         csv_results['cat-id'] = writer.output.keys()
@@ -1600,7 +1601,7 @@ def NextGen_Forcings_AORC(output_root, met_dataset_pathway, AORC_start_time, AOR
             var_attrs = metadata['metadata'][f'{var}/.zattrs']
             add_offset[i] = 0.0
             scale_factor[i] = 1.0
-            print(f"{var} scale_factor: {scale_factor[i]}, add_offset: {add_offset[i]}")
+            #print(f"{var} scale_factor: {scale_factor[i]}, add_offset: {add_offset[i]}")
         AORC_missing_value = ds[AORC_met_vars[0]].attrs.get('missing_value', -9999.0)
             
         # Store zarr info for later processing
