@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 if [[ -z $ROOT_SHARE ]]; then
     ROOT_SHARE_TXT="ERROR: ROOT_SHARE variable not set!"
 else
@@ -56,29 +58,73 @@ pdy=$UTC_DATE
 #=========================================================
 #  https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/[YYYYMM]/
 #  nowcast grid
-#     ${domain}.t[00-18.3]z.[date].regulargrid.n[000..006].nc
+#     ${domain}.t[00-18.6]z.[date].regulargrid.n[000..006].nc
 #  nowcast field
-#     ${domain}.t[00-18.3]z.[date].fields.n[000..006].nc
+#     ${domain}.t[00-18.6]z.[date].fields.n[000..006].nc
 #  nowcast station
-#     ${domain}.t[00-18.3]z.[date].stations.nowcast.nc
+#     ${domain}.t[00-18.6]z.[date].stations.nowcast.nc
 #  forecast grid
-#     ${domain}.t[00-18.3]z.[date].regulargrid.f[000..006].nc
+#     ${domain}.t[00-18.6]z.[date].regulargrid.f[000..006].nc
 #  forecast field
-#     ${domain}.t[00-18.3]z.[date].fields.f[000..006].nc
+#     ${domain}.t[00-18.6]z.[date].fields.f[000..006].nc
 #  forecast station
-#     ${domain}.t[00-18.3]z.[date].stations.forecast.nc
+#     ${domain}.t[00-18.6]z.[date].stations.forecast.nc
 #=========================================================
-for cyc in 00 06 12 18; do
-     
-   for domain in leofs lmhofs loofs lsofs; do
+# pre 202403 files
+# nocast field
+#   nos.{domain}.fields.n[000..006].[date].t[00-18.6]z.nc
+# nocast stations
+#   nos.{domain}.stations.nowcast.[date].t[00-18.6]z.nc
+# nocast grid
+#   N/A
+# forecast field
+#   N/A
+# forecast stations
+#   N/A
+# forecast grid
+#   N/A
+#=========================================================
+# pre 202301 files
+# nocast field
+#   nos.{domain}.fields.n[000..006].[date].t[00-18.6]z.nc
+# nocast stations
+#   N/A
+# nocast grid
+#   N/A
+# forecast field
+#   N/A
+# forecast stations
+#   N/A
+# forecast grid
+#   N/A
+#=========================================================
 
-        OFSDIR=$OUTPUT_DIR/${domain}
-        if [ ! -d "${OFSDIR}" ]; then 
-            mkdir -p $OFSDIR
-        fi
-         
-        cd $OFSDIR
+for domain in leofs lmhofs loofs lsofs; do
      
+   OFSDIR=$OUTPUT_DIR/${domain}
+   if [ ! -d "${OFSDIR}" ]; then 
+        mkdir -p $OFSDIR
+   fi
+         
+   cd $OFSDIR
+
+   for cyc in 00 06 12 18; do
+     #pre 202301
+     if [ ${pdy} -lt 20230101 ]; then
+        for i in {000..006}; do 
+            wget -nc --no-check-certificate \
+	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+        done
+     
+     #pre 202403
+     elif [ ${pdy} -lt 20240301 ]; then
+        for i in {000..006}; do 
+            wget -nc --no-check-certificate \
+	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+        done
+        wget -nc --no-check-certificate \
+	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
+     else
 	#nowcast station
         wget -nc --no-check-certificate \
 	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.stations.nowcast.nc
@@ -101,6 +147,10 @@ for cyc in 00 06 12 18; do
             wget -nc --no-check-certificate \
 	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.fields.f${i}.nc
         done
+     fi
    done
+
+   cd -
+
 done
 
