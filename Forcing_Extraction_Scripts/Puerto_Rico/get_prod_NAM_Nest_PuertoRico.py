@@ -95,7 +95,8 @@ def main(args):
                 print("Data may not available yet...")
 
     # Remove the LOCK file.
-    os.remove(lockFile)
+    if os.path.isfile(lockFile):
+        os.remove(lockFile)
 
 def get_options():
     parser = argparse.ArgumentParser()

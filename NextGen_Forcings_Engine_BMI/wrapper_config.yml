@@ -1,6 +1,6 @@
 global:
   mesh_script_path: "/home/kyle.larkin/ngen-forcing/ESMF_Mesh_Domain_Configuration_Production/NextGen_hyfab_to_ESMF_Mesh.py"
-  mesh_in_base_path: "/srv/data/hydrofab_gpkg/"
+  #mesh_in_base_path: "/srv/data/hydrofab_gpkg/"
   mesh_out_base_path: "/srv/data/esmf_mesh/"
   extraction_script_path: "/home/kyle.larkin/ngen-forcing/Forcing_Extraction_Scripts"
   extraction_out_path: "/srv/data/raw_input"
@@ -33,3 +33,9 @@ extended_ana:
   stage_iv_out_path: "/STAGE_IV"
   hrrr_out_path: "/HRRR_ANA"
   rap_out_path: "/RAP_ANA"
+pr_short_range:
+  pr_sr_config_path: "/srv/data/configs/PR/pr_sr_config.yml"
+  nbm_out_path: "/NBM"
+  nam_out_path: "/PR_NAM"
+  arw_out_path: "/PR_ARW"
+  
