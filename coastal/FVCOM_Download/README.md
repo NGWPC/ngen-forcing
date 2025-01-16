@@ -29,7 +29,7 @@ Usage: ./download_fvcom.bash [-d <utcdate>(yyyymmdd)] [-o <output path>]
 		<output path>: $ROOT_SHARE/data)
 
    where <utcdate>  is the UTC date such as 20241218, default is the current date
-         <output path> the output directory where the downloaded files will be saved. The default value is $ROOT_SHARE/data. ROOT_SHARE is an environmental variable. If the <output path> is not given and the ROO_SHARE environmental variable is not defined, the script will exit with an error message.
+         <output path> the output directory where the downloaded files will be saved. The default value is $ROOT_SHARE/data. ROOT_SHARE is an environmental variable. If the <output path> is not given and the ROOT_SHARE environmental variable is not defined, the script will exit with an error message.
 
 #### Examples ####
 
