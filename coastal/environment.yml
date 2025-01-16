@@ -8,3 +8,5 @@ dependencies:
   - netCDF4
   - pandas
   - numpy
+  - scipy
+  - geopandas
