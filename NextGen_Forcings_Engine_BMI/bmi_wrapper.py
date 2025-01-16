@@ -22,7 +22,7 @@ def execute(args):
     
     args:
         cycle_name (str): The NWM Forecast cycle to execute (ie: short_range)
-        hyfab_name (str): The name of the hydrofabric domain file to use (ie: Gage_01011000.gpkg)
+        hyfab_name (str): The full path of the hydrofabric domain file to use (ie: /srv/data/Gage_01011000.gpkg)
         -config_input (str): Optional path to the wrapper config file.
         -output_path (str): Optional full path to specify forcing engine output location.
         -np (str): Optional number of processes to use.
@@ -44,12 +44,12 @@ def execute(args):
         config= yaml.safe_load(config_file)
     
     #use the Gage_######## string to construct ESMF mesh filename
-    base_geo_name = hyfab_name.split('.')[0]
+    base_geo_name = os.path.splitext(os.path.basename(hyfab_name))[0]
     mesh_fileName = f"{base_geo_name}_ESMF_Mesh.nc"
     
     #Reading path variables from config file
     mesh_scriptPath=config['global']['mesh_script_path']
-    mesh_inPath = os.path.join(config['global']['mesh_in_base_path'], hyfab_name)
+    mesh_inPath = hyfab_name
     mesh_outPath = os.path.join(config['global']['mesh_out_base_path'], mesh_fileName)
     extraction_scriptPath = config['global']['extraction_script_path']
     extraction_outPath = config['global']['extraction_out_path']
@@ -327,9 +327,82 @@ def execute(args):
             f"--lagBackHours={int(lagback)}"
         ]
         subprocess.run(cmd2, check=True)      
-   
+    
+    elif cycle_name == 'pr_short_range':
+        
+        #Set cycle-specific path variables
+        configPath = config['pr_short_range']['pr_sr_config_path']
+        nam_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_prod_NAM_Nest_PuertoRico.py")
+        nam_extract_outPath = os.path.join(extraction_outPath, config['pr_short_range']['nam_out_path'].lstrip('/'))
+        nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_prod_NBM_Puerto_Rico.py")
+        nbm_extract_outPath = os.path.join(extraction_outPath, config['pr_short_range']['nbm_out_path'].lstrip('/'))
+        arw_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_ARW_Puerto_Rico.py")
+        arw_extract_outPath = os.path.join(extraction_outPath, config['pr_short_range']['arw_out_path'].lstrip('/'))
+                
+        def get_nearest_cycle(dt, buffer_hours=3):
+            cycles = [6, 18]
+            current_hour = dt.hour
+    
+            # Find nearest cycle
+            nearest_cycle = min(cycles, key=lambda x: min((current_hour - x) % 24, (x - current_hour) % 24))
+    
+            # Create datetime for nearest cycle
+            cycle_dt = dt.replace(hour=nearest_cycle, minute=0, second=0, microsecond=0)
+    
+            # If cycle is in future or too recent, go back one cycle (12 hours)
+            if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
+                cycle_dt -= datetime.timedelta(hours=12)
+    
+            return cycle_dt
+
+        
+        dNow = datetime.datetime.utcnow()
+        b_date_dt = get_nearest_cycle(dNow)
+        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
+        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+
+        # Rest of your code remains the same
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+        
+        lagback = hours_difference - 1
+        lookback = hours_difference
+        
+        #Run the forcing_extraction script for NAM
+        cmd1 = [
+            "conda", "run", "-n", extraction_env,
+            "python", nam_extract_scriptPath, nam_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1, check=True)
+        
+        #Run the forcing_extraction script for NBM
+        cmd2a = [
+            "conda", "run", "-n", extraction_env,
+            "python", nbm_extract_scriptPath, nbm_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd2a, check=True)   
+
+        #Run the forcing_extraction script for ARW
+        cmd2b = [
+            "conda", "run", "-n", extraction_env,
+            "python", arw_extract_scriptPath, arw_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd2b, check=True) 
+        
+           
     else:
-        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana")     
+        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range")     
     
     #run the forcing engine BMI
     if output_path != None:
@@ -371,7 +444,7 @@ def get_options():
     Returns an argparse object.
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('cycle_name', help='Name of NWM cycle, for example short_range')
+    parser.add_argument('cycle_name', help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')
     parser.add_argument('hyfab_name', help='Name of hydrofabric file for conversion to ESMF. Ex: Gage_01123000.gpkg')
     parser.add_argument('-config_input', help='Path to wrapper config file. If omitted, defaults to ./wrapper_config.yml')
     parser.add_argument('-output_path', help='Full path for nc output file. If omitted, filename will be generated automatically, and placed in the ScratchDir configured in config file.') 

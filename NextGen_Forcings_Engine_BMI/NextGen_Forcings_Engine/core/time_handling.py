@@ -3102,6 +3102,19 @@ def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mp
             "/core/blend.t" + current_nbm_cycle.strftime('%H') + \
             "z.core.f" + str(prev_nbm_forecast_hour).zfill(3) + ".ak" \
             + supplemental_precip.file_ext
+    elif supplemental_precip.keyValue == 15:                    #PR
+        tmp_file1 = supplemental_precip.inDir + "/blend." + \
+            current_nbm_cycle.strftime('%Y%m%d') + \
+            "/" + current_nbm_cycle.strftime('%H') + \
+            "/core/blend.t" + current_nbm_cycle.strftime('%H') + \
+            "z.core.f" + str(next_nbm_forecast_hour).zfill(3) + ".pr" \
+            + supplemental_precip.file_ext
+        tmp_file2 = supplemental_precip.inDir + "/blend." + \
+            current_nbm_cycle.strftime('%Y%m%d') + \
+            "/" + current_nbm_cycle.strftime('%H') + \
+            "/core/blend.t" + current_nbm_cycle.strftime('%H') + \
+            "z.core.f" + str(prev_nbm_forecast_hour).zfill(3) + ".pr" \
+            + supplemental_precip.file_ext        
     else:
         tmp_file1 = tmp_file2 = ""
 
@@ -3123,6 +3136,8 @@ def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mp
 
         supplemental_precip.file_in1 = tmp_file1
         supplemental_precip.file_in2 = tmp_file2
+        print(f"tmp_file1: {tmp_file1}")
+        print(f"tmp_file2: {tmp_file2}")
         supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
