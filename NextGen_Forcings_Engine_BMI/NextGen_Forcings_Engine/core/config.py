@@ -1207,7 +1207,7 @@ class ConfigOptions:
             # if any radar products where chosen.
             for suppOpt in self.supp_precip_forcings:
                 if suppOpt < 0 or suppOpt > 15:
-                    err_handler.err_out_screen('Please specify SuppForcing values between 1 and 14.')
+                    err_handler.err_out_screen('Please specify SuppForcing values between 1 and 15.')
                 # Read in RQI threshold to apply to radar products.
                 if suppOpt in (1,2,7,10,11,12):
                     try:
