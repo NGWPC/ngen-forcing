@@ -10,7 +10,6 @@ ENV PATH="/usr/local/bin:$PATH"
 # https://github.com/docker-library/python/pull/570
 ENV LANG="C.UTF-8"
 
-
 ## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
 
 # Add conda repo
@@ -40,18 +39,19 @@ RUN set -eux; \
 ## FIXME: replace GNU compilers with Intel compiler ##
         gcc-toolset-10 \
         gcc-toolset-10-libasan-devel \
+        gcc-toolset-10-gcc-gfortran \
         jasper-libs jasper-devel \
         libaec libaec-devel \
         libasan6 \
         libffi libffi-devel \
         libpng libpng-devel \
-        m4 \ 
+        m4 \
 ## FIXME: replace openmpi with Intel MPI libraries ##
 #       openmpi openmpi-devel \
         openssl openssl-devel \
         rsync \
-        uuid uuid-devel \ 
-        which \ 
+        uuid uuid-devel \
+        which \
         zlib zlib-devel \
     ; \
     dnf clean all
@@ -67,6 +67,27 @@ SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 # Fix OpenMPI support within container
 #ENV PSM3_HAL=loopback
 #ENV PSM3_DEVICES=self
+
+RUN set -eux; \
+    curl --location --output wgrib2.tgz "https://ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz" ; \
+    mkdir --parents /usr/src/wgrib2 ; \
+    tar --extract --directory /usr/src/wgrib2 --strip-components=1 --file wgrib2.tgz ; \
+    rm wgrib2.tgz ; \
+    cd /usr/src/wgrib2 ; \
+    export CC=gcc ; \
+    export FC=gfortran ; \
+    make \
+        USE_IPOLATES=3 \
+        USE_PNG=1 \
+        USE_AEC=0 \
+        USE_JASPER=1 \
+        USE_OPENJPEG=0 \
+        USE_G2CLIB=0 \
+        PREFIX=/usr/local ; \
+    make lib ; \
+    cp /usr/src/wgrib2/wgrib2/wgrib2 /usr/local/bin/ ; \
+    chmod +x /usr/local/bin/wgrib2 ; \
+    rm --recursive --force /usr/src/wgrib2
 
 ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
 
@@ -92,6 +113,7 @@ RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
     conda clean --all ; \
+    conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
     rm --force environment.yaml
 
 ARG CONDA_ENV_NAME=coastal_forcing
@@ -119,7 +141,8 @@ ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 RUN set -eux; \
     \
     conda init bash
-ENV WGRIB2=${CONDA_ENV_PATH}/bin/wgrib2
+ENV WGRIB2=/usr/local/bin/wgrib2
+
 ################################################
 
 COPY . /ngen-app/ngen-forcing/
@@ -127,4 +150,4 @@ COPY . /ngen-app/ngen-forcing/
 # Reset SHELL so we're not locked into the gcc-10 build environment
 SHELL ["/bin/bash", "-c"]
 
-ENTRYPOINT [ "/bin/bash" ] 
+ENTRYPOINT [ "/bin/bash" ]

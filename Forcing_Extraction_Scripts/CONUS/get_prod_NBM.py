@@ -98,17 +98,19 @@ def main(args):
         for i in range(18):
             fileDownload = nbm_urls[i].split('/')[-1]
             outFile = nbmOutDir2 + "/" + fileDownload
-            if not os.path.isfile(outFile):
-                download_complete = False
-                start_time = time.time()
-                timer = 0.0
-                print("Pulling NBM CONUS file: " + nbm_urls[i])
-                while(download_complete == False and timer < 600.0):
-                    try:
-                        request.urlretrieve(nbm_urls[i],outFile)
-                        download_complete = True
-                    except:
-                        timer = time.time() - start_time
+            if os.path.isfile(outFile):
+                print(f"Skipping download ... File already exists {outFile}")
+                continue
+            download_complete = False
+            start_time = time.time()
+            timer = 0.0
+            print("Pulling NBM CONUS file: " + nbm_urls[i])
+            while(download_complete == False and timer < 600.0):
+                try:
+                    request.urlretrieve(nbm_urls[i],outFile)
+                    download_complete = True
+                except:
+                    timer = time.time() - start_time
 
             if(download_complete == False):
                 print("Unable to retrieve: " + nbm_urls[i])
