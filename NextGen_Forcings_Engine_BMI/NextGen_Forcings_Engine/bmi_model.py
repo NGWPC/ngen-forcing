@@ -98,8 +98,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         bmi_cfg_file = Path(bmi_cfg_file_name).resolve()
         if not bmi_cfg_file.is_file():
-            raise RuntimeError("No configuration provided, nothing to do...")
+            raise RuntimeError(f"Config file {bmi_cfg_file} not found, nothing to do...")
 
+        print(f"Reading {bmi_cfg_file}")
         with bmi_cfg_file.open('r') as fp:
             cfg = yaml.safe_load(fp)
         self.cfg_bmi = self._parse_config(cfg)
