@@ -398,10 +398,129 @@ def execute(args):
             "--cleanBackHours=0"
         ]
         subprocess.run(cmd2b, check=True) 
+
+    elif cycle_name == 'hi_short_range':
+
+        #Set cycle-specific path variables
+        configPath = config['hi_short_range']['hi_sr_config_path']
+        nam_extract_scriptPath = os.path.join(extraction_scriptPath, "Hawaii", "get_prod_NAM_Nest_Hawaii.py")
+        nam_extract_outPath = os.path.join(extraction_outPath, config['hi_short_range']['nam_out_path'].lstrip('/'))
+        arw_extract_scriptPath = os.path.join(extraction_scriptPath, "Hawaii", "get_ARW_Hawaii.py")
+        arw_extract_outPath = os.path.join(extraction_outPath, config['hi_short_range']['arw_out_path'].lstrip('/'))
+
+        def get_nearest_cycle(dt, buffer_hours=3):
+            cycles = [0, 12]
+            current_hour = dt.hour
+
+            # Find nearest cycle
+            nearest_cycle = min(cycles, key=lambda x: min((current_hour - x) % 24, (x - current_hour) % 24))
+
+            # Create datetime for nearest cycle
+            cycle_dt = dt.replace(hour=nearest_cycle, minute=0, second=0, microsecond=0)
+
+            # If cycle is in future or too recent, go back one cycle (12 hours)
+            if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
+                cycle_dt -= datetime.timedelta(hours=12)
+
+            return cycle_dt
+
+
+        dNow = datetime.datetime.utcnow()
+        b_date_dt = get_nearest_cycle(dNow)
+        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
+        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+
+        # Rest of your code remains the same
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+
+        lagback = hours_difference - 1
+        lookback = hours_difference
+
+        #Run the forcing_extraction script for NAM
+        cmd1 = [
+            "conda", "run", "-n", extraction_env,
+            "python", nam_extract_scriptPath, nam_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1, check=True)
+
+        #Run the forcing_extraction script for ARW
+        cmd2 = [
+            "conda", "run", "-n", extraction_env,
+            "python", arw_extract_scriptPath, arw_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd2, check=True)
+
+    elif cycle_name=="ak_short_range":
+
+        #Set cycle-specific path variables
+        configPath = config['ak_short_range']['ak_sr_config_path']
+        hrrr_extract_scriptPath = os.path.join(extraction_scriptPath, "Alaska", "get_Alaska_HRRR.py")
+        hrrr_extract_outPath = os.path.join(extraction_outPath, config['ak_short_range']['hrrr_out_path'].lstrip('/'))     
+        nbm_extract_scriptPath = os.path.join(extraction_scriptPath,"Alaska", "get_prod_NBM_Alaska.py")
+        nbm_extract_outPath = os.path.join(extraction_outPath, config['ak_short_range']['nbm_out_path'].lstrip('/'))
         
-           
+        #set cycle-specific time variables
+        def get_nearest_cycle(dt, buffer_hours=3):
+            cycles = [0, 3, 6, 9, 12, 15, 18, 21]
+            current_hour = dt.hour
+
+            # Find nearest cycle
+            nearest_cycle = min(cycles, key=lambda x: min((current_hour - x) % 24, (x - current_hour) % 24))
+
+            # Create datetime for nearest cycle
+            cycle_dt = dt.replace(hour=nearest_cycle, minute=0, second=0, microsecond=0)
+
+            # If cycle is in future or too recent, go back one cycle (12 hours)
+            if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
+                cycle_dt -= datetime.timedelta(hours=12)
+
+            return cycle_dt
+
+        dNow = datetime.datetime.utcnow()
+        b_date_dt = get_nearest_cycle(dNow)
+        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
+        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+
+        # Rest of your code remains the same
+        b_date = b_date_dt.strftime("%Y%m%d%H%M")
+        start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
+        hours_difference = (dNow - b_date_dt).total_seconds() / 3600
+
+        lagback = hours_difference - 1
+        lookback = hours_difference
+        
+        #Run the forcing_extraction script for HRRR
+        cmd1 = [
+            "conda", "run", "-n", extraction_env,
+            "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd1, check=True)
+        
+        #Run the forcing_extraction script for NBM
+        cmd2 = [
+            "conda", "run", "-n", extraction_env,
+            "python", nbm_extract_scriptPath, nbm_extract_outPath,
+            f"--lookBackHours={int(lookback)}",
+            f"--lagBackHours={int(lagback)}",
+            "--cleanBackHours=0"
+        ]
+        subprocess.run(cmd2, check=True) 
+
     else:
-        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range")     
+        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")     
     
     #run the forcing engine BMI
     if output_path != None:
@@ -453,4 +572,4 @@ def get_options():
 
 if __name__ == '__main__':
     args = get_options()
-    execute(args)   
+    execute(args)
