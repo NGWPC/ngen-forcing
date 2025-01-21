@@ -520,7 +520,7 @@ def execute(args):
         subprocess.run(cmd2, check=True) 
 
     else:
-        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range")     
+        print("valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")     
     
     #run the forcing engine BMI
     if output_path != None:
