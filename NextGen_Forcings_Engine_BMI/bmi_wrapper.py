@@ -11,7 +11,6 @@ import datetime
 import subprocess
 import yaml
 import os
-import mpi4py
 
 def execute(args):
 
