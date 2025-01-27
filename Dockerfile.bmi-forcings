@@ -50,6 +50,8 @@ RUN set -eux; \
 ## FIXME: replace openmpi with Intel MPI libraries ##
 #       openmpi openmpi-devel \
         openssl openssl-devel \
+        python3.11 \
+        python3.11-pyyaml \
         rsync \
         uuid uuid-devel \
         which \
@@ -58,7 +60,7 @@ RUN set -eux; \
     dnf clean all
 
 # add conda to the PATH
-ENV PATH=/opt/conda/bin:${PATH}
+ENV PATH=${PATH}:/opt/conda/bin
 
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
@@ -125,7 +127,7 @@ RUN set -eux; \
     conda clean --all ; \
     rm --force environment.yaml
 
-#This section and the next section, the section to set
+# This section and the next section, the section to set
 # WGRIB2 env variable, should not be separated because
 # the CONDA_ENVS_PATH in the ngen_forcings_engine_bmi
 # is needed by WGRIB2
@@ -138,15 +140,9 @@ RUN set -eux; \
     conda clean --all ; \
     rm --force environment.yaml
 
-ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
-RUN set -eux; \
-    \
-    conda init bash
 ENV WGRIB2=/usr/local/bin/wgrib2
 
 ################################################
-
-COPY . /ngen-app/ngen-forcing/
 
 # Reset SHELL so we're not locked into the gcc-10 build environment
 SHELL ["/bin/bash", "-c"]
