@@ -1,0 +1,163 @@
+## TODO: replace with base image created under NGWPC-3223 ##
+## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
+FROM rockylinux:8
+
+# ensure local python is preferred over distribution python
+ENV PATH="/usr/local/bin:$PATH"
+
+# cannot remove LANG even though https://bugs.python.org/issue19846 is fixed
+# last attempted removal of LANG broke many users:
+# https://github.com/docker-library/python/pull/570
+ENV LANG="C.UTF-8"
+
+
+## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
+
+# Add conda repo
+RUN <<EOF cat > /etc/yum.repos.d/conda.repo
+[conda]
+name=Conda
+baseurl=https://repo.anaconda.com/pkgs/misc/rpmrepo/conda
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.anaconda.com/pkgs/misc/gpgkeys/anaconda.asc
+EOF
+
+# runtime dependencies
+RUN set -eux; \
+    dnf install -y dnf-plugins-core; \
+    dnf config-manager --set-enabled powertools; \
+    dnf install -y \
+        autoconf \
+        automake \
+        bzip2 bzip2-devel \
+        cmake \
+        conda \
+        curl curl-devel \
+        file \
+        findutils \
+        git \
+## FIXME: replace GNU compilers with Intel compiler ##
+        gcc-toolset-10 \
+        gcc-toolset-10-libasan-devel \
+        gcc-toolset-10-gcc-gfortran \
+        jasper-libs jasper-devel \
+        libaec libaec-devel \
+        libasan6 \
+        libffi libffi-devel \
+        libpng libpng-devel \
+        m4 \
+## FIXME: replace openmpi with Intel MPI libraries ##
+#       openmpi openmpi-devel \
+        openssl openssl-devel \
+        rsync \
+        uuid uuid-devel \
+        which \
+        zlib zlib-devel \
+    ; \
+    dnf clean all
+
+# add conda to the PATH
+ENV PATH=/opt/conda/bin:${PATH}
+
+## FIXME: replace GNU compilers with Intel compiler ##
+SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
+## FIXME: replace openmpi with Intel MPI libraries ##
+#ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
+
+# Fix OpenMPI support within container
+#ENV PSM3_HAL=loopback
+#ENV PSM3_DEVICES=self
+
+RUN set -eux; \
+    curl --location --output wgrib2.tgz "https://ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz" ; \
+    mkdir --parents /usr/src/wgrib2 ; \
+    tar --extract --directory /usr/src/wgrib2 --strip-components=1 --file wgrib2.tgz ; \
+    rm wgrib2.tgz ; \
+    cd /usr/src/wgrib2 ; \
+    export CC=gcc ; \
+    export FC=gfortran ; \
+    make \
+        USE_IPOLATES=3 \
+        USE_PNG=1 \
+        USE_AEC=0 \
+        USE_JASPER=1 \
+        USE_OPENJPEG=0 \
+        USE_G2CLIB=0 \
+        PREFIX=/usr/local ; \
+    make lib ; \
+    cp /usr/src/wgrib2/wgrib2/wgrib2 /usr/local/bin/ ; \
+    chmod +x /usr/local/bin/wgrib2 ; \
+    rm --recursive --force /usr/src/wgrib2
+
+ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
+
+ARG CONDA_ENV_NAME=ngen_forcing_extraction
+COPY ./Forcing_Extraction_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=ngen_streamflow
+COPY ./Streamflow_Scripts/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
+COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_NAME=coastal_forcing
+COPY ./coastal/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+#This section and the next section, the section to set
+# WGRIB2 env variable, should not be separated because
+# the CONDA_ENVS_PATH in the ngen_forcings_engine_bmi
+# is needed by WGRIB2
+# 
+ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
+COPY ./NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
+RUN set -eux; \
+    \
+    conda init bash
+ENV WGRIB2=/usr/local/bin/wgrib2
+
+################################################
+
+COPY . /ngen-app/ngen-forcing/
+
+# Reset SHELL so we're not locked into the gcc-10 build environment
+SHELL ["/bin/bash", "-c"]
+
+COPY . /ngen-app/ngen-forcing/
+
+COPY ./docker/run-ngen-forcing.sh /ngen-app/bin/
+RUN set -eux; \
+    \
+    chmod +x /ngen-app/bin/run-ngen-forcing.sh
+
+WORKDIR /
+
+ENTRYPOINT [ "/bin/bash" ]

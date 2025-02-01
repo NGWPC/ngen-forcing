@@ -3,28 +3,44 @@ import datetime
 import pandas as pd
 import numpy as np
 import sys
+import argparse
+import pathlib
 
 # This is the NextGen Forcings Engine BMI instance to execute
 from NextGen_Forcings_Engine.bmi_model import NWMv3_Forcing_Engine_BMI_model
 
-# User input to specify the start and end time of the 
-# NextGen Forcings Engine BMI standalone execution
-start_time = '2019-08-30 12:00:00'
-end_time = '2019-09-03 13:00:00'
+def execute(args):
 
-start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
-end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
-ngen_datetimes = pd.date_range(start=start_time.strftime('%Y-%m-%d %H:%M:%S'),end=end_time.strftime('%Y-%m-%d %H:%M:%S'),freq='h')
+    '''
+    Wrapper script to execute the forcing engine BMI code. Requires user to pass start_time and end_time as arguments. Additional configurations are parsed from config.yml - User can provide a config_path to point to a specific config file.
 
-def execute():
+    example: python run_bmi_model.py '2024-11-19 20:00:00' '2024-11-20 07:00:00'
+    '''
+
+    # User input to specify the start and end time of the 
+    # NextGen Forcings Engine BMI standalone execution
+    start_time = args.start_time
+    end_time = args.end_time
+
+    start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
+    end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
+    ngen_datetimes = pd.date_range(start=start_time.strftime('%Y-%m-%d %H:%M:%S'),end=end_time.strftime('%Y-%m-%d %H:%M:%S'),freq='h')
+
+    print(start_time, end_time)
+    print(f"ngen_datetimes: {ngen_datetimes}")
+
+
     # creating an instance of a model
     print('creating an instance of an BMI_MODEL model object')
     model = NWMv3_Forcing_Engine_BMI_model()
 
     # Initializing the BMI
     print('Initializing the BMI')
-    current_dir = Path(__file__).parent.resolve()
-    model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')))
+    if(args.config_path != None):
+        model.initialize(bmi_cfg_file_name=str(args.config_path), b_date=args.b_date, geogrid=args.geogrid, output_path=args.output_path)
+    else:
+        current_dir = Path(__file__).parent.resolve()
+        model.initialize(bmi_cfg_file_name=str(current_dir.joinpath('config.yml')),b_date=args.b_date, geogrid=args.geogrid, output_path=args.output_path)
 
     # Now loop through the inputs, set the forcing values, and update the model
     print('Now loop through the inputs, updating the model, and extracting forcing data')
@@ -168,6 +184,18 @@ def execute():
     print('Finalizing the BMI')
     model.finalize()
 
+def get_options():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('start_time', help="Start time should correspond to the forecast cycle time + 1 timestep. Format = 'YYYY-MM-DD HH:mm:ss' ")
+    parser.add_argument('end_time', help="End time should correspond to the last forecast time step you want to calculate. Format = 'YYYY-MM-DD HH:mm:ss' ")
+    parser.add_argument('-config_path', type=pathlib.Path, help="Config path for config.yml, otherwise defaults to ./config.yml")
+    parser.add_argument('-b_date', help="Begin date, should be the start date/time for the forecast cycle, format= 'YYYYMMDDHHmm'. If omitted, reads from configuration file.")
+    parser.add_argument('-geogrid', help="Full path for geogrid/ESMF Mesh file. If omitted, reads from configuration file.")
+    parser.add_argument('-output_path', help="A user-provided output path - must include full directory and filename. If omitted, a filename will be automatically generated, in the ScratchDir specified in the config file.")
+
+    return parser.parse_args()
 
 if __name__ == '__main__':
-    execute()
+    args=get_options()
+    execute(args)

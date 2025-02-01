@@ -91,7 +91,8 @@ class NWMv3_Forcing_Engine_model():
             ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.TimedeltaIndex(np.array([future_time],dtype=float),'s')[0]
 
         print("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
-        print(ConfigOptions.current_time)
+        print(f"Model.py current time: {ConfigOptions.current_time}")
+        print(f"Model.py current fcst cycle: {ConfigOptions.current_fcst_cycle}")
 
         if ConfigOptions.first_fcst_cycle is None:
             ConfigOptions.first_fcst_cycle = ConfigOptions.current_fcst_cycle
@@ -170,9 +171,10 @@ class NWMv3_Forcing_Engine_model():
             else:
                 # Get the current datetime based on BMI model input
                 OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=future_time)
-
+                print(f"outDate: {OutputObj.outDate}")
                 # Update current output date
                 ConfigOptions.current_output_date = OutputObj.outDate
+                print(f"Updated ConfigOptions.current_output_date: {ConfigOptions.current_output_date}")
       
             # if AnA, adjust file date for analysis vs forecast
             if ConfigOptions.ana_flag:
@@ -199,6 +201,7 @@ class NWMv3_Forcing_Engine_model():
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
             # Loop over each of the input forcings specifed.
+            print("Model.py looping over input forcings")
             for forceKey in ConfigOptions.input_forcings:
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
@@ -215,7 +218,7 @@ class NWMv3_Forcing_Engine_model():
                     AORC_elem_mask = None
                 else:
                     input_forcings = inputForcingMod[forceKey]
-     
+                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig) 
                 # Flag to indicate whether or not AORC/NWM Forcings AWS option is initialized
                 if(forceKey in [12,21,27] and ConfigOptions.aws == None):
                     # Calculate the previous and next input cycle files from the inputs.
@@ -252,6 +255,7 @@ class NWMv3_Forcing_Engine_model():
               
                 # break loop if done early
                 if input_forcings.skip is True:
+                    print("Breaking loop")
                     show_message = False            # just to avoid confusion
                     break
                 # Regrid forcings.

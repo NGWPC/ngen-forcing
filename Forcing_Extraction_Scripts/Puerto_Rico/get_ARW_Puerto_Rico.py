@@ -19,6 +19,7 @@ import argparse
 
 def main(args):
     outDir = args.outDir
+    print(f"ARW outDir: {outDir}")
     lookBackHours = args.lookBackHours
     cleanBackHours = args.cleanBackHours
     lagBackHours = args.lagBackHours

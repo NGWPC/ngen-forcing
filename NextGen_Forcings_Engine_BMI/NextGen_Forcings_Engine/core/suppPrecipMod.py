@@ -99,7 +99,8 @@ class supplemental_precip:
             11: "AK_Stage_IV_Precip-MRMS",
             12: "CONUS_Stage_IV_Precip-MRMS",
             13: "MRMS PrecipFlag",
-            14: "Custom_Freq_Supp_Pcp"
+            14: "Custom_Freq_Supp_Pcp",
+            15: "NBM_CORE_PR_APCP"
         }
         self.productName = product_names[self.keyValue]
 
@@ -133,7 +134,8 @@ class supplemental_precip:
             11: None,
             12: None,
             13: None,
-            14: None
+            14: None,
+            15: None
         }
         self.grib_vars = grib_vars_in[self.keyValue]
 
@@ -151,13 +153,14 @@ class supplemental_precip:
             11: ['BLAH'],
             12: ['BLAH'],
             13: ['BLAH'],
-            14: ['BLAH']
+            14: ['BLAH'],
+            15: ['BLAH']
         }
         self.grib_levels = grib_levels_in[self.keyValue]
 
         netcdf_variables = {
             1: ['RadarOnlyQPE01H_0mabovemeansealevel'],
-            2: ['GaugeCorrQPE01H_0mabovemeansealevel'],
+            2: ['MultiSensorQPE01H_0mabovemeansealevel'],
             3: ['APCP_surface'],
             4: ['APCP_surface'],
             5: ['MultiSensorQPE01H_0mabovemeansealevel'],
@@ -169,7 +172,8 @@ class supplemental_precip:
             11: [], #Set dynamically since we have have Stage IV and MRMS
             12: [], #Set dynamically since we have have Stage IV and MRMS
             13: ['PrecipFlag_0mabovemeansealevel'],
-            14: ['PrecipFlag_0mabovemeansealevel']
+            14: ['PrecipFlag_0mabovemeansealevel'],
+            15: ['APCP_surface']
         }
         self.netcdf_var_names = netcdf_variables[self.keyValue]
 
@@ -187,7 +191,8 @@ class supplemental_precip:
             11: None,
             12: None,
             13: None,
-            14: None
+            14: None,
+            15: None
         }
         self.rqi_netcdf_var_names = netcdf_rqi_variables[self.keyValue]
 
@@ -205,7 +210,8 @@ class supplemental_precip:
             11: 3,
             12: 3,
             13: 8,
-            14: 3
+            14: 3,
+            15: 3
         }
         self.output_var_idx = output_variables[self.keyValue]
 
@@ -234,7 +240,8 @@ class supplemental_precip:
             11: time_handling.find_ak_ext_ana_precip_neighbors,
             12: time_handling.find_conus_ext_ana_precip_neighbors,
             13: time_handling.find_hourly_mrms_precip_flag,
-            14: time_handling.find_custom_freq_neighbors
+            14: time_handling.find_custom_freq_neighbors,
+            15: time_handling.find_hourly_nbm_neighbors
         }
 
         find_neighbor_files[self.keyValue](self, ConfigOptions, dCurrent, MpiConfig)
@@ -273,7 +280,8 @@ class supplemental_precip:
             11: regrid.regrid_ak_ext_ana_pcp,  
             12: regrid.regrid_conus_ext_ana_pcp,
             13: regrid.regrid_mrms_precip_flag,
-            14: regrid.regrid_mrms_hourly
+            14: regrid.regrid_mrms_hourly,
+            15: regrid.regrid_hourly_nbm
         }
         regrid_inputs[self.keyValue](self,ConfigOptions,wrfHyroGeoMeta,MpiConfig)
         #try:

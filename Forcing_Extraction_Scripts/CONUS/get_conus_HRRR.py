@@ -75,21 +75,23 @@ def main(args):
                        "z.wrfsfcf" + str(hrDownload).zfill(2) + ".grib2"
             url = httpDownloadDir + "/" + fileDownload
             outFile = hrrrOutDir + "/" + fileDownload
-            if not os.path.isfile(outFile):
-                download_complete = False
-                start_time = time.time()
-                timer = 0.0
-                print("Pulling HRRR file: " + url)
-                while(download_complete == False and timer < 600.0):
-                    try:
-                        request.urlretrieve(url,outFile)
-                        download_complete = True
-                    except:
-                        timer = time.time() - start_time
+            if os.path.isfile(outFile):
+                print(f"Skipping download ... File already exists {outFile}")
+                continue
+            download_complete = False
+            start_time = time.time()
+            timer = 0.0
+            print("Pulling HRRR file: " + url)
+            while(download_complete == False and timer < 600.0):
+                try:
+                    request.urlretrieve(url,outFile)
+                    download_complete = True
+                except:
+                    timer = time.time() - start_time
 
-                if(download_complete == False):
-                    print("Unable to retrieve: " + url)
-                    print("Data may not available yet...")
+            if(download_complete == False):
+                print("Unable to retrieve: " + url)
+                print("Data may not available yet...")
 
     # Remove the LOCK file.
     os.remove(lockFile)
