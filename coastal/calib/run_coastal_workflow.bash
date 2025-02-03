@@ -27,7 +27,8 @@ export FCST_TIMESTEP_LENGTH_SECS=3600
 
 #
 # location of the hot restart file for SCHISM
-export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_prvi_20240220_1800.nc
+#export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_prvi_20240220_1800.nc
+export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
 
 #
 # location of the archived STOFS file if STOFS data is 
@@ -37,11 +38,15 @@ export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.
 #
 # location of the NWM retrospective forcing files
 # note that the time span of the files must cover the whole simulation period
-export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_forcing_retro
+#export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_forcing_retro
+#export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_ana_forcing
+export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_forcing
 #
 # location of the NWM retrospective streamflow files
 # note that the time span of the files must cover the whole simulation period
-export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_chout_retro
+#export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_chout_retro
+#export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_ana_chout
+export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_chout
 #
 # Whether or not to use TPXO forecast instead of STOFS data
 # "YES" or "NO"
@@ -55,13 +60,14 @@ export USE_TPXO="NO"
 export OTPSDIR=/contrib/software/OTPSnc
 #
 #the name of the NWM domain to calibrate
-export COASTAL_DOMAIN=prvi
+#export COASTAL_DOMAIN=prvi
+export COASTAL_DOMAIN=hawaii
 #
 #define the NWM v3 installation directory
 export NWM_V3_INSTALL_DIR=/contrib/software/nwmv3_oe_install
 #
 #define working directory of the SCHISM calibration run
-export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/retro_test_stofs
+export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_stofs
 ##################################################################################################
 # End of user defined section
 ##################################################################################################
@@ -129,8 +135,15 @@ declare -A coastal_domain_to_inland_domain=( \
 	   [atlgulf]="domain" \
 	   [pacific]="domain" )
 
+declare -A coastal_domain_to_geo_grid=( \
+	   [prvi]="geo_em_PRVI.nc" \
+	   [hawaii]="geo_em_HI.nc" \
+	   [atlgulf]="geo_em_CONUS.nc" \
+	   [pacific]="geo_em_CONUS.nc" )
+
 export SCHISM_ESMFMESH=${PARMnwm}/coastal/${COASTAL_DOMAIN}/hgrid.nc
-export GEOGRID_FILE=${PARMnwm}/${coastal_domain_to_inland_domain[$COASTAL_DOMAIN]}/geo_em_PRVI.nc
+export GEOGRID_FILE=${PARMnwm}/${coastal_domain_to_inland_domain[$COASTAL_DOMAIN]}/${coastal_domain_to_geo_grid[$COASTAL_DOMAIN]}
+
 export DATAlogs=$DATAexec
 
 if [[ ! -d $DATAexec ]]; then
