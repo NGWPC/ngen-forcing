@@ -3,7 +3,9 @@ This directory contains scripts for downloading and processing SNODAS data from 
 
 # Script Description
 snodas_downloader.sh: This script downloads unmasked SNODAS data from the NSIDC server. Only the Snow Water Equivalent files are saved.
+
 snodas_convert.py: A rough but portable utility script for converting binary SNODAS files to NetCDF. Assumes use with snodas_downloader.sh. 
+
 snodas_mapper.py: A mapping script, which plots basin-scale SNODAS SWE values and writes to .png files.
 
 # Script Usage
