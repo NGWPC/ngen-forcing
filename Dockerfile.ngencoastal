@@ -1,0 +1,146 @@
+## TODO: replace with base image created under NGWPC-3223 ##
+## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
+FROM rockylinux:8
+
+# cannot remove LANG even though https://bugs.python.org/issue19846 is fixed
+# last attempted removal of LANG broke many users:
+# https://github.com/docker-library/python/pull/570
+ENV LANG="C.UTF-8"
+
+ENV SZIP_VERSION="2.1.1"
+ENV HDF5_VERSION="1.10.11"
+ENV NETCDF_C_VERSION="4.7.4"
+ENV NETCDF_FORTRAN_VERSION="4.5.4"
+
+## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
+
+# Add conda repo
+RUN <<EOF cat > /etc/yum.repos.d/conda.repo
+[conda]
+name=Conda
+baseurl=https://repo.anaconda.com/pkgs/misc/rpmrepo/conda
+enabled=1
+gpgcheck=1
+gpgkey=https://repo.anaconda.com/pkgs/misc/gpgkeys/anaconda.asc
+EOF
+
+# runtime dependencies
+RUN set -eux; \
+    dnf install -y dnf-plugins-core epel-release; \
+    dnf config-manager --set-enabled powertools; \
+    dnf install -y \
+        autoconf \
+        automake \
+        cmake \
+        conda \
+        curl curl-devel \
+        wget   \
+        file \
+        findutils \
+        git \
+## FIXME: replace GNU compilers with Intel compiler ##
+        gcc-toolset-10 \
+        gcc-toolset-10-libasan-devel \
+        gdal gdal-devel \
+        geos geos-devel \
+        libasan6 \
+        m4 \ 
+## FIXME: replace openmpi with Intel MPI libraries ##
+#        openmpi openmpi-devel \
+        openssl openssl-devel \
+        rsync \
+        which \ 
+    ; \
+    dnf clean all
+
+
+# add conda to the PATH
+ENV PATH=/opt/conda/bin:${PATH}
+
+## FIXME: replace GNU compilers with Intel compiler ##
+SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
+## FIXME: replace openmpi with Intel MPI libraries ##
+ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
+
+# Fix OpenMPI support within container
+ENV PSM3_HAL=loopback
+ENV PSM3_DEVICES=self
+
+RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc
+RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/exec
+RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_hotstart7/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_hotstart7/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_sink_source/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_sink_source/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis_prep/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis_prep/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/schism/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/schism/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/ush/ \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/ush/
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Erie \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Erie
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Michigan-Huron \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Michigan-Huron
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Ontario \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Ontario
+
+COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Superior \
+      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Superior
+
+#build the OTPSnc binary
+#COPY software/OTPSnc/ /contrib/software/
+
+ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
+
+ARG CONDA_ENV_NAME=ngen_forcing_coastal
+COPY Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    rm --force environment.yaml
+
+RUN set -eux; \
+    \
+    conda init bash
+
+ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
+ARG OLD_PATH=${PATH}
+ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
+
+
+### TODO: use isciences official release of ExactExtract instead of this older fork
+### this package could then be managed via conda
+#RUN set -eux; \
+#    \
+#    mkdir --parents /usr/src/exactextract ; \
+#    git clone --single-branch -b coverage-fraction-pybindings https://github.com/jdalrym2/exactextract.git /usr/src/exactextract ; \
+##    cd /usr/src/exactextract/ ; \
+#    python3 setup.py install ; \
+##    pip3 cache purge ; \
+#    conda clean --all ; \
+#    rm --force --recursive /usr/src/exactextract
+
+ENV PATH=${OLD_PATH}
+
+COPY Zhengtao.Cui/home/ngwpc/ngen-forcing/ /ngen-app/ngen-forcing/
+WORKDIR /ngen-app/
+
+
+WORKDIR /
+SHELL ["/bin/bash", "-c"]
+
+ENTRYPOINT [ "/bin/bash" ] 

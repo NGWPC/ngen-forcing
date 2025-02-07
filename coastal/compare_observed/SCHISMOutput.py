@@ -36,7 +36,6 @@ class SCHISMOutput:
               # find base times
               y, m, d, h, _ = [int(float(e)) for e in data.variables['time'].base_date.split()]
               basetime = datetime(y, m, d, h)
-#              print( data.variables['time'][0].astype('i4') )
               self._valid_time = basetime + timedelta( seconds = int(data.variables['time'][0].astype('i4')) ) 
 
         @property
