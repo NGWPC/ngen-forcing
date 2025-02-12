@@ -33,10 +33,7 @@ def load_and_process_data(netcdf_file, gpkg_file, date_str):
 
     # Select timestep
     #t2 = time.time()
-    swe_data = ds.sneqv.sel(date=date_str).values
-
-    # Convert mm to m
-    swe_data=swe_data/1000
+    swe_data = ds.swe.sel(date=date_str).values
 
     # Create a mapping dictionary from catchment IDs to SWE values
     catchment_ids = ds.catchment.values
