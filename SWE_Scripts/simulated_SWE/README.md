@@ -1,15 +1,15 @@
 # Script Descriptions
 
-convert_sneqv.py: This script parses multiple catchment-scale .csv output files from ngen, extracting 06z sneqv (snow water equivalent, or SWE) values for the date(s) specified. It writes these values to a NetCDF output file for ease of use with the simulated_swe_mapper.py script.
+convert_swe.py: This script parses multiple catchment-scale .csv output files from ngen, extracting 06z SWE (snow water equivalent) values for the date(s) specified. It writes these values to a NetCDF output file for ease of use with the simulated_swe_mapper.py script.
 
-simulated_swe_mapper.py: This script reads from a NetCDF file (it assumes a format identical to that created by convert_sneqv.py), and then plots SWE values on a map for the date specified. Each catchment polygon is filled with the simulated SWE value for that catchment, since these represent lumped values. 
+simulated_swe_mapper.py: This script reads from a NetCDF file (it assumes a format identical to that created by convert_swe.py), and then plots SWE values on a map for the date specified. Each catchment polygon is filled with the simulated SWE value for that catchment, since these represent lumped values. 
 
 # Script Usage
 
 A conda environment.yml file has been including. While using a conda environment is optional, this file lists required packages.
 
-#### convert_sneqv.py: 
-python convert_sneqv.py [-h] csv_directory dates [dates ...] output
+#### convert_swe.py: 
+python convert_swe.py [-h] csv_directory dates [dates ...] output
 
 Arguments:
 csv_directory: Required. A string that points to the path that contains the ngen catchment-scale .csv output files to parse.
@@ -27,9 +27,9 @@ output_file: Optional. A string that points to an output file path, ex: './outpu
 
 # Examples
 
-#### convert_sneqv.py
-python convert_sneqv.py -h
-python convert_sneqv.py '/data/ngen_out/01123000/' '2015-12-01' '2015-12-02' '/data/sneqv/01123000_swe.nc'
+#### convert_swe.py
+python convert_swe.py -h
+python convert_swe.py '/data/ngen_out/01123000/' '2015-12-01' '2015-12-02' '/data/sneqv/01123000_swe.nc'
 
 #### simulated_swe_mapper.py
 python simulated_swe_mapper.py -h
