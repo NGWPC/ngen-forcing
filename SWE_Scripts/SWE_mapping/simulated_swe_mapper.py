@@ -5,6 +5,7 @@ import numpy as np
 import geopandas as gpd
 import argparse
 import fsspec
+from swe_minmax import get_minmax
 #import time
 
 def load_and_process_data(netcdf_file, gpkg_file, date_str):
@@ -68,8 +69,7 @@ def plot_polygon_simulated_swe(ax, gdf, proj):
     
     # Set color scale based on min/max values
     #vmin = float(gdf['mean_swe'].min())
-    vmin = 0
-    vmax = float(gdf['mean_swe'].max())
+    vmin,vmax = get_minmax(gdf['mean_swe'])
     norm = plt.Normalize(vmin=vmin, vmax=vmax)
     cmap = plt.cm.Blues
     sm = plt.cm.ScalarMappable(cmap=cmap, norm=norm)
@@ -83,13 +83,14 @@ def plot_polygon_simulated_swe(ax, gdf, proj):
     ax = plot_catchment_boundaries(ax, gdf, proj)
     return ax, sm, vmin, vmax
 
-def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file):
+def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file, mode='plot'):
     """Creates a map of simulated SWE values by catchment"""
     
     ds, gdf, basin_geometry, bounds = load_and_process_data(netcdf_file,
                                                             gpkg_file,
                                                             date_str)
-    
+    if mode == 'scan':
+        return get_minmax(gdf['mean_swe'])
     #t3 = time.time()
     # Create base plot
     proj = ccrs.PlateCarree()
@@ -110,17 +111,16 @@ def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file):
     ax, im, vmin, vmax = plot_polygon_simulated_swe(ax, gdf, proj)
     
     # Plot basin outline
-    if basin_geometry is not None:
-        ax.add_geometries([basin_geometry], crs=proj,
-                         facecolor='none', edgecolor='red',
-                         linewidth=1.5)
+    ax.add_geometries([basin_geometry], crs=proj,
+                     facecolor='none', edgecolor='red',
+                     linewidth=1.5)
     
     # Plot colorbar based on settings in plot functions
     cbar = plt.colorbar(im, ax=ax, pad=0.02)
     cbar.set_label('Snow Water Equivalent (m)', fontsize=10)
     
-    # Add date to title bar
-    plt.title(f'Snow Water Equivalent (SWE) - {date_str}')
+    # Title bar with date
+    plt.title(f'Simulated Snow Water Equivalent (SWE)\n {date_str} - 06z')
     
     # Add gridlines and set labels
     gl = ax.gridlines(draw_labels=True, linewidth=0.5,
@@ -137,7 +137,7 @@ def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file):
     else:
         plt.show()
 
-def get_options():
+def get_options(args_list=None):
     parser = argparse.ArgumentParser()
     parser.add_argument('netcdf_file', type=str,
                        help="Path to NetCDF file")
@@ -147,9 +147,16 @@ def get_options():
                        help="Date to plot (ex: '2015-12-01')")
     parser.add_argument('--output_file', type=str, default=None,
                        help="Path where output image is saved")
-    return parser.parse_args()
+    parser.add_argument('--mode', type=str, default='plot',
+                       choices=['plot', 'scan'],
+                       help="Operation mode: 'plot' or 'scan'")
+    return parser.parse_args(args_list)
+
+def main(args_list=None):
+    args = get_options(args_list)
+    plot_swe_map(args.netcdf_file, args.gpkg_file, args.date, 
+                 args.output_file, args.mode)
 
 if __name__ == "__main__":
-    args = get_options()
-    plot_swe_map(args.netcdf_file, args.gpkg_file, args.date, 
-                 args.output_file)
+    main()
+

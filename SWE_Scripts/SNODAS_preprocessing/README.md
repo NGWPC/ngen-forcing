@@ -6,8 +6,6 @@ snodas_downloader.sh: This script downloads unmasked SNODAS data from the NSIDC 
 
 snodas_convert.py: A rough but portable utility script for converting binary SNODAS files to NetCDF. Assumes use with snodas_downloader.sh. 
 
-snodas_mapper.py: A mapping script, which plots basin-scale SNODAS SWE values and writes to .png files.
-
 # Script Usage
 #### snodas_downloader.sh
 snodas_downloader.sh [-h|--help] [YEAR as yyyy] [MONTH as mm] [DAY as dd]
@@ -26,22 +24,6 @@ Ensure that Docker is available/active, and that you have the correct permission
 
 This script is configured only for use with SNODAS data from 01OCT2013 or later. Older data has already been archived, but requires different GDAL settings.
 
-#### snodas_mapper.py
-
-python snodas_mapper.py [-h] [--gpkg_file GPKG_FILE] [--output_file OUTPUT_FILE] [--plot_type PLOT_TYPE] netcdf_file
-
--h, --help: prints usage
-
-netcdf_file is mandatory. This can be an s3 location or a local file.
-
-If no plot_type is provided, the script will default to the raw visualization. The "catchment" option plots catchment-averaged values, while "raw" plots raw data. 
-
-If no gpkg_file is provided, the script will map the whole domain, which is not recommended in combination with the catchment plot_type. Otherwise, the geopackage file indicated will be used to subset the domain.
-
-If no output_file is provided, the script will open an image, but not save it.
-
-An environment.yml file has been included, which lists required packages, and can be used to create a conda environment capable of utilizing the script. However, if all required packages are installed locally, this is not required.
-
 # Examples
 #### snodas_downloader.sh
 snodas_downloader.sh --help
@@ -51,6 +33,4 @@ snodas_downloader.sh 2024 01
 snodas_downloader.sh 2024 01 20
 #### snodas_convert.py
 python snodas_convert.py
-#### snodas_mapper.py
-python snodas_mapper.py -h
-python snodas_mapper.py --gpkg_file '/data/geopackages/gages-13240000.gpkg' --output_file '/data/snodas/13240000_c.nc' --plot_type 'catchment' 's3://ngwpc-forcing/snodas_nc/zz_ssm11034tS__T0001TTNATS2009123105HP001.nc'
+
