@@ -22,57 +22,45 @@ A conda environment.yml file has been including. While using a conda environment
 run_swe.py is expected to be located in the same directory as the other scripts listed here. 
 
 python run_swe.py [-h] date sim_csv_dir sim_netcdf gpkg_file sim_map_output snodas_raw_output snodas_lumped_output
-run_swe.py: error: the following arguments are required: date, sim_csv_dir, sim_netcdf, gpkg_file, sim_map_output, snodas_raw_output, snodas_lumped_output
 
-Positional (Required) Arguments:
-
-  date                  Date to use for all plots.
-  
-  sim_csv_dir           Path that contains ngen swe csv files. This is your ngen output directory.
-  
-  sim_netcdf            Path for simulated swe netcdf file. convert_csv writes to this file, simulated_swe_mapper reads from this
-                        file.
-  
-  gpkg_file             Path to geopackage file.
-  
-  sim_map_output        Path where simulated swe map output saved. Output will be a .png file.
-  
-  snodas_raw_output     Path where snodas raw map output saved. Output will be a .png file.
-  
-  snodas_lumped_output  Path where snodas catchment map output saved. Output will be a .png file.
+Positional Arguments:  
+- date: Date to use for all plots.
+- sim_csv_dir: Path that contains ngen swe csv files. This is your ngen output directory.  
+- sim_netcdf: Path for simulated swe netcdf file. convert_csv writes to this file, simulated_swe_mapper reads from this file.  
+- gpkg_file: Path to geopackage file.  
+- sim_map_output: Path where simulated swe map output saved. Output will be a .png file.  
+- snodas_raw_output     Path where snodas raw map output saved. Output will be a .png file.
+- snodas_lumped_output  Path where snodas catchment map output saved. Output will be a .png file.
 
 #### convert_swe.py: 
 python convert_swe.py [-h] csv_directory dates [dates ...] output
 
-Arguments:
-csv_directory: Required. A string that points to the path that contains the ngen catchment-scale .csv output files to parse.
-dates: Required. A string representing a date to parse. For example '2015-12-01'. Multiple dates can be entered, but at least one date is required.
-output: Required. A string representing the full absolute or relative path to desired output file, for example './example.nc'
+Positional Arguments:  
+- csv_directory: A string that points to the path that contains the ngen catchment-scale .csv output files to parse.  
+- dates: A string representing a date to parse. For example '2015-12-01'. Multiple dates can be entered, but at least one date is required.  
+- output: A string representing the full absolute or relative path to desired output file, for example './example.nc'
 
 #### simulated_swe_mapper.py:
-python simulated_swe_mapper.py [-h] [--output_file OUTPUT_FILE] netcdf_file gpkg_file date
+python simulated_swe_mapper.py [-h] [--output_file OUTPUT_FILE] [--mode {plot,scan}] netcdf_file gpkg_file date
 
-Arguments:
-netcdf_file: Required. A string that points to the NetCDF file that contains SWE values. Assumes that the NetCDF file was created by convert_sneqv.py, or has the same format/structure.
-gpkg_file: Required. A string that points to the .gpkg file containing basin geographic information. (Hydrofabric file).
-date: Required. A string representing the date you wish to map. Ex: '2015-12-01'
-output_file: Optional. A string that points to an output file path, ex: './output.png' If no output_file argument is provided, no file will be saved. Instead, the terminal will attempt to display the image using xdg. 
+Arguments:  
+- netcdf_file: Required. A string that points to the NetCDF file that contains SWE values. Assumes that the NetCDF file was created by convert_sneqv.py, or has the same format/structure.  
+- gpkg_file: Required. A string that points to the .gpkg file containing basin geographic information. (Hydrofabric file).  
+- date: Required. A string representing the date you wish to map. Ex: '2015-12-01'  
+- output_file: Optional. A string that points to an output file path, ex: './output.png' If no output_file argument is provided, no file will be saved. Instead, the terminal will attempt to display the image using xdg.  
+- mode: Optional. Scan mode returns only vmin/vmax, primarily for use in creating a unified color scale. Plot mode is default, and will produce a map image.
 
 #### snodas_mapper.py
 
-python snodas_mapper.py [-h] [--gpkg_file GPKG_FILE] [--output_file OUTPUT_FILE] [--plot_type PLOT_TYPE] netcdf_file
+python snodas_mapper.py [-h] date gpkg_file output_file_raw output_file_lumped
 
 -h, --help: prints usage
 
-netcdf_file is mandatory. This can be an s3 location or a local file.
-
-If no plot_type is provided, the script will default to the raw visualization. The "catchment" option plots catchment-averaged values, while "raw" plots raw data. 
-
-If no gpkg_file is provided, the script will map the whole domain, which is not recommended in combination with the catchment plot_type. Otherwise, the geopackage file indicated will be used to subset the domain.
-
-If no output_file is provided, the script will open an image, but not save it.
-
-An environment.yml file has been included, which lists required packages, and can be used to create a conda environment capable of utilizing the script. However, if all required packages are installed locally, this is not required.
+Positional arguments:  
+- date: A string representing the date to map. Ex: 2015-12-01  
+- gpkg_file: Path to the geopackage file to use.  
+- output_file_raw: Path where raw map to be saved.  
+- output_file_lumped: Path where lumped map to be saved.
 
 # Examples
 
