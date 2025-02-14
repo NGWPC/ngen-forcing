@@ -25,13 +25,20 @@ python run_swe.py [-h] date sim_csv_dir sim_netcdf gpkg_file sim_map_output snod
 run_swe.py: error: the following arguments are required: date, sim_csv_dir, sim_netcdf, gpkg_file, sim_map_output, snodas_raw_output, snodas_lumped_output
 
 Positional (Required) Arguments:
+
   date                  Date to use for all plots.
+  
   sim_csv_dir           Path that contains ngen swe csv files. This is your ngen output directory.
+  
   sim_netcdf            Path for simulated swe netcdf file. convert_csv writes to this file, simulated_swe_mapper reads from this
                         file.
+  
   gpkg_file             Path to geopackage file.
+  
   sim_map_output        Path where simulated swe map output saved. Output will be a .png file.
+  
   snodas_raw_output     Path where snodas raw map output saved. Output will be a .png file.
+  
   snodas_lumped_output  Path where snodas catchment map output saved. Output will be a .png file.
 
 #### convert_swe.py: 
