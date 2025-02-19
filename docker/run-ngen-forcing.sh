@@ -129,7 +129,8 @@ echo "   Running ${CONDA_CMD} $(basename "$SCRIPT_PATH") with: $GPKG_FILE $CYCLE
 if [ -z "$STDOUT_FILE" ]; then
   $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-output_path" "${FORCING_FILE}"
 else
-  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-output_path" "${FORCING_FILE}" &> "${STDOUT_FILE}"
+  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-output_path" "${FORCING_FILE}" > "${STDOUT_FILE}" 2>&1
+
 fi
 
 python_exit_code=$?
