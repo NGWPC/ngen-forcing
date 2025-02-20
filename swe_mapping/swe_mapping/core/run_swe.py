@@ -48,7 +48,7 @@ def run_sim_swe_mapper(args):
 	]
 	simulated_swe_mapper.main(sim_swe_mapper_args)
 
-def get_options():
+def get_options(arg_list=None):
 	parser = argparse.ArgumentParser()
 	parser.add_argument('date', type=str,
 						help="Date to use for all plots.")
@@ -70,14 +70,19 @@ def get_options():
 	parser.add_argument('snodas_lumped_output', type=str,
 						help="Path where snodas lumped swe map output saved.\
 						Output will be a .png file.")
+	if arg_list is not None:
+	    return parser.parse_args(arg_list) 
 	return parser.parse_args()
 
-def main():
-    args = get_options()
+def execute(args):
     run_convert_swe(args)
     run_sim_scan(args)
     run_snodas_mapper(args)
     run_sim_swe_mapper(args)
+
+def main(arg_list=None):
+    args = get_options(arg_list)
+    execute(args)
 
 if __name__ == "__main__":
     main()
