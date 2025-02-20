@@ -1,4 +1,4 @@
-name: swe_mapping
+name: snodas_preprocessing
 channels:
   - conda-forge
   - defaults
@@ -13,3 +13,4 @@ dependencies:
   - pandas
   - fsspec
   - s3fs
+

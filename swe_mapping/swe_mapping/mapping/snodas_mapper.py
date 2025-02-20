@@ -1,4 +1,4 @@
-import xarray as xr
+gedit import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import numpy as np
@@ -7,7 +7,7 @@ from shapely.vectorized import contains
 import argparse
 import fsspec
 #import time
-from swe_minmax import get_minmax
+from ..utility.swe_minmax import get_minmax
 
 def load_and_process_data(netcdf_file, gpkg_file=None, plot_type='grid'):
     """Load and process SWE data from NetCDF and optional geopackage files"""
@@ -261,4 +261,3 @@ def main(args_list=None):
 
 if __name__ == "__main__":
     main()
-

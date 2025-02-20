@@ -26,3 +26,4 @@ def reset_minmax():
     global _global_min, _global_max
     _global_min = float('inf')
     _global_max = float('-inf')
+
