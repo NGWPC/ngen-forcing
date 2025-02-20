@@ -1,7 +1,7 @@
-from swe_minmax import reset_minmax
-import snodas_mapper
-import simulated_swe_mapper
-import convert_swe
+from ..utility.swe_minmax import reset_minmax
+from ..mapping import snodas_mapper
+from ..mapping import simulated_swe_mapper
+from ..utility import convert_swe
 import argparse
 
 # Resets global vmin/vmax
@@ -44,11 +44,11 @@ def run_sim_swe_mapper(args):
 		args.sim_netcdf,
 		args.gpkg_file,
 		args.date,
-		'--output_file', args.sim_map_output
+		'--output_file', args.sim_lumped_output
 	]
 	simulated_swe_mapper.main(sim_swe_mapper_args)
 
-def get_options():
+def get_options(arg_list=None):
 	parser = argparse.ArgumentParser()
 	parser.add_argument('date', type=str,
 						help="Date to use for all plots.")
@@ -61,21 +61,28 @@ def get_options():
 						reads from this file.")
 	parser.add_argument('gpkg_file', type=str,
 						help="Path to geopackage file.")
-	parser.add_argument('sim_map_output', type=str,
-						help="Path where simulated swe map output saved.\
+	parser.add_argument('sim_lumped_output', type=str,
+						help="Path where simulated lumped swe map output saved.\
 						Output will be a .png file.")
 	parser.add_argument('snodas_raw_output', type=str,
-						help="Path where snodas raw map output saved.\
+						help="Path where snodas raw swe map output saved.\
 						Output will be a .png file.")
 	parser.add_argument('snodas_lumped_output', type=str,
-						help="Path where snodas catchment map output saved.\
+						help="Path where snodas lumped swe map output saved.\
 						Output will be a .png file.")
+	if arg_list is not None:
+	    return parser.parse_args(arg_list) 
 	return parser.parse_args()
 
-if __name__ == "__main__":
-	args = get_options()
-	run_convert_swe(args)
-	run_sim_scan(args)
-	run_snodas_mapper(args)
-	run_sim_swe_mapper(args)
+def execute(args):
+    run_convert_swe(args)
+    run_sim_scan(args)
+    run_snodas_mapper(args)
+    run_sim_swe_mapper(args)
 
+def main(arg_list=None):
+    args = get_options(arg_list)
+    execute(args)
+
+if __name__ == "__main__":
+    main()
