@@ -1,4 +1,4 @@
-gedit import xarray as xr
+import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import numpy as np
