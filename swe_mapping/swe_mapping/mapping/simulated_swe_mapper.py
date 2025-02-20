@@ -1,3 +1,4 @@
+
 import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
@@ -5,7 +6,7 @@ import numpy as np
 import geopandas as gpd
 import argparse
 import fsspec
-from swe_minmax import get_minmax
+from ..utility.swe_minmax import get_minmax
 #import time
 
 def load_and_process_data(netcdf_file, gpkg_file, date_str):
@@ -159,4 +160,5 @@ def main(args_list=None):
 
 if __name__ == "__main__":
     main()
+
 

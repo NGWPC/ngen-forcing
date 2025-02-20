@@ -63,3 +63,4 @@ echo "Uncompressing the SWE files ..."
 find ./snodas -type f -name "*1034*.gz" -execdir gunzip --force {} \;
 
 echo "Download complete"
+
