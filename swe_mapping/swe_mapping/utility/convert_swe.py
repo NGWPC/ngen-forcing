@@ -32,7 +32,7 @@ def read_swe_values_from_dir(directory, dates):
     # Extract catchment IDs from filenames
 
     if not csv_files:
-        raise Exception("No CSV files found in {directory")
+        raise Exception(f"No CSV files found in {directory}")
 
     catchment_ids = np.array([
         int(match.group(1))  # Extract the number safely
