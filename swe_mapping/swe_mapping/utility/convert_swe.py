@@ -30,14 +30,25 @@ def read_swe_values_from_dir(directory, dates):
     csv_files = glob.glob(pattern)
    
     # Extract catchment IDs from filenames
+
+    if not csv_files:
+        raise Exception(f"No CSV files found in {directory}")
+
     catchment_ids = np.array([
-        int(re.search(r'cat-(\d+)\.csv', os.path.basename(f)).group(1))
-        for f in csv_files if re.search(r'cat-(\d+)\.csv', os.path.basename(f))
+        int(match.group(1))  # Extract the number safely
+        for f in csv_files
+        if (match := re.search(r'cat-(\d+)', os.path.basename(f)))  # Store the match
     ])
-   
+
+    if catchment_ids.size == 0:
+        raise Exception(f'No valid catchment files found in {directory}: {csv_files}')
+
+    print(f"catchment_ids: {catchment_ids}")
+
     # Initialize data array - 2d (times, ids)
     data = np.full((len(times), len(catchment_ids)), np.nan)
-   
+
+    missing_swe_data = False
     # Parse SWE values from each file
     for idx, file_path in enumerate(csv_files):
         try:
@@ -46,25 +57,30 @@ def read_swe_values_from_dir(directory, dates):
             df.columns = df.columns.str.lower()
 
             if 'swe_m' not in df.columns and 'swe_mm' not in df.columns:
-                print("SWE not found")
+                print(f"SWE columns not found in {file_path}")
+                missing_swe_data = True
                 continue
-           
+
             # Use only selected date/times    
             df['time'] = pd.to_datetime(df['time'])
             mask = df['time'].isin(times)
             if not mask.any():
                 continue
-           
-            # Extract and store specified values
-            if 'swe_m' in df.columns:    
+
+            # Extract and store SWE values
+            if 'swe_m' in df.columns:
                 values = df.loc[mask, 'swe_m'].values
             elif 'swe_mm' in df.columns:
-                values = (df.loc[mask, 'swe_mm'].values)/1000
+                values = df.loc[mask, 'swe_mm'].values / 1000  # Convert mm to meters
             data[:, idx] = values
-            
+
         except Exception as e:
             print(f"Error processing {file_path}: {e}")
             continue
+
+    # Check if any files were missing SWE data
+    if missing_swe_data:
+        raise Exception("One or more files were missing SWE data.")
 
     return catchment_ids, times, data
 
