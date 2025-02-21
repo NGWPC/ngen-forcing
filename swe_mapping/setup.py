@@ -11,6 +11,7 @@ setup(
         'geopandas',
         'shapely',
         'fsspec',
-        'pandas'  
+        'pandas',
+        's3fs'
     ],
 )
