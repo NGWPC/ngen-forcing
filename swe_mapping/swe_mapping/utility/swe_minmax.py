@@ -10,9 +10,14 @@ def get_minmax(current_data):
     returns the current global values
     """
     global _global_min, _global_max
-    
-    current_min = np.nanmin(current_data)
-    current_max = np.nanmax(current_data)
+
+    if np.isnan(current_data).all():
+        print("Warning: current_data contains only NaNs, skipping min/max calculation.")
+        current_min = np.nan  # or some default value
+        current_max = np.nan
+    else:
+        current_min = np.nanmin(current_data)
+        current_max = np.nanmax(current_data)
     
     _global_min = min(_global_min, current_min)
     _global_max = max(_global_max, current_max)
