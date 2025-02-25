@@ -8,10 +8,12 @@ setup(
         'matplotlib',
         'cartopy',
         'numpy',
-        'geopandas',
-        'shapely',
+        'geopandas~=1.0',
+        'shapely~=2.0',
         'fsspec',
         'pandas',
-        's3fs'
+        's3fs',
+        'dask[complete]',  # Includes Dask core + recommended dependencies
+        'distributed'  # Adds support for parallel computing
     ],
 )
