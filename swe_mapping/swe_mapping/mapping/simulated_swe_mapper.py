@@ -1,3 +1,5 @@
+import os
+import time
 
 import xarray as xr
 import matplotlib.pyplot as plt
@@ -17,24 +19,24 @@ def load_and_process_data(netcdf_file, gpkg_file, date_str):
         gpkg_file: Path to geopackage file
         date_str: Date string from NetCDF time dim (ex: '2015-12-01')
     """
-    #t0 = time.time()
+    t0 = time.time()
     ds = xr.open_dataset(netcdf_file)
-    #print(f"NetCDF load time: {time.time() - t0:.2f}s")
+    print(f"   NetCDF load time: {time.time() - t0:.2f}s")
     
     # Read divides layer from geopackage
-    #t1 = time.time()
+    # t1 = time.time()
     gdf = read_geo(gpkg_file)
-    
+
     # Combine all polygons for basin outline
     try:
         basin_geometry = gdf.union_all()
     except AttributeError:
         basin_geometry = gdf.unary_union
     bounds = basin_geometry.bounds
-    #print(f"Geometry load time: {time.time() - t1:.2f}s")
+    # print(f"   Geometry load time: {time.time() - t1:.2f} seconds")
 
     # Select timestep
-    #t2 = time.time()
+    # t2 = time.time()
     swe_data = ds.swe.sel(date=date_str).values
 
     # Create a mapping dictionary from catchment IDs to SWE values
@@ -44,16 +46,22 @@ def load_and_process_data(netcdf_file, gpkg_file, date_str):
     # Create catchment ID column and then lookup values from dict
     gdf['catchment_id'] = gdf['divide_id'].str.split('-').str[1].astype(int)
     gdf['mean_swe'] = gdf['catchment_id'].map(swe_dict).fillna(np.nan)
-    #print(f"SWE load/process time: {time.time() - t2:.2f}s")
+    # print(f"   SWE load/process time: {time.time() - t2:.2f}s")
 
     return ds, gdf, basin_geometry, bounds
 
 def read_geo(gpkg_file):
     """Read divides layer from .gpkg file to GeoDataFrame"""
+    if not os.path.exists(gpkg_file):
+        raise FileNotFoundError(f"Geopackage file '{gpkg_file}' not found. Please check the file path.")
+
     gdf = gpd.read_file(gpkg_file, layer='divides')
+
     if not gdf.crs.is_geographic:
         gdf = gdf.to_crs('EPSG:4326')
+
     return gdf
+
 
 def plot_catchment_boundaries(ax, gdf, proj):
     """Add catchment boundaries to plot"""
@@ -92,7 +100,7 @@ def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file, mode='plot'):
                                                             date_str)
     if mode == 'scan':
         return get_minmax(gdf['mean_swe'])
-    #t3 = time.time()
+    # t1 = time.time()
     # Create base plot
     proj = ccrs.PlateCarree()
     fig, ax = plt.subplots(figsize=(15, 10), 
@@ -128,13 +136,14 @@ def plot_swe_map(netcdf_file, gpkg_file, date_str, output_file, mode='plot'):
                       color='gray', alpha=0.5, linestyle='--')
     gl.top_labels = False
     gl.right_labels = False
-    #print(f"Plotting time: {time.time() - t3:.2f}s")
+    # print(f"   Plotting time: {time.time() - t1:.2f}s")
+
 
     if output_file:
-        #t4=time.time()
+        # t4=time.time()
         plt.savefig(output_file, dpi=300, bbox_inches='tight')
         plt.close()
-        #print(f"output time: {time.time() - t4:.2f}s")
+        # print(f"   output time: {time.time() - t4:.2f}s")
     else:
         plt.show()
 
