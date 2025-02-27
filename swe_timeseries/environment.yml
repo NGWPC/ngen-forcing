@@ -1,0 +1,12 @@
+name: swe_timeseries
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - pandas=2.0.0
+  - geopandas=0.12.0
+  - numpy=1.23.0
+  - matplotlib=3.6.0
+  - fsspec
+  - s3fs
