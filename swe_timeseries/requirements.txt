@@ -1,6 +1,0 @@
-pandas
-geopandas
-numpy
-matplotlib
-fsspec
-s3fs
