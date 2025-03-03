@@ -14,26 +14,38 @@ class SWEDataLoader:
     """Handles loading and preprocessing of SWE data from CSV files"""
     
     @staticmethod
-    def get_times(start_date, end_date):
+    def get_times(csv_files):
         """
         Create an array of 06z timestamps given start and end date.
 
         Parameters
         ----------
-        start_date : str
-            First date to analyze - inclusive
-        end_date : str
-            Last date to analyze - inclusive
+        csv_files : str
+            Path to the ngen csv files.
 
         Returns
         -------
         numpy.ndarray
             Array of 06z datetime objects for each day
         """
-        times = np.arange(start_date, 
-                        np.datetime64(end_date) + np.timedelta64(1, 'D'),
-                        np.timedelta64(1, 'D')).astype('datetime64[ns]')
-        times = times + np.timedelta64(6, 'h') 
+
+        file_path = csv_files[0]
+        df = pd.read_csv(file_path)
+        df.columns = df.columns.str.lower()
+        df['time'] = pd.to_datetime(df['time'])
+
+        start_date = min(df['time'])
+        end_date = max(df['time'])
+
+        if end_date.hour >= 6:
+            times = np.arange(start_date, 
+                            np.datetime64(end_date) + np.timedelta64(1, 'D'),
+                            np.timedelta64(1, 'D')).astype('datetime64[ns]')
+            times = times + np.timedelta64(6, 'h') 
+        else:
+            times = np.arange(start_date, np.datetime64(end_date),
+                             np.timedelta64(1, 'D')).astype('datetime64[ns]')
+            times = times + np.timedelta64(6, 'h') 
 
         return times
 
@@ -226,16 +238,16 @@ class SWEDataLoader:
                 df.columns = df.columns.str.lower()
                 if 'swe_m' not in df.columns and 'swe_mm' not in df.columns:
                     continue
-                    
-                # Use only selected date/times    
-                df['time'] = pd.to_datetime(df['time'])
                 
-                # Check date range - these are critical errors we want to exit on
-                if max(times) > max(df['time']):
-                    raise ValueError(f"End date out of range...max: {max(df['time'])}.")
-                elif min(times) < min(df['time']):
-                    raise ValueError(f"Start date out of range...min: {min(df['time'])}.")
+                df['time'] = pd.to_datetime(df['time'])
                     
+                # Check date range - these are critical errors we want to exit on
+                #if max(times) > max(df['time']):
+                #    raise ValueError(f"End date out of range...max: {max(df['time'])}.")
+                #elif min(times) < min(df['time']):
+                #    raise ValueError(f"Start date out of range...min: {min(df['time'])}.")
+               
+                # Use only selected date/times                      
                 mask = df['time'].isin(times)
                 if not mask.any():
                     continue
@@ -590,8 +602,7 @@ class SWEPlotter:
 class SWEProcessor:
     """Main class for processing and visualizing SWE data."""
     
-    def __init__(self, csv_directory=None, gpkg_file=None, start_date=None, 
-                 end_date=None, plot_output=None, csv_output=None):
+    def __init__(self, csv_directory=None, gpkg_file=None, plot_output=None, csv_output=None):
         """
         Initialize SWE processor with input and output parameters.
         
@@ -601,10 +612,6 @@ class SWEProcessor:
             Path to directory containing csv files
         gpkg_file : str, optional
             Path to geopackage file with catchment geometries
-        start_date : str, optional
-            Start date for analysis
-        end_date : str, optional
-            End date for analysis
         plot_output : str, optional
             Path where plot should be saved
         csv_output : str, optional
@@ -612,8 +619,6 @@ class SWEProcessor:
         """
         self.csv_directory = csv_directory
         self.gpkg_file = gpkg_file
-        self.start_date = start_date
-        self.end_date = end_date
         self.plot_output = plot_output
         self.csv_output = csv_output
         
@@ -644,9 +649,9 @@ class SWEProcessor:
     def load_data(self):
         """Load all required data"""
         tl0 = time.time()
-        self.times = SWEDataLoader.get_times(self.start_date, self.end_date)
-        tl1 = time.time()
         self.csv_files = SWEDataLoader.get_filenames(self.csv_directory)
+        tl1 = time.time()
+        self.times = SWEDataLoader.get_times(self.csv_files)
         tl2 = time.time()
         self.s3_path, self.basin_id = SWEDataLoader.construct_s3_path(self.gpkg_file)
         tl3 = time.time()
@@ -665,8 +670,8 @@ class SWEProcessor:
         tl8 = time.time()
 
         print(f"\ntime in load_data: {tl8-tl0:.5f}s")
-        print(f"get_times time: {tl1-tl0:.5f}s")
-        print(f"get_filenames time: {tl2-tl1:.5f}s")
+        print(f"get_filenames time: {tl1-tl0:.5f}s")
+        print(f"get_times time: {tl2-tl1:.5f}s")
         print(f"contruct_s3_path time: {tl3-tl2:.5f}s")
         print(f"read_csv_from_s3 time: {tl4-tl3:.5f}s")
         print(f"get_ids time: {tl5-tl4:.5f}s")
@@ -788,10 +793,6 @@ def get_options(args_list=None):
                        help="Path that contains ngen csv files.")
     parser.add_argument('gpkg_file', type=str,
                        help="Path to geopackage file containing catchment geometries.")
-    parser.add_argument('start_date', type=str,
-                       help="Start of dates to process ex: '2015-12-01'")
-    parser.add_argument('end_date', type=str,
-                       help="End of dates to process ex: '2015-12-04'")    
     parser.add_argument('--plot_output', type=str, default=None,
                        help="Optional output path for the simulated SWE time series PNG file.")
     parser.add_argument('--csv_output', type=str, default=None,
@@ -815,14 +816,12 @@ def execute(args):
     processor = SWEProcessor(
         csv_directory=args.csv_directory,
         gpkg_file=args.gpkg_file,
-        start_date=args.start_date,
-        end_date=args.end_date,
         plot_output=args.plot_output,
         csv_output=args.csv_output
     )
     processor.process()
 
-def main(args_list=None):
+def swe_ts(args_list=None):
     """
     Main entry point for the script.
     
@@ -835,4 +834,4 @@ def main(args_list=None):
     execute(args)
     
 if __name__ == "__main__":
-    main()
+    swe_ts()

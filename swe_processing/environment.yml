@@ -1,4 +1,4 @@
-name: swe_mapping
+name: swe_processing
 channels:
   - conda-forge
   - defaults
@@ -6,6 +6,7 @@ dependencies:
   - python=3.10
   - xarray
   - netcdf4
+  - scipy
   - matplotlib
   - cartopy
   - numpy
@@ -13,4 +14,3 @@ dependencies:
   - pandas
   - fsspec
   - s3fs
-
