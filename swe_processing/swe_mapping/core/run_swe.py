@@ -95,9 +95,9 @@ def execute(args):
     run_snodas_mapper(args)
     run_sim_swe_mapper(args)
 
-def main(arg_list=None):
+def swe_map(arg_list=None):
     args = get_options(arg_list)
     execute(args)
 
 if __name__ == "__main__":
-    main()
+    swe_map()
