@@ -13,7 +13,7 @@ import subprocess
 
 import yaml
 
-from git_util import print_git_info
+from git_util import print_git_info_all
 
 
 def execute(args):
@@ -573,7 +573,7 @@ def get_options():
 
 
 if __name__ == '__main__':
-    print_git_info()
+    print_git_info_all()
 
     args = get_options()
     execute(args)
