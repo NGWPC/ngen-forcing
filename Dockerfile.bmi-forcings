@@ -158,7 +158,7 @@ RUN set -eux; \
 WORKDIR /ngen-app/ngen-forcing
 
 # Extract Git information and write it to the file specified by $GIT_INFO_PATH
-ARG GIT_INFO_PATH=/ngen-app/git_info.json
+ARG GIT_INFO_PATH=/ngen-app/ngen-bmi-forcing_git_info.json
 
 RUN jq -n \
     --arg commit_hash "$(git rev-parse HEAD)" \
