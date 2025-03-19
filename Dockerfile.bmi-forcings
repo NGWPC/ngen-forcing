@@ -165,8 +165,8 @@ RUN set -eux; \
     # Extract the repo name (everything after the last slash) and remove any trailing .git
     key=${repo_url##*/}; \
     key=${key%.git}; \
-    # Construct the file path using the derived key
-    GIT_INFO_PATH="/ngen-app/${key}_git_info.json"; \
+    # ngen-forcing is different from the other repos.  We don't use the repo name directly
+    GIT_INFO_PATH="/ngen-app/ngen-bmi-forcing_git_info.json"; \
     # Determine branch name: use CI_COMMIT_REF_NAME if set; otherwise, use git's current branch
     branch=$( [ -n "${CI_COMMIT_REF_NAME:-}" ] && echo "${CI_COMMIT_REF_NAME}" || git rev-parse --abbrev-ref HEAD ); \
     jq -n \
@@ -177,7 +177,7 @@ RUN set -eux; \
       --arg commit_date "$(date -u -d @$(git log -1 --pretty=format:'%ct') +'%Y-%m-%d %H:%M:%S UTC')" \
       --arg message "$(git log -1 --pretty=format:'%s' | tr '\n' ';')" \
       --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
-      "{\"$key\": {commit_hash: \$commit_hash, branch: \$branch, tags: \$tags, author: \$author, commit_date: \$commit_date, message: \$message, build_date: \$build_date}}" \
+      "{\"ngen-bmi-forcing\": {commit_hash: \$commit_hash, branch: \$branch, tags: \$tags, author: \$author, commit_date: \$commit_date, message: \$message, build_date: \$build_date}}" \
       > $GIT_INFO_PATH
 
 
