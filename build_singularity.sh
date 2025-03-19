@@ -21,13 +21,13 @@ REPOS=("ngen" "ngen-cal" "ngen-bmi-forcing" "ngen-lumped-forcing" "ngen-fcst" "n
 echo "Select build type:"
 echo "1) development"
 echo "2) release-candidate"
-echo "3) official-release"
+echo "3) official release"
 read -p "Enter number [1-3]: " release_choice
 
 case $release_choice in
     1) RELEASE_TYPE="development" ;;
     2) RELEASE_TYPE="release-candidate" ;;
-    3) RELEASE_TYPE="official-release" ;;
+    3) RELEASE_TYPE="official release" ;;
     *) 
         echo "Invalid choice, exiting."
         exit 1
@@ -74,7 +74,7 @@ if [[ "$RELEASE_TYPE" == "development" ]]; then
         docker pull "$IMAGE"
 
         # build Singularity container from Docker image
-        echo "Building sif: $SIF_FILE"
+        echo "Building SIF: $SIF_FILE"
         singularity build "${BASE_PATH}/${SIF_FILE}" "docker-daemon://${IMAGE}"
 
         # create symlink to point to new sif file
