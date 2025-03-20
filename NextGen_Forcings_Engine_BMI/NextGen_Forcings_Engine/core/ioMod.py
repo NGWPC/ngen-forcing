@@ -979,4 +979,3 @@ def read_rqi_monthly_climo(ConfigOptions, MpiConfig, supplemental_precip, GeoMet
                 err_handler.log_critical(ConfigOptions, MpiConfig)
                 pass
         err_handler.check_program_status(ConfigOptions, MpiConfig)
-

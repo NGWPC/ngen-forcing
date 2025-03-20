@@ -126,7 +126,9 @@ def execute(args):
         # TODO: Set end time to actual NWM cycle (10-day)
 
         b_date_dt = dNow - datetime.timedelta(seconds=3600 * 3)
+        print(f"b_date_dt orig: {b_date_dt}")
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
+        print(f"b_date_dt new: {b_date_dt}")
         start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
         end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 17)
         # create strings from datetime objects for use in commands
@@ -134,10 +136,16 @@ def execute(args):
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
         end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
 
+        print(f"start_time: {start_time}")
+        print(f"end_time: {end_time}")
+
         # calculate lookback window since GFS is on a 6-hourly cycle
         hours_difference = (dNow - b_date_dt).total_seconds() / 3600
         lagback = hours_difference - 1
         lookback = hours_difference
+
+        print(f"lookback: {lookback}")
+        print(f"lagback: {lagback}")
 
         # Run the forcing_extraction script for GFS
         cmd1 = [
@@ -294,7 +302,7 @@ def execute(args):
         # calculate lookback window since this is an AnA run
         hours_difference = (dNow - b_date_dt).total_seconds() / 3600
         lagback = 0
-        lookback = hours_difference + 17
+        lookback = hours_difference + 18
         print(f"lagback = {lagback}")
         print(f"lookback = {lookback}")
 
