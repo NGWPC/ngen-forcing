@@ -1,4 +1,3 @@
-
 """
 Regridding module file for regridding input forcing files.
 """
@@ -956,7 +955,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
             supplemental_precip.regridded_precip2[ind_valid] = supplemental_precip.regridded_precip2[ind_valid] / 3600.0
             invalid = np.where(supplemental_precip.regridded_precip2 == 9.999e+20)
             supplemental_precip.regridded_precip2[invalid] = config_options.globalNdv
-            #del ind_valid
+            del ind_valid
             del invalid
         except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
             config_options.errMsg = "Unable to run NDV search on STAGE IV supplemental precipitation: " + str(npe)
