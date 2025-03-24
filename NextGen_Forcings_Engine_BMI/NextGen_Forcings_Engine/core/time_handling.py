@@ -2621,8 +2621,9 @@ def _find_ak_ext_ana_precip_stage4(supplemental_precip, config_options, d_curren
 def _find_conus_ext_ana_precip_stage4(supplemental_precip, config_options, d_current, mpi_config):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next Stage IV files we will be using.
+
     prev_stage4_date = d_current - datetime.timedelta(hours=1)
-    next_stage4_date = prev_stage4_date
+    next_stage4_date = d_current
 
     # Set the input file frequency to be hourly.
     supplemental_precip.input_frequency = 60.0
@@ -2670,6 +2671,7 @@ def _find_conus_ext_ana_precip_stage4(supplemental_precip, config_options, d_cur
                 supplemental_precip.regridded_precip2_elem = supplemental_precip.regridded_precip2_elem
                 supplemental_precip.regridded_rqi1_elem = supplemental_precip.regridded_rqi1_elem
                 supplemental_precip.regridded_rqi2_elem = supplemental_precip.regridded_rqi2_elem
+        
         else:
             # The forecast window has shifted. Reset fields 2 to
             # be fields 1.
@@ -3396,21 +3398,11 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
    
     # KSL - original ana_offset behavior
-    ana_offset = 1 if config_options.ana_flag else 0
+    #ana_offset = 1 if config_options.ana_flag else 0
+    ana_offset=0
 
     current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0 * 60)
-
-    '''
-    Altered code for MRMS testing, possibly/probably incorrect - KSL
-    ana_offset = 0   
-    if config_options.ana_flag:
-        # For analysis runs, use the cycle from start of lookback period
-        current_input_cycle = config_options.b_date_proc
-    else:
-        # Original behavior for non-ana runs
-        current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(seconds=(input_forcings.userCycleOffset) * 60.0 * 60)
-    '''
     
     input_horizon = input_forcings.forecast_horizons[current_input_cycle.hour]
 
@@ -3472,7 +3464,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
     pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
-    
+
     files1 = glob.glob(pattern1) + glob.glob(pattern2)
     tmp_file1 = files1[0]
     if mpi_config.rank == 0:
@@ -3485,6 +3477,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     files2 = glob.glob(pattern1) + glob.glob(pattern2)
 
     tmp_file2 = files2[0]
+
     if mpi_config.rank == 0:
         if mpi_config.rank == 0:
             config_options.statusMsg = "Next input file being used: " + tmp_file2
@@ -3632,3 +3625,4 @@ def find_custom_freq_neighbors(supplemental_precip, config_options, d_current, m
             supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
             if(config_options.grid_type == "unstructured"):
                 supplemental_precip.regridded_precip2_elem[:, :] = config_options.globalNdv
+
