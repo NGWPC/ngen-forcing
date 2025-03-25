@@ -125,7 +125,7 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
         singularity build "${BASE_PATH}/singularity/${SIF_FILE}" "docker-daemon://${IMAGE}"
 
         echo "Creating symlink: ${repo}.sif -> ${SIF_FILE}"
-        ln -s "$SIF_FILE" "${repo}.sif"
+        ln -s "${BASE_PATH}/singularity/$SIF_FILE" "${repo}.sif"
     done
 
     echo "Official release completed successfully!"
@@ -152,8 +152,9 @@ if [[ "$RELEASE_TYPE" == "development" ]]; then
         docker pull "$IMAGE"
         echo "Building SIF: $SIF_FILE"
         singularity build "${BASE_PATH}/singularity/${SIF_FILE}" "docker-daemon://${IMAGE}"
+
         echo "Creating symlink: ${repo}.sif -> ${SIF_FILE}"
-        ln -s "$SIF_FILE" "${repo}.sif"
+        ln -s "${BASE_PATH}/singularity/$SIF_FILE" "${repo}.sif"
     done
     echo "Development build completed successfully!"
 fi
