@@ -55,15 +55,26 @@ if [[ "$RELEASE_TYPE" == "official release" || "$RELEASE_TYPE" == "release-candi
     done
 fi
 
+# function to update symlinks after building SIFs
+update_symlinks() {
+    local release_type="$1"
+    local repo="$2"
+    local image="$3"
+
+    echo "Removing old symlink for $repo..."
+    rm -f "${BASE_PATH}/singularity/${repo}.sif"
+
+    local sif_file="${repo}.sif_$(date --iso-8601=seconds)"
+    echo "Building SIF: $sif_file from $image"
+    singularity build "${BASE_PATH}/singularity/${sif_file}" "docker-daemon://${image}"
+
+    echo "Creating symlink: ${repo}.sif -> ${sif_file}"
+    ln -s "${BASE_PATH}/singularity/${sif_file}" "${BASE_PATH}/singularity/${repo}.sif"
+}
+
 # --- OFFICIAL RELEASE WORKFLOW ---
 if [[ "$RELEASE_TYPE" == "official release" ]]; then
     cd "$BASE_PATH"
-
-    # remove old symlinks
-    for repo in "${SELECTED_REPOS[@]}"; do
-        echo "Removing old symlink for $repo..."
-        rm -f "${BASE_PATH}/singularity/${repo}.sif"
-    done
 
     # build order: ngen -> others
     if [[ " ${SELECTED_REPOS[@]} " =~ " ngen " ]]; then
@@ -112,33 +123,23 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
         fi
     done
 
-    # --- run singularity build and create symlinks ---
+    # run singularity build and update symlinks
     for repo in "${SELECTED_REPOS[@]}"; do
         if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
             IMAGE="${REGISTRY}/ngen-forcing/${repo}:${TAGS[forcing]}"
         else
             IMAGE="${REGISTRY}/${repo}:${TAGS[$repo]}"
         fi
-
-        SIF_FILE="${repo}.sif_$(date --iso-8601=seconds)"
-        echo "Building SIF: $SIF_FILE from $IMAGE"
-        singularity build "${BASE_PATH}/singularity/${SIF_FILE}" "docker-daemon://${IMAGE}"
-
-        echo "Creating symlink: ${repo}.sif -> ${SIF_FILE}"
-        ln -s "${BASE_PATH}/singularity/$SIF_FILE" "${repo}.sif"
+        update_symlinks "$RELEASE_TYPE" "$repo" "$IMAGE"
     done
 
     echo "Official release completed successfully!"
     exit 0
 fi
 
-# ---- DEVELOPMENT still here for fallback ----
+# ---- DEVELOPMENT WORKFLOW ----
 if [[ "$RELEASE_TYPE" == "development" ]]; then
     cd "$BASE_PATH"
-    for repo in "${SELECTED_REPOS[@]}"; do
-        echo "Removing old symlink for $repo..."
-        rm -f "${BASE_PATH}/singularity/${repo}.sif"
-    done
 
     for repo in "${SELECTED_REPOS[@]}"; do
         if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
@@ -147,14 +148,11 @@ if [[ "$RELEASE_TYPE" == "development" ]]; then
             IMAGE="${REGISTRY}/${repo}:latest"
         fi
 
-        SIF_FILE="${repo}.sif_$(date --iso-8601=seconds)"
         echo "Pulling docker image: $IMAGE"
         docker pull "$IMAGE"
-        echo "Building SIF: $SIF_FILE"
-        singularity build "${BASE_PATH}/singularity/${SIF_FILE}" "docker-daemon://${IMAGE}"
-
-        echo "Creating symlink: ${repo}.sif -> ${SIF_FILE}"
-        ln -s "${BASE_PATH}/singularity/$SIF_FILE" "${repo}.sif"
+        update_symlinks "$RELEASE_TYPE" "$repo" "$IMAGE"
     done
+
     echo "Development build completed successfully!"
 fi
+
