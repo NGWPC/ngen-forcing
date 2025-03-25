@@ -10,6 +10,7 @@ import argparse
 import datetime
 import os
 import subprocess
+import random
 
 import yaml
 
@@ -30,11 +31,17 @@ def execute(args):
         -np (str): Optional number of processes to use.
     '''
 
-    # read in user-provided arguments
+    # read in user-provided arguments and initialize variables
     cycle_name = args.cycle_name
     hyfab_name = args.hyfab_name
     config_input = args.config_input
-    output_path = args.output_path
+    random_int = random.randint(1000, 9999)
+    if args.output_path:
+        output_path = args.output_path
+    elif args.csv_path and not args.output_path:
+        output_path = f'/tmp/temp_{random_int}.nc'
+    else:
+        output_path = None
     num_processes = args.np
 
     # read in config file
@@ -530,7 +537,7 @@ def execute(args):
         print(
             "valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")
 
-        # run the forcing engine BMI
+    # run the forcing engine BMI
     if output_path != None:
         if num_processes != None:
             cmd3 = [
@@ -539,12 +546,14 @@ def execute(args):
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}", start_time, end_time
             ]
+
         else:
             cmd3 = [
                 "conda", "run", "-n", engine_env,
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}", start_time, end_time
             ]
+
     else:
         if num_processes != None:
             cmd3 = [
@@ -559,8 +568,12 @@ def execute(args):
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
+    
     subprocess.run(cmd3, check=True)
-
+    
+    if args.csv_path:
+        cmd_0 = ["conda", "run", "-n", engine_env, "python", "./post_process/netcdf_to_csv.py", f"{output_path}",f"{args.csv_path}"] 
+        subprocess.run(cmd_0, check=True)
 
 def get_options():
     '''
@@ -572,9 +585,11 @@ def get_options():
     parser.add_argument('cycle_name',
                         help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')
     parser.add_argument('hyfab_name', help='Name of hydrofabric file for conversion to ESMF. Ex: Gage_01123000.gpkg')
-    parser.add_argument('-config_input', help='Path to wrapper config file. If omitted, defaults to ./wrapper_config.yml')
     parser.add_argument('-output_path',
-                        help='Full path for nc output file. If omitted, filename will be generated automatically, and placed in the ScratchDir configured in config file.')
+                        help='Full path for nc output file. If omitted, and -csv_path is provided, output_path will be set to /tmp/temp.nc. If neither is provided, output_path will be read in from the config file.')
+    parser.add_argument('-csv_path', help='Path for csv output, if desired. If omitted, no csv files will be created.')
+    parser.add_argument('-config_input', help='Path to wrapper config file. If omitted, defaults to ./wrapper_config.yml')
+
     parser.add_argument('-np', help='The number of processes to use when executing the forcing engine. If omitted, will default to one process.')
 
     return parser.parse_args()
