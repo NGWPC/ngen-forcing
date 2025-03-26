@@ -74,7 +74,7 @@ update_symlinks() {
     # The symlink name (e.g., ngen-cal.sif)
     local symlink_name="${repo}.sif"
 
-    echo "Removing old symlink for $repo..."
+    echo "Removing old symlink for $repo at ${sif_dir}/${symlink_name}..."
     rm -f "${sif_dir}/${symlink_name}"
 
     echo "Building SIF: ${sif_file} from ${image}"
