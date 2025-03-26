@@ -121,12 +121,15 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
                 --build-arg IMAGE_TAG="${TAGS[ngen]}" \
                 --tag="${REGISTRY}/ngen-cal:${TAGS[ngen-cal]}" \
                 "${BASE_PATH}/ngen-cal"
+        
         elif [[ "$repo" == "ngen-bmi-forcing" ]]; then
             echo "Pulling ngen-bmi-forcing..."
             docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
+        
         elif [[ "$repo" == "ngen-lumped-forcing" ]]; then
             echo "Pulling ngen-lumped-forcing..."
             docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
+        
         elif [[ "$repo" == "ngen-fcst" ]]; then
             echo "Building ngen-fcst..."
             GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
@@ -137,6 +140,7 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
                 --build-arg NGEN_VERSION="${TAGS[ngen]}" \
                 --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen-fcst]}" \
                 "${BASE_PATH}/ngen-fcst"
+        
         elif [[ "$repo" == "ngen-verf" ]]; then
             echo "Building ngen-verf..."
             GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
