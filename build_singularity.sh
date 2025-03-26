@@ -61,15 +61,38 @@ update_symlinks() {
     local repo="$2"
     local image="$3"
 
-    echo "Removing old symlink for $repo..."
-    rm -f "${BASE_PATH}/singularity/${repo}.sif"
+    # Directory where SIFs and symlinks are stored
+    local sif_dir="${BASE_PATH}/singularity"
 
+    # The actual .sif filename with a timestamp
     local sif_file="${repo}.sif_$(date --iso-8601=seconds)"
-    echo "Building SIF: $sif_file from $image"
-    singularity build "${BASE_PATH}/singularity/${sif_file}" "docker-daemon://${image}"
 
-    echo "Creating symlink: ${repo}.sif -> ${sif_file}"
-    ln -s "${BASE_PATH}/singularity/${sif_file}" "${BASE_PATH}/singularity/${repo}.sif"
+    # The symlink name (e.g., ngen-cal.sif)
+    local symlink_name="${repo}.sif"
+
+    echo "Removing old symlink for $repo..."
+    rm -f "${sif_dir}/${symlink_name}"
+
+    echo "Building SIF: ${sif_file} from ${image}"
+    singularity build "${sif_dir}/${sif_file}" "docker-daemon://${image}"
+
+    # Why we use a relative symlink:
+    # -----------------------------------------
+    # Absolute symlinks (e.g., /ngencerf-app/singularity/file.sif) may break
+    # inside a container if the container does not see the same full path.
+    #
+    # Relative symlinks (e.g., file.sif -> file.sif_2025-03-25...) are resilient
+    # because they are interpreted relative to the symlink’s own location.
+    # This makes them portable and ensures they work inside both the host and
+    # container — as long as the base directory structure is preserved.
+    #
+    # We `cd` into the target directory before creating the symlink so the relative
+    # path resolves correctly from the symlink’s point of view.
+    echo "Creating relative symlink: ${symlink_name} -> ${sif_file}"
+    (
+        cd "$sif_dir"
+        ln -s "${sif_file}" "${symlink_name}"
+    )
 }
 
 # --- OFFICIAL RELEASE WORKFLOW ---
