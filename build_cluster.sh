@@ -88,7 +88,7 @@ docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-verf:late
 # ------------------------------------------------------------------------------
 echo
 echo "Building singularities..."
-$NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
+# $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
 
 # ------------------------------------------------------------------------------
 # Build nginx singularity
@@ -105,10 +105,10 @@ rm -rf interactive_session
 # Configure ngencerf-server
 # ------------------------------------------------------------------------------
 cd ngencerf-server
-cp ngencerf-services.env ngencerf-services.override.env
+cp ngencerf_services.env ngencerf_services.override.env
 echo
 
-edit_file_with_message "ngencerf-services.override.env" \
+edit_file_with_message "ngencerf_services.override.env" \
   "Update the database host, password, and EDS URL in this file."
 
 edit_file_with_message ".env" \
