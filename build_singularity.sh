@@ -259,6 +259,7 @@ if [[ "$RELEASE_TYPE" == "development" ]]; then
     cd "$BASE_PATH"
 
     for repo in "${SELECTED_REPOS[@]}"; do
+        echo
         if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
             IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
         else
