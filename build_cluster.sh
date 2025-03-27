@@ -88,7 +88,7 @@ docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-verf:late
 # ------------------------------------------------------------------------------
 echo
 echo "Building singularities..."
-# $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
+$NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
 
 # ------------------------------------------------------------------------------
 # Build nginx singularity
@@ -105,7 +105,14 @@ rm -rf interactive_session
 # Configure ngencerf-server
 # ------------------------------------------------------------------------------
 cd ngencerf-server
-cp ngencerf_services.env ngencerf_services.override.env
+
+# Only copy if override file doesn't exist
+if [[ ! -f ngencerf_services.override.env ]]; then
+    echo "Creating ngencerf_services.override.env from template..."
+    cp ngencerf_services.env ngencerf_services.override.env
+else
+    echo "Override file already exists: ngencerf_services.override.env"
+fi
 echo
 
 edit_file_with_message "ngencerf_services.override.env" \
@@ -119,24 +126,32 @@ edit_file_with_message ".env" \
 # ------------------------------------------------------------------------------
 echo "Preparing static data directory..."
 
-sudo mkdir -p /ngencerf-app/data/ngen-cal-data/ngen-static-files
-sudo chown -R $(whoami):pwuser /ngencerf-app/data/ngen-cal-data
-sudo chmod -R g+rwx /ngencerf-app/data/ngen-cal-data
+STATIC_DIR="$NGENCERF_APP/data/ngen-cal-data/ngen-static-files"
+SOURCE_DIR="$NGENCERF_APP/ngen-cal/module_parameter_files"
 
-echo
+if [[ -d "$STATIC_DIR" ]]; then
+    echo "Static data directory already exists at $STATIC_DIR"
+    echo "Skipping module_parameter_files copy and S3 sync."
+else
+    echo "Creating static data directory..."
+    sudo mkdir -p "$STATIC_DIR"
+    sudo chown -R $(whoami):pwuser $NGENCERF_APP/data/ngen-cal-data
+    sudo chmod -R g+rwx $NGENCERF_APP/data/ngen-cal-data
 
-echo "Copying module_parameter_files directory from the ngen-cal repo..."
-cp --archive /ngencerf-app/ngen-cal/module_parameter_files /ngencerf-app/data/ngen-cal-data/ngen-static-files/
+if [[ ! -d "$STATIC_DIR/module_parameter_files" ]]; then
+    echo "Copying module_parameter_files directory from ngen-cal repo..."
+    cp --archive "$SOURCE_DIR" "$STATIC_DIR/"
+else
+    echo "Skipping copy: module_parameter_files already exists in $STATIC_DIR"
+fi
 
-# ------------------------------------------------------------------------------
-# AWS Credentials + Static File Sync
-# ------------------------------------------------------------------------------
-edit_file_with_message "/tmp/aws.credentials" \
-  "Paste export statements for your AWS credentials in this file."
+    edit_file_with_message "/tmp/aws.credentials" \
+      "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
 
-source /tmp/aws.credentials
+    source /tmp/aws.credentials
 
-echo
-echo "Copying data from NGWPC data bucket..."
-aws s3 sync s3://ngwpc-dev/ngen-static-files /ngencerf-app/data/ngen-cal-data/ngen-static-files/.
+    echo
+    echo "Copying data from NGWPC data bucket..."
+    aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
+fi
 
