@@ -51,7 +51,7 @@ SINGULARITY_DIR="${BASE_PATH}/singularity"
 mkdir -p $SINGULARITY_DIR
 
 # Redirect stdout and stderr to a log file in the Singularity directory
-LOGFILE="${SINGULARITY_DIR}/build_$(date --iso-8601=seconds).log"
+LOGFILE="${SINGULARITY_DIR}/build_$(date -u +"%Y-%m-%dT%H:%M:%SZ").log"
 exec > >(tee -i "$LOGFILE") 2>&1
 
 REPOS=("ngen" "ngen-cal" "ngen-bmi-forcing" "ngen-lumped-forcing" "ngen-fcst" "ngen-verf")
@@ -155,7 +155,13 @@ update_symlinks() {
     local sif_dir="${SINGULARITY_DIR}"
 
     # The actual .sif filename with a timestamp
-    local sif_file="${repo}.sif_$(date --iso-8601=seconds)"
+    # use 'latest' tag for development builds and provided tag for release builds
+    if ["$release_type" == "development"]; then
+        local sif_file="${repo}-latest-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
+    
+    else
+        local sif_file="${repo}-${TAGS[$repo]}-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
+    fi
 
     # The symlink name (e.g., ngen-cal.sif)
     local symlink_name="${repo}.sif"

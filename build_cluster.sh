@@ -32,34 +32,34 @@ edit_file_with_message() {
 # ------------------------------------------------------------------------------
 # Prompt user to paste GitLab token
 # ------------------------------------------------------------------------------
-edit_file_with_message "$NGENCERF_APP/.gitlab_token" "Paste your GitLab token into this file."
+# edit_file_with_message "$NGENCERF_APP/.gitlab_token" "Paste your GitLab token into this file."
 
 # Configure Git to use the token
-git config --global url."https://oauth2:$(cat /ngencerf-app/.gitlab_token)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
+# git config --global url."https://oauth2:$(cat /ngencerf-app/.gitlab_token)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
 
 cd $NGENCERF_APP
 
 # ------------------------------------------------------------------------------
 # Clone Repositories
 # ------------------------------------------------------------------------------
-echo "Cloning repos"
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf_ui.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-server.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-docker.git
-echo
-git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-cal.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-forcing.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-fcst.git
-echo
-git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-pw-automation.git
-echo
+# echo "Cloning repos"
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf_ui.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-server.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-docker.git
+# echo
+# git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-cal.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-forcing.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-fcst.git
+# echo
+# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-pw-automation.git
+# echo
 
 # ------------------------------------------------------------------------------
 # Docker login and pull images
@@ -93,13 +93,13 @@ $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development
 # ------------------------------------------------------------------------------
 # Build nginx singularity
 # ------------------------------------------------------------------------------
-echo
-echo "Building nginx singularity..."
+# echo
+# echo "Building nginx singularity..."
 
-cd $NGENCERF_APP
-git clone https://github.com/parallelworks/interactive_session.git
-cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
-rm -rf interactive_session
+# cd $NGENCERF_APP
+# git clone https://github.com/parallelworks/interactive_session.git
+# cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
+# rm -rf interactive_session
 
 # ------------------------------------------------------------------------------
 # Configure ngencerf-server
@@ -116,10 +116,10 @@ fi
 echo
 
 edit_file_with_message "ngencerf_services.override.env" \
-  "Update the database host, password, and EDS URL in this file."
+    "Update the database host, password, and EDS URL in this file."
 
 edit_file_with_message ".env" \
-  "Update the NGEN_CAL_TAG and NGEN_FORCING_TAG values in this file."
+    "Update the NGEN_CAL_TAG and NGEN_FORCING_TAG values in this file."
 
 # ------------------------------------------------------------------------------
 # Prepare static data
@@ -138,20 +138,19 @@ else
     sudo chown -R $(whoami):pwuser $NGENCERF_APP/data/ngen-cal-data
     sudo chmod -R g+rwx $NGENCERF_APP/data/ngen-cal-data
 
-if [[ ! -d "$STATIC_DIR/module_parameter_files" ]]; then
-    echo "Copying module_parameter_files directory from ngen-cal repo..."
-    cp --archive "$SOURCE_DIR" "$STATIC_DIR/"
-else
-    echo "Skipping copy: module_parameter_files already exists in $STATIC_DIR"
+    if [[ ! -d "$STATIC_DIR/module_parameter_files" ]]; then
+        echo "Copying module_parameter_files directory from ngen-cal repo..."
+        cp --archive "$SOURCE_DIR" "$STATIC_DIR/"
+    else
+        echo "Skipping copy: module_parameter_files already exists in $STATIC_DIR"
+    fi
+
+#     edit_file_with_message "/tmp/aws.credentials" \
+#       "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
+
+#     source /tmp/aws.credentials
+
+#     echo
+#     echo "Copying data from NGWPC data bucket..."
+#     aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
 fi
-
-    edit_file_with_message "/tmp/aws.credentials" \
-      "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
-
-    source /tmp/aws.credentials
-
-    echo
-    echo "Copying data from NGWPC data bucket..."
-    aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
-fi
-
