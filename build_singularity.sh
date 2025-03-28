@@ -3,36 +3,122 @@
 set -e
 set -o pipefail
 
+# ==============================================================================
+# NGEN Singularity Build Script
+# ==============================================================================
+#
+# This script builds and symlinks Singularity images for selected NGEN repos.
+# It supports both interactive use and non-interactive (automated) use via CLI.
+#
+# ------------------------------------------------------------------------------
+# USAGE EXAMPLES
+# ------------------------------------------------------------------------------
+#
+# Interactive mode (will prompt for release type and repos):
+#   ./build_singularity.sh
+#
+# Development build (non-interactive, builds ngen and ngen-cal):
+#   ./build_singularity.sh --release-type=development ngen ngen-cal
+#
+# Build all supported repos (non-interactive):
+#   ./build_singularity.sh --release-type=development all
+#
+# Release candidate or official release (will still prompt for tags):
+#   ./build_singularity.sh --release-type="official release" ngen ngen-cal ngen-verf
+#   (will still prompt for tags)
+#
+# ------------------------------------------------------------------------------
+# ARGUMENTS
+# ------------------------------------------------------------------------------
+#
+#   --release-type=TYPE     One of: development, release-candidate, official release
+#   repo names              List of repos to build (space-separated), or use "all"
+#
+# Supported repos:
+#   ngen, ngen-cal, ngen-bmi-forcing, ngen-lumped-forcing, ngen-fcst, ngen-verf
+#
+# Notes:
+# - If no arguments are passed, the script runs interactively.
+# - If "all" is passed as a repo, it expands to all supported repos.
+# - For release-candidate and official release, tag prompts will appear.
+#
+# ==============================================================================
+
 # --- BASE DIRECTORY SETUP ---
 # BASE_PATH is the root for all NGEN build assets, including repos and Singularity output
 BASE_PATH="/ngencerf-app"
 SINGULARITY_DIR="${BASE_PATH}/singularity"
+mkdir -p $SINGULARITY_DIR
 
 # Redirect stdout and stderr to a log file in the Singularity directory
-LOGFILE="${SINGULARITY_DIR}/build_$(date --iso-8601=seconds).log"
+LOGFILE="${SINGULARITY_DIR}/build_$(date -u +"%Y-%m-%dT%H:%M:%SZ").log"
 exec > >(tee -i "$LOGFILE") 2>&1
 
 REPOS=("ngen" "ngen-cal" "ngen-bmi-forcing" "ngen-lumped-forcing" "ngen-fcst" "ngen-verf")
+REGISTRY="registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen"
 
-echo "Select build type:"
-echo "1) development"
-echo "2) release-candidate"
-echo "3) official release"
-read -p "Enter number [1-3]: " release_choice
+RELEASE_TYPE=""
+SELECTED_REPOS=()
 
-case $release_choice in
-    1) RELEASE_TYPE="development" ;;
-    2) RELEASE_TYPE="release-candidate" ;;
-    3) RELEASE_TYPE="official release" ;;
-    *) echo "Invalid choice, exiting."; exit 1 ;;
-esac
+# --- Parse command-line args ---
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --release-type=*)
+                RELEASE_TYPE="${1#*=}"
+                ;;
+            --release-type)
+                shift
+                RELEASE_TYPE="$1"
+                ;;
+            -*)
+                echo "Unknown option: $1"
+                exit 1
+                ;;
+            *)
+                SELECTED_REPOS+=("$1")
+                ;;
+        esac
+        shift
+    done
+}
+
+parse_args "$@"
+
+# --- Prompt interactively if needed ---
+if [[ -z "$RELEASE_TYPE" && -t 0 ]]; then
+    echo "Select build type:"
+    echo "1) development"
+    echo "2) release-candidate"
+    echo "3) official release"
+    read -p "Enter number [1-3]: " release_choice
+    case $release_choice in
+        1) RELEASE_TYPE="development" ;;
+        2) RELEASE_TYPE="release-candidate" ;;
+        3) RELEASE_TYPE="official release" ;;
+        *) echo "Invalid choice, exiting."; exit 1 ;;
+    esac
+fi
+
+if [[ ${#SELECTED_REPOS[@]} -eq 0 && -t 0 ]]; then
+    echo "Available repos: ${REPOS[*]}"
+    read -p "Enter repos to build (space-separated from the list above): " -a SELECTED_REPOS
+fi
+
+if [[ -z "$RELEASE_TYPE" || ${#SELECTED_REPOS[@]} -eq 0 ]]; then
+    echo "Error: release type and at least one repo must be provided."
+    exit 1
+fi
 
 echo "Release type selected: $RELEASE_TYPE"
+echo "Selected repos: ${SELECTED_REPOS[*]}"
 
-echo "Available repos: ${REPOS[*]}"
-read -p "Enter repos to build (space-separated from the list above): " -a SELECTED_REPOS
-
-REGISTRY="registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen"
+# Handle 'all' keyword
+if [[ " ${SELECTED_REPOS[*]} " =~ " all " ]]; then
+    echo "'all' specified — building all available repos."
+    SELECTED_REPOS=("${REPOS[@]}")
+    echo "Repos to build: ${SELECTED_REPOS[*]}"
+fi
 
 # prompt for tags if 'official release' or 'release-candidate'
 declare -A TAGS
@@ -69,7 +155,13 @@ update_symlinks() {
     local sif_dir="${SINGULARITY_DIR}"
 
     # The actual .sif filename with a timestamp
-    local sif_file="${repo}.sif_$(date --iso-8601=seconds)"
+    # use 'latest' tag for development builds and provided tag for release builds
+    if [[ "$release_type" == "development" ]]; then
+        local sif_file="${repo}-latest-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
+    
+    else
+        local sif_file="${repo}-${TAGS[$repo]}-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
+    fi
 
     # The symlink name (e.g., ngen-cal.sif)
     local symlink_name="${repo}.sif"
@@ -121,15 +213,15 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
                 --build-arg IMAGE_TAG="${TAGS[ngen]}" \
                 --tag="${REGISTRY}/ngen-cal:${TAGS[ngen-cal]}" \
                 "${BASE_PATH}/ngen-cal"
-        
+
         elif [[ "$repo" == "ngen-bmi-forcing" ]]; then
             echo "Pulling ngen-bmi-forcing..."
             docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
-        
+
         elif [[ "$repo" == "ngen-lumped-forcing" ]]; then
             echo "Pulling ngen-lumped-forcing..."
             docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
-        
+
         elif [[ "$repo" == "ngen-fcst" ]]; then
             echo "Building ngen-fcst..."
             GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
@@ -140,7 +232,7 @@ if [[ "$RELEASE_TYPE" == "official release" ]]; then
                 --build-arg NGEN_VERSION="${TAGS[ngen]}" \
                 --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen-fcst]}" \
                 "${BASE_PATH}/ngen-fcst"
-        
+
         elif [[ "$repo" == "ngen-verf" ]]; then
             echo "Building ngen-verf..."
             GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
@@ -173,6 +265,7 @@ if [[ "$RELEASE_TYPE" == "development" ]]; then
     cd "$BASE_PATH"
 
     for repo in "${SELECTED_REPOS[@]}"; do
+        echo
         if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
             IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
         else
