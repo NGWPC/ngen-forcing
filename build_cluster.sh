@@ -74,13 +74,16 @@ $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development
 # ------------------------------------------------------------------------------
 # Build nginx singularity
 # ------------------------------------------------------------------------------
-# echo
-# echo "Building nginx singularity..."
-
-# cd $NGENCERF_APP
-# git clone https://github.com/parallelworks/interactive_session.git
-# cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
-# rm -rf interactive_session
+echo
+echo "Building nginx singularity container if it doesn't exist..."
+if [[ ! -f "$NGENCERF_APP/singularity/nginx-unprivileged.sif" ]]; then
+    cd $NGENCERF_APP
+    git clone https://github.com/parallelworks/interactive_session.git
+    cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
+    rm -rf interactive_session
+else
+    echo "nginx-unprivileged.sif already exists in $NGENCERF_APP/singularity/"
+fi
 
 # ------------------------------------------------------------------------------
 # Configure ngencerf-server
@@ -126,12 +129,12 @@ else
         echo "Skipping copy: module_parameter_files already exists in $STATIC_DIR"
     fi
 
-#     edit_file_with_message "/tmp/aws.credentials" \
-#       "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
+    edit_file_with_message "/tmp/aws.credentials" \
+      "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
 
-#     source /tmp/aws.credentials
+    source /tmp/aws.credentials
 
-#     echo
-#     echo "Copying data from NGWPC data bucket..."
-#     aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
+    echo
+    echo "Copying data from NGWPC data bucket..."
+    aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
 fi
