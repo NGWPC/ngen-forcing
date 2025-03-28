@@ -1,6 +1,16 @@
 #!/bin/bash
 
 NGENCERF_APP=/ngencerf-app
+REPOS=(
+    ngencerf_ui
+    ngencerf-server
+    ngencerf-docker
+    ngen
+    ngen-cal
+    ngen-forcing
+    ngen-fcst
+    ngen-verf
+)
 
 # ------------------------------------------------------------------------------
 # Helper: Prompt user with a message, then open the file in an editor
@@ -32,34 +42,30 @@ edit_file_with_message() {
 # ------------------------------------------------------------------------------
 # Prompt user to paste GitLab token
 # ------------------------------------------------------------------------------
-# edit_file_with_message "$NGENCERF_APP/.gitlab_token" "Paste your GitLab token into this file."
+edit_file_with_message "$NGENCERF_APP/.gitlab_token" "Paste your GitLab token into this file."
 
 # Configure Git to use the token
-# git config --global url."https://oauth2:$(cat /ngencerf-app/.gitlab_token)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
+git config --global url."https://oauth2:$(cat /ngencerf-app/.gitlab_token)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
 
 cd $NGENCERF_APP
 
 # ------------------------------------------------------------------------------
 # Clone Repositories
 # ------------------------------------------------------------------------------
-# echo "Cloning repos"
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf_ui.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-server.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngencerf-docker.git
-# echo
-# git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-cal.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-forcing.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-fcst.git
-# echo
-# git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen-pw-automation.git
-# echo
+echo "Cloning repos..."
+echo
+for repo in "${REPOS[@]}"; do
+    if [[ ! -d "$repo" ]]; then
+        if [[ "$repo" == "ngen" ]]; then
+            git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/$repo.git
+        else
+            git clone -b development https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/$repo.git
+        fi
+    else
+        echo "$repo already exists, skipping clone."
+    fi
+    echo
+done
 
 # ------------------------------------------------------------------------------
 # Pull/build Docker images and build Singularity containers
