@@ -15,16 +15,16 @@ set -o pipefail
 # ------------------------------------------------------------------------------
 #
 # Interactive mode (will prompt for release type and repos):
-#   ./build.sh
+#   ./build_singularity.sh
 #
 # Development build (non-interactive, builds ngen and ngen-cal):
-#   ./build.sh --release-type=development ngen ngen-cal
+#   ./build_singularity.sh --release-type=development ngen ngen-cal
 #
 # Build all supported repos (non-interactive):
-#   ./build.sh --release-type=development all
+#   ./build_singularity.sh --release-type=development all
 #
 # Release candidate or official release (will still prompt for tags):
-#   ./build.sh --release-type="official release" ngen ngen-cal ngen-verf
+#   ./build_singularity.sh --release-type="official release" ngen ngen-cal ngen-verf
 #   (will still prompt for tags)
 #
 # ------------------------------------------------------------------------------
