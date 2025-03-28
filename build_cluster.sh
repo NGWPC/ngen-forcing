@@ -62,32 +62,13 @@ cd $NGENCERF_APP
 # echo
 
 # ------------------------------------------------------------------------------
-# Docker login and pull images
+# Pull/build Docker images and build Singularity containers
 # ------------------------------------------------------------------------------
 echo "Logging into Docker. Enter your AWS credentials if prompted..."
 docker login registry.sh.nextgenwaterprediction.com
 
 echo
-echo "Pulling docker images..."
-
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen:latest
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-cal:latest
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-forcing/ngen-bmi-forcing:latest
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-forcing/ngen-lumped-forcing:latest
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-fcst:latest
-echo
-docker pull registry.sh.nextgenwaterprediction.com/ngwpc/nwm-ngen/ngen-verf:latest
-
-# ------------------------------------------------------------------------------
-# Build Singularity images
-# ------------------------------------------------------------------------------
-echo
-echo "Building singularities..."
+echo "Building singularity containers..."
 $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
 
 # ------------------------------------------------------------------------------
