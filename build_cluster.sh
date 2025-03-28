@@ -78,7 +78,7 @@ echo "Building singularity containers..."
 $NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
 
 # ------------------------------------------------------------------------------
-# Build nginx singularity
+# Copy nginx-unprivileged.sif to singularity directory
 # ------------------------------------------------------------------------------
 echo
 echo "Building nginx singularity container if it doesn't exist..."
