@@ -156,7 +156,7 @@ update_symlinks() {
 
     # The actual .sif filename with a timestamp
     # use 'latest' tag for development builds and provided tag for release builds
-    if ["$release_type" == "development"]; then
+    if [[ "$release_type" == "development" ]]; then
         local sif_file="${repo}-latest-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
     
     else
