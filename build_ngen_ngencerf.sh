@@ -128,11 +128,34 @@ if [[ " ${SELECTED_REPOS[*]} " =~ " all " ]]; then
     echo "Repos to build: ${SELECTED_REPOS[*]}"
 fi
 
+# validate SELECTED_REPOS
+INVALID_REPOS=()
+for repo in "${SELECTED_REPOS[@]}"; do
+    if [[ ! " ${REPOS[*]} " =~ " $repo " ]]; then
+        INVALID_REPOS+=("$repo")
+    fi
+done
+
+if [[ ${#INVALID_REPOS[@]} -gt 0 ]]; then
+    echo "Error: Invalid repo(s): ${INVALID_REPOS[*]}"
+    echo "Allowed repos are: ${REPOS[*]}"
+    exit 1
+fi
+
 # prompt for tags if 'release'
 declare -A TAGS
 if [[ "$BUILD_TYPE" == "release" ]]; then
     for repo in "${SELECTED_REPOS[@]}"; do
         case $repo in
+            ngencerf_ui)
+                read -p "Enter NGEN_UI_TAG: " TAGS[ngencerf_ui]
+                ;;
+            ngencerf-server)
+                read -p "Enter NGEN_SERVER_TAG: " TAGS[ngencerf-server]
+                ;;
+            ngencerf-docker)
+                read -p "Enter NGEN_DOCKER_TAG: " TAGS[ngencerf-docker]
+                ;;
             ngen)
                 read -p "Enter NGEN_TAG: " TAGS[ngen]
                 ;;
@@ -154,7 +177,7 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
 fi
 
 # function to update symlinks after building SIFs
-update_symlinks() {
+build_singularity_container_update_symlink() {
     local build_type="$1"
     local repo="$2"
     local image="$3"
@@ -198,7 +221,7 @@ update_symlinks() {
     )
 }
 
-# update repo with latest from specified branch
+# update repo to latest from specified branch
 update_repo_branch() {
     local repo="$1"
     local branch="$2"
@@ -212,12 +235,12 @@ update_repo_branch() {
     git stash pop
 }
 
-# checkout repo to specified tag
+# checkout repo at specified tag
 checkout_repo_tag() {
     local repo="$1"
     local tag="$2"
 
-    echo "Checking out $repo to tag $tag..."
+    echo "Checking out $repo at tag $tag..."
     cd "$BASE_PATH/$repo"
     git fetch origin
     git stash save
@@ -263,66 +286,73 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
     fi
 
     for repo in "${SELECTED_REPOS[@]}"; do
-        if [[ "$repo" == "ngen-cal" ]]; then
-            # checkout ngen-cal to specified tag
-            checkout_repo_tag "ngen-cal" "${TAGS[ngen-cal]}"
+        case "$repo" in
+            "ngen-cal")
+                # checkout ngen-cal to specified tag
+                checkout_repo_tag "ngen-cal" "${TAGS[ngen-cal]}"
+                echo "Building ngen-cal Docker image..."
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
+                docker build \
+                    --progress=plain \
+                    --no-cache \
+                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                    --build-arg IMAGE_TAG="${TAGS[ngen]}" \
+                    --tag="${REGISTRY}/ngen-cal:${TAGS[ngen-cal]}" \
+                    "${BASE_PATH}/ngen-cal"
+                ;;
 
-            echo "Building ngen-cal Docker image..."
-            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-            docker build \
-                --progress=plain \
-                --no-cache \
-                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                --build-arg IMAGE_TAG="${TAGS[ngen]}" \
-                --tag="${REGISTRY}/ngen-cal:${TAGS[ngen-cal]}" \
-                "${BASE_PATH}/ngen-cal"
+            "ngen-bmi-forcing")
+                echo "Pulling ngen-bmi-forcing Docker image..."
+                docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
+                ;;
 
-        elif [[ "$repo" == "ngen-bmi-forcing" ]]; then
-            echo "Pulling ngen-bmi-forcing Docker image..."
-            docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
+            "ngen-lumped-forcing")
+                echo "Pulling ngen-lumped-forcing Docker image..."
+                docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
+                ;;
 
-        elif [[ "$repo" == "ngen-lumped-forcing" ]]; then
-            echo "Pulling ngen-lumped-forcing Docker image..."
-            docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
+            "ngen-fcst")
+                # checkout ngen-fcst to specified tag
+                checkout_repo_tag "ngen-fcst" "${TAGS[ngen-fcst]}"
+                echo "Building ngen-fcst Docker image..."
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
+                docker build \
+                    --progress=plain \
+                    --no-cache \
+                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                    --build-arg NGEN_VERSION="${TAGS[ngen]}" \
+                    --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen-fcst]}" \
+                    "${BASE_PATH}/ngen-fcst"
+                ;;
 
-        elif [[ "$repo" == "ngen-fcst" ]]; then
-            # checkout ngen-fcst to specified tag
-            checkout_repo_tag "ngen-fcst" "${TAGS[ngen-fcst]}"
+            "ngen-verf")
+                # checkout ngen-verf to specified tag
+                checkout_repo_tag "ngen-verf" "${TAGS[ngen-verf]}"
+                echo "Building ngen-verf Docker image..."
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
+                docker build \
+                    --progress=plain \
+                    --no-cache \
+                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                    --build-arg NGEN_EVAL_TAG="${TAGS[ngen-eval]}" \
+                    --tag="${REGISTRY}/ngen-verf:${TAGS[ngen-verf]}" \
+                    "${BASE_PATH}/ngen-verf"
+                ;;
+            
+            ngencerf*)
+                # checkout ngencerf* repos to specified tag
+                checkout_repo_tag "$repo" "${TAGS[$repo]}"
+                ;;
+        esac
 
-            echo "Building ngen-fcst Docker image..."
-            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-            docker build \
-                --progress=plain \
-                --no-cache \
-                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                --build-arg NGEN_VERSION="${TAGS[ngen]}" \
-                --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen-fcst]}" \
-                "${BASE_PATH}/ngen-fcst"
-
-        elif [[ "$repo" == "ngen-verf" ]]; then
-            # checkout ngen-verf to specified tag
-            checkout_repo_tag "ngen-verf" "${TAGS[ngen-verf]}"
-
-            echo "Building ngen-verf Docker image..."
-            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-            docker build \
-                --progress=plain \
-                --no-cache \
-                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                --build-arg NGEN_EVAL_TAG="${TAGS[ngen-eval]}" \
-                --tag="${REGISTRY}/ngen-verf:${TAGS[ngen-verf]}" \
-                "${BASE_PATH}/ngen-verf"
+        if [[ "$repo" != ngencerf* ]]; then
+            if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
+                IMAGE="${REGISTRY}/ngen-forcing/${repo}:${TAGS[forcing]}"
+            else
+                IMAGE="${REGISTRY}/${repo}:${TAGS[$repo]}"
+            fi
+            build_singularity_container_update_symlink "$BUILD_TYPE" "$repo" "$IMAGE"
         fi
-    done
-
-    # run singularity build and update symlinks
-    for repo in "${SELECTED_REPOS[@]}"; do
-        if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
-            IMAGE="${REGISTRY}/ngen-forcing/${repo}:${TAGS[forcing]}"
-        else
-            IMAGE="${REGISTRY}/${repo}:${TAGS[$repo]}"
-        fi
-        update_symlinks "$BUILD_TYPE" "$repo" "$IMAGE"
     done
 
     echo "Release build completed successfully!"
@@ -335,15 +365,20 @@ if [[ "$BUILD_TYPE" == "development" ]]; then
 
     for repo in "${SELECTED_REPOS[@]}"; do
         echo
-        if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
-            IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
-        else
-            IMAGE="${REGISTRY}/${repo}:latest"
-        fi
+        if [[ "$repo" == ngencerf* ]]; then
+            # update ngencerf* repos to latest from development branch
+            update_repo_branch "$repo" "development"
+        else 
+            elif [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
+                IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
+            else
+                IMAGE="${REGISTRY}/${repo}:latest"
+            fi
 
-        echo "Pulling docker image: $IMAGE"
-        docker pull "$IMAGE"
-        update_symlinks "$BUILD_TYPE" "$repo" "$IMAGE"
+            echo "Pulling docker image: $IMAGE"
+            docker pull "$IMAGE"
+            build_singularity_container_update_symlink "$BUILD_TYPE" "$repo" "$IMAGE"
+        fi
     done
 
     echo "Development build completed successfully!"
