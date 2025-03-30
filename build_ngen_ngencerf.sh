@@ -148,29 +148,29 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
     for repo in "${SELECTED_REPOS[@]}"; do
         case $repo in
             ngencerf_ui)
-                read -p "Enter NGEN_UI_TAG: " TAGS[ngencerf_ui]
+                read -p "Enter ngencerf_ui tag: " TAGS[ngencerf_ui]
                 ;;
             ngencerf-server)
-                read -p "Enter NGEN_SERVER_TAG: " TAGS[ngencerf-server]
+                read -p "Enter ngencerf-server tag: " TAGS[ngencerf-server]
                 ;;
             ngencerf-docker)
-                read -p "Enter NGEN_DOCKER_TAG: " TAGS[ngencerf-docker]
+                read -p "Enter ngencerf-docker tag: " TAGS[ngencerf-docker]
                 ;;
             ngen)
-                read -p "Enter NGEN_TAG: " TAGS[ngen]
+                read -p "Enter ngen tag: " TAGS[ngen]
                 ;;
             ngen-cal)
-                read -p "Enter NGEN_CAL_TAG: " TAGS[ngen-cal]
+                read -p "Enter ngen-cal tag: " TAGS[ngen-cal]
                 ;;
             ngen-bmi-forcing | ngen-lumped-forcing)
-                read -p "Enter NGEN_FORCING_TAG (shared for both forcing repos): " TAGS[forcing]
+                read -p "Enter ngen-forcing tag (shared for both forcing repos): " TAGS[forcing]
                 ;;
             ngen-fcst)
-                read -p "Enter NGEN_FCST_TAG: " TAGS[ngen-fcst]
+                read -p "Enter ngen-fcst tag: " TAGS[ngen-fcst]
                 ;;
             ngen-verf)
-                read -p "Enter NGEN_VERF_TAG: " TAGS[ngen-verf]
-                read -p "Enter NGEN_EVAL_TAG: " TAGS[ngen-eval]
+                read -p "Enter ngen-verf tag: " TAGS[ngen-verf]
+                read -p "Enter ngen-eval tag: " TAGS[ngen-eval]
                 ;;
         esac
     done
