@@ -232,7 +232,7 @@ update_repo_branch() {
     git stash save
     git checkout "$branch"
     git pull --rebase
-    git stash pop
+    git stash pop || true # prevent exit if nothing to pop
 }
 
 # checkout repo at specified tag
@@ -245,7 +245,7 @@ checkout_repo_tag() {
     git fetch origin
     git stash save
     git checkout tags/"$tag"
-    git stash pop
+    git stash pop || true # prevent exit if nothing to pop
 
     # set ngen submodules to master/main branch
     if [[ "$repo" == "ngen" ]]; then
