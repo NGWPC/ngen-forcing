@@ -2,14 +2,14 @@
 
 NGENCERF_APP=/ngencerf-app
 REPOS=(
-    ngencerf_ui
-    ngencerf-server
-    ngencerf-docker
-    ngen
-    ngen-cal
-    ngen-forcing
-    ngen-fcst
-    ngen-verf
+    "ngencerf_ui"
+    "ngencerf-server"
+    "ngencerf-docker"
+    "ngen"
+    "ngen-cal"
+    "ngen-forcing"
+    "ngen-fcst"
+    "ngen-verf"
 )
 
 # ------------------------------------------------------------------------------
@@ -68,30 +68,6 @@ for repo in "${REPOS[@]}"; do
 done
 
 # ------------------------------------------------------------------------------
-# Pull/build Docker images and build Singularity containers
-# ------------------------------------------------------------------------------
-echo "Logging into Docker. Enter your AWS credentials if prompted..."
-docker login registry.sh.nextgenwaterprediction.com
-
-echo
-echo "Building singularity containers..."
-$NGENCERF_APP/ngen-pw-automation/build_singularity.sh --release-type=development all
-
-# ------------------------------------------------------------------------------
-# Copy nginx-unprivileged.sif to singularity directory
-# ------------------------------------------------------------------------------
-echo
-echo "Building nginx singularity container if it doesn't exist..."
-if [[ ! -f "$NGENCERF_APP/singularity/nginx-unprivileged.sif" ]]; then
-    cd $NGENCERF_APP
-    git clone https://github.com/parallelworks/interactive_session.git
-    cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
-    rm -rf interactive_session
-else
-    echo "nginx-unprivileged.sif already exists in $NGENCERF_APP/singularity/"
-fi
-
-# ------------------------------------------------------------------------------
 # Configure ngencerf-server
 # ------------------------------------------------------------------------------
 cd ngencerf-server
@@ -143,4 +119,28 @@ else
     echo
     echo "Copying data from NGWPC data bucket..."
     aws s3 sync s3://ngwpc-dev/ngen-static-files "$STATIC_DIR/"
+fi
+
+# ------------------------------------------------------------------------------
+# Pull/build Docker images and build Singularity containers
+# ------------------------------------------------------------------------------
+echo "Logging into Docker. Enter your AWS credentials if prompted..."
+docker login registry.sh.nextgenwaterprediction.com
+
+echo
+echo "Building Singularity containers..."
+$NGENCERF_APP/ngen-pw-automation/build_ngen_ngencerf.sh --build-type=development all
+
+# ------------------------------------------------------------------------------
+# Copy nginx-unprivileged.sif to singularity directory
+# ------------------------------------------------------------------------------
+echo
+echo "Building nginx Singularity container if it doesn't exist..."
+if [[ ! -f "$NGENCERF_APP/singularity/nginx-unprivileged.sif" ]]; then
+    cd $NGENCERF_APP
+    git clone https://github.com/parallelworks/interactive_session.git
+    cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
+    rm -rf interactive_session
+else
+    echo "nginx-unprivileged.sif already exists in $NGENCERF_APP/singularity/"
 fi
