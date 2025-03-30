@@ -369,7 +369,7 @@ if [[ "$BUILD_TYPE" == "development" ]]; then
             # update ngencerf* repos to latest from development branch
             update_repo_branch "$repo" "development"
         else 
-            elif [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
+            if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
                 IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
             else
                 IMAGE="${REGISTRY}/${repo}:latest"
