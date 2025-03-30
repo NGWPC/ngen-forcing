@@ -276,8 +276,7 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
         checkout_repo_tag "ngen" "${TAGS[ngen]}"
 
         echo "Building ngen Docker image..."
-        GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-        docker build \
+        GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
             --progress=plain \
             --no-cache \
             --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
@@ -291,8 +290,7 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
                 # checkout ngen-cal to specified tag
                 checkout_repo_tag "ngen-cal" "${TAGS[ngen-cal]}"
                 echo "Building ngen-cal Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-                docker build \
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
                     --progress=plain \
                     --no-cache \
                     --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
@@ -315,8 +313,7 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
                 # checkout ngen-fcst to specified tag
                 checkout_repo_tag "ngen-fcst" "${TAGS[ngen-fcst]}"
                 echo "Building ngen-fcst Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-                docker build \
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
                     --progress=plain \
                     --no-cache \
                     --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
@@ -329,8 +326,7 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
                 # checkout ngen-verf to specified tag
                 checkout_repo_tag "ngen-verf" "${TAGS[ngen-verf]}"
                 echo "Building ngen-verf Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token")
-                docker build \
+                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
                     --progress=plain \
                     --no-cache \
                     --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
