@@ -120,3 +120,40 @@ if __name__ == "__main__":
         #
         rno.close()
         jso.close()
+
+        #Download the datum
+
+        URL = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/" + sta + "/datums.json?units=metric"
+        # Connect to the server
+        # 
+        try:
+            rno = urllib.request.urlopen(URL)
+        except IOError as e:
+            print( 'WARNING: site : ', sta, ' skipped - ' + e.reason ) #, e.reason 
+            #
+            # If failed, remember the station no and continue
+            # 
+            failed_sites.append( sta )
+            continue
+
+        #
+        # Write the water level data to json files
+        #
+        jso = open(odir+'/'+sta+'_datum.json','w')
+
+        try:
+             json_data = json.loads(rno.read().decode('utf-8'))
+             json.dump(json_data, jso, indent=2)
+              
+             print( datetime.datetime.now(), end = " --- " )
+             print( 'Successfully downloaded datum for  station: ', sta)
+        except IOError as e:
+            print( datetime.datetime.now(), end = " --- " )
+            print( 'WARNING: station : ', sta, ' skipped - ', e.reason()) 
+            failed_sites.append( sta )
+            continue
+        #
+        # Close the connection and json files
+        #
+        rno.close()
+        jso.close()

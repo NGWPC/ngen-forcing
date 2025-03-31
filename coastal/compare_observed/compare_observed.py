@@ -27,6 +27,7 @@ def main():
     parser.add_argument('station_list', type=list_of_strings, help='list of the observed station IDs')
     parser.add_argument('observed_wl_dir', type=str, help='Observed water level files')
     parser.add_argument('output_dir', type=str, help='output directory for the comparison figures')
+    parser.add_argument('domain', type=str, help='domain name, one of hawaii, prvi, pacfic, or atlgulf')
 
     args = parser.parse_args()
 
@@ -45,11 +46,14 @@ def main():
 
     for s in stations:
        try:
-         obv = NOAAObservedWL( f"{args.observed_wl_dir}/{s}.json" )
+         obv = NOAAObservedWL( f"{args.observed_wl_dir}/{s}.json", f"{args.observed_wl_dir}/{s}_datum.json" )
        except (FileNotFoundError, ValueError) as e: 
         print( e )
         print( f"Warning: Skipping station {s}" )
         continue
+       datum_values = dict()
+       for d in obv.datum['datums']:
+           datum_values.update( {d['name'] : d['value']} )
 
        dist, idx = tree.query([[ float( obv.data['metadata'][ 'lon'] ), float( obv.data['metadata'][ 'lat'] ) ]])
        elev_date = []
@@ -60,9 +64,23 @@ def main():
 
        obv_elev_date = []
        obv_elev_value = []
+       if args.domain == 'hawaii' or args.domain == 'prvi':
+         if 'MSL' in datum_values: 
+            #from MLLW to MSL
+            correction = float( datum_values[ 'MSL' ]) - float( datum_values[ 'MLLW' ] ) 
+         else:
+            correction = 0
+
+       elif args.domain == 'pacific' or args.domain == 'atlgulf':
+         if 'NAVD88' in datum_values: 
+            #from MLLW to NAVD88
+            correction = float( datum_values[ 'NAVD88' ] ) - float( datum_values[ 'MLLW' ] )
+         else:
+            correction = 0
+
        for o in obv.data['data']:
          obv_elev_date.append( datetime.strptime( o['t'], "%Y-%m-%d %H:%M") )
-         obv_elev_value.append( float( o['v'] ) )
+         obv_elev_value.append( float( o['v'] ) - correction ) 
 
        fig = Figure()
        canvas = FigureCanvas(fig)

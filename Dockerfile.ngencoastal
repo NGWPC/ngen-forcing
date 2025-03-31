@@ -31,6 +31,7 @@ RUN set -eux; \
     dnf install -y \
         autoconf \
         automake \
+        bc \
         cmake \
         conda \
         curl curl-devel \
@@ -46,16 +47,13 @@ RUN set -eux; \
         libasan6 \
         m4 \ 
 ## FIXME: replace openmpi with Intel MPI libraries ##
-#        openmpi openmpi-devel \
+        openmpi openmpi-devel \
         openssl openssl-devel \
         rsync \
         which \ 
+        awscli \
     ; \
     dnf clean all
-
-
-# add conda to the PATH
-ENV PATH=/opt/conda/bin:${PATH}
 
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
@@ -66,47 +64,158 @@ ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
 ENV PSM3_HAL=loopback
 ENV PSM3_DEVICES=self
 
-RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc
-RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/exec
-RUN mkdir -p /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal
+RUN set -eux; \
+	\
+	curl --location --output szip.gz "https://docs.hdfgroup.org/archive/support/ftp/lib-external/szip/${SZIP_VERSION%%[a-z]*}/src/szip-${SZIP_VERSION}.tar.gz"; \
+	mkdir --parents /usr/src/szip; \
+	tar --extract --directory /usr/src/szip --strip-components=1 --file szip.gz; \
+	rm szip.gz; \
+	\
+	cd /usr/src/szip; \
+	./configure --prefix=/usr/local/ \
+	; \
+	nproc="$(nproc)"; \
+	make -j "$nproc" \
+	; \
+	make install ; \
+    \
+    rm --recursive --force /usr/src/szip
 
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_hotstart7/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_hotstart7/
+RUN set -eux; \
+	\
+	curl --location --output libhdf5.tar.gz "https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5-${HDF5_VERSION//./_}.tar.gz"; \
+	mkdir --parents /usr/src/hdf5; \
+	tar --extract --directory /usr/src/hdf5 --strip-components=1 --file libhdf5.tar.gz; \
+	rm libhdf5.tar.gz; \
+	\
+	cd /usr/src/hdf5; \
+	./configure --prefix=/usr/local/ --with-szlib=/usr/local/ \
+	; \
+	nproc="$(nproc)"; \
+	make check -j "$nproc" \
+	; \
+    make install ; \
+    \
+    rm --recursive --force /usr/src/hdf5
 
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_sink_source/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/combine_sink_source/
+RUN set -eux; \
+    \
+    curl --location --output netcdf-c.tar.gz "https://github.com/Unidata/netcdf-c/archive/refs/tags/v${NETCDF_C_VERSION%%[a-z]*}.tar.gz"; \
+    mkdir --parents /usr/src/netcdf-c; \
+    tar --extract --directory /usr/src/netcdf-c --strip-components=1 --file netcdf-c.tar.gz; \
+    rm netcdf-c.tar.gz; \
+    \
+    cd /usr/src/netcdf-c; \
+    cmake -B cmake_build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DENABLE_TESTS=OFF \
+    ; \
+    nproc="$(nproc)"; \
+    cmake --build cmake_build --parallel "$nproc" \
+    ; \
+    cmake --build cmake_build --target install ; \
+    \
+    rm --recursive --force /usr/src/netcdf-c
 
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis/
+RUN set -eux; \
+    \
+    curl --location --output netcdf-fortran.tar.gz "https://github.com/Unidata/netcdf-fortran/archive/refs/tags/v${NETCDF_FORTRAN_VERSION%%[a-z]*}.tar.gz"; \
+    mkdir --parents /usr/src/netcdf-fortran; \
+    tar --extract --directory /usr/src/netcdf-fortran --strip-components=1 --file netcdf-fortran.tar.gz; \
+    rm netcdf-fortran.tar.gz; \
+    \
+    cd /usr/src/netcdf-fortran; \
+    cmake -B cmake_build -S . -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=ON -DENABLE_TESTS=OFF \
+    -DCMAKE_Fortran_COMPILER=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran \
+    ; \
+    nproc="$(nproc)"; \
+    cmake --build cmake_build --parallel "$nproc" \
+    ; \
+    cmake --build cmake_build --target install ; \
+    \
+    rm --recursive --force /usr/src/netcdf-fortran
 
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis_prep/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/metis_prep/
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/schism/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/sorc/schism/
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/ush/ \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/ush/
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Erie \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Erie
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Michigan-Huron \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Michigan-Huron
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Ontario \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Ontario
-
-COPY software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Superior \
-      /contrib/software/nwmv3_oe_install/test/packages/nwm.v3.0.6/parm/coastal/Lake_Superior
+#Env for netcdf-fortran
+ENV LD_LIBRARY_PATH=/usr/local/lib64
 
 #build the OTPSnc binary
-#COPY software/OTPSnc/ /contrib/software/
+RUN set -eux; \
+    \
+    curl "https://drive.usercontent.google.com/download?id=10uz0PJBJHd3kzOiH5IeVz_Ml1Zct4gTj&confirm=xxx" -o OTPSnc.tar.gz; \
+    mkdir --parents /ngen-app/OTPSnc; \
+    tar --extract --directory /ngen-app/OTPSnc --strip-components=1 --file OTPSnc.tar.gz; \
+    rm OTPSnc.tar.gz; \
+    \
+    cd /ngen-app/OTPSnc; \
+    sed -i 's/usr\/local\/lib/usr\/local\/lib64/' makefile; \
+    make -f makefile ; \
+    cd -
+
+# add conda and OTPSnc to the PATH
+ENV PATH=/opt/conda/bin:/ngen-app/OTPSnc:${PATH}
+
+RUN --mount=type=secret,id=GITLAB_TOKEN \
+    set -eux; \
+    \
+    git config --global url."https://oauth2:$(cat /run/secrets/GITLAB_TOKEN)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
+
+# check out the nwm.v3.0.6_no_svn repo
+RUN set -eux; \
+    \
+   git clone https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm.v3.0.6_no_svn.git /ngen-app/nwm.v3.0.6
+
+RUN set -eux; mkdir -p /ngen-app/nwm.v3.0.6/exec
+
+RUN set -eux;  mkdir -p /ngen-app/nwm.v3.0.6/parm
+
+#RUN --mount=type=secret,id=aws \
+#    set -eux; \
+#    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws \
+#    aws s3 cp s3://ngwpc-data/NWM_Parm_v3.0/coastal.tar.gz ./; \
+#    tar -zxvf coastal.tar.gz -C /ngen-app/nwm.v3.0.6/parm/; \
+#    rm -f coastal.tar.gz 
+#
+#RUN --mount=type=secret,id=aws \
+#    set -eux; \
+#    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws \
+#    aws s3 cp s3://ngwpc-data/NWM_Parm_v3.0/domain.tar.gz ./; \
+#    tar -zxvf domain.tar.gz -C /ngen-app/nwm.v3.0.6/parm/ domain/geo_em_CONUS.nc ; \
+#    rm -f domain.tar.gz
+#
+#RUN --mount=type=secret,id=aws \
+#    set -eux; \
+#    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws \
+#    aws s3 cp s3://ngwpc-data/NWM_Parm_v3.0/domain_hawaii.tar.gz ./; \
+#    tar -zxvf domain_hawaii.tar.gz -C /ngen-app/nwm.v3.0.6/parm/ domain_hawaii/geo_em_HI.nc ; \
+#    rm -f domain_hawaii.tar.gz
+#
+#RUN --mount=type=secret,id=aws \
+#    set -eux; \
+#    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws \
+#    aws s3 cp s3://ngwpc-data/NWM_Parm_v3.0/domain_puertorico.tar.gz ./; \
+#    tar -zxvf domain_puertorico.tar.gz -C /ngen-app/nwm.v3.0.6/parm/ domain_puertorico/geo_em_PRVI.nc ; \
+#    rm -f domain_puertorico.tar.gz
+
+#build the SCHISM binaries
+RUN set -eux; \
+    \
+    cd /ngen-app/nwm.v3.0.6/sorc/schism/; \
+    source ./build_schism_cmake_docker.sh; \
+    cd /ngen-app/nwm.v3.0.6/sorc/combine_sink_source; \
+    make; \
+    cp combine_sink_source ../../exec;\
+    cd /ngen-app/nwm.v3.0.6/sorc/combine_hotstart7; \
+    make; \
+    cp combine_hotstart7 ../../exec; \
+    cd /ngen-app/nwm.v3.0.6/sorc/metis_prep; \
+    make clean; make; \
+    cp metis_prep ../../exec; \
+    cd /ngen-app/nwm.v3.0.6/sorc/metis; \
+    source ./build_metis_docker.sh; \
+    cd -
 
 ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
 
 ARG CONDA_ENV_NAME=ngen_forcing_coastal
-COPY Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/environment.yml environment.yaml
+COPY ./ngen-forcing/coastal/environment.yml environment.yaml
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
@@ -121,24 +230,14 @@ ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 ARG OLD_PATH=${PATH}
 ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
 
-
-### TODO: use isciences official release of ExactExtract instead of this older fork
-### this package could then be managed via conda
-#RUN set -eux; \
-#    \
-#    mkdir --parents /usr/src/exactextract ; \
-#    git clone --single-branch -b coverage-fraction-pybindings https://github.com/jdalrym2/exactextract.git /usr/src/exactextract ; \
-##    cd /usr/src/exactextract/ ; \
-#    python3 setup.py install ; \
-##    pip3 cache purge ; \
-#    conda clean --all ; \
-#    rm --force --recursive /usr/src/exactextract
-
 ENV PATH=${OLD_PATH}
 
-COPY Zhengtao.Cui/home/ngwpc/ngen-forcing/ /ngen-app/ngen-forcing/
+COPY ./ngen-forcing/ /ngen-app/ngen-forcing/
 WORKDIR /ngen-app/
 
+RUN set -eux; \
+    \
+    rm --force /root/.gitconfig
 
 WORKDIR /
 SHELL ["/bin/bash", "-c"]

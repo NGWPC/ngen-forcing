@@ -18,14 +18,19 @@ class NOAAObservedWL:
            NOAA Observed water level json file
         """        
 
-        def __init__(self, observedfile ): 
+        def __init__(self, observedfile, datumfile ): 
            self._source = observedfile
+           self._datumsource = datumfile
 
            with open(observedfile, 'r') as jfile: 
                 self._data = json.load( jfile ) 
                 if  'error' in self._data:
                     raise ValueError( self._data['error'][ 'message' ] + " : " + observedfile )
 
+           with open(datumfile, 'r') as dfile: 
+                self._datum = json.load( dfile ) 
+                if  'error' in self._datum:
+                    raise ValueError( self._datum['error'][ 'message' ] + " : " + datumfile )
 
         @property
         def source(self):
@@ -42,3 +47,11 @@ class NOAAObservedWL:
         @data.setter
         def data(self, d):
             self._data = d
+
+        @property
+        def datum(self):
+            return self._datum
+
+        @datum.setter
+        def datum(self, d):
+            self._datum = d

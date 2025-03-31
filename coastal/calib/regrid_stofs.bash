@@ -169,7 +169,7 @@ nwm_coastal_regrid_estofs() {
        local _correction_file=$DATAexec/elevation_correction.csv
        if [[ -f  ${_correction_file} ]]; then
            echo "Applying elevation datum correction to elev2D.th.nc file"
-           ${MPICOMMAND3} python $USHnwm/wrf_hydro_workflow_dev/coastal/correct_elevation.py \
+           python $USHnwm/wrf_hydro_workflow_dev/coastal/correct_elevation.py \
 		   $SCHISM_OUTPUT_FILE \
 		    ${_correction_file} >> $DATAlogs/regrid_stofs.${PDY}${cyc}.log 2>&1
        fi

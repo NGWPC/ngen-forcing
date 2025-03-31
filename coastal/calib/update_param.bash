@@ -105,7 +105,7 @@ nwm_coastal_update_params() {
   sed -i "s|^  rnday .*|  rnday = $(echo "scale=8;$rnhours/24.0" | bc -l)|;" ${coastal_param}
 
   # use 200 second model timestep and 10 minute atmospheric timestep
-  sed -i "s|^  dt .*|  dt = 200, |;" ${coastal_param}
+  sed -i "s|^  dt .*|  dt = 200 |;" ${coastal_param}
   sed -i "s|^  wtiminc .*|  wtiminc = 600 |;" ${coastal_param}
 #  sed -i "s|^  nspool .*|  nspool = 18 |;" ${coastal_param}
 #  sed -i "s|^  ihfskip .*|  ihfskip = 18 |;" ${coastal_param}
