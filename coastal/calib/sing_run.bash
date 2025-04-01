@@ -65,7 +65,7 @@ export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/t
 ##################################################################################################
 
 #set the Singularity image file
-SIF_PATH="singularity/ngen_coastal_sing.sif_2025-02-19T01:38:32+00:00"
+SIF_PATH="singularity/ngen_coastal_sing.sif"
 
 export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
 
