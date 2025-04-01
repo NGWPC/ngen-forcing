@@ -85,12 +85,12 @@ edit_file_with_message "ngencerf_services.override.env" \
     "Update the database host, password, and EDS URL in this file."
 
 edit_file_with_message ".env" \
-    "Update the NGEN_CAL_TAG and NGEN_FORCING_TAG values in this file."
+    "Update the NGEN_CAL_TAG, NGEN_FORCING_TAG, and GITLAB_TOKEN values in this file."
 
 # ------------------------------------------------------------------------------
-# Prepare static data
+# Load static data
 # ------------------------------------------------------------------------------
-echo "Preparing static data directory..."
+echo "Loading static data directory..."
 
 STATIC_DIR="$NGENCERF_APP/data/ngen-cal-data/ngen-static-files"
 SOURCE_DIR="$NGENCERF_APP/ngen-cal/module_parameter_files"
