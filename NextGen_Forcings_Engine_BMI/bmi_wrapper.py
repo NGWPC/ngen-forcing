@@ -572,7 +572,12 @@ def execute(args):
     subprocess.run(cmd3, check=True)
     
     if args.csv_path:
-        cmd_0 = ["conda", "run", "-n", engine_env, "python", "./post_process/netcdf_to_csv.py", f"{output_path}",f"{args.csv_path}"] 
+        # Get the directory of the current Python module
+        module_dir = os.path.dirname(os.path.abspath(__file__))
+        # Build the full path to the script
+        post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
+
+        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}",f"{args.csv_path}"]
         subprocess.run(cmd_0, check=True)
 
 def get_options():
