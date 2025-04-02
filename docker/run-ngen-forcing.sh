@@ -15,7 +15,7 @@ umask 000
 
 # Function to display help message
 show_help() {
-  echo "Usage: $(basename "$0") <command> <cycle_name> <gpkg_file> <config_file> <forcing_path> [stdout_file] [conda_env]"
+  echo "Usage: $(basename "$0") <command> <cycle_name> <gpkg_file> <config_file> <forcing_dir> [stdout_file] [conda_env]"
   echo ""
   echo ""
   echo "COMMAND:"
@@ -24,7 +24,7 @@ show_help() {
   echo "CYCLE_NAME: Cycle name to use."
   echo "GPKG_FILE: Filename of the GPKG file."
   echo "CONFIG_FILE: Path to the wrapper config file."
-  echo "FORCING_PATH: Path to the forcing directory to be populated."
+  echo "FORCING_DIR: Path to the forcing directory to be populated."
   echo "STDOUT_FILE (optional): Path to the stdout file where the script's console output will be saved.  Used when running in LOCAL or DOCKER environment"
   echo "CONDA_ENV (optional): Name of the CONDA environment  Used when running in the LOCAL environment."
   echo ""
@@ -84,13 +84,13 @@ fi
 CYCLE_NAME=$1
 GPKG_FILE=$2
 CONFIG_FILE=$3
-FORCING_PATH=$4
+FORCING_DIR_dir=$4
 shift $REQUIRED_ARGS
 
 echo "CYCLE_NAME: ${CYCLE_NAME}"
 echo "GPKG_FILE: ${GPKG_FILE}"
 echo "CONFIG_FILE: ${CONFIG_FILE}"
-echo "FORCING_PATH: ${FORCING_PATH}"
+echo "FORCING_DIR: ${FORCING_DIR}"
 
 # Check if the forcing data exists
 if [ ! -f "${CONFIG_FILE}" ]; then
@@ -125,11 +125,11 @@ else
 fi
 
 # Run the Python script, redirecting its output if an output file is provided
-echo "   Running ${CONDA_CMD} $(basename "$SCRIPT_PATH") with: $GPKG_FILE $CYCLE_NAME $CONFIG_FILE $FORCING_PATH"
+echo "   Running ${CONDA_CMD} $(basename "$SCRIPT_PATH") with: $GPKG_FILE $CYCLE_NAME $CONFIG_FILE $FORCING_DIR"
 if [ -z "$STDOUT_FILE" ]; then
-  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-csv_path" "${FORCING_PATH}"
+  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-csv_path" "${FORCING_DIR}"
 else
-  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-csv_path" "${FORCING_PATH}" > "${STDOUT_FILE}" 2>&1
+  $CONDA_CMD python3 "${SCRIPT_PATH}" "${CYCLE_NAME}" "${GPKG_FILE}" "-config_input" "${CONFIG_FILE}" "-csv_path" "${FORCING_DIR}" > "${STDOUT_FILE}" 2>&1
 
 fi
 
