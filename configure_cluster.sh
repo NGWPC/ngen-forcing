@@ -138,6 +138,7 @@ echo
 echo "Building nginx Singularity container if it doesn't exist..."
 if [[ ! -f "$NGENCERF_APP/singularity/nginx-unprivileged.sif" ]]; then
     cd $NGENCERF_APP
+    mkdir -p singularity
     git clone https://github.com/parallelworks/interactive_session.git
     cp interactive_session/downloads/jupyter/nginx-unprivileged.sif singularity/
     rm -rf interactive_session
