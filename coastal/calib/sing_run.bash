@@ -51,7 +51,7 @@ export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp
 #
 # Whether or not to use TPXO forecast instead of STOFS data
 # "YES" or "NO"
-export USE_TPXO="NO"
+export USE_TPXO="YES"
 #
 #the name of the NWM domain to calibrate
 #export COASTAL_DOMAIN=prvi
@@ -59,7 +59,7 @@ export COASTAL_DOMAIN=hawaii
 #
 #define working directory of the SCHISM calibration run
 #export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_stofs_20240220_tpxo
-export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_stofs_sing
+export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_tpxo_sing
 ##################################################################################################
 # End of user defined section
 ##################################################################################################
@@ -67,7 +67,7 @@ export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/t
 #set the Singularity image file
 SIF_PATH="singularity/ngen_coastal_sing.sif"
 
-export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
+export NGWPC_COASTAL_PARM_DIR=/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #
@@ -122,12 +122,12 @@ unset __conda_setup
 
 export PATH=/opt/conda/bin:${PATH}
 export CONDA_ENVS_PATH=/efs/ngen-app/conda/envs/
-export PATH=${CONDA_ENV_PATH}/bin:${PATH}
 export CONDA_ENV_NAME=ngen_forcing_coastal
+export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
-conda activate $CONDA_ENV_NAME
+conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
-export LD_LIBRARY_PATH=/opt/conda/lib:${CONDA_ENV_PATH}/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=/opt/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
 
 export MPICOMMAND2="mpiexec -n ${NPROCS} "
 export MPICOMMAND3="mpiexec -n 4 "
@@ -153,7 +153,7 @@ export NSCRIBES=2
 
 export BINDINGS="$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
 
-work_dir=/contrib/Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/calib
+work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/calib
 
 singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
 	 ./run_sing_coastal_workflow_pre_forcing_coastal.bash

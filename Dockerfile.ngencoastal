@@ -218,19 +218,24 @@ ARG CONDA_ENV_NAME=ngen_forcing_coastal
 COPY ./ngen-forcing/coastal/environment.yml environment.yaml
 RUN set -eux; \
     \
+    conda init
+RUN set -eux; \
+    \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
     conda clean --all ; \
     rm --force environment.yaml
 
-RUN set -eux; \
-    \
-    conda init bash
+#RUN set -eux; \
+#    \
+#    conda init bash
+#RUN set -eux; \
+#    \
+#    conda init ${CONDA_ENV_NAME}
 
-ARG CONDA_ENV_PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}
 ARG OLD_PATH=${PATH}
-ENV PATH=${CONDA_ENV_PATH}/bin:${PATH}
+ENV PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
-ENV PATH=${OLD_PATH}
+#ENV PATH=${OLD_PATH}
 
 COPY ./ngen-forcing/ /ngen-app/ngen-forcing/
 WORKDIR /ngen-app/
