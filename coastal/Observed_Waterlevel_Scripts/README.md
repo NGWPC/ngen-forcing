@@ -22,7 +22,9 @@ Each script has a help option (-h) for printing usage information.
       download_noaa_obv_wl.py -o <outputdir> -b <begin_date> -e <end_date> -m 
    where -o defines the ouput directory
          -b defines the begin time for the timeseries
-         -s defines the end time for the timeseries
+         -e defines the end time for the timeseries
+         -l is optional. Defines a list of station ids seperated by ','. If not given, 
+            data for all avaialble stations will be downloaded. 
          -m is optional. If not given, hourly height will be downloaded, 
             otherwise, 6 minute inteval water leel data will be downloaded.
 
@@ -34,5 +36,6 @@ Each script has a help option (-h) for printing usage information.
 
 #### Examples ####
 
-   python download_noaa_obv_wl.py -o "./testdir" -b 20241101 -e 20241112 -m
+   python download_noaa_obv_wl.py -o "./testdir" -b 20250401 -l 1611400,1612480,1617760,1612340,1615680,1612401,1617433  -e 20250402 -m
+   python download_noaa_obv_wl.py -o "./testdir" -b 20250401 -l 1611400,1612480,1617760,1612340,1615680,1612401,1617433  -e 20250402
    python download_noaa_obv_wl.py -o "./testdir" -b 20241101 -e 20241112

@@ -83,7 +83,7 @@ There is already installed NWM v3 on the Parallel Works systems. It is located a
 
 5) Hot restart file if a hot restart is needed for the calibration
 
-# Script description
+# Script description (without Singularity containers)
 
 run_coastal_workflow.bash : The main driver of the calibration workflow. Part of the environmental variables must be adjusted by the user to fit his/her specific use case.
 regrid_stofs.bash  : Regrid the STOFS forecast file into the SCHISM elev2D.th.nc file when STOFS data is used for the boundary conditions. 
@@ -95,7 +95,26 @@ merge_source_sink.bash   : Merge the sink and source files
 update_param.bash        : Create the SCHISM parm.nml namelist file according to user's settings.
 nwm_coastal.bash         : Run the SCHISM using the input files created by the scripts above.
 
-# Script Usage
+# Script description (with Singularity containers)
+sing_run.bash : The main driver of the calibration workflow when singurlarity containter is used. Part of the environmental variables must be adjusted by the user to fit his/her specific use case.
+run_sing_coastal_workflow_pre_forcing_coastal.bash : This script is executed by the Singularity container to prepare for the execution of workflow_driver.py that requires mpy4py.
+pre_nwm_forcing_coastal.bash : Evoked by run_sing_coastal_workflow_pre_forcing_coastal.bash. Prepare data for the execution of workflow_driver.py.
+run_sing_coastal_workflow_post_forcing_coastal.bash : This script is executed by the Singularity container for clean up the execution of workflow_driver.py.
+post_nwm_forcing_coastal.bash : Evoked by run_sing_coastal_workflow_post_forcing_coastal.bash. Performs the tasks needed after the execution of workflow_driver.py.
+run_sing_coastal_workflow_update_params.bash : This script is executed by the Singularity container to create the parameter file for SCHISM.
+run_sing_coastal_workflow_make_tpxo_ocean.bash : This script is executed by the Singularity container to create the water level boundary forcing file for SCHISM.
+make_tpxo_ocean.bash : This script is evoked by run_sing_coastal_workflow_make_tpxo_ocean.bash to create water level boundary forcing files using the TPXO program and dataset.
+run_sing_coastal_workflow_pre_make_stofs_ocean.bash : This script executed by the Singularity container to prepare the execution of regrid_estofs.py.
+pre_regrid_stofs.bash : This script is evoked by run_sing_coastal_workflow_pre_make_stofs_ocean.bash to prepare data for the execution of regrid_estofs.py.
+run_sing_coastal_workflow_post_make_stofs_ocean.bash : This script is executed by the Singularity container to post-process data created by regrid_estofs.py which requires MPI.
+post_regrid_stofs.bash : This script is evoked by run_sing_coastal_workflow_post_make_stofs_ocean.bash to post-process data created by regrid_estofs.py.
+run_sing_coastal_workflow_pre_schism.bash : This script is executed by the Singularity container to prepare the execution of SCHISM which requires MPI.
+pre_schism.bash : This script is evoked by run_sing_coastal_workflow_pre_schism.bash to prepare the execution of SCHISM.
+run_sing_coastal_workflow_post_schism.bash : This script is executed by the Singularity container to post-process the execution of SCHISM.
+post_schism.bash : This script is evoked by run_sing_coastal_workflow_post_schism.bash to post-process SCHISM output files.
+
+
+# Script Usage (without Singularity container)
 
 Update the environmental variables between lines 1 and 66 in the main driver script, run_coastal_workflow.bash.
 Lines 1 to 14 are the Slurm job setting.
@@ -104,9 +123,37 @@ Lines 15 to 66 are the environmental variable setting for the calibration run. S
 
 Note that the Slurm job must be submitted from the ngen-forcing/coastal/calib folder.
 
+# Script Usage (with Singularity container)
+Update the SLURM settings and environmental variables between lines 1 and 50 in the main driver script for Singularity containers, sing_run.bash.
+Lines 3 to 7 are the Slurm job setting.
+Lines 8 to 50 are the environmental variable setting for the calibration run. See the comments for the explanation of each variable.
+Not that the the variables NODES and NCORES must match with the SLURM job settings defined in lines 3 to 7.
+
 #### Examples ####
+
+Without a Singularity container:
 
 cd ngen-forcing/coastal/calib
 sbatch run_coastal_workflow.bash
 
 To check the job status, run the 'squeue' command. To cancel the job, issue the 'scancel <jobid>' command.
+
+With a Singularity container:
+sbatch ngen-forcing/coastal/calib/sing_run.bash
+
+# Download scripts:
+download_nwm_ana_archived_chout.bash : download the archived NWM AnA cycle streamfloww data for a given time period and domain. It takes three arguments, start date, end date and a domain name. The dates are in the formation of 'YYYYMMDD' and the domain name is one of hawaii, puertorico, atlgulf and pacific.
+#### Examples ####
+./download_nwm_ana_archived_chout.bash 20240401 20240405 hawaii 
+The downloaded files will be saved in the current directory.
+
+download_nwm_ana_archived_forcing.bash : download the archived NWM AnA cycle forcing data for a given time period and domain. It takes three arguments, start date, end date and a domain name. The dates are in the formation of 'YYYYMMDD' and the domain name is one of hawaii, puertorico, atlgulf and pacific.
+#### Examples ####
+./download_nwm_ana_archived_forcing.bash 20240401 20240405 hawaii 
+The downloaded files will be saved in the current directory.
+download_nwm_ana_archived_forcing.bash
+
+download_stofs.bash : download the archived STOFS data for a given time period. It takes two arguments, start date and end date. The dates are in the formation of 'YYYYMMDD'.
+#### Examples ####
+./download_stofs.bash 20240401 20240405
+The downloaded files will be saved in the subdirectory of current directory with an pattern of 'stofs_YYYYMMDD' as the subdirectory name.

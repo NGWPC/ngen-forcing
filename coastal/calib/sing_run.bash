@@ -5,7 +5,6 @@
 #SBATCH --partition=compute      #the patition
 #SBATCH --ntasks-per-node=18     #numebr of cores per node
 #SBATCH --exclusive 
-##SBATCH --chdir=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_stofs
 
 set -x
 
@@ -15,50 +14,39 @@ export NPROCS=$((NODES*NCORES))
 #
 # define the start time of the calibration
 # in the format of YYYYMMDD
-#export STARTPDY=20240220
 export STARTPDY=20230101
 #
 # define the start hour of the calibration
-#export STARTCYC=10
 export STARTCYC=00
 # define the forecast length in hours of the calibration
 export FCST_LENGTH_HRS=12
 #
 # location of the hot restart file for SCHISM
-#export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_prvi_20240220_1800.nc
 export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
 
 #
 # location of the archived STOFS file if STOFS data is 
 # going to be used for the boundary nodes
-#export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.1/stofs_2d_glo.20240220/stofs_2d_glo.t06z.fields.cwl.nc
 export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.1/estofs_20230101/estofs.t00z.fields.cwl.nc
 
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
-#export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_forcing_retro
-#export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_ana_forcing
-#export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_forcing_20240220
 export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_forcing
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
-#export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_chout_retro
-#export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pr_nwm_ana_chout
-#export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_chout_20240220
 export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_chout
 #
 # Whether or not to use TPXO forecast instead of STOFS data
 # "YES" or "NO"
 export USE_TPXO="YES"
 #
-#the name of the NWM domain to calibrate
+#the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
 #export COASTAL_DOMAIN=prvi
 export COASTAL_DOMAIN=hawaii
 #
 #define working directory of the SCHISM calibration run
-#export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_stofs_20240220_tpxo
 export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_tpxo_sing
 ##################################################################################################
 # End of user defined section
