@@ -24,7 +24,8 @@ export STARTCYC=00
 # define the forecast length in hours of the calibration
 export FCST_LENGTH_HRS=12
 #
-# location of the hot restart file for SCHISM
+# location of the hot restart file for SCHISM. Use empty when cold start is needed.
+#export HOT_START_FILE='' #cold start
 #export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_prvi_20240220_1800.nc
 export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
 
