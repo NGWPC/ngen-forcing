@@ -2,7 +2,6 @@
 
 declare -a TEMP_BRANCHES
 
-
 #-----------------------------------------
 # Function: usage
 # Displays usage information and exits.
@@ -10,24 +9,21 @@ declare -a TEMP_BRANCHES
 usage() {
   echo "Usage: $(basename "$0") <RELEASE_TYPE> [JSON_FILE] [WAIT_TIME]"
   echo
-  echo "This script automates the release process for GitLab repositories, handling merges, submodules, and versioning."
+  echo "This script automates the release process for GitLab repositories, handling merges,"
+  echo "submodules, and versioning."
   echo "It performs the following steps based on the release type:"
   echo
   echo "🔹 RC (Release Candidate) Process:"
   echo "  1. Merge from 'development' to 'release-candidate' (except for RC1)."
-  echo "  2. Update the version file in a temporary branch."
-  echo "  3. Merge the updated version file back into 'release-candidate'."
-  echo "  4. If submodules exist, ensure they are on the correct branch."
-  echo "  5. Create a GitLab release for the RC."
-  echo "  6. Merge 'release-candidate' back into 'development' (except for RC1)."
+  echo "  2. If submodules exist, ensure they are on the correct branch."
+  echo "  3. Create a GitLab release for the RC."
+  echo "  4. Merge 'release-candidate' back into 'development' (except for RC1)."
   echo
   echo "🔹 Official Release Process:"
   echo "  1. Merge from 'release-candidate' to 'main' or 'master'."
-  echo "  2. Update the version file in a temporary branch."
-  echo "  3. Merge the updated version file back into 'main' or 'master'."
-  echo "  4. If submodules exist, ensure they are on the correct branch."
-  echo "  5. Create a GitLab release for the official version."
-  echo "  6. Merge the final release changes back into 'development'."
+  echo "  2. If submodules exist, ensure they are on the correct branch."
+  echo "  3. Create a GitLab release for the official version."
+  echo "  4. Merge the final release changes back into 'development'."
   echo
   echo "🔹 Handling Submodules:"
   echo "  - If the repository has submodules, they will be checked out to the correct branch ('release-candidate', 'development', or 'main/master')"
@@ -64,6 +60,9 @@ NC='\033[0m' # No Color
 #-----------------------------------------
 # Function: read_token
 # Reads the GitLab token from ~/.gitlab_token.
+#
+# Returns:
+#   Sets the global variable GITLAB_TOKEN.
 #-----------------------------------------
 read_token() {
   GITLAB_TOKEN=$(cat ~/.gitlab_token)
@@ -98,12 +97,16 @@ clean_and_encode_project() {
 
 #-----------------------------------------
 # Function: determine_release_branch
-# Determines whether the repository has a "main" or "master" branch.
+# Determines whether the repository has a "main" or "master" branch by querying the GitLab API.
 #
 # Parameters:
-#   $1 - Repository API URL
-# Uses the global GITLAB_TOKEN.
-# Returns the branch name (or an empty string if neither exists).
+#   $1 - Repository API URL (with encoded project path)
+#
+# Uses:
+#   Global variable GITLAB_TOKEN.
+#
+# Returns:
+#   The branch name ("main" or "master"), or an empty string if neither exists.
 #-----------------------------------------
 determine_release_branch() {
   local repo_url="$1"
@@ -236,6 +239,9 @@ EOF
 # Arguments:
 #   $1 - Repository API URL
 #   $2 - Merge request IID
+#
+# Returns:
+#   0 on success, 1 on failure.
 #-----------------------------------------
 trigger_merge() {
   local repo_url="$1"
@@ -274,11 +280,15 @@ trigger_merge() {
 
 #-----------------------------------------
 # Function: poll_merge_status
-# Polls the merge request until its state is either "merged" or "closed".
+# Polls the merge request until its status is either "merged" or "closed".
 #
 # Arguments:
 #   $1 - Repository API URL
 #   $2 - Merge request IID
+#
+# Behavior:
+#   Continuously queries the merge request status and displays progress until the status
+#   is either "merged" or "closed".
 #-----------------------------------------
 poll_merge_status() {
   local repo_url="$1"
