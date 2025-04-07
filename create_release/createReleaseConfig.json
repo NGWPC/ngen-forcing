@@ -1,0 +1,137 @@
+[
+    {
+        "repo_directory" : "~/ngwpc/bmi-cxx",
+        "release": "0.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/cfe",
+        "release": "1.2.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/evapotranspiration",
+        "release": "0.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/lgar-c",
+        "release": "1.2.0",
+        "release_notes": "Fixed misplaced log statement. Reverted undefine of necessary NGEN symbol.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen-cal",
+        "release": "1.3.0",
+        "release_notes": "Fix UEB error reading attribute file. Fix single nexus error. Get git info updates.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen-eval",
+        "release": "1.0.0",
+        "release_notes": "Initial Eval Repository to calculate metrics.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen-fcst",
+        "release": "1.2.0",
+        "release_notes": "Get git info updates.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen-forcing",
+        "release": "1.2.0",
+        "release_notes": "SNOTEL updates. Update USACE timeslicing for json. SWE output to csv. Get git info updates.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen-verf",
+        "release": "1.0.0",
+        "release_notes": "Initial Verification Repository.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngencerf-docker",
+        "release": "1.1.0",
+        "release_notes": "Add RTX licensing verbiage. Added version file.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngencerf_ui",
+        "release": "1.2.0",
+        "release_notes": "Forecast fixes. Time Series Viewers. Removed Output Variable from UI. Get git info updates.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngencerf-server",
+        "release": "1.3.0",
+        "release_notes": "Updates for Time Series Viewer, SWE, and SNODAS. Removed Output Variable from DB. Get git info updates.",
+        "ngencerf_version": "1.2.0",
+        "ngencerf_date": "2025-03-28",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/noah-owp-modular",
+        "release": "1.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/sac-sma",
+        "release": "1.2.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/SLoTH",
+        "release": "0.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/snow17",
+        "release": "1.2.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/soilfreezethaw",
+        "release": "1.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/soilmoistureprofiles",
+        "release": "1.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/t-route",
+        "release": "1.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/topmodel",
+        "release": "0.1.0",
+        "release_notes": "Add RTX licensing verbiage.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ueb_bmi",
+        "release": "1.3.0",
+        "release_notes": "Logger filename fix.",
+        "skip": false
+    },
+    {
+        "repo_directory" : "~/ngwpc/ngen",
+        "release": "1.3.0",
+        "release_notes": "Submodule commit updates. Logging updates. Get git info updates.",
+        "has_submodules": true,
+        "skip": false
+    }
+]
