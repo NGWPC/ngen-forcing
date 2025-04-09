@@ -47,15 +47,16 @@ if __name__ == "__main__":
     starttime=None
     endtime=None
     ishourly=True
+    site_noL = []
     try:
-        opts, args = getopt.getopt(sys.argv[1:],"ho:b:e:m",["odir=", "begin=", "end="])
+        opts, args = getopt.getopt(sys.argv[1:],"ho:b:e:l:m",["odir=", "begin=", "end=", "list="])
     except getopt.GetoptError:
       print('download_noaa_obv_wl.py -o <outputdir> -b <begin_date> -e <end_date> -m') 
       sys.exit(2)
     for opt, arg in opts:
       if opt == '-h':
          print(   \
-           'download_noaa_obv_wl.py -o <outputdir> -s <start_date> -e <end_date> -m') 
+           'download_noaa_obv_wl.py -o <outputdir> -s <start_date> -e <end_date> -l <station_list> -m') 
          sys.exit()
       elif opt in ('-o', "--odir" ):
          odir = arg
@@ -66,6 +67,8 @@ if __name__ == "__main__":
          starttime = arg
       elif opt in ('-e', "--end" ):
          endtime = arg
+      elif opt in ('-l', "--list" ):
+         site_noL = arg.split(',')
       elif opt in ('-m' ):
          ishourly = False
  
@@ -75,8 +78,9 @@ if __name__ == "__main__":
     if not endtime:
          raise RuntimeError( 'FATAL ERROR: endtime is not defined!' )
   
-    site_noL = []
-    find_waterlevel_stations.find_waterlevel_stations(site_noL)
+    if not site_noL:
+      find_waterlevel_stations.find_waterlevel_stations(site_noL)
+
     failed_sites = []
     for sta in site_noL:
         print( sta )
@@ -85,6 +89,7 @@ if __name__ == "__main__":
            URL="https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=hourly_height&application=NOS.COOPS.TAC.WL&begin_date="+starttime+"&end_date="+endtime+"&datum=MLLW&station=" + sta + "&time_zone=GMT&units=metric&format=json"
         else:
            URL="https://api.tidesandcurrents.noaa.gov/api/prod/datagetter?product=water_level&application=NOS.COOPS.TAC.WL&begin_date="+starttime+"&end_date="+endtime+"&datum=MLLW&station=" + sta + "&time_zone=GMT&units=metric&format=json"
+        print( "URL=", URL )
 
         # Connect to the server
         # 
@@ -115,6 +120,43 @@ if __name__ == "__main__":
             failed_sites.append( sta )
             continue
 
+        #
+        # Close the connection and json files
+        #
+        rno.close()
+        jso.close()
+
+        #Download the datum
+
+        URL = "https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/" + sta + "/datums.json?units=metric"
+        # Connect to the server
+        # 
+        try:
+            rno = urllib.request.urlopen(URL)
+        except IOError as e:
+            print( 'WARNING: site : ', sta, ' skipped - ' + e.reason ) #, e.reason 
+            #
+            # If failed, remember the station no and continue
+            # 
+            failed_sites.append( sta )
+            continue
+
+        #
+        # Write the water level data to json files
+        #
+        jso = open(odir+'/'+sta+'_datum.json','w')
+
+        try:
+             json_data = json.loads(rno.read().decode('utf-8'))
+             json.dump(json_data, jso, indent=2)
+              
+             print( datetime.datetime.now(), end = " --- " )
+             print( 'Successfully downloaded datum for  station: ', sta)
+        except IOError as e:
+            print( datetime.datetime.now(), end = " --- " )
+            print( 'WARNING: station : ', sta, ' skipped - ', e.reason()) 
+            failed_sites.append( sta )
+            continue
         #
         # Close the connection and json files
         #

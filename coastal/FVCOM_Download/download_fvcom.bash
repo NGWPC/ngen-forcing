@@ -6,9 +6,9 @@ else
     ROOT_SHARE_TXT="ROOT_SHARE set to: $ROOT_SHARE"
 fi
 
-usage() { echo -e "Usage: $0 [-d <utcdate>(yyyymmdd)] [-o <output path>]\n\tdefaults: \n\t\t<utcdate>: current utc day\n\t\t<output path>: \$ROOT_SHARE/data)" 1>&2; exit 1; }
+usage() { echo -e "Usage: $0 [-d <utcdate>(yyyymmdd)] [-n <domain> (one of leofs, lmhofs, loofs, or lsofs)] [-o <output path>]\n\tdefaults: \n\t\t<utcdate>: current utc day\n\t\t<domain>: all 4 domains\n\t\t<output path>: \$ROOT_SHARE/data)" 1>&2; exit 1; }
 
-options=$(getopt -o d:o:h --long utcdate:,output:,help -- "$@")
+options=$(getopt -o d:n:o:h --long utcdate:,domain:,output:,help -- "$@")
 eval set -- "$options"
 
 while :; do
@@ -17,6 +17,11 @@ while :; do
             shift
             INPUT_DATE=$1
             echo "got option: $INPUT_DATE"
+            ;;
+        -n|--domain)
+            shift
+            OPTION_DOMAIN=$1
+            echo "got option: $OPTION_DOMAIN"
             ;;
         -o|--output)
             shift
@@ -42,6 +47,14 @@ else
     echo "Date specified on cmd line... `date -d $INPUT_DATE "+%Y%m%d"`"
     UTC_DATE=`date -d $INPUT_DATE "+%Y%m%d"`
 fi
+
+if [[ -z $OPTION_DOMAIN ]]; then
+    declare -a DOMAINS=(leofs lmhofs loofs lsofs)
+    echo "Download all domains: leofs lmhofs loofs lsofs"
+else
+    echo "Domain specified on cmd line... $OPTION_DOMAIN"
+    declare -a DOMAINS=($OPTION_DOMAIN)
+fi
 if [[ -z $OPTION_DIR ]]; then
     echo -e $ROOT_SHARE_TXT
     if [[ -z $ROOT_SHARE ]]; then
@@ -53,7 +66,7 @@ else
 fi
 
 pdy=$UTC_DATE
-
+recent_two_month=$(date -d "1 month ago" "+%Y%m")01
 
 #=========================================================
 #  https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/[YYYYMM]/
@@ -99,7 +112,7 @@ pdy=$UTC_DATE
 #   N/A
 #=========================================================
 
-for domain in leofs lmhofs loofs lsofs; do
+for domain in "${DOMAINS[@]}"; do
      
    OFSDIR=$OUTPUT_DIR/${domain}
    if [ ! -d "${OFSDIR}" ]; then 
@@ -125,27 +138,32 @@ for domain in leofs lmhofs loofs lsofs; do
         wget -nc --no-check-certificate \
 	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
      else
+        if [ ${pdy} -lt $recent_two_month ]; then
+           URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}
+        else
+           URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:4}/${pdy:4:2}/${pdy:6:2}
+        fi
+
 	#nowcast station
         wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.stations.nowcast.nc
+	        ${URL}/${domain}.t${cyc}z.${pdy}.stations.nowcast.nc
 	#nowcast regulargrid and grid
         for i in {000..006}; do 
             wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.regulargrid.n${i}.nc
+	        ${URL}/${domain}.t${cyc}z.${pdy}.regulargrid.n${i}.nc
             wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.fields.n${i}.nc
-
+	        ${URL}/${domain}.t${cyc}z.${pdy}.fields.n${i}.nc
         done
 
 	#forecast station
         wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.stations.forecast.nc
+		${URL}/${domain}.t${cyc}z.${pdy}.stations.forecast.nc
 	#forecast regulargrid and grid
         for i in {000..120}; do 
             wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.regulargrid.f${i}.nc
+	        ${URL}/${domain}.t${cyc}z.${pdy}.regulargrid.f${i}.nc
             wget -nc --no-check-certificate \
-	        https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}/${domain}.t${cyc}z.${pdy}.fields.f${i}.nc
+	        ${URL}/${domain}.t${cyc}z.${pdy}.fields.f${i}.nc
         done
      fi
    done
