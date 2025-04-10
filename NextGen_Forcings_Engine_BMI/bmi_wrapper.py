@@ -1,16 +1,16 @@
-'''
-BMI Forcings Engine standalone mode wrapper script. 
+"""
+BMI Forcings Engine standalone mode wrapper script.
 
 Provides ability to run the BMI Forcings Engine pipeline in standalone mode using a single command.
 
 example usage: python bmi_wrapper.py short_range Gage_01011000.gpkg
-'''
+"""
 
 import argparse
 import datetime
 import os
 import subprocess
-import random
+import tempfile
 
 import yaml
 
@@ -18,34 +18,36 @@ from git_util import print_git_info_all
 
 
 def execute(args):
-    '''
+    """
     Execute the full forcings engine BMI pipeline in standalone mode.
-    
+
     Modules executed: ESMF Mesh Conversion, Forcing Extraction, Forcing Engine BMI
-    
+
     args:
         cycle_name (str): The NWM Forecast cycle to execute (ie: short_range)
         hyfab_name (str): The full path of the hydrofabric domain file to use (ie: /srv/data/Gage_01011000.gpkg)
         -config_input (str): Optional path to the wrapper config file.
         -output_path (str): Optional full path to specify forcing engine output location.
         -np (str): Optional number of processes to use.
-    '''
+    """
 
     # read in user-provided arguments and initialize variables
     cycle_name = args.cycle_name
     hyfab_name = args.hyfab_name
     config_input = args.config_input
-    random_int = random.randint(1000, 9999)
-    if args.output_path:
-        output_path = args.output_path
-    elif args.csv_path and not args.output_path:
-        output_path = f'/tmp/temp_{random_int}.nc'
-    else:
-        output_path = None
     num_processes = args.np
 
+    if args.output_path:
+        output_path = args.output_path
+    elif args.csv_path:
+        # If we have a csv_path then generate a temporary netcdf file
+        with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
+            output_path = tmp.name
+    else:
+        output_path = None
+
     # read in config file
-    if config_input != None:
+    if config_input:
         config_read = config_input
     else:
         config_read = './wrapper_config.yml'
@@ -68,7 +70,7 @@ def execute(args):
     engine_env = config['global']['engine_env']
 
     # Get the current time in UTC
-    dNowUTC = datetime.datetime.utcnow()
+    dNowUTC = datetime.datetime.now(datetime.UTC)
     dNow = datetime.datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
 
     if not os.path.exists(mesh_outPath):
@@ -370,7 +372,7 @@ def execute(args):
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.datetime.now(datetime.UTC)
         b_date_dt = get_nearest_cycle(dNow)
         start_time_dt = b_date_dt + datetime.timedelta(hours=1)
         end_time_dt = start_time_dt + datetime.timedelta(hours=17)
@@ -439,7 +441,7 @@ def execute(args):
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.datetime.now(datetime.UTC)
         b_date_dt = get_nearest_cycle(dNow)
         start_time_dt = b_date_dt + datetime.timedelta(hours=1)
         end_time_dt = start_time_dt + datetime.timedelta(hours=17)
@@ -499,7 +501,7 @@ def execute(args):
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.datetime.now(datetime.UTC)
         b_date_dt = get_nearest_cycle(dNow)
         start_time_dt = b_date_dt + datetime.timedelta(hours=1)
         end_time_dt = start_time_dt + datetime.timedelta(hours=17)
@@ -538,8 +540,8 @@ def execute(args):
             "valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")
 
     # run the forcing engine BMI
-    if output_path != None:
-        if num_processes != None:
+    if output_path:
+        if num_processes is not None:
             cmd3 = [
                 "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes),
@@ -555,7 +557,7 @@ def execute(args):
             ]
 
     else:
-        if num_processes != None:
+        if num_processes is not None:
             cmd3 = [
                 "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes),
@@ -568,24 +570,25 @@ def execute(args):
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
-    
+
     subprocess.run(cmd3, check=True)
-    
+
     if args.csv_path:
         # Get the directory of the current Python module
         module_dir = os.path.dirname(os.path.abspath(__file__))
         # Build the full path to the script
         post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
 
-        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}",f"{args.csv_path}"]
+        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}", f"{args.csv_path}"]
         subprocess.run(cmd_0, check=True)
 
+
 def get_options():
-    '''
+    """
     Function to accept and parse arguments.
-    
+
     Returns an argparse object.
-    '''
+    """
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle_name',
                         help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')

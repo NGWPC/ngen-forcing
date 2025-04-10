@@ -5,10 +5,11 @@ import os
 
 import numpy as np
 
-from . import time_handling
 from . import err_handler
+from . import time_handling
 
 FORCE_COUNT = 27
+
 
 class ConfigOptions:
     """
@@ -127,7 +128,7 @@ class ConfigOptions:
         self.aws_obj = None
         self.aws_time = None
         self.aorc_source = "s3://noaa-nws-aorc-v1-1-1km"
-        self.aorc_year_url = "{source}/{year}.zarr" 
+        self.aorc_year_url = "{source}/{year}.zarr"
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
         self.nwm_url = None
         self.nwm_domain = None
@@ -155,7 +156,7 @@ class ConfigOptions:
             if int(self.supp_precip_forcings[0]) == 14:
                 self.precip_only_flag = True
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Read in the base input forcing options as an array of values to map.
             try:
                 self.input_forcings = cfg['InputForcings']
@@ -184,28 +185,30 @@ class ConfigOptions:
                     try:
                         self.nwm_geogrid = cfg['NWM_Geogrid']
                     except KeyError:
-                        err_handler.err_out_screen('Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
+                        err_handler.err_out_screen(
+                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
                     except configparser.NoOptionError:
-                        err_handler.err_out_screen('Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
+                        err_handler.err_out_screen(
+                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
                     except json.decoder.JSONDecodeError:
                         err_handler.err_out_screen('Improper NWM Geogrid file option specified in configuration file')
-                    if(self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'CONUS'):
+                    if self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'CONUS':
                         self.nwm_domain = 'CONUS'
                         self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
-                    elif(self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'HI'):
+                    elif self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'HI':
                         self.nwm_domain = 'Hawaii'
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif(self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'PRVI'):
+                    elif self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'PRVI':
                         self.nwm_domain = 'PR'
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif(self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'AK'):
+                    elif self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'AK':
                         self.nwm_domain = 'Alaska'
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
 
             # Read in the input forcings types (GRIB[1|2], NETCDF)
             try:
-                #self.input_force_types = config.get('Input', 'InputForcingTypes').strip("[]").split(',')
-                #self.input_force_types = [ftype.strip() for ftype in self.input_force_types]
+                # self.input_force_types = config.get('Input', 'InputForcingTypes').strip("[]").split(',')
+                # self.input_force_types = [ftype.strip() for ftype in self.input_force_types]
                 self.input_force_types = cfg['InputForcingTypes']
                 if self.input_force_types == ['']:
                     self.input_force_types = []
@@ -219,7 +222,7 @@ class ConfigOptions:
                 err_handler.err_out_screen('Number of InputForcingTypes must match the number '
                                            'of InputForcings in the configuration file.')
             for fileType in self.input_force_types:
-                if fileType not in ['GRIB1', 'GRIB2', 'NETCDF', 'NETCDF4','NWM']:
+                if fileType not in ['GRIB1', 'GRIB2', 'NETCDF', 'NETCDF4', 'NWM']:
                     err_handler.err_out_screen('Invalid forcing file type "{}" specified. '
                                                'Only GRIB1, GRIB2, and NETCDF are supported'.format(fileType))
 
@@ -239,12 +242,17 @@ class ConfigOptions:
             # or new line characters.
             for dirTmp in range(0, len(self.input_force_dirs)):
                 self.input_force_dirs[dirTmp] = self.input_force_dirs[dirTmp].strip()
-                if(os.path.isdir(self.input_force_dirs[dirTmp]) == False and self.input_forcings[dirTmp] != 12 and self.input_forcings[dirTmp] != 21 and self.input_forcings[dirTmp] != 27):
-                    err_handler.err_out_screen('Unable to locate forcing directory: ' +
-                                               self.input_force_dirs[dirTmp])
-                if(os.path.isdir(self.input_force_dirs[dirTmp]) == False and self.input_forcings[dirTmp] in [12,21,27]):
-                    self.aws = True
-     
+
+                dir_path = self.input_force_dirs[dirTmp]
+                forcing_type = self.input_forcings[dirTmp]
+                is_aws_forcing = forcing_type in [12, 21, 27]
+
+                if not os.path.isdir(dir_path):
+                    if is_aws_forcing:
+                        self.aws = True
+                    else:
+                        err_handler.err_out_screen(f'Unable to locate forcing directory: {dir_path}')
+
             # Read in the mandatory enforcement options for input forcings.
             try:
                 self.input_force_mandatory = cfg['InputMandatory']
@@ -261,8 +269,8 @@ class ConfigOptions:
             # Check to make sure enforcement options makes sense.
             for enforceOpt in self.input_force_mandatory:
                 if enforceOpt < 0 or enforceOpt > 1:
-                    err_handler.err_out_screen('Invalid InputMandatory chosen in the configuration file. Please choose a value of 0 or 1 for each corresponding input forcing.')
-
+                    err_handler.err_out_screen(
+                        'Invalid InputMandatory chosen in the configuration file. Please choose a value of 0 or 1 for each corresponding input forcing.')
 
         # Read in the output frequency
         try:
@@ -276,7 +284,7 @@ class ConfigOptions:
         if self.output_freq <= 0:
             err_handler.err_out_screen('Please specify an OutputFrequency that is greater than zero minutes.')
 
-        if self.precip_only_flag == True:
+        if self.precip_only_flag:
             # Read in the custom supp output frequency
             try:
                 self.customSuppPcpFreq = int(cfg['customSuppPcpFreq'])
@@ -383,11 +391,7 @@ class ConfigOptions:
         # Read AnA flag option
         try:
             # check both the Forecast section and if it's not there, the old BiasCorrection location
-            self.ana_flag = cfg['AnAFlag']
-            if self.ana_flag is None:
-                raise KeyError
-            else:
-                self.ana_flag = int(self.ana_flag)
+            self.ana_flag = int(cfg['AnAFlag'])
         except KeyError:
             err_handler.err_out_screen('Unable to locate AnAFlag in the configuration file.')
         except configparser.NoOptionError:
@@ -404,17 +408,17 @@ class ConfigOptions:
                 err_handler.err_out_screen('Please specify a positive LookBack or -9999 for realtime.')
         except ValueError:
             err_handler.err_out_screen('Improper LookBack value entered into the '
-                                        'configuration file. Please check your entry.')
+                                       'configuration file. Please check your entry.')
         except KeyError:
             err_handler.err_out_screen('Unable to locate LookBack in the configuration '
-                                        'file. Please verify entries exist.')
+                                       'file. Please verify entries exist.')
         except configparser.NoOptionError:
             err_handler.err_out_screen('Unable to locate LookBack in the configuration '
-                                        'file. Please verify entries exist.')
+                                       'file. Please verify entries exist.')
 
         # Process the beginning date of reforecast forcings to process
-        
-        if b_date != None:
+
+        if b_date:
             beg_date_tmp = b_date
             print(f"beg_date_tmp: {beg_date_tmp}")
         else:
@@ -422,21 +426,21 @@ class ConfigOptions:
                 beg_date_tmp = cfg['RefcstBDateProc']
             except KeyError:
                 err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
-                                        'configuration file.')
+                                           'configuration file.')
                 beg_date_tmp = None
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
-                                        'configuration file.')
+                                           'configuration file.')
                 beg_date_tmp = None
         if beg_date_tmp != -9999:
             if len(beg_date_tmp) != 12:
                 err_handler.err_out_screen('Improper RefcstBDateProc length entered into the '
-                                            'configuration file. Please check your entry.')
+                                           'configuration file. Please check your entry.')
             try:
                 self.b_date_proc = datetime.datetime.strptime(beg_date_tmp, '%Y%m%d%H%M')
             except ValueError:
                 err_handler.err_out_screen('Improper RefcstBDateProc value entered into the '
-                                            'configuration file. Please check your entry.')
+                                           'configuration file. Please check your entry.')
         else:
             self.b_date_proc = -9999
 
@@ -464,119 +468,119 @@ class ConfigOptions:
             self.fcst_freq = cfg['ForecastFrequency']
         except ValueError:
             err_handler.err_out_screen('Improper ForecastFrequency value entered into '
-                                        'the configuration file. Please check your entry.')
+                                       'the configuration file. Please check your entry.')
         except KeyError:
             err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration '
-                                        'file. Please verify entries exist.')
+                                       'file. Please verify entries exist.')
         except configparser.NoOptionError:
             err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration '
-                                        'file. Please verify entries exist.')
+                                       'file. Please verify entries exist.')
         if self.fcst_freq <= 0:
             err_handler.err_out_screen('Please specify a ForecastFrequency in the configuration '
-                                        'file greater than zero.')
+                                       'file greater than zero.')
         # Currently, we only support daily or sub-daily forecasts. Any other iterations should
         # be done using custom config files for each forecast cycle.
         if self.fcst_freq > 1440:
             err_handler.err_out_screen('Only forecast cycles of daily or sub-daily are supported '
-                                        'at this time')
+                                       'at this time')
 
         # Read in the ForecastShift option. This is ONLY done for the realtime instance as
         # it's used to calculate the beginning of the processing window.
-        if True: # was: self.realtime_flag:
+        if True:  # was: self.realtime_flag:
             try:
                 self.fcst_shift = cfg['ForecastShift']
             except ValueError:
                 err_handler.err_out_screen('Improper ForecastShift value entered into the '
-                                            'configuration file. Please check your entry.')
+                                           'configuration file. Please check your entry.')
             except KeyError:
                 err_handler.err_out_screen('Unable to locate ForecastShift in the configuration '
-                                            'file. Please verify entries exist.')
+                                           'file. Please verify entries exist.')
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate ForecastShift in the configuration '
-                                            'file. Please verify entries exist.')
+                                           'file. Please verify entries exist.')
             if self.fcst_shift < 0:
                 err_handler.err_out_screen('Please specify a ForecastShift in the configuration '
-                                            'file greater than or equal to zero.')
+                                           'file greater than or equal to zero.')
 
             # Calculate the beginning/ending processing dates if we are running realtime
             if self.realtime_flag:
                 time_handling.calculate_lookback_window(self)
 
-        #if self.refcst_flag:
-            # Calculate the number of forecasts to issue, and verify the user has chosen a
-            # correct divider based on the dates
-            #dt_tmp = self.e_date_proc - self.b_date_proc
-            #if (dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) % self.fcst_freq != 0:
-            #    err_handler.err_out_screen('Please choose an equal divider forecast frequency for your '
-            #                               'specified reforecast range.')
-            #self.nFcsts = int((dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) / self.fcst_freq)
+        # if self.refcst_flag:
+        # Calculate the number of forecasts to issue, and verify the user has chosen a
+        # correct divider based on the dates
+        # dt_tmp = self.e_date_proc - self.b_date_proc
+        # if (dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) % self.fcst_freq != 0:
+        #    err_handler.err_out_screen('Please choose an equal divider forecast frequency for your '
+        #                               'specified reforecast range.')
+        # self.nFcsts = int((dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) / self.fcst_freq)
 
-            # Flag to constrain AORC forcing data cycle output
-            #for optTmp in self.input_forcings:
-                #if optTmp == 12:
-                    #self.nFcsts = 1
+        # Flag to constrain AORC forcing data cycle output
+        # for optTmp in self.input_forcings:
+        # if optTmp == 12:
+        # self.nFcsts = 1
         self.nFcsts = 1
 
         if self.look_back != -9999:
             time_handling.calculate_lookback_window(self)
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Read in the ForecastInputHorizons options.
             try:
                 self.fcst_input_horizons = cfg['ForecastInputHorizons']
             except KeyError:
                 err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                            'configuration file.')
+                                           'configuration file.')
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                            'configuration file.')
+                                           'configuration file.')
             except json.decoder.JSONDecodeError:
                 err_handler.err_out_screen('Improper ForecastInputHorizons option specified in '
-                                            'configuration file')
+                                           'configuration file')
             if len(self.fcst_input_horizons) != self.number_inputs:
                 err_handler.err_out_screen('Please specify ForecastInputHorizon values for '
-                                            'each corresponding input forcings for forecasts.')
+                                           'each corresponding input forcings for forecasts.')
 
             # Check to make sure the horizons options make sense. There will be additional
             # checking later when input choices are mapped to input products.
             for horizonOpt in self.fcst_input_horizons:
                 if horizonOpt <= 0:
                     err_handler.err_out_screen('Please specify ForecastInputHorizon values greater '
-                                                'than zero.')
+                                               'than zero.')
         else:
             # Read in the ForecastInputHorizons options.
             try:
                 self.fcst_input_horizons = cfg['ForecastInputHorizons']
             except KeyError:
                 err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                            'configuration file.')
+                                           'configuration file.')
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                            'configuration file.')
+                                           'configuration file.')
             except json.decoder.JSONDecodeError:
                 err_handler.err_out_screen('Improper ForecastInputHorizons option specified in '
-                                            'configuration file')
+                                           'configuration file')
                 if len(self.fcst_input_horizons) != 1:
                     err_handler.err_out_screen('Please specify ForecastInputHorizon values for '
                                                'each corresponding input forcings for forecasts.')
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
 
             # Read in the ForecastInputOffsets options.
             try:
                 self.fcst_input_offsets = cfg['ForecastInputOffsets']
             except KeyError:
                 err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast '
-                                            'section in the configuration file.')
+                                           'section in the configuration file.')
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast '
-                                            'section in the configuration file.')
+                                           'section in the configuration file.')
             except json.decoder.JSONDecodeError:
                 err_handler.err_out_screen('Improper ForecastInputOffsets option specified in '
-                                            'the configuration file.')
+                                           'the configuration file.')
             if len(self.fcst_input_offsets) != self.number_inputs:
                 err_handler.err_out_screen('Please specify ForecastInputOffset values for each '
-                                            'corresponding input forcings for forecasts.')
+                                           'corresponding input forcings for forecasts.')
             # Check to make sure the input offset options make sense. There will be additional
             # checking later when input choices are mapped to input products.
             for inputOffset in self.fcst_input_offsets:
@@ -592,12 +596,12 @@ class ConfigOptions:
         # time step specified by the user.
         if self.cycle_length_minutes % self.output_freq != 0:
             err_handler.err_out_screen('Please specify an output time step that is an equal divider of the '
-                                        'maximum of the forecast time horizons specified.')
-        
-        if self.sub_output_hour == None:
+                                       'maximum of the forecast time horizons specified.')
+
+        if self.sub_output_hour is None:
             # Calculate the number of output time steps per forecast cycle.
             self.num_output_steps = int(self.cycle_length_minutes / self.output_freq)
-            if self.precip_only_flag == True:
+            if self.precip_only_flag:
                 self.num_supp_output_steps = int(self.cycle_length_minutes) / self.customSuppPcpFreq
             if self.ana_flag:
                 self.actual_output_steps = np.int32(self.nFcsts)
@@ -605,14 +609,14 @@ class ConfigOptions:
                 self.actual_output_steps = np.int32(self.num_output_steps)
         else:
             # Calculate the number of output time steps per forecast cycle.
-            self.num_output_steps = int((self.cycle_length_minutes - (self.sub_output_hour*60))/ self.sub_output_freq) + int((self.sub_output_hour*60)/ self.output_freq) - 1
-            if self.precip_only_flag == True:
+            self.num_output_steps = int((self.cycle_length_minutes - (self.sub_output_hour * 60)) / self.sub_output_freq) + int(
+                (self.sub_output_hour * 60) / self.output_freq) - 1
+            if self.precip_only_flag:
                 self.num_supp_output_steps = int(self.cycle_length_minutes) / self.customSuppPcpFreq
             if self.ana_flag:
                 self.actual_output_steps = np.int32(self.nFcsts)
             else:
                 self.actual_output_steps = np.int32(self.num_output_steps)
-
 
         # Process the grid type
         try:
@@ -621,10 +625,10 @@ class ConfigOptions:
             err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.')
         except configparser.NoOptionError:
             err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.')
-        if (self.grid_type.lower() != "gridded" and self.grid_type.lower() != "unstructured" and self.grid_type.lower() != "hydrofabric"):
+        if self.grid_type.lower() != "gridded" and self.grid_type.lower() != "unstructured" and self.grid_type.lower() != "hydrofabric":
             err_handler.err_out_screen('GRID_TYPE in the configuration file only accepts "unstructured", "gridded", or "hydrofabric" as options.')
 
-        if(self.grid_type.lower() == "gridded"):
+        if self.grid_type.lower() == "gridded":
             # Process the geogrid variable information
             try:
                 self.lon_var = cfg['LONVAR']
@@ -639,7 +643,7 @@ class ConfigOptions:
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate LATVAR in the configuration file.')
 
-        elif(self.grid_type.lower() == "unstructured"):
+        elif self.grid_type.lower() == "unstructured":
             # Process the geogrid variable information
             try:
                 self.nodecoords_var = cfg['NodeCoords']
@@ -666,7 +670,7 @@ class ConfigOptions:
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
 
-        elif(self.grid_type.lower() == "hydrofabric"):
+        elif self.grid_type.lower() == "hydrofabric":
             # Process the geogrid variable information
             try:
                 self.nodecoords_var = cfg['NodeCoords']
@@ -700,9 +704,9 @@ class ConfigOptions:
                 err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
 
         # Process geospatial information
-        
-        if geogrid_arg != None:
-            self.geogrid=geogrid_arg
+
+        if geogrid_arg:
+            self.geogrid = geogrid_arg
             print(f"self.geogrid: {self.geogrid}")
         else:
             try:
@@ -725,13 +729,13 @@ class ConfigOptions:
                 err_handler.err_out_screen('Unable to locate optional spatial metadata file: ' +
                                            self.spatial_meta)
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Check for the IgnoredBorderWidths
             try:
                 self.ignored_border_widths = cfg['IgnoredBorderWidths']
             except (KeyError, configparser.NoOptionError):
                 # if didn't specify, no worries, just set to 0
-                self.ignored_border_widths = [0.0]*self.number_inputs
+                self.ignored_border_widths = [0.0] * self.number_inputs
             except json.decoder.JSONDecodeError:
                 err_handler.err_out_screen('Improper IgnoredBorderWidths option specified in the configuration file.'
                                            '({} was supplied'.format(cfg['Geospatial']['IgnoredBorderWidths']))
@@ -743,7 +747,7 @@ class ConfigOptions:
                 err_handler.err_out_screen('Please specify IgnoredBorderWidths values greater than or equal to zero:'
                                            '({} was supplied'.format(self.ignored_border_widths))
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Process regridding options.
             try:
                 self.regrid_opt = cfg['RegridOpt']
@@ -769,7 +773,7 @@ class ConfigOptions:
             except:
                 # Assign the weights directory then to the temporary scratch directory
                 self.weightsDir = self.scratch_dir
-            if self.weightsDir is not None:
+            if self.weightsDir:
                 # if we do have one specified, make sure it exists
                 if not os.path.exists(self.weightsDir):
                     err_handler.err_out_screen('ESMF Weights file directory specifed ({}) but does not exist').format(
@@ -779,7 +783,7 @@ class ConfigOptions:
         if self.realtime_flag:
             time_handling.calculate_lookback_window(self)
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Read in temporal interpolation options.
             try:
                 self.forceTemoralInterp = cfg['ForcingTemporalInterpolation']
@@ -823,7 +827,7 @@ class ConfigOptions:
             for optTmp in self.t2dDownscaleOpt:
                 if optTmp < 0 or optTmp > 2:
                     err_handler.err_out_screen('Invalid TemperatureDownscaling options specified in '
-                                           'the configuration file.')
+                                               'the configuration file.')
                 if optTmp == 2:
                     param_flag[count_tmp] = 1
                 count_tmp = count_tmp + 1
@@ -864,7 +868,7 @@ class ConfigOptions:
             # Ensure the downscaling options chosen make sense.
             for optTmp in self.swDownscaleOpt:
                 if optTmp < 0 or optTmp > 1:
-                     err_handler.err_out_screen('Invalid ShortwaveDownscaling options specified in the configuration file.')
+                    err_handler.err_out_screen('Invalid ShortwaveDownscaling options specified in the configuration file.')
 
             # Read in humidity downscaling options.
             try:
@@ -896,7 +900,7 @@ class ConfigOptions:
                                        'section of the configuration file.')
         except json.decoder.JSONDecodeError:
             err_handler.err_out_screen('Improper PrecipDownscaling options specified in the configuration file.')
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             if len(self.precipDownscaleOpt) != self.number_inputs:
                 err_handler.err_out_screen('Please specify PrecipDownscaling values for each corresponding '
                                            'input forcings in the configuration file.')
@@ -918,14 +922,14 @@ class ConfigOptions:
             err_handler.err_out_screen('Unable to locate DownscalingParamDirs in the configuration file.')
         if len(self.dScaleParamDirs) != len(self.input_forcings):
             err_handler.err_out_screen('Please specify a downscaling parameter directory for each '
-                                        'corresponding downscaling option that requires one.')
+                                       'corresponding downscaling option that requires one.')
         # Loop through each downscaling parameter directory and make sure they exist.
         for dirTmp in range(0, len(self.dScaleParamDirs)):
             if not os.path.isdir(self.dScaleParamDirs[dirTmp]):
-                err_handler.err_out_screen('Unable to locate parameter directory: ' + self.dScaleParamDirs[dirTmp])
+                err_handler.err_out_screen('Unable to locate parameter directory: ' + os.path.abspath(self.dScaleParamDirs[dirTmp]))
 
-        if([1] in self.q2dDownscaleOpt or [1] in self.swDownscaleOpt or [1] in self.psfcDownscaleOpt or [1,2] in self.t2dDownscaleOpt):
-             # Process the geogrid information for downscaling
+        if [1] in self.q2dDownscaleOpt or [1] in self.swDownscaleOpt or [1] in self.psfcDownscaleOpt or [1, 2] in self.t2dDownscaleOpt:
+            # Process the geogrid information for downscaling
             try:
                 self.sinalpha_var = cfg['SINALPHA']
             except:
@@ -934,19 +938,23 @@ class ConfigOptions:
                 self.cosalpha_var = cfg['COSALPHA']
             except:
                 self.cosalpha_var = None
-            if(self.grid_type.lower() == "hydrofabric"):
+            if (self.grid_type.lower() == "hydrofabric"):
                 try:
                     self.slope_var = cfg['SLOPE']
                 except KeyError:
-                    err_handler.err_out_screen('Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
                 except configparser.NoOptionError:
-                    err_handler.err_out_screen('Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
                 try:
                     self.slope_azimuth_var = cfg['SLOPE_AZIMUTH']
                 except KeyError:
-                    err_handler.err_out_screen('Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
                 except configparser.NoOptionError:
-                    err_handler.err_out_screen('Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
             else:
                 try:
                     self.slope_var = cfg['SLOPE']
@@ -955,8 +963,8 @@ class ConfigOptions:
                 try:
                     self.slope_azimuth_var = cfg['SLOPE_AZIMUTH']
                 except:
-                     self.slope_azimuth_var = None
-                if(self.grid_type.lower() == "unstructured"):
+                    self.slope_azimuth_var = None
+                if (self.grid_type.lower() == "unstructured"):
                     try:
                         self.slope_var_elem = cfg['SLOPE_ELEM']
                     except:
@@ -964,26 +972,29 @@ class ConfigOptions:
                     try:
                         self.slope_azimuth_var_elem = cfg['SLOPE_AZIMUTH_ELEM']
                     except:
-                         self.slope_azimuth_var_elem = None
+                        self.slope_azimuth_var_elem = None
 
-
-            if(self.grid_type.lower() == "unstructured"):
+            if self.grid_type.lower() == "unstructured":
                 try:
                     self.hgt_elem_var = cfg['HGTVAR_ELEM']
                 except KeyError:
-                    err_handler.err_out_screen('Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
                 except configparser.NoOptionError:
-                    err_handler.err_out_screen('Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
+                    err_handler.err_out_screen(
+                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
 
             try:
                 self.hgt_var = cfg['HGTVAR']
             except KeyError:
-                err_handler.err_out_screen('Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
+                err_handler.err_out_screen(
+                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
             except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
+                err_handler.err_out_screen(
+                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
 
         #   * Bias Correction Options *
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Read in temperature bias correction options
             try:
                 self.t2BiasCorrectOpt = cfg['TemperatureBiasCorrection']
@@ -1046,7 +1057,7 @@ class ConfigOptions:
             for optTmp in self.q2BiasCorrectOpt:
                 if optTmp < 0 or optTmp > 2:
                     err_handler.err_out_screen('Invalid HumidityBiasCorrection options specified in the '
-                                           'configuration file.')
+                                               'configuration file.')
                 if optTmp == 1:
                     # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
                     self.runCfsNldasBiasCorrect = True
@@ -1109,7 +1120,7 @@ class ConfigOptions:
                                            'the configuration file.')
             if len(self.lwBiasCorrectOpt) != self.number_inputs:
                 err_handler.err_out_screen('Please specify LwBiasCorrection values for each corresponding '
-                                       'input forcings in the configuration file.')
+                                           'input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.lwBiasCorrectOpt:
                 if optTmp < 0 or optTmp > 4:
@@ -1129,7 +1140,7 @@ class ConfigOptions:
                                            'BiasCorrection section of the configuration file.')
             except json.JSONDecodeError:
                 err_handler.err_out_screen('Improper PrecipBiasCorrection options specified in the configuration file.')
-            if self.precip_only_flag == False:
+            if not self.precip_only_flag:
                 if len(self.precipBiasCorrectOpt) != self.number_inputs:
                     err_handler.err_out_screen('Please specify PrecipBiasCorrection values for each corresponding '
                                                'input forcings in the configuration file.')
@@ -1196,11 +1207,12 @@ class ConfigOptions:
                                        'in the configuration file.')
         if len(self.supp_precip_file_types) != self.number_supp_pcp:
             err_handler.err_out_screen('Number of SuppPcpForcingTypes ({}) must match the number '
-                                       'of SuppPcp inputs ({}) in the configuration file.'.format(len(self.supp_precip_file_types), self.number_supp_pcp))
+                                       'of SuppPcp inputs ({}) in the configuration file.'.format(len(self.supp_precip_file_types),
+                                                                                                  self.number_supp_pcp))
         for fileType in self.supp_precip_file_types:
             if fileType not in ['GRIB1', 'GRIB2', 'NETCDF']:
                 err_handler.err_out_screen('Invalid SuppForcing file type "{}" specified. '
-                                   'Only GRIB1, GRIB2, and NETCDF are supported'.format(fileType))
+                                           'Only GRIB1, GRIB2, and NETCDF are supported'.format(fileType))
 
         if self.number_supp_pcp > 0:
             # Check to make sure supplemental precip options make sense. Also read in the RQI threshold
@@ -1209,7 +1221,7 @@ class ConfigOptions:
                 if suppOpt < 0 or suppOpt > 15:
                     err_handler.err_out_screen('Please specify SuppForcing values between 1 and 15.')
                 # Read in RQI threshold to apply to radar products.
-                if suppOpt in (1,2,7,10,11,12):
+                if suppOpt in (1, 2, 7, 10, 11, 12):
                     try:
                         self.rqiMethod = cfg['RqiMethod']
                     except KeyError:
@@ -1227,7 +1239,7 @@ class ConfigOptions:
                             err_handler.err_out_screen('Number of RqiMethods ({}) must match the number '
                                                        'of SuppPcp inputs ({}) in the configuration file, or '
                                                        'supply a single method for all inputs'.format(
-                                                        len(self.rqiMethod), self.number_supp_pcp))
+                                len(self.rqiMethod), self.number_supp_pcp))
                     elif type(self.rqiMethod) is int:
                         # Support 'classic' mode of single method
                         self.rqiMethod = [self.rqiMethod] * self.number_supp_pcp
@@ -1254,7 +1266,7 @@ class ConfigOptions:
                             err_handler.err_out_screen('Number of RqiThresholds ({}) must match the number '
                                                        'of SuppPcp inputs ({}) in the configuration file, or '
                                                        'supply a single threshold for all inputs'.format(
-                                                        len(self.rqiThresh), self.number_supp_pcp))
+                                len(self.rqiThresh), self.number_supp_pcp))
                     elif type(self.rqiThresh) is float:
                         # Support 'classic' mode of single threshold
                         self.rqiThresh = [self.rqiThresh] * self.number_supp_pcp
@@ -1273,7 +1285,7 @@ class ConfigOptions:
             except configparser.NoOptionError:
                 err_handler.err_out_screen('Unable to locate SuppPcpDirectories in SuppForcing section '
                                            'in the configuration file.')
-        
+
             # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
             # or new line characters.
             for dirTmp in range(0, len(self.supp_precip_dirs)):
@@ -1281,8 +1293,8 @@ class ConfigOptions:
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
                     err_handler.err_out_screen('Unable to locate supp pcp directory: ' + self.supp_precip_dirs[dirTmp])
 
-            #Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input 
-            if (11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings):
+            # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
+            if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
                 if len(self.supp_precip_forcings) != 1:
                     err_handler.err_out_screen('CONUS or Alaska Stage IV/MRMS SuppPcp option is only supported as a standalone option')
                 self.supp_precip_dirs = [",".join(self.supp_precip_dirs)]
@@ -1358,7 +1370,7 @@ class ConfigOptions:
             try:
                 self.supp_pcp_max_hours = cfg['SuppPcpMaxHours']
             except (KeyError, configparser.NoOptionError):
-                self.supp_pcp_max_hours = None      # if missing, don't care, just assume all time
+                self.supp_pcp_max_hours = None  # if missing, don't care, just assume all time
 
             except json.decoder.JSONDecodeError:
                 err_handler.err_out_screen('Improper SuppPcpMaxHours options specified in the '
@@ -1369,7 +1381,7 @@ class ConfigOptions:
                     err_handler.err_out_screen('Number of SuppPcpMaxHours ({}) must match the number '
                                                'of SuppPcp inputs ({}) in the configuration file, or '
                                                'supply a single threshold for all inputs'.format(
-                            len(self.supp_pcp_max_hours), self.number_supp_pcp))
+                        len(self.supp_pcp_max_hours), self.number_supp_pcp))
             elif type(self.supp_pcp_max_hours) is float:
                 # Support 'classic' mode of single threshold
                 self.supp_pcp_max_hours = [self.supp_pcp_max_hours] * self.number_supp_pcp
@@ -1394,7 +1406,7 @@ class ConfigOptions:
             for inputOffset in self.supp_input_offsets:
                 if inputOffset < 0:
                     err_handler.err_out_screen(
-                            'Please specify SuppPcpInputOffsets values greater than or equal to zero.')
+                        'Please specify SuppPcpInputOffsets values greater than or equal to zero.')
 
             # Read in the optional parameter directory for supplemental precipitation.
             try:
@@ -1410,7 +1422,7 @@ class ConfigOptions:
             if not os.path.isdir(self.supp_precip_param_dir):
                 err_handler.err_out_screen('Unable to locate SuppPcpParamDir: ' + self.supp_precip_param_dir)
 
-        if self.precip_only_flag == False:
+        if not self.precip_only_flag:
             # Read in Ensemble information
             # Read in CFS ensemble member information IF we have chosen CFSv2 as an input
             # forcing.
@@ -1452,8 +1464,8 @@ class ConfigOptions:
 
     @property
     def use_data_at_current_time(self):
-        if self.supp_pcp_max_hours is not None:
+        if self.supp_pcp_max_hours:
             hrs_since_start = self.current_output_date - self.current_fcst_cycle
-            return hrs_since_start <= datetime.timedelta(hours = self.supp_pcp_max_hours)
+            return hrs_since_start <= datetime.timedelta(hours=self.supp_pcp_max_hours)
         else:
-            return True 
+            return True
