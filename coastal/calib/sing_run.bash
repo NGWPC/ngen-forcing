@@ -112,6 +112,7 @@ export PATH=/opt/conda/bin:${PATH}
 export CONDA_ENVS_PATH=/efs/ngen-app/conda/envs/
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
+export NFS_MOUNT=/efs
 
 conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
@@ -137,9 +138,13 @@ export GEOGRID_FILE=${PARMnwm}/${coastal_domain_to_inland_domain[$COASTAL_DOMAIN
 
 export DATAlogs=$DATAexec
 
+if [[ ! -d $DATAexec ]]; then
+   mkdir -p $DATAexec
+fi
+
 export NSCRIBES=2
 
-export BINDINGS="$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
+export BINDINGS="$NFS_MOUNT,$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
 
 work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/calib
 
