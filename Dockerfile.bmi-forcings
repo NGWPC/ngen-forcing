@@ -148,12 +148,12 @@ ENV WGRIB2=/usr/local/bin/wgrib2
 # Reset SHELL so we're not locked into the gcc-10 build environment
 SHELL ["/bin/bash", "-c"]
 
-COPY . /ngen-app/ngen-forcing/
-
 COPY ./docker/run-ngen-forcing.sh /ngen-app/bin/
 RUN set -eux; \
     \
     chmod +x /ngen-app/bin/run-ngen-forcing.sh
+
+COPY . /ngen-app/ngen-forcing/
 
 WORKDIR /ngen-app/ngen-forcing
 
