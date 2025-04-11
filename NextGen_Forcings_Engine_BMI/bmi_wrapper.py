@@ -7,7 +7,8 @@ example usage: python bmi_wrapper.py short_range Gage_01011000.gpkg
 """
 
 import argparse
-import datetime
+from datetime import datetime, timezone, timedelta
+
 import os
 import subprocess
 import tempfile
@@ -15,6 +16,16 @@ import tempfile
 import yaml
 
 from git_util import print_git_info_all
+
+ONE_HOUR = timedelta(hours=1)
+TWO_HOURS = timedelta(hours=2)
+THREE_HOURS = timedelta(hours=3)
+SEVEN_HOURS = timedelta(hours=7)
+TWELVE_HOURS = timedelta(hours=12)
+SIXTEEN_HOURS = timedelta(hours=16)
+SEVENTEEN_HOURS = timedelta(hours=17)
+TWENTY_TWO_HOURS = timedelta(hours=22)
+FORTY_EIGHT_HOURS = timedelta(hours=48)
 
 
 def execute(args):
@@ -37,14 +48,11 @@ def execute(args):
     config_input = args.config_input
     num_processes = args.np
 
-    if args.output_path:
-        output_path = args.output_path
-    elif args.csv_path:
-        # If we have a csv_path then generate a temporary netcdf file
-        with tempfile.NamedTemporaryFile(suffix=".nc", delete=False) as tmp:
-            output_path = tmp.name
-    else:
-        output_path = None
+    output_path = (
+        args.output_path or
+        tempfile.NamedTemporaryFile(suffix=".nc", delete=False).name if args.csv_path
+        else None
+    )
 
     # read in config file
     if config_input:
@@ -70,8 +78,8 @@ def execute(args):
     engine_env = config['global']['engine_env']
 
     # Get the current time in UTC
-    dNowUTC = datetime.datetime.now(datetime.UTC)
-    dNow = datetime.datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
+    dNowUTC = datetime.now(timezone.utc)
+    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
 
     if not os.path.exists(mesh_outPath):
         # Execute hyfab to ESMF mesh conversion
@@ -95,9 +103,9 @@ def execute(args):
 
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 2)
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 17)
+        b_date_dt = dNow - TWO_HOURS
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -117,7 +125,7 @@ def execute(args):
             "conda", "run", "-n", extraction_env,
             "python", rap_extract_scriptPath, rap_extract_outPath,
             "--lookBackHours=2",
-            "--lagBackHours=1"
+            "--lagBackONE_HOUR"
         ]
         subprocess.run(cmd2, check=True)
 
@@ -134,12 +142,12 @@ def execute(args):
         # TODO: Make timesteps configurable with defaults set in config file?
         # TODO: Set end time to actual NWM cycle (10-day)
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 3)
+        b_date_dt = dNow - THREE_HOURS
         print(f"b_date_dt orig: {b_date_dt}")
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
         print(f"b_date_dt new: {b_date_dt}")
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -191,9 +199,9 @@ def execute(args):
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 1)
-        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 3)
-        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 1)
+        b_date_dt = dNow - ONE_HOUR
+        start_time_dt = b_date_dt + THREE_HOURS
+        end_time_dt = b_date_dt + ONE_HOUR
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -258,13 +266,13 @@ def execute(args):
         # TODO: Set end time to actual NWM cycle (30-day)
 
         if dNowUTC.hour in [1, 2, 7, 8, 13, 14, 19, 20]:
-            b_date_dt = dNow - datetime.timedelta(seconds=3600 * 3)
+            b_date_dt = dNow - THREE_HOURS
         else:
-            b_date_dt = dNow - datetime.timedelta(seconds=3600 * 7)
+            b_date_dt = dNow - SEVEN_HOURS
 
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 48)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + FORTY_EIGHT_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -298,10 +306,10 @@ def execute(args):
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 1)
-        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 16)
+        b_date_dt = dNow - ONE_HOUR
+        start_time_dt = b_date_dt - SIXTEEN_HOURS
         print(f"start_time_dt: {start_time_dt}")
-        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 1)
+        end_time_dt = b_date_dt - ONE_HOUR
         print(f"end_time_dt: {end_time_dt}")
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -368,14 +376,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.now(datetime.UTC)
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -437,14 +445,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.now(datetime.UTC)
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -497,14 +505,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.now(datetime.UTC)
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -589,6 +597,7 @@ def get_options():
 
     Returns an argparse object.
     """
+    # TODO keyword arguments should start with --
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle_name',
                         help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')
@@ -606,5 +615,4 @@ def get_options():
 if __name__ == '__main__':
     print_git_info_all()
 
-    args = get_options()
-    execute(args)
+    execute(get_options())

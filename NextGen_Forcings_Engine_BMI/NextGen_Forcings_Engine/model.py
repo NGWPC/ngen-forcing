@@ -201,7 +201,7 @@ class NWMv3_Forcing_Engine_model():
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
             # Loop over each of the input forcings specifed.
-            print("Model.py looping over input forcings")
+            print("\nModel.py looping over input forcings")
             for forceKey in ConfigOptions.input_forcings:
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
