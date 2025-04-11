@@ -110,7 +110,7 @@ unset __conda_setup
 
 export NFS_MOUNT=/efs
 export PATH=/opt/conda/bin:${PATH}
-export CONDA_ENVS_PATH=/$NFS_MOUNT/ngen-app/conda/envs/
+export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
