@@ -1,25 +1,23 @@
 # Need these for BMI
 # This is needed for get_var_bytes
+import os
 from pathlib import Path
 
+import netCDF4 as nc
 # import data_tools
 # Basic utilities
 import numpy as np
 import pandas as pd
-import os
-import netCDF4 as nc
 # Configuration file functionality
 import yaml
 from bmipy import Bmi
+# Import MPI Python module
+from mpi4py import MPI
 
 # Import BMI grid functions to advertise grid features
 from .bmi_grid import Grid, GridType
-
 # Here is the model we want to run
 from .model import NWMv3_Forcing_Engine_model
-
-# Import MPI Python module
-from mpi4py import MPI
 
 ###### NWMv3.0 Forcings Engine modules ######
 try:
@@ -134,7 +132,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
-        except:
+        except Exception:
             err_handler.err_out_screen(self._job_meta.errMsg)
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
@@ -143,23 +141,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._WrfHydroGeoMeta = geoMod.GeoMetaWrfHydro()
 
         if self._job_meta.grid_type == 'gridded':
-            try:
-                self._WrfHydroGeoMeta.initialize_destination_geo_gridded(self._job_meta, self._mpi_meta)
-            except Exception as e:
-                raise e
-                err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+            self._WrfHydroGeoMeta.initialize_destination_geo_gridded(self._job_meta, self._mpi_meta)
         elif self._job_meta.grid_type == 'unstructured':
-            try:
-                self._WrfHydroGeoMeta.initialize_destination_geo_unstructured(self._job_meta, self._mpi_meta)
-            except Exception as e:
-                raise e
-                err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+            self._WrfHydroGeoMeta.initialize_destination_geo_unstructured(self._job_meta, self._mpi_meta)
         elif self._job_meta.grid_type == 'hydrofabric':
-            try:
-                self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(self._job_meta, self._mpi_meta)
-            except Exception as e:
-                raise e
-                err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+            self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(self._job_meta, self._mpi_meta)
         else:
             self._job_meta.errMsg = "You must specify a proper grid_type (gridded,unstructured) within the config.yml file."
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
@@ -194,7 +180,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
                                             'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
 
-                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2 dimensional grid
+                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2-dimensional grid
                 self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
                 self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
                 self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
@@ -228,7 +214,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
 
-                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2 dimensional grid
+                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2-dimensional grid
                 self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
                 self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
                 self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
@@ -279,8 +265,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
                                             'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
 
-                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
-                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
+                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
 
                 self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
                 self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
@@ -329,8 +315,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
 
-                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
-                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
+                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
 
                 self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
                 self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
@@ -376,7 +362,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
                                             'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
 
-                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
+                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
 
                 self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
                 self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
@@ -411,7 +397,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                                             'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
                                             'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
 
-                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2 dimensional grid
+                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
 
                 self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
                 self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
@@ -464,6 +450,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 ext = 'HYDROFABRIC'
             elif self._job_meta.grid_type == 'unstructured':
                 ext = 'MESH'
+            else:
+                raise Exception(f'Invalid grid_type: {self._job_meta.grid_type}')
 
             if output_path:
                 self._OutputObj.outPath = output_path
@@ -613,8 +601,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         try:
             return self._att_map[att_name.lower()]
-        except:
-            print(' ERROR: Could not find attribute: ' + att_name)
+        except Exception as e:
+            print(f' ERROR: Could not find attribute: {att_name} - {e}')
 
     # --------------------------------------------------------
     # Note: These are currently variables needed from other
@@ -912,14 +900,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
     # ------------------------------------------------------------
     def get_grid_edge_count(self, grid_id: int) -> int:
-        for grid in self._grids:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
                 numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]
                 mesh.close()
+
                 mesh_edge_first_node = []
                 mesh_edge_second_node = []
+
+                # Loop through the elements to collect edge nodes
                 for i in range(elem_conn.shape[0]):
                     loop = 0
                     while loop + 1 < numelem_conn[i]:
@@ -929,25 +920,35 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         if loop + 1 == numelem_conn[i]:
                             mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
                             mesh_edge_second_node.append(elem_conn[i, 0])
+
+                # Create edge node pairs
                 edge_nodes = np.empty((len(mesh_edge_first_node), 2), dtype=int)
                 edge_nodes[:, 0] = mesh_edge_first_node
                 edge_nodes[:, 1] = mesh_edge_second_node
+
                 edge_nodes = list(edge_nodes)
                 seen = set()
-                count = 1
+                count = 1  # Initialize count to 1 to count unique edges
+
+                # Count unique edges
                 for item in edge_nodes:
                     t = tuple(item)
                     if t not in seen:
                         seen.add(t)
                         count += 1
+
                 edge_count = count
                 return edge_count
             else:
-                raise NotImplementedError("get_grid_edge_count")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_edge_count is not implemented for grid_id 1")
+
+        # If no valid grid is found, raise an exception or handle accordingly.
+        raise ValueError("No valid grid found to calculate edge count.")
 
     # ------------------------------------------------------------
     def get_grid_edge_nodes(self, grid_id: int, edge_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
-        for grid in self._grids:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
@@ -983,22 +984,27 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 edge_nodes[:] = np.array(node_list).flatten()
                 return edge_nodes
             else:
-                raise NotImplementedError("get_grid_edge_nodes")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_edge_nodes is not implemented for grid_id 1")
 
     # ------------------------------------------------------------
-    def get_grid_face_count(self, grid_id: int) -> int | None:
-        for grid in self._grids:
+    def get_grid_face_count(self, grid_id: int) -> int:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 face_count = len(mesh.variables[self._job_meta.elemcoords_var][:][:, 0])
                 mesh.close()
                 return face_count
             else:
-                raise NotImplementedError("get_grid_face_count")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_face_count is not implemented for grid_id 1")
+
+        # If the loop doesn't return within the for loop, raise an exception
+        raise ValueError("Grid ID not found in _grids.")
 
     # ------------------------------------------------------------
     def get_grid_face_edges(self, grid_id: int, face_edges: NDArray[np.int_]) -> NDArray[np.int_]:
-        for grid in self._grids:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
@@ -1034,11 +1040,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 face_edges[:] = np.array(edge_list)
                 return face_edges
             else:
-                raise NotImplementedError("get_grid_face_edges")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_face_edges is not implemented for grid_id 1")
 
     # ------------------------------------------------------------
     def get_grid_face_nodes(self, grid_id: int, face_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
-        for grid in self._grids:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
@@ -1054,22 +1061,37 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         index += 1
                 return face_nodes
             else:
-                raise NotImplementedError("get_grid_face_nodes")
+                raise NotImplementedError("get_grid_face_nodes is not implemented for grid_id 1")
 
     # ------------------------------------------------------------
     def get_grid_node_count(self, grid_id: int) -> int:
-        for grid in self._grids:
+        """
+        Retrieves the number of nodes for the specified grid.
+
+        This function accesses the grid and counts the number of nodes based on the node coordinates
+        in the grid's data. The grid must not be of type 1, as this function is not implemented for that case.
+
+        :param grid_id: The ID of the grid to retrieve node count for.
+        :return: The number of nodes in the grid.
+        :raises NotImplementedError: If grid_id is 1, the function raises an error as it is not implemented for that case.
+        """
+        for _ in self._grids:
             if grid_id != 1:
+                # Open the geogrid file and retrieve node coordinates.
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 node_count = len(mesh.variables[self._job_meta.nodecoords_var][:][:, 0])
                 mesh.close()
                 return node_count
             else:
-                raise NotImplementedError("get_grid_node_count")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_node_count is not implemented for grid_id 1")
+
+        # If the loop doesn't return within the for loop, raise an exception
+        raise ValueError("Grid ID not found in _grids.")
 
     # ------------------------------------------------------------
     def get_grid_nodes_per_face(self, grid_id: int, nodes_per_face: NDArray[np.int_]) -> NDArray[np.int_]:
-        for grid in self._grids:
+        for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
@@ -1079,7 +1101,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     nodes_per_face[i] = numelem_conn[i]
                 return nodes_per_face
             else:
-                raise NotImplementedError("get_grid_nodes_per_face")
+                # Raise NotImplementedError if grid_id is 1.
+                raise NotImplementedError("get_grid_nodes_per_face is not implemented for grid_id 1")
 
     # ------------------------------------------------------------
     def get_grid_origin(self, grid_id: int, origin: NDArray[np.float64]) -> NDArray[np.float64]:
