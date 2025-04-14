@@ -125,7 +125,7 @@ def execute(args):
             "conda", "run", "-n", extraction_env,
             "python", rap_extract_scriptPath, rap_extract_outPath,
             "--lookBackHours=2",
-            "--lagBackONE_HOUR"
+            "--lagBackHours=1"
         ]
         subprocess.run(cmd2, check=True)
 
