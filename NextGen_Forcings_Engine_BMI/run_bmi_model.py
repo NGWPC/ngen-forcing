@@ -13,31 +13,39 @@ from NextGen_Forcings_Engine.bmi_model import NWMv3_Forcing_Engine_BMI_model
 def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_date: str = None, geogrid: str = None,
             output_path: pathlib.Path = None):
     """
-    Wrapper script to execute the forcing engine BMI code. Requires user to pass start_time and end_time as arguments.
-    Additional configurations are parsed from config.yml - User can provide a config_path to point to a specific config file.
+    Wrapper script to execute the forcing engine BMI model. Requires user to pass start_time and end_time as arguments.
+    Additionally, configurations are parsed from config.yml. Users can provide a custom config file with config_path.
 
-    example: python run_bmi_model.py '2024-11-19 20:00:00' '2024-11-20 07:00:00'
+    :param start_time: The start time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
+    :param end_time: The end time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
+    :param config_path: Optional path to the configuration file. Defaults to './config.yml' if not provided.
+    :param config_path: Optional path to the configuration file. Defaults to './config.yml' if not provided.
+    :param b_date: The begin date for the forecast cycle, in the format 'YYYYMMDDHHmm'. If omitted, reads from config.
+    :param geogrid: Path to the geospatial grid file. If omitted, reads from the config file.
+    :param output_path: Path to the output file. If omitted, a default output path is generated.
+
+    :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
     """
+    print('args:', locals())
 
-    print('args', locals())
+    # Convert start and end time from string to datetime
     start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
     end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
     ngen_datetimes = pd.date_range(start=start_time, end=end_time, freq='h')
 
-    print('creating an instance of an BMI_MODEL model object')
+    print('Creating an instance of the BMI model object')
     model = NWMv3_Forcing_Engine_BMI_model()
 
-    print('Initializing the BMI')
+    print('Initializing the BMI model')
+    # Set the path for the config file, using the default if none is provided
     cfg_path = str(config_path) if config_path is not None else str(Path(__file__).parent.resolve() / 'config.yml')
 
-    model.initialize(
-        bmi_cfg_file_name=cfg_path,
-        b_date=b_date,
-        geogrid=geogrid,
-        output_path=str(output_path) if output_path is not None else None
-    )
+    # IMPORTANT: We are not calling initialize() directly here.
+    # Instead, we call initialize_with_params(), which handles
+    # the initialization process and internally calls initialize().
+    model.initialize_with_params(cfg_path, b_date=b_date, geogrid=geogrid, output_path=str(output_path) if output_path else None)
 
-    # Initialize to None to avoid Pycharm error
+    # Initialize to None to avoid PyCharm error
     U2D = V2D = LWDOWN = SWDOWN = T2D = Q2D = PSFC = RAINRATE = LQFRAC = CAT_IDS = None
     U2D_NODE = V2D_NODE = LWDOWN_NODE = SWDOWN_NODE = T2D_NODE = Q2D_NODE = PSFC_NODE = RAINRATE_NODE = None
     U2D_ELEMENT = V2D_ELEMENT = LWDOWN_ELEMENT = SWDOWN_ELEMENT = T2D_ELEMENT = Q2D_ELEMENT = PSFC_ELEMENT = RAINRATE_ELEMENT = LQFRAC_NODE = LQFRAC_ELEMENT = None
@@ -88,8 +96,8 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     # ===============================
     # Run through each timestep
     # ===============================
-    model_start_time = start_time  # store for datetime reconstruction
-    print(f'Now loop through {len(ngen_datetimes)} ngen_datetimes, updating the model, and extracting forcing data\n')
+    model_start_time = start_time
+    print(f'Now looping through {len(ngen_datetimes)} timesteps, updating the model, and extracting forcing data\n')
     print(f'rank: {model._mpi_meta.rank}')
     print(f'grid_type: {model._grid_type}')
     for timestamp in ngen_datetimes:
@@ -165,11 +173,20 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
         print_forcing_summary('max', values_max, include_lqfrac, is_unstructured, model_time)
         print_forcing_summary('min', values_min, include_lqfrac, is_unstructured, model_time)
 
-    print('\nFinalizing the BMI')
+    print('\nFinalizing the BMI model')
     model.finalize()
 
 
 def print_forcing_summary(label: str, values: list[float], include_lqfrac: bool, is_unstructured: bool, model_time: datetime.datetime):
+    """
+    Prints the summary of forcing variables (max/min) for each timestep.
+
+    :param label: 'max' or 'min', depending on whether we're showing maximum or minimum values.
+    :param values: List of values to print.
+    :param include_lqfrac: Boolean flag indicating whether to include the liquid fraction of precipitation.
+    :param is_unstructured: Boolean flag indicating whether the grid is unstructured.
+    :param model_time: The current model time (datetime object) to display with the values.
+    """
     print(f"\n==== {label.upper()} VALUES ====")
 
     model_time_str = model_time.strftime("%Y-%m-%d %H:%M:%S")
@@ -207,6 +224,11 @@ def print_forcing_summary(label: str, values: list[float], include_lqfrac: bool,
 
 
 def get_options():
+    """
+    Parses command-line arguments for running the BMI model.
+
+    :return: Namespace object containing the parsed arguments.
+    """
     # TODO keyword arguments should start with --
     parser = argparse.ArgumentParser()
 
@@ -233,6 +255,11 @@ def get_options():
 
 
 def main():
+    """
+    Main function to parse arguments and run the BMI model.
+
+    Calls the `run_bmi` function with parsed command-line arguments.
+    """
     args = get_options()
     run_bmi(
         start_time=args.start_time,

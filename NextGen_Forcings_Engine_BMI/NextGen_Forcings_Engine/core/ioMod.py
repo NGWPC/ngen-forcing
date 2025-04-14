@@ -237,7 +237,7 @@ class OutputObj:
                     dim_x = "element-id"
                     dim_y = "element-id"
                 else:
-                    raise Exception(f'Invalid grid_type: {ConfigOptions.grid_type}')
+                    raise ValueError(f'Invalid grid_type: {ConfigOptions.grid_type}')
 
                 # Handle spatial metadata if available
                 if ConfigOptions.spatial_meta is not None:
@@ -614,7 +614,7 @@ class OutputObj:
                 elif ConfigOptions.grid_type == "unstructured":
                     dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local_elem[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
                 else:
-                    raise Exception(f'Invalid grid_type: {ConfigOptions.grid_type}')
+                    raise ValueError(f'Invalid grid_type: {ConfigOptions.grid_type}')
             except Exception as e:
                 ConfigOptions.errMsg = f"Unable to gather final grids for: {varTmp} - {e}"
                 err_handler.log_critical(ConfigOptions, MpiConfig)

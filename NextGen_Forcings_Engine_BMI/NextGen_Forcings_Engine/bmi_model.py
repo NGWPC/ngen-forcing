@@ -42,13 +42,42 @@ if ESMF.version_compare('8.7.0', ESMF.__version__) < 0:
 
 
 class UnknownBMIVariable(RuntimeError):
+    """
+    Custom exception raised when an unknown BMI variable is encountered.
+    """
     pass
 
 
 class NWMv3_Forcing_Engine_BMI_model(Bmi):
+    """
+    This class defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
+
+    It includes methods for initializing the model, updating it, accessing model variables,
+    and managing model configuration. This class is responsible for interacting with
+    geospatial data and forcing inputs for the model simulation.
+
+    Attributes
+    ----------
+    _values : dict
+        Dictionary storing model values.
+    _start_time : float
+        The start time for the simulation.
+    _end_time : float
+        The end time for the simulation.
+    _model : object
+        The model object.
+    _comm : object
+        The MPI communicator.
+    var_array_lengths : int
+        Length of the variable arrays.
+    """
 
     def __init__(self):
-        """Create a model that is ready for initialization."""
+        """
+        Create a model that is ready for initialization.
+
+        Initializes the model with default values for time, variables, and grid types.
+        """
         super(NWMv3_Forcing_Engine_BMI_model, self).__init__()
         self._values = {}
         self._start_time = 0.0
@@ -56,6 +85,23 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._model = None
         self._comm = None
         self.var_array_lengths = 1
+
+        # Initialize attributes in __init__ to avoid PyCharm errors
+        self.cfg_bmi = None
+        self._job_meta = None
+        self._mpi_meta = None
+        self._WrfHydroGeoMeta = None
+        self._grid_type = None
+        self._grids = None
+        self._grid_map = None
+        self._output_var_names = None
+        self._var_name_units_map = None
+        self._var_name_map_long_first = None
+        self._var_name_map_short_first = None
+        self._var_units_map = None
+        self._inputForcingMod = None
+        self._suppPcpMod = None
+        self._model_parameters_list = []
 
     # ----------------------------------------------
     # Required, static attributes of the model
@@ -89,28 +135,39 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
 
     # -------------------------------------------------------------------
-    def initialize(self, bmi_cfg_file_name: str, b_date, geogrid, output_path):
+    def initialize(self, config_file: str) -> None:
+        """
+        **DO NOT CALL THIS FUNCTION DIRECTLY**.
 
+        This function is part of the BMI (Basic Model Interface) specification and is automatically
+        invoked by the BMI system. For our application, users should always call `initialize_with_params()`
+        instead, which internally calls this function for core initialization.
+
+        This function is responsible for:
+        - Setting up core model attributes, grids, and MPI communication.
+        - Reading the BMI configuration file, and initializing the basic model components.
+        - It does not handle additional parameters like `b_date` and `geogrid` which are handled in `initialize_with_params()`.
+
+        :param config_file: The path to the configuration file for model initialization.
+        :raises RuntimeError: If the configuration file is invalid or missing.
+        """
         # -------------- Read in the BMI configuration -------------------------#
-        if not isinstance(bmi_cfg_file_name, str) or len(bmi_cfg_file_name) == 0:
+        if not isinstance(config_file, str) or len(config_file) == 0:
             raise RuntimeError("No BMI initialize configuration provided, nothing to do...")
 
-        bmi_cfg_file = Path(bmi_cfg_file_name).resolve()
+        bmi_cfg_file = Path(config_file).resolve()
         if not bmi_cfg_file.is_file():
             raise RuntimeError(f"Config file {bmi_cfg_file} not found, nothing to do...")
 
         print(f"Reading {bmi_cfg_file}")
         with bmi_cfg_file.open('r') as fp:
             cfg = yaml.safe_load(fp)
-        self.cfg_bmi = self._parse_config(cfg)
 
-        # Initialize the configuration object that will contain all
-        # user-specified options within Forcings Engine BMI config file.
-        self._job_meta = config.ConfigOptions(bmi_cfg_file, b_date, geogrid)
+        self.cfg_bmi = self._parse_config(cfg)
 
         # Parse the configuration options
         try:
-            self._job_meta.read_config(self.cfg_bmi, b_date, geogrid)
+            self._job_meta.read_config(self.cfg_bmi)
         except KeyboardInterrupt:
             err_handler.err_out_screen('User keyboard interrupt')
         except ImportError:
@@ -118,15 +175,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except InterruptedError:
             err_handler.err_out_screen('External kill signal detected')
 
-        # Place NWM version number (if provided by the user). This will be placed into the final
-        # output files as a global attribute.
-        if self.cfg_bmi['NWM_VERSION'] is not None:
+        # Set NWM version and config, if provided in the config
+        if self.cfg_bmi.get('NWM_VERSION') is not None:
             self._job_meta.nwmVersion = self.cfg_bmi['NWM_VERSION']
 
         # Place NWM configuration (if provided by the user). This will be placed into the final
         # output files as a global attribute.
-        if self.cfg_bmi['NWM_CONFIG'] is not None:
+        if self.cfg_bmi.get('NWM_CONFIG') is not None:
             self._job_meta.nwmConfig = self.cfg_bmi['NWM_CONFIG']
+
         # Initialize our MPI communication
         self._mpi_meta = parallel.MpiConfig()
         try:
@@ -134,6 +191,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
         except Exception:
             err_handler.err_out_screen(self._job_meta.errMsg)
+
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
         # grid boundaries, and ESMF grid objects/fields to be used
@@ -147,7 +205,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         elif self._job_meta.grid_type == 'hydrofabric':
             self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(self._job_meta, self._mpi_meta)
         else:
-            self._job_meta.errMsg = "You must specify a proper grid_type (gridded,unstructured) within the config.yml file."
+            self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured) within the config.yml file."
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
 
         # Assign grid type to BMI class for grid information
@@ -437,30 +495,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
-        # If user requests output for given domain, then call
-        # the I/O module to initialize netcdf file with given
-        # geospatial fields of the domain
-        if self._job_meta.forcing_output == 1:
-            # First, name the file based on domain configuration and start time requested
-            # Compose the expected path to the output file. Check to see if the file exists,
-            # if so, continue to the next time step. Also initialize our output arrays if necessary.
-            if self._job_meta.grid_type == 'gridded':
-                ext = 'GRIDDED'
-            elif self._job_meta.grid_type == 'hydrofabric':
-                ext = 'HYDROFABRIC'
-            elif self._job_meta.grid_type == 'unstructured':
-                ext = 'MESH'
-            else:
-                raise Exception(f'Invalid grid_type: {self._job_meta.grid_type}')
-
-            if output_path:
-                self._OutputObj.outPath = output_path
-            else:
-                self._OutputObj.outPath = self._job_meta.scratch_dir + "/NextGen_Forcings_Engine_" + ext + "_output_" + pd.Timestamp(
-                    self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') + ".nc"
-
-            self._OutputObj.init_forcing_file(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
-
         # Next, initialize our input forcing classes. These objects will contain
         # information about our source products (I.E. data type, grid sizes, etc).
         # Information will be mapped via the options specified by the user.
@@ -528,43 +562,112 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         if self._grid_type == "hydrofabric":
             self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids
 
+    def initialize_with_params(self, config_file: str, b_date: str = None, geogrid: str = None, output_path: str = None) -> None:
+        """
+        This function **must be called by the user** to fully initialize the NWMv3 Forcings Engine model,
+        including both core model setup and additional job metadata configuration (such as b_date, geogrid, and output path).
+
+        It performs the following:
+        - Sets up job metadata (b_date, geogrid) by calling `ConfigOptions`.
+        - Calls the `initialize()` function to handle core model setup (reading the config file,
+          initializing basic model attributes like MPI, grids, etc.).
+        - Handles additional configuration options, such as determining the output path
+          for model results.
+
+        **DO NOT call `initialize()` directly**. Always use this function, which ensures proper
+        initialization of all necessary parameters and job metadata.
+
+        :param config_file: The configuration file path for the model initialization.
+        :param b_date: The start date for the simulation. Typically the forecast cycle start time.
+        :param geogrid: The path to the geospatial grid data, such as a geospatial file for the grid.
+        :param output_path: The output path for model results. If omitted, a default path will be generated.
+        :raises ValueError: If an invalid grid type is specified, an exception is raised.
+        """
+        # Set the job metadata parameters (b_date, geogrid) using ConfigOptions
+        self._job_meta = config.ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
+
+        # Now that _job_meta is set, call initialize to set up the core model
+        self.initialize(config_file)
+
+        # Determine the 'ext' based on the grid type, as done in the original initialize()
+        if self._job_meta.grid_type == 'gridded':
+            ext = 'GRIDDED'
+        elif self._job_meta.grid_type == 'hydrofabric':
+            ext = 'HYDROFABRIC'
+        elif self._job_meta.grid_type == 'unstructured':
+            ext = 'MESH'
+        else:
+            raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
+
+        # Check if forcing_output is enabled (forcing_output == 1)
+        if self._job_meta.forcing_output == 1:
+            # Set output path, either from the argument or default to scratch directory
+            if output_path:
+                self._OutputObj.outPath = output_path
+            else:
+                filename = "NextGen_Forcings_Engine_" + ext + "_output_" + pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') + ".nc"
+                self._OutputObj.outPath = os.path.join(self._job_meta.scratch_dir, filename)
+
+            # Initialize the output file with forcing information
+            self._OutputObj.init_forcing_file(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
+
     # ------------------------------------------------------------
     def update(self):
         """
-        Update/advance the model by one time step.
+        Update the model by advancing one time step.
+
+        This method increments the current model time by the time step size
+        and then updates the model state by calling the `update_until` method
+        with the new time.
+
+        :return: None
         """
         self._values['current_model_time'] += self._values['time_step_size']
-
         self.update_until(self._values['current_model_time'])
 
     # ------------------------------------------------------------
     def update_until(self, future_time: float):
         """
-        Update the model to a particular time
+        Update the model to a specified future time.
 
-        Parameters
-        ----------
-        future_time : float
-            The future time to when the model would be advanced.
+        This method updates the model by running time steps until the
+        `future_time` is reached. If the `future_time` is different from the
+        current model time, the model is updated iteratively. If the `future_time`
+        matches the current time, a single step is performed.
+
+        :param future_time: The target time to update the model to.
+        :return: None
         """
-        # Flag to see if update is just a single model time step
-        # otherwise we must perform a time loop to iterate data until
-        # requested time stamp
+        # Flag to check if future_time is different from the current model time.
+        # If future_time is not equal to the current model time, we perform an
+        # iterative update, advancing time in steps until we reach future_time.
         if future_time != self._values['current_model_time']:
+            # Start a while loop to iterate the model time step by step until the
+            # current model time reaches or exceeds the future_time.
             while self._values['current_model_time'] < future_time:
+                # Advance the model time by the defined time step size.
                 self._values['current_model_time'] += self._values['time_step_size']
-                self._model.run(self._values, self._values['current_model_time'], self._job_meta, self._WrfHydroGeoMeta, self._inputForcingMod,
-                                self._suppPcpMod, self._mpi_meta, self._OutputObj)
-        # This is just a single model time step (1 hour) update
+                # Run the model for the new current time and update the state.
+                self._model.run(self._values, self._values['current_model_time'], self._job_meta, self._WrfHydroGeoMeta,
+                                self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
         else:
-            self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta, self._inputForcingMod, self._suppPcpMod, self._mpi_meta,
-                            self._OutputObj)
+            # If future_time is the same as current_model_time, just run the model
+            # for a single time step without entering a loop.
+            self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
+                            self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
 
     # ------------------------------------------------------------
     def finalize(self):
-        """Finalize model."""
-        # Remove scratch directory files once BMI is completed to avoid 
-        # storage issues for NextGen formulation run, but only on root thread
+        """
+        Finalize the model, performing necessary cleanup tasks.
+
+        This method cleans up any temporary files created during the model run,
+        including files in the scratch directory. It also forces the destruction
+        of certain objects related to the model. This method is typically called
+        after the model has finished running.
+
+        :return: None
+        """
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
                 file_path = os.path.join(self._job_meta.scratch_dir, filename)
@@ -598,7 +701,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # -------------------------------------------------------------------
 
     def get_attribute(self, att_name):
+        """
+        Retrieve an attribute from the model's attribute map.
 
+        This method searches the `_att_map` dictionary for the specified attribute name
+        and returns its value. If the attribute is not found, an error message is printed.
+
+        :param att_name: The name of the attribute to retrieve.
+        :return: The value of the attribute if found.
+        """
         try:
             return self._att_map[att_name.lower()]
         except Exception as e:
@@ -609,41 +720,69 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     #       components vs. those read from files or GUI.
     # --------------------------------------------------------
     def get_input_var_names(self):
+        """
+        Get the list of input variable names.
 
+        This method returns the list of input variable names defined in the model.
+
+        :return: List of input variable names.
+        """
         return self._input_var_names
 
     def get_output_var_names(self):
+        """
+        Get the list of output variable names.
 
+        This method returns the list of output variable names defined in the model.
+
+        :return: List of output variable names.
+        """
         return self._output_var_names
 
     # ------------------------------------------------------------
     def get_component_name(self):
-        """Name of the component."""
-        return self.get_attribute('model_name')  # JG Edit
+        """
+        Get the name of the component.
+
+        This method retrieves the model name using the `get_attribute` method.
+
+        :return: The name of the model component.
+        """
+        return self.get_attribute('model_name')
 
     # ------------------------------------------------------------
     def get_input_item_count(self):
-        """Get names of input variables."""
+        """
+        Get the count of input variables.
+
+        This method returns the total number of input variables defined in the model.
+
+        :return: The number of input variables.
+        """
         return len(self._input_var_names)
 
     # ------------------------------------------------------------
     def get_output_item_count(self):
-        """Get names of output variables."""
+        """
+        Get the count of output variables.
+
+        This method returns the total number of output variables defined in the model.
+
+        :return: The number of output variables.
+        """
         return len(self._output_var_names)
 
     # ------------------------------------------------------------
     def get_value(self, var_name: str, dest: NDArray[Any]) -> NDArray[Any]:
-        """Copy of values.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        dest : ndarray
-            A numpy array into which to place the values.
-        Returns
-        -------
-        array_like
-            Copy of values.
+        """
+        Copy the values of a variable into the provided destination array.
+
+        This method copies the values of a specified variable (by its CSDMS Standard Name)
+        into the provided destination array (`dest`).
+
+        :param var_name: The name of the variable whose values are to be retrieved.
+        :param dest: The numpy array to store the values of the variable.
+        :return: The destination array containing the variable values.
         """
         if var_name == "grid:count":
             if self._job_meta.grid_type != 'unstructured':
@@ -670,15 +809,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_value_ptr(self, var_name: str) -> NDArray[Any]:
-        """Reference to values.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        Returns
-        -------
-        array_like
-            Value array.
+        """
+        Get a reference to the values of a variable.
+
+        This method returns a reference to the values of the specified variable,
+        allowing direct access to the array without copying.
+
+        :param var_name: The name of the variable whose values are to be retrieved.
+        :return: A flattened array containing the values of the variable.
         """
         # Make sure to return a flattened array
         if var_name == "grid_1_shape":  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
@@ -726,7 +864,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except ValueError as e:
             raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
 
-        return self._values[var_name].ravel()  # .reshape((-1,))
+        return self._values[var_name].ravel()
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
@@ -734,33 +872,44 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
     def get_var_name(self, long_var_name):
+        """
+        Get the short name of the variable corresponding to the long variable name.
 
+        :param long_var_name: The long variable name as defined in the model.
+        :return: The corresponding short name of the variable.
+        """
         return self._var_name_map_long_first[long_var_name]
 
     # -------------------------------------------------------------------
     def get_var_units(self, long_var_name):
+        """
+        Get the units of the variable corresponding to the long variable name.
 
+        :param long_var_name: The long variable name as defined in the model.
+        :return: The units of the variable.
+        """
         return self._var_units_map[long_var_name]
 
     # -------------------------------------------------------------------
     def get_var_type(self, var_name: str) -> str:
-        """Data type of variable.
+        """
+        Get the data type of a variable.
 
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
+        :param var_name: The name of the variable as defined in the model.
 
-        Returns
-        -------
-        str
-            Data type.
+        :return: The data type of the variable.
         """
         return str(self.get_value_ptr(var_name).dtype)
 
     # ------------------------------------------------------------
     def get_var_grid(self, name):
+        """
+        Get the grid associated with a variable.
 
+        :param name: The name of the variable.
+
+        :return: The grid ID associated with the variable.
+        """
         # all vars have grid 0 but check if its in names list first
         if name in self._output_var_names:
             if "ELEMENT" in name and self._job_meta.grid_type == "gridded":
@@ -777,11 +926,31 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_var_itemsize(self, name):
+        """
+        Get the item size (in bytes) of a variable.
+
+        This function retrieves the memory size (in bytes) for each element of the variable
+        specified by the `name` parameter.
+
+        :param name: The name of the variable.
+        :return: The item size of the variable in bytes.
+        """
         return self.get_value_ptr(name).itemsize
 
     # ------------------------------------------------------------
     def get_var_location(self, name):
+        """
+        Get the location of a variable in the grid.
 
+        This function determines the location of a variable (whether it's at a "face"
+        or "node" in the grid) based on its name. It assumes that variables with
+        "ELEMENT" in the name are at the "face" location, and variables with
+        "NODE" are at the "node" location.
+
+        :param name: The name of the variable.
+        :return: The location of the variable ("face" or "node").
+        :raises ValueError: If the location of the variable cannot be determined.
+        """
         if "ELEMENT" in name:
             return "face"
         elif "NODE" in name:
@@ -791,34 +960,78 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_var_rank(self, long_var_name):
+        """
+        Get the rank of a variable.
 
+        This function retrieves the rank (number of dimensions) of a variable
+        specified by its long name. Currently, it returns a constant value of
+        0 for all variables.
+
+        :param long_var_name: The long name of the variable.
+        :return: The rank (number of dimensions) of the variable.
+        """
         return np.int16(0)
 
     # -------------------------------------------------------------------
     def get_start_time(self) -> float:
+        """
+        Get the model's start time.
 
+        This function returns the start time of the model, which is used for
+        time stepping in the simulation.
+
+        :return: The start time of the model.
+        """
         return self._start_time
 
         # -------------------------------------------------------------------
 
     def get_end_time(self) -> float:
+        """
+        Get the model's end time.
 
+        This function returns the end time of the model, which is used to
+        determine the duration of the simulation.
+
+        :return: The end time of the model.
+        """
         return self._end_time
 
         # -------------------------------------------------------------------
 
     def get_current_time(self) -> float:
+        """
+        Get the current time of the model.
 
+        This function returns the current model time, which is updated after
+        each time step in the simulation.
+
+        :return: The current time of the model.
+        """
         return self._values['current_model_time']
 
     # -------------------------------------------------------------------
     def get_time_step(self) -> float:
+        """
+        Get the model's time step size.
 
+        This function returns the time step size used for advancing the model
+        from one time to the next.
+
+        :return: The time step size of the model.
+        """
         return self._values['time_step_size']
 
     # -------------------------------------------------------------------
     def get_time_units(self) -> str:
+        """
+        Get the units of time for the model.
 
+        This function retrieves the units of time used in the model, typically
+        provided during model initialization.
+
+        :return: The units of time for the model (e.g., "seconds").
+        """
         return self.get_attribute('time_units')
 
         # -------------------------------------------------------------------
@@ -827,12 +1040,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         Set model values for the provided BMI variable.
 
-        Parameters
-        ----------
-        var_name : str
-            Name of model variable for which to set values.
-        values : NDArray[Any]
-              Array of new values.
+        This function sets the values for a model variable. If the variable
+        is special (e.g., 'bmi_mpi_comm'), it handles those cases specifically.
+        Otherwise, it assigns the values to the given variable.
+
+        :param var_name: Name of the variable for which to set values.
+        :param values: The new values to assign to the variable.
         """
         if var_name == 'bmi_mpi_comm':
             self._comm = values[0]
@@ -844,14 +1057,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         Set model values for the provided BMI variable at particular indices.
 
-        Parameters
-        ----------
-        var_name : str
-            Name of model variable for which to set values.
-        indices : array_like
-            Array of indices of the variable into which analogous provided values should be set.
-        src : array_like
-            Array of new values.
+        This function allows setting the values of a variable at specific indices
+        rather than for the entire variable.
+
+        :param var_name: The name of the variable for which to set values.
+        :param indices: The indices at which the values should be set.
+        :param src: The array of new values to set at the specified indices.
         """
         # This is not particularly efficient, but it is functionally correct.
         for i in range(indices.shape[0]):
@@ -862,32 +1073,27 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     def get_var_nbytes(self, var_name) -> int:
         """
         Get the number of bytes required for a variable.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable.
-        Returns
-        -------
-        int
-            Size of data array in bytes.
+
+        This function retrieves the number of bytes used by a variable in memory.
+        It is useful for understanding the memory requirements of the model.
+
+        :param var_name: Name of the variable.
+        :return: The size of the variable's data array in bytes.
         """
         return self.get_value_ptr(var_name).nbytes
 
     # ------------------------------------------------------------
     def get_value_at_indices(self, var_name: str, dest: NDArray[Any], indices: NDArray[np.int_]) -> NDArray[Any]:
-        """Get values at particular indices.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        dest : NDArray[Any]
-            A numpy array into which to place the values.
-        indices : NDArray[np.int_]
-            Array of indices.
-        Returns
-        -------
-        NDArray[Any]
-            Values at indices.
+        """
+        Get values at particular indices.
+
+        This function retrieves the values of a variable at specific indices and
+        stores them in the provided destination array.
+
+        :param var_name: The name of the variable as a CSDMS Standard Name.
+        :param dest: A numpy array into which to place the values.
+        :param indices: An array of indices specifying the locations to retrieve the values from.
+        :return: The destination array containing the values at the specified indices.
         """
         original: NDArray[Any] = self.get_value_ptr(var_name)
         for i in range(indices.shape[0]):
@@ -900,11 +1106,22 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
     # ------------------------------------------------------------
     def get_grid_edge_count(self, grid_id: int) -> int:
+        """
+        Retrieves the number of edges for the specified grid.
+
+        This function accesses the grid and counts the number of unique edges
+        based on the element connection data. It is not implemented for grid_id = 1.
+
+        :param grid_id: The ID of the grid to retrieve edge count for.
+        :return: The number of edges in the grid.
+        :raises NotImplementedError: If grid_id is 1, the function raises an error.
+        :raises ValueError: If an unexpected error occurs.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
-                elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
-                numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]
+                elem_conn = mesh.variables[self._job_meta.elemconn_var][:]  # Element connectivity
+                numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]  # Number of element connections
                 mesh.close()
 
                 mesh_edge_first_node = []
@@ -948,12 +1165,26 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_edge_nodes(self, grid_id: int, edge_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
+        """
+        Retrieves the edge nodes for the specified grid.
+
+        This function retrieves the edge nodes for a grid by accessing the grid's
+        element connectivity data and deduplicating the edges. It returns the edge
+        nodes in the provided array.
+
+        :param grid_id: The ID of the grid to retrieve edge nodes for.
+        :param edge_nodes: A numpy array where the edge nodes will be stored.
+        :return: The edge nodes of the specified grid.
+        :raises NotImplementedError: If grid_id is 1, the function raises an error.
+        :raises Exception: If an unexpected error occurs in retrieving the edge nodes.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
                 numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]
                 mesh.close()
+
                 mesh_edge_first_node = []
                 mesh_edge_second_node = []
                 for i in range(elem_conn.shape[0]):
@@ -965,19 +1196,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         if loop + 1 == numelem_conn[i]:
                             mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
                             mesh_edge_second_node.append(elem_conn[i, 0])
+
+                # Create a 2D numpy array for edge nodes with shape (N, 2)
                 edge_nodes_ = np.empty((len(mesh_edge_first_node), 2), dtype=int)
                 edge_nodes_[:, 0] = mesh_edge_first_node
                 edge_nodes_[:, 1] = mesh_edge_second_node
+
+                # Deduplicate edge nodes
                 edge_nodes_ = list(edge_nodes_)
                 seen = set()
                 node_list = []
-                count = 1
                 for item in edge_nodes_:
                     t = tuple(item)
                     if t not in seen:
                         node_list.append(t)
                         seen.add(t)
-                        count += 1
                     else:
                         edge_data = list(seen)
                         node_list.append(edge_data[edge_data.index(t)])
@@ -987,8 +1220,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # Raise NotImplementedError if grid_id is 1.
                 raise NotImplementedError("get_grid_edge_nodes is not implemented for grid_id 1")
 
+        raise Exception("Unexpected error in retrieving edge nodes")
+
     # ------------------------------------------------------------
     def get_grid_face_count(self, grid_id: int) -> int:
+        """
+        Retrieves the number of faces for the specified grid.
+
+        This function accesses the grid and counts the number of faces based on the face coordinates
+        in the grid's data. The grid must not be of type 1, as this function is not implemented for that case.
+
+        :param grid_id: The ID of the grid to retrieve face count for.
+        :return: The number of faces in the grid.
+        :raises NotImplementedError: If grid_id is 1, the function raises an error as it is not implemented for that case.
+        :raises ValueError: If grid ID is not found in `_grids`, or if an unexpected error occurs.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
@@ -999,17 +1245,32 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # Raise NotImplementedError if grid_id is 1.
                 raise NotImplementedError("get_grid_face_count is not implemented for grid_id 1")
 
-        # If the loop doesn't return within the for loop, raise an exception
+        # If the loop doesn't return, raise an exception indicating grid ID not found.
         raise ValueError("Grid ID not found in _grids.")
 
     # ------------------------------------------------------------
     def get_grid_face_edges(self, grid_id: int, face_edges: NDArray[np.int_]) -> NDArray[np.int_]:
+        """
+        Retrieves the face edges for a specific grid, given its ID.
+
+        This function checks the grid type and retrieves the face edges by reading the
+        connectivity data from the geogrid. If grid_id is 1, this function raises a
+        NotImplementedError.
+
+        :param grid_id: The ID of the grid for which face edges are to be retrieved.
+        :param grid_id: The ID of the grid for which face edges are to be retrieved.
+        :param face_edges: A pre-allocated numpy array where the face edges will be stored.
+        :return: The updated `face_edges` array with the retrieved face edge values.
+        :raises NotImplementedError: If grid_id is 1, as this functionality is not implemented for that case.
+        :raises Exception: If an unexpected error occurs during the retrieval of face edges.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
                 elem_conn = mesh.variables[self._job_meta.elemconn_var][:]
                 numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]
                 mesh.close()
+
                 mesh_edge_first_node = []
                 mesh_edge_second_node = []
                 for i in range(elem_conn.shape[0]):
@@ -1021,6 +1282,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         if loop + 1 == numelem_conn[i]:
                             mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
                             mesh_edge_second_node.append(elem_conn[i, 0])
+
                 edge_nodes = np.empty((len(mesh_edge_first_node), 2), dtype=int)
                 edge_nodes[:, 0] = mesh_edge_first_node
                 edge_nodes[:, 1] = mesh_edge_second_node
@@ -1037,14 +1299,30 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     else:
                         edge_data = list(seen)
                         edge_list.append(edge_data.index(t))
+
                 face_edges[:] = np.array(edge_list)
                 return face_edges
             else:
                 # Raise NotImplementedError if grid_id is 1.
                 raise NotImplementedError("get_grid_face_edges is not implemented for grid_id 1")
 
+        # If the loop doesn't return, raise an exception indicating an unexpected error
+        raise Exception("Unexpected error in retrieving face edges.")
+
     # ------------------------------------------------------------
     def get_grid_face_nodes(self, grid_id: int, face_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
+        """
+        Retrieves the nodes connected to faces for a specific grid, given its ID.
+
+        This function accesses the grid's connectivity data and retrieves the nodes connected
+        to the faces of the grid. If grid_id is 1, this function raises a NotImplementedError.
+
+        :param grid_id: The ID of the grid for which face nodes are to be retrieved.
+        :param face_nodes: A pre-allocated numpy array where the face nodes will be stored.
+        :return: The updated `face_nodes` array with the retrieved face node values.
+        :raises NotImplementedError: If grid_id is 1, as this functionality is not implemented for that case.
+        :raises Exception: If an unexpected error occurs during the retrieval of face nodes.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
@@ -1053,6 +1331,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 node_conn_num = 0
                 for i in range(elem_conn.shape[0]):
                     node_conn_num += numelem_conn[i]
+
                 face_nodes[:] = np.empty(node_conn_num, dtype=int)
                 index = 0
                 for i in range(elem_conn.shape[0]):
@@ -1062,6 +1341,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return face_nodes
             else:
                 raise NotImplementedError("get_grid_face_nodes is not implemented for grid_id 1")
+
+        # If the loop doesn't return, raise an exception indicating an unexpected error
+        raise Exception("Unexpected error in retrieving face nodes.")
 
     # ------------------------------------------------------------
     def get_grid_node_count(self, grid_id: int) -> int:
@@ -1074,6 +1356,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param grid_id: The ID of the grid to retrieve node count for.
         :return: The number of nodes in the grid.
         :raises NotImplementedError: If grid_id is 1, the function raises an error as it is not implemented for that case.
+        :raises ValueError: If grid ID is not found in `_grids` or if an unexpected error occurs.
         """
         for _ in self._grids:
             if grid_id != 1:
@@ -1091,6 +1374,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_nodes_per_face(self, grid_id: int, nodes_per_face: NDArray[np.int_]) -> NDArray[np.int_]:
+        """
+        Retrieves the number of nodes connected to each face in the specified grid, given its ID.
+
+        This function accesses the grid's connectivity data and retrieves the number of nodes connected to
+        each face. If grid_id is 1, this function raises a NotImplementedError.
+
+        :param grid_id: The ID of the grid for which the nodes per face are to be retrieved.
+        :param nodes_per_face: A pre-allocated numpy array where the number of nodes per face will be stored.
+        :return: The updated `nodes_per_face` array with the number of nodes per face.
+        :raises NotImplementedError: If grid_id is 1, as this functionality is not implemented for that case.
+        :raises Exception: If an unexpected error occurs during the retrieval of nodes per face.
+        """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
@@ -1104,8 +1399,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # Raise NotImplementedError if grid_id is 1.
                 raise NotImplementedError("get_grid_nodes_per_face is not implemented for grid_id 1")
 
+        # If the loop doesn't return, raise an exception indicating an unexpected error
+        raise Exception("Unexpected error in retrieving nodes per face.")
+
     # ------------------------------------------------------------
     def get_grid_origin(self, grid_id: int, origin: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Retrieves the origin coordinates for the specified grid.
+
+        This function accesses the grid and returns its origin coordinates, such as the minimum x, y, and z values.
+
+        :param grid_id: The ID of the grid to retrieve the origin for.
+        :param origin: A pre-allocated numpy array to store the origin values.
+        :return: The updated numpy array containing the origin coordinates.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 origin[:] = grid.origin
@@ -1114,6 +1422,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_rank(self, grid_id: int) -> int:
+        """
+        Retrieves the rank of the specified grid.
+
+        This function accesses the grid and returns its rank, which typically represents the number of dimensions.
+
+        :param grid_id: The ID of the grid to retrieve the rank for.
+        :return: The rank (integer) of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 return grid.rank
@@ -1121,6 +1438,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_shape(self, grid_id: int, shape: NDArray[np.int_]) -> NDArray[np.int_]:
+        """
+        Retrieves the shape (dimensions) of the specified grid.
+
+        This function accesses the grid and returns its shape (size in each dimension) as a numpy array.
+
+        :param grid_id: The ID of the grid to retrieve the shape for.
+        :param shape: A pre-allocated numpy array to store the shape values.
+        :return: The updated numpy array containing the shape of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 shape[:] = grid.shape
@@ -1129,6 +1456,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_size(self, grid_id: int) -> int:
+        """
+        Retrieves the size (total number of elements) of the specified grid.
+
+        This function accesses the grid and returns its total number of elements.
+
+        :param grid_id: The ID of the grid to retrieve the size for.
+        :return: The total size (integer) of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 return grid.size
@@ -1136,6 +1472,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_spacing(self, grid_id: int, spacing: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Retrieves the spacing (distance between grid points) for the specified grid.
+
+        This function accesses the grid and returns its spacing values, typically representing the distance between adjacent grid points.
+
+        :param grid_id: The ID of the grid to retrieve the spacing for.
+        :param spacing: A pre-allocated numpy array to store the spacing values.
+        :return: The updated numpy array containing the spacing between grid points.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 spacing[:] = grid.spacing
@@ -1145,6 +1491,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # ------------------------------------------------------------
 
     def get_grid_type(self, grid_id: int) -> str:
+        """
+        Retrieves the type of the specified grid.
+
+        This function accesses the grid and returns its type, which could be 'gridded', 'unstructured', etc.
+
+        :param grid_id: The ID of the grid to retrieve the type for.
+        :return: A string representing the type of the grid (e.g., 'gridded', 'unstructured').
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 return grid.type
@@ -1152,6 +1507,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_x(self, grid_id: int, x: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Retrieves the x-coordinates (longitude or grid points) for the specified grid.
+
+        This function accesses the grid and returns its x-coordinates in a numpy array.
+
+        :param grid_id: The ID of the grid to retrieve the x-coordinates for.
+        :param x: A pre-allocated numpy array to store the x-coordinates.
+        :return: The updated numpy array containing the x-coordinates of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 if self._grid_type == 'gridded':
@@ -1163,6 +1528,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_y(self, grid_id: int, y: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Retrieves the y-coordinates (latitude or grid points) for the specified grid.
+
+        This function accesses the grid and returns its y-coordinates in a numpy array.
+
+        :param grid_id: The ID of the grid to retrieve the y-coordinates for.
+        :param y: A pre-allocated numpy array to store the y-coordinates.
+        :return: The updated numpy array containing the y-coordinates of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 if self._grid_type == 'gridded':
@@ -1174,6 +1549,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_z(self, grid_id: int, z: NDArray[np.float64]) -> NDArray[np.float64]:
+        """
+        Retrieves the z-coordinates (depth or grid points) for the specified grid.
+
+        This function accesses the grid and returns its z-coordinates in a numpy array.
+
+        :param grid_id: The ID of the grid to retrieve the z-coordinates for.
+        :param z: A pre-allocated numpy array to store the z-coordinates.
+        :return: The updated numpy array containing the z-coordinates of the grid.
+        :raises ValueError: If grid ID is not found.
+        """
         for grid in self._grids:
             if grid_id == grid.id:
                 if self._grid_type == 'gridded':
@@ -1190,8 +1575,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
 
     def _parse_config(self, cfg):
+        """
+        Parses the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
+
+        This function processes specific keys in the configuration dictionary:
+        - Converts path-like strings to `PosixPath` objects.
+        - Converts date strings to `pandas` datetime objects.
+        - Configures lists of integers or strings for specific variables in the configuration.
+
+        The function updates the `cfg` dictionary directly, modifying values as needed to match expected formats and types.
+
+        :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
+        :return: The updated configuration dictionary with appropriately parsed values.
+        """
         for key, val in cfg.items():
-            # convert all path strings to PosixPath objects
+            # Convert all path strings to PosixPath objects
             if any([key.endswith(x) for x in ['_dir', '_path', '_file', '_files']]):
                 if (val is not None) and (val != "None"):
                     if isinstance(val, list):
@@ -1204,7 +1602,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 else:
                     cfg[key] = None
 
-            # convert Dates to pandas Datetime indexs
+            # Convert Dates to pandas Datetime indices
             elif key.endswith('_date'):
                 if isinstance(val, list):
                     temp_list = []
@@ -1213,9 +1611,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     cfg[key] = temp_list
                 else:
                     cfg[key] = pd.to_datetime(val, format='%d/%m/%Y')
-            # Configure NWMv3.0 input configurations to 
-            # what the ConfigClass is expecting
 
+            # Configure NWMv3.0 input configurations to what the ConfigClass expects
             # Flag for variables that need a list of integers
             elif (key in ['InputForcings', 'InputMandatory', 'ForecastInputHorizons', 'ForecastInputOffsets', 'IgnoredBorderWidths', 'RegridOpt',
                           'TemperatureDownscaling', 'ShortwaveDownscaling', 'PressureDownscaling', 'PrecipDownscaling', 'HumidityDownscaling',
@@ -1223,6 +1620,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                           'LwBiasCorrection', 'PrecipBiasCorrection', 'SuppPcp', 'RegridOptSuppPcp', 'SuppPcpTemporalInterpolation',
                           'SuppPcpMandatory', 'SuppPcpInputOffsets', 'custom_input_fcst_freq']):
                 cfg[key] = val
+
             # Flag for variables that need to be a list of strings
             elif key in ['InputForcingDirectories', 'InputForcingTypes', 'DownscalingParamDirs', 'SuppPcpForcingTypes', 'SuppPcpDirectories']:
                 cfg[key] = val
