@@ -698,7 +698,8 @@ def open_grib2(GribFileIn, NetCdfFileOut, Wgrib2Cmd, ConfigOptions, MpiConfig,
         try:
             # WCOSS fix for WGRIB2 crashing when called on the same file twice in python
             if not os.environ.get('MFE_SILENT') and not special_case:
-                print("command: " + Wgrib2Cmd)
+                print(f"Wgrib2 command: {Wgrib2Cmd}")
+                print()
 
             # set up GRIB2TABLE if needed:
             if not os.environ.get('GRIB2TABLE'):

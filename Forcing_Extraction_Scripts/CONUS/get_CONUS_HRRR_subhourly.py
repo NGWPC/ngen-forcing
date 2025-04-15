@@ -22,8 +22,11 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
+    os.makedirs(outDir, exist_ok=True)
+    print(f'HRRR subhourly output directory: {outDir}')
+
     pid = os.getpid()
-    lockFile = outDir + "/GET_Conus_HRRR_subhourly.lock"
+    lockFile = os.path.join(outDir, "GET_Conus_HRRR_subhourly.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.

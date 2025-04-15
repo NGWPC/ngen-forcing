@@ -26,15 +26,18 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
+    os.makedirs(outDir, exist_ok=True)
+    print(f'HRRR output directory: {outDir}')
+
     pid = os.getpid()
-    lockFile = outDir + "/GET_Conus_HRRR.lock"
+    lockFile = os.path.join(outDir, "GET_Conus_HRRR.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.
     if os.path.isfile(lockFile):
         fileLock = open(lockFile,'r')
         pid = fileLock.readline()
-        warningMsg =  "ERROR: Another CONUS HRRR Fetch Program Running. PID: " + pid + ". Please remove lockfile before attempting to execute another file extraction. Exiting script"
+        warningMsg = "ERROR: Another CONUS HRRR Fetch Program Running. PID: " + pid + ". Please remove lockfile before attempting to execute another file extraction. Exiting script"
         sys.exit(1)
     else:
         fileLock = open(lockFile,'w')

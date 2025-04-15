@@ -26,8 +26,11 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
 
+    os.makedirs(outDir, exist_ok=True)
+    print(f'RAP output directory: {outDir}')
+
     pid = os.getpid()
-    lockFile = outDir + "/GET_Conus_RAP.lock"
+    lockFile = os.path.join(outDir, "/GET_Conus_RAP.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.
@@ -46,7 +49,7 @@ def main(args):
         dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
 
         # Compose path to directory containing data.
-        rapCleanDir = outDir + "/rap." + dCurrent.strftime('%Y%m%d')
+        rapCleanDir = os.path.join(outDir, "rap." + dCurrent.strftime('%Y%m%d'))
 
         # Check to see if directory exists. If it does, remove it. 
         if os.path.isdir(rapCleanDir):

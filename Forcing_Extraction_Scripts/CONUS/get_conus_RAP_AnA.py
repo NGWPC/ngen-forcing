@@ -22,8 +22,11 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
 
+    os.makedirs(outDir, exist_ok=True)
+    print(f'RAP AnA output directory: {outDir}')
+
     pid = os.getpid()
-    lockFile = outDir + "/GET_Conus_RAP.lock"
+    lockFile = os.path.join(outDir, "GET_Conus_RAP.lock")
 
     # Check for lock file
     if os.path.isfile(lockFile):

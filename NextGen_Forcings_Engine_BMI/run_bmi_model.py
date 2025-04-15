@@ -100,9 +100,9 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     print(f'Now looping through {len(ngen_datetimes)} timesteps, updating the model, and extracting forcing data\n')
     print(f'rank: {model._mpi_meta.rank}')
     print(f'grid_type: {model._grid_type}')
-    for timestamp in ngen_datetimes:
+    for num, timestamp in enumerate(ngen_datetimes):
         print('\n---------------------------------------------------')
-        print(f'Iteration for {timestamp}')
+        print(f'Iteration #{num} for {timestamp}')
         model.update()
 
         include_lqfrac = model._job_meta.include_lqfrac == 1

@@ -25,8 +25,11 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://mrms.ncep.noaa.gov/data/2D/RadarOnly_QPE_01H"
 
+    os.makedirs(outDir, exist_ok=True)
+    print(f'MRMS Radar output directory: {outDir}')
+
     pid = os.getpid()
-    lockFile = outDir + "/GET_MRMS_Radar_CONUS.lock"
+    lockFile = os.path.join(outDir, "GET_MRMS_Radar_CONUS.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.

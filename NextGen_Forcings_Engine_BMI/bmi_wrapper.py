@@ -47,6 +47,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     :param np: Optional number of processes to use.
     :return: None
     """
+    print_git_info_all()
 
     # Read in the configuration file to access paths and settings
     if config_input:
@@ -548,7 +549,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         subprocess.run(cmd2, check=True)
 
     else:
-        print(
+        raise Exception(
             "valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")
 
     output_path = (
@@ -644,8 +645,6 @@ def main():
 
     :return: None
     """
-    print_git_info_all()
-
     # Parse command-line arguments
     args = get_options()
 
