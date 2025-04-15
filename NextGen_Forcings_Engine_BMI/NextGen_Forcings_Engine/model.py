@@ -88,7 +88,7 @@ class NWMv3_Forcing_Engine_model():
                 ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(np.array([future_time-3600.0],dtype=float),'s')[0]
         else:
             ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc
-            ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.TimedeltaIndex(np.array([future_time],dtype=float),'s')[0]
+            ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.to_timedelta(future_time, unit='s')
 
         print("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
         print(f"Model.py current time: {ConfigOptions.current_time}")
@@ -201,7 +201,7 @@ class NWMv3_Forcing_Engine_model():
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
             # Loop over each of the input forcings specifed.
-            print("Model.py looping over input forcings")
+            print("\nModel.py looping over input forcings")
             for forceKey in ConfigOptions.input_forcings:
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps

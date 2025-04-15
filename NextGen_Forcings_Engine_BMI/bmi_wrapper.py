@@ -1,51 +1,61 @@
-'''
-BMI Forcings Engine standalone mode wrapper script. 
+"""
+BMI Forcings Engine standalone mode wrapper script.
 
 Provides ability to run the BMI Forcings Engine pipeline in standalone mode using a single command.
 
 example usage: python bmi_wrapper.py short_range Gage_01011000.gpkg
-'''
+"""
 
 import argparse
-import datetime
+from datetime import datetime, timezone, timedelta
+
 import os
 import subprocess
-import random
+import tempfile
 
 import yaml
 
 from git_util import print_git_info_all
 
+ONE_HOUR = timedelta(hours=1)
+TWO_HOURS = timedelta(hours=2)
+THREE_HOURS = timedelta(hours=3)
+SEVEN_HOURS = timedelta(hours=7)
+TWELVE_HOURS = timedelta(hours=12)
+SIXTEEN_HOURS = timedelta(hours=16)
+SEVENTEEN_HOURS = timedelta(hours=17)
+TWENTY_TWO_HOURS = timedelta(hours=22)
+FORTY_EIGHT_HOURS = timedelta(hours=48)
+
 
 def execute(args):
-    '''
+    """
     Execute the full forcings engine BMI pipeline in standalone mode.
-    
+
     Modules executed: ESMF Mesh Conversion, Forcing Extraction, Forcing Engine BMI
-    
+
     args:
         cycle_name (str): The NWM Forecast cycle to execute (ie: short_range)
         hyfab_name (str): The full path of the hydrofabric domain file to use (ie: /srv/data/Gage_01011000.gpkg)
         -config_input (str): Optional path to the wrapper config file.
         -output_path (str): Optional full path to specify forcing engine output location.
         -np (str): Optional number of processes to use.
-    '''
+    """
 
     # read in user-provided arguments and initialize variables
     cycle_name = args.cycle_name
     hyfab_name = args.hyfab_name
     config_input = args.config_input
-    random_int = random.randint(1000, 9999)
-    if args.output_path:
-        output_path = args.output_path
-    elif args.csv_path and not args.output_path:
-        output_path = f'/tmp/temp_{random_int}.nc'
-    else:
-        output_path = None
     num_processes = args.np
 
+    output_path = (
+        args.output_path or
+        tempfile.NamedTemporaryFile(suffix=".nc", delete=False).name if args.csv_path
+        else None
+    )
+
     # read in config file
-    if config_input != None:
+    if config_input:
         config_read = config_input
     else:
         config_read = './wrapper_config.yml'
@@ -68,8 +78,8 @@ def execute(args):
     engine_env = config['global']['engine_env']
 
     # Get the current time in UTC
-    dNowUTC = datetime.datetime.utcnow()
-    dNow = datetime.datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
+    dNowUTC = datetime.now(timezone.utc)
+    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
 
     if not os.path.exists(mesh_outPath):
         # Execute hyfab to ESMF mesh conversion
@@ -93,9 +103,9 @@ def execute(args):
 
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 2)
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 17)
+        b_date_dt = dNow - TWO_HOURS
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -132,12 +142,12 @@ def execute(args):
         # TODO: Make timesteps configurable with defaults set in config file?
         # TODO: Set end time to actual NWM cycle (10-day)
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 3)
+        b_date_dt = dNow - THREE_HOURS
         print(f"b_date_dt orig: {b_date_dt}")
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
         print(f"b_date_dt new: {b_date_dt}")
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -189,9 +199,9 @@ def execute(args):
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 1)
-        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 3)
-        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 1)
+        b_date_dt = dNow - ONE_HOUR
+        start_time_dt = b_date_dt + THREE_HOURS
+        end_time_dt = b_date_dt + ONE_HOUR
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -256,13 +266,13 @@ def execute(args):
         # TODO: Set end time to actual NWM cycle (30-day)
 
         if dNowUTC.hour in [1, 2, 7, 8, 13, 14, 19, 20]:
-            b_date_dt = dNow - datetime.timedelta(seconds=3600 * 3)
+            b_date_dt = dNow - THREE_HOURS
         else:
-            b_date_dt = dNow - datetime.timedelta(seconds=3600 * 7)
+            b_date_dt = dNow - SEVEN_HOURS
 
         b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
-        start_time_dt = b_date_dt + datetime.timedelta(seconds=3600 * 1)
-        end_time_dt = start_time_dt + datetime.timedelta(seconds=3600 * 48)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + FORTY_EIGHT_HOURS
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -296,10 +306,10 @@ def execute(args):
         # set cycle-specific time variables
         # TODO: Make timesteps configurable with defaults set in config file?
 
-        b_date_dt = dNow - datetime.timedelta(seconds=3600 * 1)
-        start_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 16)
+        b_date_dt = dNow - ONE_HOUR
+        start_time_dt = b_date_dt - SIXTEEN_HOURS
         print(f"start_time_dt: {start_time_dt}")
-        end_time_dt = b_date_dt - datetime.timedelta(seconds=3600 * 1)
+        end_time_dt = b_date_dt - ONE_HOUR
         print(f"end_time_dt: {end_time_dt}")
         # create strings from datetime objects for use in commands
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -366,14 +376,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -435,14 +445,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -495,14 +505,14 @@ def execute(args):
 
             # If cycle is in future or too recent, go back one cycle (12 hours)
             if (dt - cycle_dt).total_seconds() / 3600 < buffer_hours:
-                cycle_dt -= datetime.timedelta(hours=12)
+                cycle_dt -= TWELVE_HOURS
 
             return cycle_dt
 
-        dNow = datetime.datetime.utcnow()
+        dNow = datetime.now(timezone.utc)
         b_date_dt = get_nearest_cycle(dNow)
-        start_time_dt = b_date_dt + datetime.timedelta(hours=1)
-        end_time_dt = start_time_dt + datetime.timedelta(hours=17)
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = start_time_dt + SEVENTEEN_HOURS
 
         # Rest of your code remains the same
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -538,8 +548,8 @@ def execute(args):
             "valid cycle options: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range, hi_short_range, ak_short_range")
 
     # run the forcing engine BMI
-    if output_path != None:
-        if num_processes != None:
+    if output_path:
+        if num_processes is not None:
             cmd3 = [
                 "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes),
@@ -555,7 +565,7 @@ def execute(args):
             ]
 
     else:
-        if num_processes != None:
+        if num_processes is not None:
             cmd3 = [
                 "conda", "run", "-n", engine_env,
                 "mpirun", "-np", str(num_processes),
@@ -568,24 +578,26 @@ def execute(args):
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
-    
+
     subprocess.run(cmd3, check=True)
-    
+
     if args.csv_path:
         # Get the directory of the current Python module
         module_dir = os.path.dirname(os.path.abspath(__file__))
         # Build the full path to the script
         post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
 
-        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}",f"{args.csv_path}"]
+        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}", f"{args.csv_path}"]
         subprocess.run(cmd_0, check=True)
 
+
 def get_options():
-    '''
+    """
     Function to accept and parse arguments.
-    
+
     Returns an argparse object.
-    '''
+    """
+    # TODO keyword arguments should start with --
     parser = argparse.ArgumentParser()
     parser.add_argument('cycle_name',
                         help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')
@@ -603,5 +615,4 @@ def get_options():
 if __name__ == '__main__':
     print_git_info_all()
 
-    args = get_options()
-    execute(args)
+    execute(get_options())

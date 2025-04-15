@@ -2246,7 +2246,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = config_options.scratch_dir + "/" + "CFSv2_TMP-{}.nc".format(mkfilename())
+    input_forcings.tmpFile = os.path.join(config_options.scratch_dir, "CFSv2_TMP-{}.nc".format(mkfilename()))
     err_handler.check_program_status(config_options, mpi_config)
 
     if input_forcings.fileType != NETCDF:
@@ -4425,7 +4425,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = config_options.scratch_dir + "/" + "GFS_TMP.nc"
+    input_forcings.tmpFile = os.path.join(config_options.scratch_dir, "GFS_TMP.nc")
     err_handler.check_program_status(config_options, mpi_config)
 
     # check / set previous file to see if we're going to reuse
