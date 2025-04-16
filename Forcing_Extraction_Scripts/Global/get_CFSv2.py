@@ -1,5 +1,4 @@
 import os
-import shutil
 
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
@@ -17,10 +16,6 @@ class CFSv2Downloader(ForecastDownloader):
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
-
-    @property
-    def lock_name(self):
-        return "CFSv2"
 
     def get_download_targets(self, d_current):
         return range(0, 60, 6) if d_current.hour in [0, 6, 12, 18] else []
@@ -48,30 +43,9 @@ class CFSv2Downloader(ForecastDownloader):
         )
         return url, filename
 
-    def _cleanup_old_data(self):
-        """
-        Remove the full path: .../6hrly_grib_01
-        Then remove empty hour and day folders if applicable.
-        """
-        for hour in range(self.cleanback_hours, self.lookback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
-
-            # Clean nested structure
-            target_dir = self.build_output_dir(d_current)
-
-            if os.path.isdir(target_dir):
-                print(f"Removing old CFSv2 data from: {target_dir}")
-                shutil.rmtree(target_dir)
-
-            # Clean parent hour directory if empty
-            hour_dir = os.path.dirname(target_dir)
-            if os.path.isdir(hour_dir) and not os.listdir(hour_dir):
-                shutil.rmtree(hour_dir)
-
-            # Clean date directory if empty
-            day_dir = os.path.dirname(hour_dir)
-            if os.path.isdir(day_dir) and not os.listdir(day_dir):
-                shutil.rmtree(day_dir)
+    @property
+    def recursive_cleanup(self) -> bool:
+        return True
 
 
 if __name__ == "__main__":

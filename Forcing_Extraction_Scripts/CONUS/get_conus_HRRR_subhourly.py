@@ -1,5 +1,5 @@
-import argparse
 import os
+
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
@@ -16,10 +16,6 @@ class HRRRSubhourlyDownloader(ForecastDownloader):
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
-
-    @property
-    def lock_name(self):
-        return "Conus_HRRR_subhourly"
 
     def get_download_targets(self, d_current):
         # HRRR subhourly always provides 18 forecast hours (+f00)

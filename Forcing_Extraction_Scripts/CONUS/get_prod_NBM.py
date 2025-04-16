@@ -1,8 +1,8 @@
-import argparse
 import os
-import shutil
+
 import requests
 from bs4 import BeautifulSoup
+
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
@@ -19,10 +19,6 @@ class NBMDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/v4.2"
 
-    @property
-    def lock_name(self):
-        return "NBM_Full"
-
     def get_download_targets(self, _):
         # Not applicable — actual files are scraped from a directory listing
         return [0]
@@ -34,6 +30,9 @@ class NBMDownloader(ForecastDownloader):
             d_current.strftime('%H'),
             "core"
         )
+
+    def build_file_url_and_name(self, d_current, target):
+        raise NotImplementedError("This downloader overrides _download_data directly.")
 
     def _download_data(self):
         """
@@ -62,10 +61,11 @@ class NBMDownloader(ForecastDownloader):
 
             for file_url in urls[:18]:
                 filename = os.path.basename(file_url)
-                out_path = os.path.join(out_dir, filename)
+                out_path = os.path.join(str(out_dir), filename)  # Explicit cast to avoid Pycharm warning
                 if not os.path.isfile(out_path):
                     self._download_file(file_url, out_path)
 
+    # noinspection PyMethodMayBeStatic
     def _get_url_paths(self, url, ext=""):
         """
         Helper function to scrape all hrefs from an HTML directory page that end in the given extension.
@@ -79,24 +79,9 @@ class NBMDownloader(ForecastDownloader):
             if a.get("href", "").endswith(ext)
         ]
 
-    def _cleanup_old_data(self):
-        for hour in range(self.cleanback_hours, self.lookback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
-
-            core_path = os.path.join(
-                self.out_dir,
-                f"blend.{d_current.strftime('%Y%m%d')}",
-                d_current.strftime('%H'),
-                "core"
-            )
-            if os.path.isdir(core_path):
-                print(f"Removing old NBM data from: {core_path}")
-                shutil.rmtree(core_path)
-
-            parent_dir = os.path.dirname(os.path.dirname(core_path))
-            if os.path.isdir(parent_dir) and not os.listdir(parent_dir):
-                print(f"Removing empty directory: {parent_dir}")
-                shutil.rmtree(parent_dir)
+    @property
+    def recursive_cleanup(self) -> bool:
+        return True
 
 
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 import os
-from forecast_base import ForecastDownloader
+
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
 class RAPDownloader(ForecastDownloader):
@@ -12,10 +13,6 @@ class RAPDownloader(ForecastDownloader):
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
-
-    @property
-    def lock_name(self):
-        return "Conus_RAP"
 
     def get_download_targets(self, d_current):
         # RAP cycles at 03, 09, 15, 21 UTC produce 39-hour forecasts; others produce 21-hour forecasts

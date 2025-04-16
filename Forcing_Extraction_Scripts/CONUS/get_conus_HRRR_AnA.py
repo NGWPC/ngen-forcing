@@ -15,11 +15,7 @@ class HRRRAnAConusDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
-    @property
-    def lock_name(self):
-        return "Conus_HRRR_AnA"
-
-    def get_download_target(self, d_current):
+    def get_download_targets(self, d_current):
         # Only download forecast hours 01 and 02
         return [1, 2]
 
@@ -38,6 +34,7 @@ class HRRRAnAConusDownloader(ForecastDownloader):
         filename = f"hrrr.t{d_current.strftime('%H')}z.wrfsfcf{fhr_str}.grib2"
         url = os.path.join(self.base_url, f"hrrr.{d_current.strftime('%Y%m%d')}", "conus", filename)
         return url, filename
+
 
 if __name__ == "__main__":
     downloader = HRRRAnAConusDownloader.from_cli_args()

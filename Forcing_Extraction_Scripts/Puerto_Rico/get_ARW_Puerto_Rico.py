@@ -15,10 +15,6 @@ class ARWPuertoRicoDownloader(ForecastDownloader):
     def base_url(self):
         return "https://ftp.ncep.noaa.gov/data/nccf/com/hiresw/prod"
 
-    @property
-    def lock_name(self):
-        return "ARW_PuertoRico"
-
     def get_download_targets(self, d_current):
         return range(1, 49) if d_current.hour in [6, 18] else []
 

@@ -14,15 +14,14 @@ class MRMSMultiSensorHawaiiDownloader(ForecastDownloader):
     def base_url(self):
         return "https://mrms.ncep.noaa.gov/data/2D/HAWAII/MultiSensor_QPE_01H_"
 
-    @property
-    def lock_name(self):
-        return "MRMS_MultiSensor_Hawaii"
-
     def get_download_targets(self, _):
         return ["Pass1", "Pass2"]
 
     def build_output_dir(self, _):
         return self.out_dir
+
+    def build_file_url_and_name(self, d_current, target):
+        raise NotImplementedError("This downloader overrides _download_data directly.")
 
     def _download_data(self):
         for hour in range(self.lookback_hours, self.lagback_hours, -1):
@@ -33,7 +32,7 @@ class MRMSMultiSensorHawaiiDownloader(ForecastDownloader):
                 os.makedirs(subdir, exist_ok=True)
                 filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_cycle.strftime('%Y%m%d')}-{d_cycle.strftime('%H')}0000.grib2.gz"
                 url = os.path.join(self.base_url + pass_num, filename)
-                out_path = os.path.join(subdir, filename)
+                out_path = os.path.join(str(subdir), filename)  # Explicit cast to avoid Pycharm warning
                 if not os.path.isfile(out_path):
                     self._download_file(url, out_path)
 

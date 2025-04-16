@@ -8,6 +8,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timezone, timedelta
 from urllib import request, error
 
+import requests
+from bs4 import BeautifulSoup
+
 
 class ForecastDownloader(ABC):
     """
@@ -47,7 +50,7 @@ class ForecastDownloader(ABC):
         os.makedirs(self.out_dir, exist_ok=True)
 
         # Lockfile used to prevent concurrent runs
-        self.lockfile = os.path.join(self.out_dir, f"GET_{self.lock_name}.lock")
+        self.lockfile = os.path.join(self.out_dir, f"{self.__class__.__name__}.lck")
 
     #
     # --- Public Interface ---
@@ -96,12 +99,6 @@ class ForecastDownloader(ABC):
         """Return the base URL for downloading forecast files."""
         pass
 
-    @property
-    @abstractmethod
-    def lock_name(self):
-        """Return a unique string used in naming the lockfile."""
-        pass
-
     @abstractmethod
     def get_download_targets(self, d_current):
         """
@@ -119,9 +116,6 @@ class ForecastDownloader(ABC):
 
     @abstractmethod
     def build_file_url_and_name(self, d_current, target):
-        """
-        Return a tuple (url, filename) for the forecast file corresponding to the cycle and target.
-        """
         pass
 
     #
@@ -135,6 +129,14 @@ class ForecastDownloader(ABC):
         If False, call build_file_url_and_name once with target=None.
         """
         return True
+
+    @property
+    def recursive_cleanup(self) -> bool:
+        """
+        If True, recursively delete leaf directories and prune empty parent directories.
+        If False, use default build_output_dir() cleanup per timestamp.
+        """
+        return False
 
     def pre_download_hook(self, d_current):
         """
@@ -150,7 +152,8 @@ class ForecastDownloader(ABC):
         """
         pass
 
-    def _hour_delta(self, hours):
+    @staticmethod
+    def _hour_delta(hours):
         """
         Utility to return a timedelta offset of N hours.
         Used for computing relative timestamps from d_now.
@@ -169,7 +172,7 @@ class ForecastDownloader(ABC):
         if os.path.isfile(self.lockfile):
             with open(self.lockfile, 'r') as f:
                 pid = f.readline().strip()
-            print(f"ERROR: Lock file exists. PID: {pid}")
+            print(f"ERROR: Lock file {self.lockfile} exists. PID: {pid}")
             sys.exit(1)
 
         with open(self.lockfile, 'w') as f:
@@ -190,14 +193,44 @@ class ForecastDownloader(ABC):
 
     def _cleanup_old_data(self):
         """
-        Delete old forecast output directories from 'cleanBackHours' ago up to 'lagBackHours' ago.
+        Cleans up old data using either:
+        - default timestamp-based cleanup (subdirectory per forecast cycle)
+        - recursive directory cleanup with pruning
         """
         for hour in range(self.cleanback_hours, self.lagback_hours, -1):
             d_current = self.d_now - self._hour_delta(hour)
-            dir_path = self.build_output_dir(d_current)
-            if os.path.isdir(dir_path):
-                print(f"Removing old data: {dir_path}")
-                shutil.rmtree(dir_path)
+
+            if self.recursive_cleanup:
+                # Recursively remove subdir, parent hour dir, then date dir if empty
+                leaf_dir = self.build_output_dir(d_current)
+                self._remove_dir_and_empty_parents(leaf_dir, levels=2)
+            else:
+                # Default behavior: remove build_output_dir if it exists
+                dir_path = self.build_output_dir(d_current)
+                if os.path.isdir(dir_path):
+                    print(f"Removing old data: {dir_path}")
+                    shutil.rmtree(dir_path)
+
+    @staticmethod
+    def _remove_dir_and_empty_parents(path, levels=2):
+        """
+        Removes a directory and prunes up to `levels` empty parent directories.
+
+        :param path: Path to the target directory to remove.
+        :param levels: Max number of parent levels to prune if empty.
+        """
+        if os.path.isdir(path):
+            print(f"Removing directory: {path}")
+            shutil.rmtree(path)
+
+            # Prune up to `levels` empty parent directories
+            for _ in range(levels):
+                path = os.path.dirname(path)
+                if os.path.isdir(path) and not os.listdir(path):
+                    print(f"Removing empty parent directory: {path}")
+                    os.rmdir(path)
+                else:
+                    break
 
     def _download_data(self):
         """
@@ -227,6 +260,7 @@ class ForecastDownloader(ABC):
 
             self.post_download_hook(d_current)
 
+    # noinspection PyMethodMayBeStatic
     def _download_file(self, url, out_path):
         """
         Attempt to download a file from the URL with retry logic.
@@ -253,3 +287,77 @@ class ForecastDownloader(ABC):
             time.sleep(interval)
 
         print(f"❌ Failed to download after {max_attempts} attempts: {url}")
+
+
+class FixedFileDownloader(ForecastDownloader, ABC):
+    """
+    Subclass for forecast datasets that consist of one or more fixed files per cycle.
+
+    Intended for sources like MRMS and StageIV that have predefined filenames and subdirectories,
+    without forecast-hour-based iteration.
+
+    Subclasses must implement:
+    - get_file_specs(d_current): returns list of (subdir, filename) for a given timestamp
+    """
+
+    def build_file_url_and_name(self, d_current, target):
+        raise NotImplementedError("FixedFileDownloader uses get_file_specs() instead.")
+
+    @abstractmethod
+    def get_file_specs(self, d_current) -> list[tuple[str, str]]:
+        """
+        Return a list of (subdir, filename) tuples for files to be downloaded
+        """
+        pass
+
+    def _download_data(self):
+        for hour in range(self.lookback_hours, self.lagback_hours, -1):
+            d_current = self.d_now - self._hour_delta(hour)
+            for subdir, filename in self.get_file_specs(d_current):
+                full_dir = os.path.join(self.out_dir, subdir)
+                os.makedirs(full_dir, exist_ok=True)
+                url = self.base_url + filename
+                out_path = os.path.join(full_dir, filename)
+                if not os.path.isfile(out_path):
+                    self._download_file(url, out_path)
+
+
+class ScrapedFileDownloader(ForecastDownloader, ABC):
+    """
+    Subclass for forecast datasets that must scrape an HTML directory to discover files.
+
+    Intended for sources like NBM, where forecast files are published dynamically and filenames
+    may vary by cycle.
+
+    Subclasses must implement:
+    - get_scrape_url(d_current): returns the remote URL to scrape for a specific timestamp
+    - filter_url(url): returns True for valid files to download (e.g., endswith ".hi.grib2")
+    """
+
+    @abstractmethod
+    def get_scrape_url(self, d_current):
+        pass
+
+    @abstractmethod
+    def filter_url(self, url: str) -> bool:
+        pass
+
+    def build_file_url_and_name(self, d_current, target):
+        raise NotImplementedError("ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name().")
+
+    def _download_data(self):
+        for hour in range(self.lookback_hours, self.lagback_hours, -1):
+            d_current = self.d_now - self._hour_delta(hour)
+            url = self.get_scrape_url(d_current)
+            output_dir = self.build_output_dir(d_current)
+            os.makedirs(output_dir, exist_ok=True)
+
+            html = requests.get(url).text
+            soup = BeautifulSoup(html, "html.parser")
+            for a in soup.find_all("a"):
+                href = a.get("href", "")
+                full_url = os.path.join(url, href)
+                if self.filter_url(full_url):
+                    out_path = os.path.join(output_dir, os.path.basename(full_url))
+                    if not os.path.isfile(out_path):
+                        self._download_file(full_url, out_path)

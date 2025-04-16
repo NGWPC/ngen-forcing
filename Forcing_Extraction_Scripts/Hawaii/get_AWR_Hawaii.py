@@ -15,10 +15,6 @@ class ARWHawaiiDownloader(ForecastDownloader):
     def base_url(self):
         return "https://ftp.ncep.noaa.gov/data/nccf/com/hiresw/prod"
 
-    @property
-    def lock_name(self):
-        return "ARW_Hawaii"
-
     def get_download_targets(self, d_current):
         # Only forecast cycles at 00Z and 12Z
         return range(1, 49) if d_current.hour in [0, 12] else []

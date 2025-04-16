@@ -1,8 +1,8 @@
 import os
-import shutil
 
 import requests
 from bs4 import BeautifulSoup
+
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
@@ -18,10 +18,6 @@ class NBMPuertoRicoDownloader(ForecastDownloader):
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/v4.2"
-
-    @property
-    def lock_name(self):
-        return "NBM_PuertoRico"
 
     def get_download_targets(self, _):
         return [0]  # unused in this implementation
@@ -59,6 +55,9 @@ class NBMPuertoRicoDownloader(ForecastDownloader):
         except Exception as e:
             print(f"Error scraping {remote_dir_url}: {e}")
 
+    def build_file_url_and_name(self, d_current, target):
+        raise NotImplementedError("This downloader overrides _download_data directly.")
+
     def _download_data(self):
         """
         Download NBM Puerto Rico forecast files by scraping each directory
@@ -72,33 +71,13 @@ class NBMPuertoRicoDownloader(ForecastDownloader):
 
             for url in self._current_file_urls[:18]:
                 filename = os.path.basename(url)
-                out_path = os.path.join(output_dir, filename)
+                out_path = os.path.join(str(output_dir), filename)  # Explicit cast to avoid Pycharm warning
                 if not os.path.isfile(out_path):
                     self._download_file(url, out_path)
 
-    def _cleanup_old_data(self):
-        """
-        Remove old data from 'core' subdirectory and clean up empty parent folders
-        """
-        for hour in range(self.cleanback_hours, self.lookback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
-
-            core_dir = self.build_output_dir(d_current)
-            if os.path.isdir(core_dir):
-                print(f"Removing old NBM data from: {core_dir}")
-                shutil.rmtree(core_dir)
-
-            # If blend.YYYYMMDD/HH/ is empty, remove it
-            hour_dir = os.path.dirname(core_dir)
-            if os.path.isdir(hour_dir) and not os.listdir(hour_dir):
-                print(f"Removing empty hour directory: {hour_dir}")
-                shutil.rmtree(hour_dir)
-
-            # If blend.YYYYMMDD/ is now empty, remove it too
-            day_dir = os.path.dirname(hour_dir)
-            if os.path.isdir(day_dir) and not os.listdir(day_dir):
-                print(f"Removing empty day directory: {day_dir}")
-                shutil.rmtree(day_dir)
+    @property
+    def recursive_cleanup(self) -> bool:
+        return True
 
 
 if __name__ == "__main__":

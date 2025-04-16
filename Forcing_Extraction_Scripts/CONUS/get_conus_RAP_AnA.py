@@ -15,10 +15,6 @@ class RAPAnADownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
 
-    @property
-    def lock_name(self):
-        return "Conus_RAP_AnA"
-
     def get_download_targets(self, _):
         # Download only forecast hours 01 and 02
         return [1, 2]

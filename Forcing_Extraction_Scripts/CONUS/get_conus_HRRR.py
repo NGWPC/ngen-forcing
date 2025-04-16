@@ -1,6 +1,6 @@
 import os
 
-from forecast_base import ForecastDownloader
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
 class HRRRDownloader(ForecastDownloader):
@@ -14,11 +14,6 @@ class HRRRDownloader(ForecastDownloader):
     def base_url(self):
         # HRRR data base URL from NOMADS
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
-
-    @property
-    def lock_name(self):
-        # Used to create a unique lockfile
-        return "Conus_HRRR"
 
     def get_download_targets(self, d_current):
         # HRRR cycles at 00, 06, 12, 18 UTC produce 36-hour forecasts; others produce 18-hour forecasts

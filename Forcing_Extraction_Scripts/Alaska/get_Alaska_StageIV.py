@@ -1,105 +1,51 @@
-# Quick and dirty program to pull down operational 
-# conus HRRR data (surface files).
-
-# Logan Karsten
-# National Center for Atmospheric Research
-# Research Applications Laboratory
-
-import datetime
-import urllib
-from urllib import request
-import http
-from http import cookiejar
 import os
-import sys
 import shutil
-import time
-import argparse
 
-def main(args):
-    outDir = args.outDir
-    lookBackHours = args.lookBackHours
-    cleanBackHours = args.cleanBackHours
-    lagBackHours = args.lagBackHours
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
-    dNowUTC = datetime.datetime.utcnow()
-    dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
 
-    #dtProc = endDate - begDate
-    #nCycles = dtProc.days*24 + dtProc.seconds/3600.0
-    ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
+class AlaskaStageIVDownloader(ForecastDownloader):
+    """
+    Downloader for Alaska Stage IV precipitation analysis.
 
-    lockFile = os.path.join(outDir, "GET_Alaska_StageIV.lock")
+    - Server organizes files in pcpanl.YYYYMMDD/ directories.
+    - Filenames follow: st4_ak.YYYYMMDDHH.06h.grb2
+    - Files are only available every 6 hours (00z, 06z, 12z, 18z).
+    - Output directory is flattened — all files saved directly to outDir.
+    """
 
-    # First check to see if lock file exists, if it does, throw error message as
-    # another pull program is running. If lock file not found, create one with PID.
-    if os.path.isfile(lockFile):
-        fileLock = open(lockFile,'r')
-        pid = fileLock.readline()
-        print(f"ERROR: Another Alaska StageIV Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
-        sys.exit(1)
-    else:
-        fileLock = open(lockFile,'w')
-        fileLock.write(str(os.getpid()))
-        fileLock.close()
+    @property
+    def base_url(self):
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
 
-    for hour in range(cleanBackHours,lagBackHours,-1):
-        # Calculate current hour.
-        dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
+    def get_download_targets(self, d_current):
+        # Only download if the hour is divisible by 6 (i.e., every 6 hours)
+        return [0] if d_current.hour % 6 == 0 else []
 
-        # Compose path to directory containing data.
-        pcpanlCleanDir = outDir #+ "/pcpanl." + dCurrent.strftime('%Y%m%d')
+    def build_output_dir(self, d_current):
+        # All files go to the main output directory (flat structure)
+        return self.out_dir
 
-        # Check to see if directory exists. If it does, remove it. 
-        if os.path.isdir(pcpanlCleanDir):
-            print("Removing old StageIV data from: " + pcpanlCleanDir)
-            shutil.rmtree(pcpanlCleanDir)
+    def build_file_url_and_name(self, d_current, _):
+        """
+        Constructs the URL and filename for Alaska Stage IV files.
+        - Located in pcpanl.YYYYMMDD/
+        - Named as: st4_ak.YYYYMMDDHH.06h.grb2
+        """
+        date_folder = f"pcpanl.{d_current.strftime('%Y%m%d')}"
+        filename = f"st4_ak.{d_current.strftime('%Y%m%d%H')}.06h.grb2"
+        url = os.path.join(self.base_url, date_folder, filename)
+        return url, filename
 
-    # Now that cleaning is done, download files within the download window. 
-    for hour in range(lookBackHours,lagBackHours,-1):
-        # Calculate current hour.
-        dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
+    def _cleanup_old_data(self):
+        """
+        Deletes the entire output directory if it exists.
+        """
+        if os.path.isdir(self.out_dir):
+            print(f"Removing old StageIV data from: {self.out_dir}")
+            shutil.rmtree(self.out_dir)
 
-        pcpanlOutDir = outDir #+ "/pcpanl." + dCurrent.strftime('%Y%m%d')
-        if not os.path.isdir(pcpanlOutDir):
-            os.mkdir(pcpanlOutDir)
-
-        # HRRR cycles every 3 hours
-        if dCurrent.hour % 6 == 0:
-
-            httpDownloadDir = ncepHTTP + "/pcpanl." + dCurrent.strftime('%Y%m%d') 
-            fileDownload = "st4_ak." + dCurrent.strftime('%Y%m%d%H') + ".06h.grb2"
-            url = httpDownloadDir + "/" + fileDownload
-            outFile = pcpanlOutDir + "/" + fileDownload
-            if not os.path.isfile(outFile):
-                download_complete = False
-                start_time = time.time()
-                timer = 0.0
-                print("Pulling Alaska StageIV file: " + url)
-                while(download_complete == False and timer < 120.0):
-                    try:
-                        request.urlretrieve(url,outFile)
-                        download_complete = True
-                    except:
-                        timer = time.time() - start_time
-
-                if(download_complete == False):
-                    print("Unable to retrieve: " + url)
-                    print("Data may not available yet...")
-
-    # Remove the LOCK file.
-    os.remove(lockFile)
-
-def get_options():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('outDir', type=str, help="Output directory pathway where the NOMADS data will be downloaded to")
-    parser.add_argument('--lookBackHours', type=int, default=36, help="How many hours to look back for forecast data cycles")
-    parser.add_argument('--cleanBackHours', type=int, default=240, help="Period between this time and the beginning of the lookback period to cleanout old data")
-    parser.add_argument('--lagBackHours', type=int, default=0, help="Wait at least this long back before searching for files")
-
-    return parser.parse_args()
 
 if __name__ == "__main__":
-    args = get_options()
-    main(args)
+    downloader = AlaskaStageIVDownloader.from_cli_args()
+    downloader.run()
