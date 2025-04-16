@@ -2,13 +2,13 @@ import os
 from Forcing_Extraction_Scripts.forecast_base import ForecastDownloader
 
 
-class ARWPuertoRicoDownloader(ForecastDownloader):
+class ARWHawaiiDownloader(ForecastDownloader):
     """
-    Downloader for WRF-ARW 2.5 km Puerto Rico forecasts.
+    Downloader for WRF-ARW 2.5 km forecast data over Hawaii.
 
-    - Available at 06Z and 18Z cycles only.
-    - Forecast extends 48 hours.
-    - Files end in `.pr.grib2`.
+    - Forecasts available at 00Z and 12Z only.
+    - Each forecast extends 48 hours.
+    - Files are located under: hiresw.YYYYMMDD/
     """
 
     @property
@@ -17,21 +17,22 @@ class ARWPuertoRicoDownloader(ForecastDownloader):
 
     @property
     def lock_name(self):
-        return "ARW_PuertoRico"
+        return "ARW_Hawaii"
 
     def get_download_targets(self, d_current):
-        return range(1, 49) if d_current.hour in [6, 18] else []
+        # Only forecast cycles at 00Z and 12Z
+        return range(1, 49) if d_current.hour in [0, 12] else []
 
     def build_output_dir(self, d_current):
         return os.path.join(self.out_dir, f"hiresw.{d_current.strftime('%Y%m%d')}")
 
     def build_file_url_and_name(self, d_current, target):
         fhr = str(target).zfill(2)
-        filename = f"hiresw.t{d_current.strftime('%H')}z.arw_2p5km.f{fhr}.pr.grib2"
+        filename = f"hiresw.t{d_current.strftime('%H')}z.arw_2p5km.f{fhr}.hi.grib2"
         url = os.path.join(self.base_url, f"hiresw.{d_current.strftime('%Y%m%d')}", filename)
         return url, filename
 
 
 if __name__ == "__main__":
-    downloader = ARWPuertoRicoDownloader.from_cli_args()
+    downloader = ARWHawaiiDownloader.from_cli_args()
     downloader.run()

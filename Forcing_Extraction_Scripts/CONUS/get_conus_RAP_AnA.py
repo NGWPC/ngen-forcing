@@ -1,103 +1,43 @@
-# conus Rapid Refresh data (surface files) - modified to download only f01, f02 files
-
-
-import argparse
 import os
-import shutil
-import sys
-import time
-from datetime import datetime, timezone, timedelta
-from urllib import request
+
+from Forcing_Extraction_Scripts.forecast_base import ForecastDownloader
 
 
-def main(args):
-    outDir = args.outDir
-    lookBackHours = args.lookBackHours
-    cleanBackHours = args.cleanBackHours
-    lagBackHours = args.lagBackHours
+class RAPAnADownloader(ForecastDownloader):
+    """
+    Downloader for CONUS RAP AnA (Analysis) data.
 
-    dNowUTC = datetime.now(timezone.utc)
-    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
-    ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
+    - Only forecast hours f01 and f02 are downloaded.
+    - Files: rap.t{HH}z.awp130bgrbf{01|02}.grib2
+    """
 
-    os.makedirs(outDir, exist_ok=True)
-    print(f'RAP AnA output directory: {outDir}')
+    @property
+    def base_url(self):
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
 
-    lockFile = os.path.join(outDir, "GET_Conus_RAP.lock")
+    @property
+    def lock_name(self):
+        return "Conus_RAP_AnA"
 
-    # Check for lock file
-    if os.path.isfile(lockFile):
-        fileLock = open(lockFile, 'r')
-        pid = fileLock.readline()
-        print(
-            f"ERROR: Another CONUS RAP Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
-        sys.exit(1)
-    else:
-        fileLock = open(lockFile, 'w')
-        fileLock.write(str(os.getpid()))
-        fileLock.close()
+    def get_download_targets(self, _):
+        # Download only forecast hours 01 and 02
+        return [1, 2]
 
-    # Clean old directories if needed
-    for hour in range(cleanBackHours, lagBackHours, -1):
-        dCurrent = dNow - timedelta(seconds=3600 * hour)
-        rapCleanDir = os.path.join(outDir, "rap." + dCurrent.strftime('%Y%m%d'))
+    def build_output_dir(self, d_current):
+        # Example: output/rap.20250415/
+        return os.path.join(self.out_dir, f"rap.{d_current.strftime('%Y%m%d')}")
 
-        # Check to see if directory exists. If it does, remove it.
-        if os.path.isdir(rapCleanDir):
-            print("Removing old CONUS RAP data from: " + rapCleanDir)
-            shutil.rmtree(rapCleanDir)
-
-    # Download only the first file (f00) from each forecast cycle
-    for hour in range(lookBackHours, lagBackHours, -1):
-        dCurrent = dNow - timedelta(seconds=3600 * hour)
-
-        rapOutDir = os.path.join(outDir, "rap." + dCurrent.strftime('%Y%m%d'))
-        if not os.path.isdir(rapOutDir):
-            os.mkdir(rapOutDir)
-
-        # Construct URL for f00 and f01
-        for fhr in ['01', '02']:
-            httpDownloadDir = os.path.join(ncepHTTP, "rap." + dCurrent.strftime('%Y%m%d'))
-            fileDownload = "rap.t" + dCurrent.strftime('%H') + "z.awp130bgrbf" + fhr + ".grib2"
-            # str(int(fhr) + 1).zfill(2)
-            url = os.path.join(httpDownloadDir, fileDownload)
-            outFile = os.path.join(rapOutDir, fileDownload)
-
-            if os.path.isfile(outFile):
-                print(f"Skipping download ... File exists: {outFile}")
-                continue
-
-            download_complete = False
-            start_time = time.time()
-            timer = 0.0
-            print("Pulling CONUS RAP file: " + url)
-            while not download_complete and timer < 600.0:
-                try:
-                    request.urlretrieve(url, outFile)
-                    download_complete = True
-                except Exception:
-                    timer = time.time() - start_time
-
-            if not download_complete:
-                print("Unable to retrieve: " + url)
-                print("Data may not be available yet...")
-
-    # Remove the LOCK file
-    os.remove(lockFile)
-
-
-def get_options():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('outDir', type=str, help="Output directory pathway where the NOMADS data will be downloaded to")
-    parser.add_argument('--lookBackHours', type=int, default=30, help="How many hours to look back for forecast data cycles")
-    parser.add_argument('--cleanBackHours', type=int, default=240,
-                        help="Period between this time and the beginning of the lookback period to cleanout old data")
-    parser.add_argument('--lagBackHours', type=int, default=1, help="Wait at least this long back before searching for files")
-
-    return parser.parse_args()
+    def build_file_url_and_name(self, d_current, forecast_hour):
+        """
+        Build both the URL and the filename for RAP forecast hour files.
+        Ex: rap.t00z.awp130bgrbf01.grib2
+        """
+        fhr_str = str(forecast_hour).zfill(2)
+        filename = f"rap.t{d_current.strftime('%H')}z.awp130bgrbf{fhr_str}.grib2"
+        url = os.path.join(self.base_url, f"rap.{d_current.strftime('%Y%m%d')}", filename)
+        return url, filename
 
 
 if __name__ == "__main__":
-    args = get_options()
-    main(args)
+    downloader = RAPAnADownloader.from_cli_args()
+    downloader.run()

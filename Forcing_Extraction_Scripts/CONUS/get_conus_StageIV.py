@@ -1,107 +1,58 @@
-# Quick and dirty program to pull down operational 
-# conus HRRR data (surface files).
-
-# Logan Karsten
-# National Center for Atmospheric Research
-# Research Applications Laboratory
-
-import argparse
 import os
 import shutil
-import sys
-import time
-from urllib import request
-from datetime import datetime, timedelta, timezone
+
+from Forcing_Extraction_Scripts.forecast_base import ForecastDownloader
 
 
-def main(args):
-    outDir = args.outDir
-    lookBackHours = args.lookBackHours
-    cleanBackHours = args.cleanBackHours
-    lagBackHours = args.lagBackHours
+class StageIVDownloader(ForecastDownloader):
+    """
+    Downloader for CONUS Stage IV hourly precipitation analysis.
 
-    dNowUTC = datetime.now(timezone.utc)
-    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
-    ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
+    - Files are organized by date on the server in folders like: pcpanl.YYYYMMDD
+    - Filenames are based on full timestamp: st4_conus.YYYYMMDDHH.01h.grb2
+    - We download one file per hour.
+    - Local output is flattened (no pcpanl subfolder used locally).
+    """
 
-    os.makedirs(outDir, exist_ok=True)
-    print(f'StageIV output directory: {outDir}')
+    @property
+    def base_url(self):
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
 
-    lockFile = os.path.join(outDir, "GET_Conus_StageIV.lock")
+    @property
+    def lock_name(self):
+        return "Conus_StageIV"
 
-    # First check to see if lock file exists, if it does, throw error message as
-    # another pull program is running. If lock file not found, create one with PID.
-    if os.path.isfile(lockFile):
-        fileLock = open(lockFile, 'r')
-        pid = fileLock.readline()
-        print(
-            f"ERROR: Another CONUS StageIV Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
-        sys.exit(1)
-    else:
-        fileLock = open(lockFile, 'w')
-        fileLock.write(str(os.getpid()))
-        fileLock.close()
+    def get_download_targets(self, _):
+        # Only one file per hour; no forecast range
+        return [0]
 
-    for hour in range(cleanBackHours, lagBackHours, -1):
-        # Calculate current hour.
-        dCurrent = dNow - timedelta(seconds=3600 * hour)
+    def build_output_dir(self, _):
+        # All files go directly to self.out_dir (flattened structure)
+        return self.out_dir
 
-        # Compose path to directory containing data.
-        pcpanlCleanDir = outDir + "/pcpanl." + dCurrent.strftime('%Y%m%d')
+    def build_file_url_and_name(self, d_current, _):
+        """
+        Compose the full URL and filename for the hourly Stage IV file.
+        Server path: /pcpanl.YYYYMMDD/st4_conus.YYYYMMDDHH.01h.grb2
+        """
+        date_folder = "pcpanl." + d_current.strftime('%Y%m%d')
+        filename = f"st4_conus.{d_current.strftime('%Y%m%d%H')}.01h.grb2"
+        url = os.path.join(self.base_url, date_folder, filename)
+        return url, filename
 
-        # Check to see if directory exists. If it does, remove it. 
-        if os.path.isdir(pcpanlCleanDir):
-            print("Removing old CONUS StageIV data from: " + pcpanlCleanDir)
-            shutil.rmtree(pcpanlCleanDir)
-
-    # Now that cleaning is done, download files within the download window. 
-    for hour in range(lookBackHours, lagBackHours, -1):
-        # Calculate current hour.
-        dCurrent = dNow - timedelta(seconds=3600 * hour)
-
-        pcpanlOutDir = outDir  # + "/pcpanl." + dCurrent.strftime('%Y%m%d')
-        if not os.path.isdir(pcpanlOutDir):
-            os.mkdir(pcpanlOutDir)
-
-        httpDownloadDir = os.path.join(ncepHTTP, "pcpanl." + dCurrent.strftime('%Y%m%d'))
-        fileDownload = "st4_conus." + dCurrent.strftime('%Y%m%d%H') + ".01h.grb2"
-        url = os.path.join(httpDownloadDir, fileDownload)
-        outFile = os.path.join(pcpanlOutDir, fileDownload)
-        if os.path.isfile(outFile):
-            print(f"Skipping download ... File exists: {outFile}")
-            continue
-
-        download_complete = False
-        start_time = time.time()
-        timer = 0.0
-        print("Pulling CONUS StageIV file: " + url)
-        while not download_complete and timer < 120.0:
-            try:
-                request.urlretrieve(url, outFile)
-                download_complete = True
-            except Exception:
-                timer = time.time() - start_time
-
-        if not download_complete:
-            print("Unable to retrieve: " + url)
-            print("Data may not available yet...")
-
-    # Remove the LOCK file.
-    os.remove(lockFile)
-
-
-def get_options():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('outDir', type=str, help="Output directory pathway where the NOMADS data will be downloaded to")
-    parser.add_argument('--lookBackHours', type=int, default=36, help="How many hours to look back for forecast data cycles")
-    parser.add_argument('--cleanBackHours', type=int, default=240,
-                        help="Period between this time and the beginning of the lookback period to cleanout old data")
-    parser.add_argument('--lagBackHours', type=int, default=0, help="Wait at least this long back before searching for files")
-
-    return parser.parse_args()
+    def _cleanup_old_data(self):
+        """
+        Remove daily directories if present (e.g., pcpanl.20240414),
+        since the base logic expects hourly data but Stage IV uses daily folders.
+        """
+        for hour in range(self.cleanback_hours, self.lagback_hours, -1):
+            d_current = self.d_now - self._hour_delta(hour)
+            dir_path = os.path.join(self.out_dir, "pcpanl." + d_current.strftime('%Y%m%d'))
+            if os.path.isdir(dir_path):
+                print(f"Removing old CONUS StageIV data from: {dir_path}")
+                shutil.rmtree(dir_path)
 
 
 if __name__ == "__main__":
-    args = get_options()
-    main(args)
+    downloader = StageIVDownloader.from_cli_args()
+    downloader.run()
