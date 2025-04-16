@@ -29,15 +29,14 @@ def main(args):
     #nCycles = dtProc.days*24 + dtProc.seconds/3600.0
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
-    pid = os.getpid()
-    lockFile = outDir + "/GET_Alaska_HRRR.lock"
+    lockFile = os.path.join(outDir, "GET_Alaska_HRRR.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.
     if os.path.isfile(lockFile):
         fileLock = open(lockFile,'r')
         pid = fileLock.readline()
-        print("ERROR: Another Alaska HRRR Fetch Program Running. PID: " + pid + ". Please remove lockfile before attempting to execute another file extraction. Exiting script")
+        print(f"ERROR: Another Alaska HRRR Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
         sys.exit(1)
     else:
         fileLock = open(lockFile,'w')

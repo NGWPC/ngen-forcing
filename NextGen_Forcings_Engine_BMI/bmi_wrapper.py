@@ -81,7 +81,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     if not os.path.exists(mesh_outPath):
         # Execute hyfab to ESMF mesh conversion
         cmd0 = [
-            "conda", "run", "-n", mesh_env,
+            "conda", "run", "-n", mesh_env, "--no-capture-output",
             "python", mesh_scriptPath, mesh_inPath, mesh_outPath
         ]
         subprocess.run(cmd0, check=True)
@@ -89,7 +89,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         print(f"ESMF mesh file already exists at {mesh_outPath}, skipping conversion.")
 
     # Process based on NWM forecast cycle
-    if cycle_name == "short_range":
+    if cycle_name == 'short_range':
         """
         The short_range cycle processes the forcing data for short-range weather forecasts, typically looking back
         2 hours for HRRR data and 1 hour for RAP data.
@@ -118,7 +118,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for HRRR
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             "--lookBackHours=2",  # Look back 2 hours for HRRR data
             "--lagBackHours=1"  # Lag back 1 hour for RAP data
@@ -127,7 +127,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for RAP
         cmd2 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", rap_extract_scriptPath, rap_extract_outPath,
             "--lookBackHours=2",  # Look back 2 hours for RAP data
             "--lagBackHours=1"  # Lag back 1 hour for RAP data
@@ -173,7 +173,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for GFS
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", gfs_extract_scriptPath, gfs_extract_outPath,
             f"--lookBackHours={lookback}",  # Use the calculated lookback
             f"--lagBackHours={lagback}"  # Use the calculated lagback
@@ -182,7 +182,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for NBM
         cmd2 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", nbm_extract_scriptPath, nbm_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}"
@@ -227,7 +227,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for HRRR
         cmd1a = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -237,7 +237,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for RAP
         cmd1b = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", rap_extract_scriptPath, rap_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -247,7 +247,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for MRMS_MS
         cmd2a = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", mrms_ms_extract_scriptPath, mrms_ms_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}"
@@ -256,7 +256,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for MRMS_RO
         cmd2b = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", mrms_ro_extract_scriptPath, mrms_ro_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}"
@@ -306,7 +306,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for CFS
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", cfs_extract_scriptPath, cfs_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}"
@@ -349,7 +349,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for HRRR
         cmd1a = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -359,7 +359,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for RAP
         cmd1b = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", rap_extract_scriptPath, rap_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -369,7 +369,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for Stage-IV (Radar data)
         cmd2 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", stage_iv_extract_scriptPath, stage_iv_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}"
@@ -415,7 +415,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for NAM
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", nam_extract_scriptPath, nam_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -425,7 +425,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for NBM
         cmd2a = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", nbm_extract_scriptPath, nbm_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -435,7 +435,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for ARW
         cmd2b = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", arw_extract_scriptPath, arw_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -479,7 +479,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for NAM
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", nam_extract_scriptPath, nam_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -489,7 +489,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for ARW
         cmd2 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", arw_extract_scriptPath, arw_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -530,7 +530,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for HRRR
         cmd1 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -540,7 +540,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Run the forcing_extraction script for NBM
         cmd2 = [
-            "conda", "run", "-n", extraction_env,
+            "conda", "run", "-n", extraction_env, "--no-capture-output",
             "python", nbm_extract_scriptPath, nbm_extract_outPath,
             f"--lookBackHours={lookback}",
             f"--lagBackHours={lagback}",
@@ -562,7 +562,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     if output_path:
         if np is not None:
             cmd3 = [
-                "conda", "run", "-n", engine_env,
+                "conda", "run", "-n", engine_env, "--no-capture-output",
                 "mpirun", "-np", str(np),
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}", start_time, end_time
@@ -570,7 +570,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         else:
             cmd3 = [
-                "conda", "run", "-n", engine_env,
+                "conda", "run", "-n", engine_env, "--no-capture-output",
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 f"-output_path={output_path}", start_time, end_time
             ]
@@ -578,14 +578,14 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     else:
         if np is not None:
             cmd3 = [
-                "conda", "run", "-n", engine_env,
+                "conda", "run", "-n", engine_env, "--no-capture-output",
                 "mpirun", "-np", str(np),
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
         else:
             cmd3 = [
-                "conda", "run", "-n", engine_env,
+                "conda", "run", "-n", engine_env, "--no-capture-output",
                 "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
                 start_time, end_time
             ]
@@ -598,7 +598,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Build the full path to the script
         post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
 
-        cmd_0 = ["conda", "run", "-n", engine_env, "python", post_process_script, f"{output_path}", f"{csv_path}"]
+        cmd_0 = ["conda", "run", "-n", engine_env, "--no-capture-output", "python", post_process_script, f"{output_path}", f"{csv_path}"]
         subprocess.run(cmd_0, check=True)
 
 

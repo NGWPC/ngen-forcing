@@ -5,51 +5,48 @@
 # National Center for Atmospheric Research
 # Research Applications Laboratory
 
-import datetime
-import urllib
-from urllib import request
-import http
-from http import cookiejar
-import os
-import sys
-import shutil
-import time
 import argparse
+import os
+import shutil
+import sys
+import time
+from datetime import datetime, timezone, timedelta
+from urllib import request
+
 
 def main(args):
+    print('get_conus_HRRR args:', vars(args))
     outDir = args.outDir
     lookBackHours = args.lookBackHours
     cleanBackHours = args.cleanBackHours
     lagBackHours = args.lagBackHours
 
-    dNowUTC = datetime.datetime.utcnow()
-    dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
+    dNowUTC = datetime.now(timezone.utc)
+    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
     os.makedirs(outDir, exist_ok=True)
     print(f'HRRR output directory: {outDir}')
 
-    pid = os.getpid()
     lockFile = os.path.join(outDir, "GET_Conus_HRRR.lock")
 
-    # First check to see if lock file exists, if it does, throw error message as
-    # another pull program is running. If lock file not found, create one with PID.
+    # Check for lock file
     if os.path.isfile(lockFile):
-        fileLock = open(lockFile,'r')
+        fileLock = open(lockFile, 'r')
         pid = fileLock.readline()
-        warningMsg = "ERROR: Another CONUS HRRR Fetch Program Running. PID: " + pid + ". Please remove lockfile before attempting to execute another file extraction. Exiting script"
+        print(f"ERROR: Another CONUS HRRR Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
         sys.exit(1)
     else:
-        fileLock = open(lockFile,'w')
+        fileLock = open(lockFile, 'w')
         fileLock.write(str(os.getpid()))
         fileLock.close()
 
-    for hour in range(cleanBackHours,lagBackHours,-1):
+    for hour in range(cleanBackHours, lagBackHours, -1):
         # Calculate current hour.
-        dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
+        dCurrent = dNow - timedelta(seconds=3600 * hour)
 
         # Compose path to directory containing data.
-        hrrrCleanDir = outDir + "/hrrr." + dCurrent.strftime('%Y%m%d') + "/conus"
+        hrrrCleanDir = os.path.join(outDir, "hrrr." + dCurrent.strftime('%Y%m%d'), "conus")
 
         # Check to see if directory exists. If it does, remove it. 
         if os.path.isdir(hrrrCleanDir):
@@ -57,60 +54,65 @@ def main(args):
             shutil.rmtree(hrrrCleanDir)
 
     # Now that cleaning is done, download files within the download window. 
-    for hour in range(lookBackHours,lagBackHours,-1):
+    for hour in range(lookBackHours, lagBackHours, -1):
+        print('current hour:', hour)
         # Calculate current hour.
-        dCurrent = dNow - datetime.timedelta(seconds=3600*hour)
+        dCurrent = dNow - timedelta(seconds=3600 * hour)
 
-        hrrrOutDir = outDir + "/hrrr." + dCurrent.strftime('%Y%m%d') + "/conus"
+        hrrrOutDir = os.path.join(outDir, "hrrr." + dCurrent.strftime('%Y%m%d'), "conus")
         if not os.path.isdir(hrrrOutDir):
             os.makedirs(hrrrOutDir)
 
         if dCurrent.hour % 6 == 0:
-            # HRRR cycles every six hours produce forecasts out to 36 hours.
+            # HRRR cycles every six hours produce to forecasts out to 36 hours.
             nFcstHrs = 36
         else:
-            # Otherwise, 18 hour forecasts. 
+            # Otherwise, 18-hour forecasts.
             nFcstHrs = 18
 
-        for hrDownload in range(0,nFcstHrs+1):
-            httpDownloadDir = ncepHTTP + "/hrrr." + dCurrent.strftime('%Y%m%d') + "/conus"
-            fileDownload = "hrrr.t" + dCurrent.strftime('%H') + \
-                       "z.wrfsfcf" + str(hrDownload).zfill(2) + ".grib2"
-            url = httpDownloadDir + "/" + fileDownload
-            outFile = hrrrOutDir + "/" + fileDownload
+        for hrDownload in range(0, nFcstHrs + 1):
+            print('hrDownload:', hrDownload)
+            httpDownloadDir = os.path.join(ncepHTTP, "hrrr." + dCurrent.strftime('%Y%m%d'), "conus")
+            fileDownload = "hrrr.t" + dCurrent.strftime('%H') + "z.wrfsfcf" + str(hrDownload).zfill(2) + ".grib2"
+            url = os.path.join(httpDownloadDir, fileDownload)
+            outFile = os.path.join(hrrrOutDir, fileDownload)
+
             if os.path.isfile(outFile):
-                print(f"Skipping download ... File already exists {outFile}")
+                print(f"Skipping download ... File already exists: {outFile}")
                 continue
+
             download_complete = False
             start_time = time.time()
             timer = 0.0
             print("Pulling HRRR file: " + url)
-            while(download_complete == False and timer < 600.0):
+            while not download_complete and timer < 600.0:
                 try:
-                    request.urlretrieve(url,outFile)
+                    print('downloading', url)
+                    request.urlretrieve(url, outFile)
                     download_complete = True
-                except:
+                except Exception:
                     timer = time.time() - start_time
 
-            if(download_complete == False):
+            if not download_complete:
                 print("Unable to retrieve: " + url)
-                print("Data may not available yet...")
+                print("Data may not be available yet...")
 
-    # Remove the LOCK file.
+    # Remove the LOCK file
     os.remove(lockFile)
+
 
 def get_options():
     parser = argparse.ArgumentParser()
 
     parser.add_argument('outDir', type=str, help="Output directory pathway where the NOMADS data will be downloaded to")
     parser.add_argument('--lookBackHours', type=int, default=30, help="How many hours to look back for forecast data cycles")
-    parser.add_argument('--cleanBackHours', type=int, default=240, help="Period between this time and the beginning of the lookback period to cleanout old data")
+    parser.add_argument('--cleanBackHours', type=int, default=240,
+                        help="Period between this time and the beginning of the lookback period to cleanout old data")
     parser.add_argument('--lagBackHours', type=int, default=1, help="Wait at least this long back before searching for files")
 
-
     return parser.parse_args()
+
 
 if __name__ == "__main__":
     args = get_options()
     main(args)
-

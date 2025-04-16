@@ -1,6 +1,6 @@
 # Quick and dirty program to pull down operational 
 # CFSv2 forecast data for each ensemble member, for
-# each six hour forecast going out to 30 days. 
+# each six-hour forecast going out to 30 days.
 
 # Logan Karsten
 # National Center for Atmospheric Research
@@ -23,7 +23,7 @@ def run_cfsv2_download(outDir: str, lookBackHours: int = 24, cleanBackHours: int
     if os.path.isfile(lockFile):
         with open(lockFile, 'r') as fileLock:
             pid = fileLock.readline()
-        print(f"ERROR: Another CFSv2 Fetch Program Running. PID: {pid}. Please remove lockfile before executing again.")
+        print(f"ERROR: Another CFSv2 Fetch Program running - PID: {pid}. Please remove lockfile at {lockFile} before executing again.")
         sys.exit(1)
     else:
         with open(lockFile, 'w') as fileLock:

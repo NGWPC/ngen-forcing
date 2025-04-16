@@ -26,7 +26,7 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
 
     :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
     """
-    print('args:', locals())
+    print('run_bmi_model args:', vars(args))
 
     # Convert start and end time from string to datetime
     start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')

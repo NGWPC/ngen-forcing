@@ -26,15 +26,14 @@ def main(args):
     dNow = datetime.datetime(dNowUTC.year,dNowUTC.month,dNowUTC.day,dNowUTC.hour)
     ncepHTTP = "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 
-    pid = os.getpid()
-    lockFile = outDir + "/GET_GFS_Full.lock"
+    lockFile = os.path.join(outDir, "GET_GFS_Full.lock")
 
     # First check to see if lock file exists, if it does, throw error message as
     # another pull program is running. If lock file not found, create one with PID.
     if os.path.isfile(lockFile):
         fileLock = open(lockFile,'r')
         pid = fileLock.readline()
-        print("ERROR: Another GFS Fetch Program Running. PID: " + pid + ". Please remove lockfile before attempting to execute another file extraction. Exiting script")
+        print(f"ERROR: Another GFS Fetch Program running - PID: {pid}.  Please remove lockfile at {lockFile} before attempting to execute another file extraction. Exiting script")
         sys.exit(1)
     else:
         fileLock = open(lockFile,'w')

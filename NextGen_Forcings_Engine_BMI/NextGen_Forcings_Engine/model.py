@@ -1,4 +1,5 @@
 import datetime
+import os
 
 import dask
 import dask.delayed
@@ -28,48 +29,47 @@ class NWMv3_Forcing_Engine_model:
 
     def run(self, model: dict, future_time: float, ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMod, MpiConfig, OutputObj):
         """
-        Run this model into the future.
+        Executes the full forcings engine BMI pipeline for a given future timestep.
 
-        Run this model into the future, updating the state stored in the provided model dict appropriately.
+        This method updates the `model` state dictionary with atmospheric forcings computed from
+        available input datasets. It handles initialization, AWS Zarr loading, regridding, temporal
+        interpolation, bias correction, downscaling, supplemental precipitation processing, and output
+        population into the model structure.
 
-        Note that the model assumes the current values set for input variables are appropriately for the time
-        duration of this update (i.e., ``dt``) and do not need to be interpolated any here.
+        The following steps are performed:
 
-        Parameters
-        ----------
-        model: dict
-            The model state data structure.
-        dt: int
-            The number of seconds into the future to advance the model.
+        1. Determine the current forecast and output times based on the future timestamp
+           and analysis mode (AnA or forecast).
+        2. Initialize or reset output grids and step counters.
+        3. Loop over each input forcing product:
+           a. Calculate neighboring input files.
+           b. Load AWS-hosted Zarr datasets if needed.
+           c. Regrid input forcings to the model grid.
+           d. Perform temporal interpolation.
+           e. Apply bias correction and downscaling.
+           f. Layer final forcings into the output object.
+        4. Optionally process supplemental precipitation forcings:
+           a. Regrid and validate.
+           b. Disaggregate and interpolate.
+           c. Layer into the final output.
+        5. Write output to NetCDF forcing files if requested.
+        6. Update the model state dictionary with flattened arrays.
+        7. Advance the BMI time index.
 
-        Returns
-        -------
+        :param model: The model state dictionary that will be updated with new forcing data.
+        :param future_time: The number of seconds into the future to advance the model.
+        :param ConfigOptions: Configuration object containing all model options, flags, and paths.
+        :param wrfHydroGeoMeta: Geospatial metadata needed for regridding and interpolation.
+        :param inputForcingMod: Dictionary of initialized input forcing modules indexed by forcing key.
+        :param suppPcpMod: Dictionary of supplemental precipitation modules indexed by key.
+        :param MpiConfig: Object containing MPI communication settings such as rank and communicator.
+        :param OutputObj: Output object that stores the generated atmospheric forcing arrays.
 
+        :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
-        # Loop through each WRF-Hydro forecast cycle being processed. Within
-        # each cycle, perform the following tasks:
-        # 1.) Loop over each output frequency
-        # 2.) Determine the input forcing cycle dates (both before and after)
-        #     for temporal interpolation, downscaling, and bias correction reasons.
-        # 3.) If the input forcings haven't been opened and read into memory,
-        #     open them.
-        # 4.) Check to see if the ESMF objects for input forcings have been
-        #     created. If not, create them, including the regridding object.
-        # 5.) Regrid forcing grids for input cycle dates surrounding the
-        #     current output timestep if they haven't been regridded.
-        # 6.) Perform bias correction and/or downscaling.
-        # 7.) Output final grids to LDASIN NetCDF files with associated
-        #     WRF-Hydro geospatial metadata to the final output directories.
-        # Throughout this entire process, log progress being made into LOG
-        # files. Once a forecast cycle is complete, we will touch an empty
-        # 'WrfHydroForcing.COMPLETE' flag in the directory. This will be
-        # checked upon the beginning of this program to see if we
-        # need to process any files.
 
-        # First, assign latest bmi time step to config class options for AnA
-        # operations of order within forcings engine if needed
+        # Assign the future time to the configuration
         ConfigOptions.bmi_time = future_time
-
         disaggregate_fun = disaggregateMod.disaggregate_factory(ConfigOptions)
 
         # Calculate current time stamp based on operational configuration
@@ -77,15 +77,20 @@ class NWMv3_Forcing_Engine_model:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
-            if ConfigOptions.input_forcings[0] == 20 or ConfigOptions.input_forcings[0] == 22:
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(np.array([future_time - 7200.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(np.array([future_time - 7200.], dtype=float), 's')[0]
+            if ConfigOptions.input_forcings[0] in [20, 22]:
+                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
+                    np.array([future_time - 7200.0], dtype=float), 's')[0]
+                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
+                    np.array([future_time - 7200.0], dtype=float), 's')[0]
                 ConfigOptions.future_time = future_time
-            # Puerto Rico/Hawaii AnA operational configuration lookback based on 6-hourly forecast cycles
             else:
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(np.array([future_time - 3600.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(np.array([future_time - 3600.0], dtype=float), 's')[0]
+                # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
+                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), 's')[0]
+                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), 's')[0]
         else:
+            # Forecast-only mode — use BMI timestamp as-is
             ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc
             ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.to_timedelta(future_time, unit='s')
 
@@ -101,25 +106,26 @@ class NWMv3_Forcing_Engine_model:
             for forceKey in ConfigOptions.input_forcings:
                 inputForcingMod[forceKey].skip = False
 
-            # Compose a path to a log file, which will contain information
-            # about this forecast cycle.
-            # ConfigOptions.logFile = ConfigOptions.output_dir + "/LOG_" + \
-
+            # Determine log timestamp
             if ConfigOptions.ana_flag:
                 log_time = ConfigOptions.b_date_proc
             else:
                 log_time = ConfigOptions.current_fcst_cycle
 
-            ConfigOptions.logFile = ConfigOptions.scratch_dir + "/LOG_" + ConfigOptions.nwmConfig + \
-                                    ('_' if ConfigOptions.nwmConfig != "long_range" else "_mem" + str(ConfigOptions.cfsv2EnsMember) + "_") + \
-                                    ConfigOptions.d_program_init.strftime('%Y%m%d%H%M') + \
-                                    "_" + log_time.strftime('%Y%m%d%H%M')
+            # Compose a path to a log file, which will contain information about this forecast cycle
+            log_filename = (
+                f"LOG_{ConfigOptions.nwmConfig}"
+                f"{'_' if ConfigOptions.nwmConfig != 'long_range' else f'_mem{ConfigOptions.cfsv2EnsMember}_'}"
+                f"{ConfigOptions.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
+            )
+            ConfigOptions.logFile = os.path.join(ConfigOptions.scratch_dir, log_filename)
 
-            # Initialize the log file.
+            # Initialize logging
             try:
                 err_handler.init_log(ConfigOptions, MpiConfig)
             except Exception:
                 err_handler.err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
+
             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
         # Log information about this forecast cycle
@@ -153,31 +159,30 @@ class NWMv3_Forcing_Engine_model:
             elif ConfigOptions.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
                 OutputObj.output_local[:, :] = ConfigOptions.globalNdv
+
+            # Increment or initialize output step count
             if ConfigOptions.current_output_step is None:
                 ConfigOptions.current_output_step = 1
             else:
                 ConfigOptions.current_output_step += 1
 
+            # Optional sub-output timestamp
             if ConfigOptions.sub_output_hour is not None:
                 # TODO This is not used
                 subOutDate = ConfigOptions.first_fcst_cycle + datetime.timedelta(hours=ConfigOptions.sub_output_hour)
 
+            # Compute the output timestamp for this step
             if ConfigOptions.ana_flag:
                 OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
-                ConfigOptions.current_output_date = OutputObj.outDate
             else:
-                # Get the current datetime based on BMI model input
                 OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=future_time)
-                # Update current output date
-                ConfigOptions.current_output_date = OutputObj.outDate
 
-            # if AnA, adjust file date for analysis vs forecast
-            if ConfigOptions.ana_flag:
-                file_date = OutputObj.outDate - datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
-            else:
-                file_date = OutputObj.outDate
+            ConfigOptions.current_output_date = OutputObj.outDate
 
-            # Calculate the previous output timestep. This is used in potential downscaling routines.
+            # Adjust file_date for AnA if needed
+            file_date = OutputObj.outDate - datetime.timedelta(seconds=ConfigOptions.output_freq * 60) if ConfigOptions.ana_flag else OutputObj.outDate
+
+            # Compute previous output date (used for downscaling logic)
             if ConfigOptions.current_output_step == ana_factor:
                 ConfigOptions.prev_output_date = ConfigOptions.current_output_date
             else:
@@ -188,8 +193,7 @@ class NWMv3_Forcing_Engine_model:
             if MpiConfig.rank == 0 and show_message:
                 ConfigOptions.statusMsg = '========================================='
                 err_handler.log_msg(ConfigOptions, MpiConfig)
-                ConfigOptions.statusMsg = "Processing for output timestep: " + \
-                                          file_date.strftime('%Y-%m-%d %H:%M')
+                ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
                 err_handler.log_msg(ConfigOptions, MpiConfig)
 
             ConfigOptions.currentForceNum = 0
@@ -201,6 +205,7 @@ class NWMv3_Forcing_Engine_model:
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
                 if forceKey == 23 and [12, 21] in ConfigOptions.input_forcings:
+                    # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                     AORC_mask = input_forcings.regridded_mask_AORC
                     AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
 
@@ -227,6 +232,7 @@ class NWMv3_Forcing_Engine_model:
                             with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
                                 with dask.config.set(scheduler=executor):
                                     if MpiConfig.rank == 0:
+                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
                                         ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
                             MpiConfig.comm.barrier()
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
@@ -247,10 +253,11 @@ class NWMv3_Forcing_Engine_model:
                             with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
                                 with dask.config.set(scheduler=executor):
                                     if MpiConfig.rank == 0:
+                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
                                         ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
                             MpiConfig.comm.barrier()
 
-                # break loop if done early
+                # If skipping this forcing, continue early
                 if input_forcings.skip is True:
                     print(f"Breaking loop for forceKey {forceKey}")
                     break
@@ -265,21 +272,16 @@ class NWMv3_Forcing_Engine_model:
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
                 if input_forcings.rstFlag == 1:
-                    if input_forcings.regridded_forcings1 is not None and \
-                            input_forcings.regridded_forcings2 is not None:
+                    if input_forcings.regridded_forcings1 is not None and input_forcings.regridded_forcings2 is not None:
                         # Set the forcings back to reflect we just regridded the previous set of inputs, not the next.
                         if ConfigOptions.grid_type == 'gridded':
-                            input_forcings.regridded_forcings1[:, :, :] = \
-                                input_forcings.regridded_forcings2[:, :, :]
+                            input_forcings.regridded_forcings1[:, :, :] = input_forcings.regridded_forcings2[:, :, :]
                         elif ConfigOptions.grid_type == 'unstructured':
-                            input_forcings.regridded_forcings1[:, :] = \
-                                input_forcings.regridded_forcings2[:, :]
-                            input_forcings.regridded_forcings1_elem[:, :] = \
-                                input_forcings.regridded_forcings2_elem[:, :]
+                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
+                            input_forcings.regridded_forcings1_elem[:, :] = input_forcings.regridded_forcings2_elem[:, :]
                         elif ConfigOptions.grid_type == 'hydrofabric':
-                            input_forcings.regridded_forcings1[:, :] = \
-                                input_forcings.regridded_forcings2[:, :]
-                    # Re-calcaulate the neighbor files.
+                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
+                    # Re-calculate the neighbor files.
                     input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
                     err_handler.check_program_status(ConfigOptions, MpiConfig)
 
@@ -294,23 +296,21 @@ class NWMv3_Forcing_Engine_model:
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Run bias correction.
-                bias_correction.run_bias_correction(input_forcings, ConfigOptions,
-                                                    wrfHydroGeoMeta, MpiConfig)
+                bias_correction.run_bias_correction(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Run downscaling on grids for this output timestep.
-                downscale.run_downscaling(input_forcings, ConfigOptions,
-                                          wrfHydroGeoMeta, MpiConfig)
+                downscale.run_downscaling(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Layer in forcings from this product.
                 layeringMod.layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig)
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-                ConfigOptions.currentForceNum = ConfigOptions.currentForceNum + 1
+                ConfigOptions.currentForceNum += 1
 
                 if forceKey == 10:
-                    ConfigOptions.currentCustomForceNum = ConfigOptions.currentCustomForceNum + 1
+                    ConfigOptions.currentCustomForceNum += 1
 
                 print(f'End of loop for forceKey {forceKey}')
 
@@ -332,6 +332,7 @@ class NWMv3_Forcing_Engine_model:
                             err_handler.check_supp_pcp_bounds(ConfigOptions, suppPcpMod[suppPcpKey], MpiConfig, wrfHydroGeoMeta)
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
+                            # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                             disaggregate_fun(input_forcings, suppPcpMod[suppPcpKey], ConfigOptions, MpiConfig)
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
