@@ -181,6 +181,6 @@ RUN set -eux; \
       > $GIT_INFO_PATH
 
 
-WORKDIR /ngen-app/data
+WORKDIR /
 
 ENTRYPOINT [ "/bin/bash" ]

@@ -3,7 +3,7 @@ import os
 import shutil
 import requests
 from bs4 import BeautifulSoup
-from Forcing_Extraction_Scripts.forecast_base import ForecastDownloader
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
 class NBMDownloader(ForecastDownloader):

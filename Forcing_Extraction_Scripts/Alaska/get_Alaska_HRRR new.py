@@ -1,6 +1,6 @@
 import os
 
-from Forcing_Extraction_Scripts.forecast_base import ForecastDownloader
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
 class AlaskaHRRRDownloader(ForecastDownloader):
