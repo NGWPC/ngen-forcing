@@ -57,6 +57,7 @@ class ForecastDownloader(ABC):
     def from_cli_args(cls):
         """
         Create an instance of the subclass using command-line arguments.
+        Also prints the parsed arguments for logging/debugging.
         """
         parser = argparse.ArgumentParser()
         parser.add_argument('outDir', type=str, help="Output directory path")
@@ -64,6 +65,8 @@ class ForecastDownloader(ABC):
         parser.add_argument('--cleanBackHours', type=int, default=240)
         parser.add_argument('--lagBackHours', type=int, default=1)
         args = parser.parse_args()
+
+        print(f"{cls.__name__} args:", vars(args))
 
         return cls(
             out_dir=args.outDir,
