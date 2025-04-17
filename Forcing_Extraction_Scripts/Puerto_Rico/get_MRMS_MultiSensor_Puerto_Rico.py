@@ -13,7 +13,10 @@ class MRMSMultiSensorPuertoRicoDownloader(FixedFileDownloader, ABC):
 
     @property
     def base_url(self):
-        return "https://mrms.ncep.noaa.gov/data/2D/CARIB/MultiSensor_QPE_01H_"
+        return "https://mrms.ncep.noaa.gov/data/2D/CARIB/"
+
+    def build_output_dir(self, d_current):
+        return self.out_dir
 
     def get_file_specs(self, d_current):
         specs = []
@@ -22,3 +25,8 @@ class MRMSMultiSensorPuertoRicoDownloader(FixedFileDownloader, ABC):
             filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
             specs.append((subdir, filename))
         return specs
+
+
+if __name__ == "__main__":
+    downloader = MRMSMultiSensorPuertoRicoDownloader.from_cli_args()
+    downloader.run()

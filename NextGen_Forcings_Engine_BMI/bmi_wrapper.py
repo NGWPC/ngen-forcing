@@ -559,36 +559,26 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     )
 
     # Run the forcing engine BMI
+    cmd3 = [
+        "python", bmi_scriptPath,
+        f"-config_path={configPath}",
+        f"-b_date={b_date}",
+        f"-geogrid={mesh_outPath}"
+    ]
+
+    # Conditionally add output path
     if output_path:
-        if np is not None:
-            cmd3 = [
-                "conda", "run", "-n", engine_env, "--no-capture-output",
-                "mpirun", "-np", str(np),
-                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                f"-output_path={output_path}", start_time, end_time
-            ]
+        cmd3.append(f"-output_path={output_path}")
 
-        else:
-            cmd3 = [
-                "conda", "run", "-n", engine_env, "--no-capture-output",
-                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                f"-output_path={output_path}", start_time, end_time
-            ]
+    # Add start and end time at the end
+    cmd3 += [start_time, end_time]
 
-    else:
-        if np is not None:
-            cmd3 = [
-                "conda", "run", "-n", engine_env, "--no-capture-output",
-                "mpirun", "-np", str(np),
-                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                start_time, end_time
-            ]
-        else:
-            cmd3 = [
-                "conda", "run", "-n", engine_env, "--no-capture-output",
-                "python", bmi_scriptPath, f"-config_path={configPath}", f"-b_date={b_date}", f"-geogrid={mesh_outPath}",
-                start_time, end_time
-            ]
+    # Prepend mpirun if np is specified
+    if np is not None:
+        cmd3 = ["mpirun", "-np", str(np)] + cmd3
+
+    # Prepend conda run
+    cmd3 = ["conda", "run", "-n", engine_env, "--no-capture-output"] + cmd3
 
     subprocess.run(cmd3, check=True)
 
@@ -598,7 +588,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Build the full path to the script
         post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
 
-        cmd_0 = ["conda", "run", "-n", engine_env, "--no-capture-output", "python", post_process_script, f"{output_path}", f"{csv_path}"]
+        cmd_0 = ["conda", "run", "-n", engine_env, "--no-capture-output",
+                 "python", post_process_script, f"{output_path}", f"{csv_path}"]
         subprocess.run(cmd_0, check=True)
 
 

@@ -11,6 +11,10 @@ class NAMNestAlaskaDownloader(ForecastDownloader):
     - Output files: nam.t{HH}z.alaskanest.hiresf{fhr}.tm00.grib2
     """
 
+    default_lookback = 36
+    default_cleanback = 240
+    default_lagback = 1
+
     @property
     def base_url(self):
         return "https://ftp.ncep.noaa.gov/data/nccf/com/nam/prod"

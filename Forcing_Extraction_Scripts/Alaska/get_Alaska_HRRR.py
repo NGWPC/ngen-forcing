@@ -14,9 +14,16 @@ class AlaskaHRRRDownloader(ForecastDownloader):
         - All others (every 3 hours): 18 hours
     """
 
+    default_lookback = 36
+    default_cleanback = 240
+    default_lagback = 1
+
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
+
+    def should_process_hour(self, d_current):
+        return d_current.hour % 3 == 0
 
     def get_download_targets(self, d_current):
         # Forecast hours vary depending on cycle

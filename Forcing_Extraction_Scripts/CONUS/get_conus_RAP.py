@@ -10,6 +10,10 @@ class RAPDownloader(ForecastDownloader):
     Forecast length is 39 hours for 6-hour cycles, and 21 hours otherwise.
     """
 
+    default_lookback = 30
+    default_cleanback = 240
+    default_lagback = 1
+
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"

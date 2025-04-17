@@ -14,13 +14,19 @@ class AlaskaStageIVDownloader(ForecastDownloader):
     - Output directory is flattened — all files saved directly to outDir.
     """
 
+    default_lookback = 36
+    default_cleanback = 240
+    default_lagback = 0
+
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
 
+    def should_process_hour(self, d_current):
+        return d_current.hour % 6 == 0
+
     def get_download_targets(self, d_current):
-        # Only download if the hour is divisible by 6 (i.e., every 6 hours)
-        return [0] if d_current.hour % 6 == 0 else []
+        return [0]  # Single file per valid hour
 
     def build_output_dir(self, d_current):
         # All files go to the main output directory (flat structure)

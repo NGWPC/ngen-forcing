@@ -16,8 +16,11 @@ class GFSDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 
+    def should_process_hour(self, d_current):
+        return d_current.hour in [0, 6, 12, 18]
+
     def get_download_targets(self, d_current):
-        return range(1, 19) if d_current.hour in [0, 6, 12, 18] else []
+        return range(1, 19)
 
     def build_output_dir(self, d_current):
         return os.path.join(

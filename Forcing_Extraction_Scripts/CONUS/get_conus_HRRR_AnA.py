@@ -11,6 +11,10 @@ class HRRRAnAConusDownloader(ForecastDownloader):
     - No forecast hours – just one analysis file per hour.
     """
 
+    default_lookback = 30
+    default_cleanback = 240
+    default_lagback = 1
+
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"

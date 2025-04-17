@@ -1,40 +1,34 @@
-import os
-from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
+from abc import ABC
+
+from Forcing_Extraction_Scripts.forecast_download_base import FixedFileDownloader
 
 
-class MRMSMultiSensorHawaiiDownloader(ForecastDownloader):
+class MRMSMultiSensorHawaiiDownloader(FixedFileDownloader, ABC):
     """
     Downloader for MRMS MultiSensor QPE (Pass1 and Pass2) for Hawaii.
 
-    - Two separate files per hour: Pass1 and Pass2.
+    - Downloads two files per hour: one from Pass1 and one from Pass2.
     - Files are stored under: MultiSensor_QPE_01H_Pass1/YYYYMMDD/...
     """
 
     @property
     def base_url(self):
-        return "https://mrms.ncep.noaa.gov/data/2D/HAWAII/MultiSensor_QPE_01H_"
+        return "https://mrms.ncep.noaa.gov/2D/HAWAII"
 
-    def get_download_targets(self, _):
-        return ["Pass1", "Pass2"]
-
-    def build_output_dir(self, _):
+    def build_output_dir(self, d_current):
+        # Output is stored under separate Pass1/Pass2 folders by date
         return self.out_dir
 
-    def build_file_url_and_name(self, d_current, target):
-        raise NotImplementedError("This downloader overrides _download_data directly.")
-
-    def _download_data(self):
-        for hour in range(self.lookback_hours, self.lagback_hours, -1):
-            d_cycle = self.d_now - self._hour_delta(hour)
-
-            for pass_num in self.get_download_targets(d_cycle):
-                subdir = os.path.join(self.out_dir, f"MultiSensor_QPE_01H_{pass_num}", d_cycle.strftime('%Y%m%d'))
-                os.makedirs(subdir, exist_ok=True)
-                filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_cycle.strftime('%Y%m%d')}-{d_cycle.strftime('%H')}0000.grib2.gz"
-                url = os.path.join(self.base_url + pass_num, filename)
-                out_path = os.path.join(str(subdir), filename)  # Explicit cast to avoid Pycharm warning
-                if not os.path.isfile(out_path):
-                    self._download_file(url, out_path)
+    def get_file_specs(self, d_current):
+        specs = []
+        for pass_num in ["Pass1", "Pass2"]:
+            subdir = f"MultiSensor_QPE_01H_{pass_num}/{d_current.strftime('%Y%m%d')}"
+            filename = (
+                f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_"
+                f"{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
+            )
+            specs.append((subdir, filename))
+        return specs
 
 
 if __name__ == "__main__":

@@ -1,29 +1,26 @@
 import os
-from abc import ABC
 
-from Forcing_Extraction_Scripts.forecast_download_base import ScrapedFileDownloader
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
-class NBMHawaiiDownloader(ScrapedFileDownloader, ABC):
+class NBMHawaiiDownloader(ForecastDownloader):
     """
     Downloader for NBM forecast data over Hawaii.
 
     - Files live in: blend.YYYYMMDD/HH/core/
-    - File discovery is dynamic via HTML scraping.
-    - Files have the .hi.grib2 extension.
+    - File names follow the format: blend.tCCz.core.fXXX.hi.grib2
+    - This implementation constructs URLs directly (no scraping).
     """
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/v4.1"
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/blend/prod"
 
-    def get_scrape_url(self, d_current):
-        return os.path.join(
-            self.base_url,
-            f"blend.{d_current.strftime('%Y%m%d')}",
-            d_current.strftime('%H'),
-            "core"
-        )
+    def should_process_hour(self, d_current):
+        return d_current.hour in [0, 6, 12, 18]
+
+    def get_download_targets(self, d_current):
+        return range(1, 265) if d_current.hour in [0, 6, 12, 18] else []
 
     def build_output_dir(self, d_current):
         return os.path.join(
@@ -33,9 +30,23 @@ class NBMHawaiiDownloader(ScrapedFileDownloader, ABC):
             "core"
         )
 
-    def filter_url(self, url: str) -> bool:
-        return url.endswith(".hi.grib2")
+    def build_file_url_and_name(self, d_current, target):
+        fhr_str = f"f{str(target).zfill(3)}"
+        filename = f"blend.t{d_current.strftime('%H')}z.core.{fhr_str}.hi.grib2"
+        url = os.path.join(
+            self.base_url,
+            f"blend.{d_current.strftime('%Y%m%d')}",
+            d_current.strftime('%H'),
+            "core",
+            filename
+        )
+        return url, filename
 
     @property
     def recursive_cleanup(self) -> bool:
         return True
+
+
+if __name__ == "__main__":
+    downloader = NBMHawaiiDownloader.from_cli_args()
+    downloader.run()

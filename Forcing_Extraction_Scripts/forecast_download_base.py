@@ -18,7 +18,7 @@ class ForecastDownloader(ABC):
 
     Supports:
     - Lock file safety
-    - Download retry with exponential backoff
+    - Download retry
     - Cleanup of old data
     - CLI support via from_cli_args()
     - Optional forecast-per-cycle or single-file-per-hour strategies
@@ -29,6 +29,10 @@ class ForecastDownloader(ABC):
     - Forecast cycle filtering
     """
 
+    default_lookback = 24
+    default_cleanback = 240
+    default_lagback = 6
+
     def __init__(self, out_dir, lookback_hours, cleanback_hours, lagback_hours):
         """
         Initialize downloader with common configuration.
@@ -38,6 +42,12 @@ class ForecastDownloader(ABC):
         :param cleanback_hours: How far back to clean old files
         :param lagback_hours: How many hours to lag before starting to fetch
         """
+        if lookback_hours <= lagback_hours:
+            raise ValueError(
+                f"Invalid configuration: lookback_hours ({lookback_hours}) must be greater than "
+                f"lagback_hours ({lagback_hours}) to allow for a valid processing range."
+            )
+
         self.out_dir = out_dir
         self.lookback_hours = lookback_hours
         self.cleanback_hours = cleanback_hours
@@ -52,6 +62,23 @@ class ForecastDownloader(ABC):
         # Lockfile used to prevent concurrent runs
         self.lockfile = os.path.join(self.out_dir, f"{self.__class__.__name__}.lck")
 
+    def effective_lagback(self):
+        """
+        Determines the effective lag back window to avoid downloading data
+        that may not yet be published on the upstream server.
+
+        - By default, this returns self.lagback_hours, which is set from the
+          command-line argument --lagBackHours (default: 6 hours).
+        - However, if a subclass sets self._override_lagback, then that value
+          will be used instead — overriding any user-provided CLI input.
+
+        This allows subclasses to enforce a fixed lag window when necessary.
+
+        Currently, this override is only used in `get_conus_HRRR_subhourly`,
+        which sets `self._override_lagback = 3` to preserve its original behavior.
+        """
+        return getattr(self, "_override_lagback", self.lagback_hours)
+
     #
     # --- Public Interface ---
     #
@@ -64,9 +91,9 @@ class ForecastDownloader(ABC):
         """
         parser = argparse.ArgumentParser()
         parser.add_argument('outDir', type=str, help="Output directory path")
-        parser.add_argument('--lookBackHours', type=int, default=30)
-        parser.add_argument('--cleanBackHours', type=int, default=240)
-        parser.add_argument('--lagBackHours', type=int, default=1)
+        parser.add_argument('--lookBackHours', type=int, default=cls.default_lookback)
+        parser.add_argument('--cleanBackHours', type=int, default=cls.default_cleanback)
+        parser.add_argument('--lagBackHours', type=int, default=cls.default_lagback)
         args = parser.parse_args()
 
         print(f"{cls.__name__} args:", vars(args))
@@ -102,10 +129,29 @@ class ForecastDownloader(ABC):
     @abstractmethod
     def get_download_targets(self, d_current):
         """
-        Return a list of forecast targets (e.g., forecast hours, 'Pass1', etc.)
-        to be used for a given forecast cycle time.
+        Return a list of download targets for a given forecast cycle time.
+
+        This defines what files to download for each cycle timestamp (d_current).
+        - For forecast datasets, this might be a list of forecast hours: [0, 1, ..., 18]
+        - For radar or QPE datasets, this might be ["Pass1", "Pass2"]
+        - If no targets should be downloaded for a given hour, return an empty list []
+
+        This method is called only if should_process_hour(d_current) returns True.
         """
         pass
+
+    def should_process_hour(self, d_current: datetime) -> bool:
+        """
+        Determine whether a given forecast cycle hour should be processed.
+
+        This acts as a fast filter for both downloading and cleanup.
+        - Return True if the timestamp is valid for processing (e.g., it's a 6-hour cycle).
+        - Return False to skip processing and cleanup for this hour entirely.
+
+        This is helpful for skipping hours like 01Z, 02Z, etc., in models that only run at 00Z, 06Z, 12Z, 18Z.
+        This method is consulted before calling get_download_targets() or build_output_dir().
+        """
+        return True
 
     @abstractmethod
     def build_output_dir(self, d_current):
@@ -121,14 +167,6 @@ class ForecastDownloader(ABC):
     #
     # --- Optional subclass overrides ---
     #
-
-    @property
-    def per_target_download(self):
-        """
-        If True, iterate over the list returned by get_download_targets().
-        If False, call build_file_url_and_name once with target=None.
-        """
-        return True
 
     @property
     def recursive_cleanup(self) -> bool:
@@ -151,14 +189,6 @@ class ForecastDownloader(ABC):
         Use this for logging or post-processing.
         """
         pass
-
-    @staticmethod
-    def _hour_delta(hours):
-        """
-        Utility to return a timedelta offset of N hours.
-        Used for computing relative timestamps from d_now.
-        """
-        return timedelta(hours=hours)
 
     #
     # --- Internal workflow methods ---
@@ -198,7 +228,9 @@ class ForecastDownloader(ABC):
         - recursive directory cleanup with pruning
         """
         for hour in range(self.cleanback_hours, self.lagback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
+            d_current = self.d_now - timedelta(hour)
+            if not self.should_process_hour(d_current):
+                continue
 
             if self.recursive_cleanup:
                 # Recursively remove subdir, parent hour dir, then date dir if empty
@@ -235,19 +267,23 @@ class ForecastDownloader(ABC):
     def _download_data(self):
         """
         Download forecast files by iterating over the desired time range and download targets.
-        Can optionally download just one file per cycle if per_target_download is False.
+        Each timestamp may have one or more targets to process.
         """
-        for hour in range(self.lookback_hours, self.lagback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
+        for hour in range(self.lookback_hours, self.effective_lagback(), -1):
+            d_current = self.d_now - timedelta(hours=hour)
+
+            if self.should_process_hour(d_current):
+                print(f"Processing hour offset: {hour}, timestamp: {d_current}")
+            else:
+                print(f"Skipping hour offset: {hour}, timestamp: {d_current}")
+                continue
+
             output_dir = self.build_output_dir(d_current)
             os.makedirs(output_dir, exist_ok=True)
 
             self.pre_download_hook(d_current)
 
             targets = self.get_download_targets(d_current)
-            if not self.per_target_download:
-                targets = [None]
-
             for target in targets:
                 url, filename = self.build_file_url_and_name(d_current, target)
                 out_path = os.path.join(output_dir, filename)
@@ -303,6 +339,10 @@ class FixedFileDownloader(ForecastDownloader, ABC):
     def build_file_url_and_name(self, d_current, target):
         raise NotImplementedError("FixedFileDownloader uses get_file_specs() instead.")
 
+    def get_download_targets(self, d_current):
+        # Not used in FixedFileDownloader
+        return []
+
     @abstractmethod
     def get_file_specs(self, d_current) -> list[tuple[str, str]]:
         """
@@ -311,18 +351,30 @@ class FixedFileDownloader(ForecastDownloader, ABC):
         pass
 
     def _download_data(self):
-        for hour in range(self.lookback_hours, self.lagback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
+        for hour in range(self.lookback_hours, self.effective_lagback(), -1):
+            d_current = self.d_now - timedelta(hours=hour)
+
+            if self.should_process_hour(d_current):
+                print(f"Processing hour offset: {hour}, timestamp: {d_current}")
+            else:
+                print(f"Skipping hour offset: {hour}, timestamp: {d_current}")
+                continue
+
             for subdir, filename in self.get_file_specs(d_current):
                 full_dir = os.path.join(self.out_dir, subdir)
                 os.makedirs(full_dir, exist_ok=True)
-                url = self.base_url + filename
+                url = os.path.join(self.base_url, subdir, filename)
                 out_path = os.path.join(full_dir, filename)
-                if not os.path.isfile(out_path):
-                    self._download_file(url, out_path)
+
+                if os.path.isfile(out_path):
+                    print(f"Skipping existing: {out_path}")
+                    continue
+
+                self._download_file(url, out_path)
 
 
 class ScrapedFileDownloader(ForecastDownloader, ABC):
+    # No longer used, but keeping just in case
     """
     Subclass for forecast datasets that must scrape an HTML directory to discover files.
 
@@ -342,13 +394,24 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
     def filter_url(self, url: str) -> bool:
         pass
 
+    def get_download_targets(self, _):
+        return [0]  # Satisfy the abstract method; not used for scraping
+
     def build_file_url_and_name(self, d_current, target):
         raise NotImplementedError("ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name().")
 
     def _download_data(self):
-        for hour in range(self.lookback_hours, self.lagback_hours, -1):
-            d_current = self.d_now - self._hour_delta(hour)
+        for hour in range(self.lookback_hours, self.effective_lagback(), -1):
+            d_current = self.d_now - timedelta(hours=hour)
+
+            if self.should_process_hour(d_current):
+                print(f"Processing hour offset: {hour}, timestamp: {d_current}")
+            else:
+                print(f"Skipping hour offset: {hour}, timestamp: {d_current}")
+                continue
+
             url = self.get_scrape_url(d_current)
+            print(f"Scraping: {url}")
             output_dir = self.build_output_dir(d_current)
             os.makedirs(output_dir, exist_ok=True)
 
@@ -359,5 +422,9 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
                 full_url = os.path.join(url, href)
                 if self.filter_url(full_url):
                     out_path = os.path.join(output_dir, os.path.basename(full_url))
-                    if not os.path.isfile(out_path):
-                        self._download_file(full_url, out_path)
+
+                    if os.path.isfile(out_path):
+                        print(f"Skipping existing: {out_path}")
+                        continue
+
+                    self._download_file(full_url, out_path)

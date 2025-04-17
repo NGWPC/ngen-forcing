@@ -1,4 +1,5 @@
 import os
+from datetime import timedelta
 
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
@@ -13,12 +14,19 @@ class CFSv2Downloader(ForecastDownloader):
     - Filenames follow format: flxf<valid_time>.01.<init_time>.grb2
     """
 
+    default_lookback = 24
+    default_cleanback = 720
+    default_lagback = 6
+
     @property
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
 
     def get_download_targets(self, d_current):
-        return range(0, 60, 6) if d_current.hour in [0, 6, 12, 18] else []
+        return range(0, 61, 6) if d_current.hour in [0, 6, 12, 18] else []
+
+    def should_process_hour(self, d_current):
+        return d_current.hour in [0, 6, 12, 18]
 
     def build_output_dir(self, d_current):
         return os.path.join(
@@ -30,7 +38,7 @@ class CFSv2Downloader(ForecastDownloader):
 
     def build_file_url_and_name(self, d_current, fhr):
         # Target file has valid_time (forecast) and init_time (cycle) in name
-        valid_time = d_current + self._hour_delta(fhr)
+        valid_time = d_current + timedelta(hours=fhr)
         init_time = d_current.strftime('%Y%m%d%H')
         valid_time_str = valid_time.strftime('%Y%m%d%H')
         filename = f"flxf{valid_time_str}.01.{init_time}.grb2"

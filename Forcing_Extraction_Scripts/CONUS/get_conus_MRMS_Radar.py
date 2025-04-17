@@ -16,10 +16,18 @@ class MRMSRadarConusDownloader(FixedFileDownloader, ABC):
 
     @property
     def base_url(self):
-        # All files live in this flat directory on the server
-        return "https://mrms.ncep.noaa.gov/data/2D/RadarOnly_QPE_01H"
+        # Base directory; files are organized by subdir per day (e.g., RadarOnly_QPE/YYYYMMDD)
+        return "https://mrms.ncep.noaa.gov/data/2D/"
+
+    def build_output_dir(self, d_current):
+        return self.out_dir
 
     def get_file_specs(self, d_current):
         subdir = f"RadarOnly_QPE/{d_current.strftime('%Y%m%d')}"
         filename = f"MRMS_RadarOnly_QPE_01H_00.00_{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
         return [(subdir, filename)]
+
+
+if __name__ == "__main__":
+    downloader = MRMSRadarConusDownloader.from_cli_args()
+    downloader.run()

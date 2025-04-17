@@ -10,6 +10,10 @@ class HRRRDownloader(ForecastDownloader):
     Forecast length depends on the cycle hour (18 or 36 hours).
     """
 
+    default_lookback = 30
+    default_cleanback = 240
+    default_lagback = 1
+
     @property
     def base_url(self):
         # HRRR data base URL from NOMADS
