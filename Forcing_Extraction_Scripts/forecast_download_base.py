@@ -148,7 +148,9 @@ class ForecastDownloader(ABC):
         - Return True if the timestamp is valid for processing (e.g., it's a 6-hour cycle).
         - Return False to skip processing and cleanup for this hour entirely.
 
-        This is helpful for skipping hours like 01Z, 02Z, etc., in models that only run at 00Z, 06Z, 12Z, 18Z.
+        This is helpful for skipping cycles that are available, but we are not interested in them.
+        For example, we might only be interested in 00Z, 06Z, 12Z, 18Z, even though cycles are available hourly
+
         This method is consulted before calling get_download_targets() or build_output_dir().
         """
         return True
