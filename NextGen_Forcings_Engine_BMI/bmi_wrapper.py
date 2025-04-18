@@ -82,6 +82,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Execute hyfab to ESMF mesh conversion
         cmd0 = [
             "conda", "run", "-n", mesh_env, "--no-capture-output",
+            "env", f"PYTHONPATH=/ngen-app/ngen-forcing",
             "python", mesh_scriptPath, mesh_inPath, mesh_outPath
         ]
         subprocess.run(cmd0, check=True)
@@ -119,6 +120,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Run the forcing_extraction script for HRRR
         cmd1 = [
             "conda", "run", "-n", extraction_env, "--no-capture-output",
+            "env", f"PYTHONPATH=/ngen-app/ngen-forcing",
             "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
             "--lookBackHours=2",  # Look back 2 hours for HRRR data
             "--lagBackHours=1"  # Lag back 1 hour for RAP data
@@ -128,6 +130,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Run the forcing_extraction script for RAP
         cmd2 = [
             "conda", "run", "-n", extraction_env, "--no-capture-output",
+            "env", f"PYTHONPATH=/ngen-app/ngen-forcing",
             "python", rap_extract_scriptPath, rap_extract_outPath,
             "--lookBackHours=2",  # Look back 2 hours for RAP data
             "--lagBackHours=1"  # Lag back 1 hour for RAP data
@@ -559,7 +562,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     )
 
     # Run the forcing engine BMI
-    cmd3 = [
+    inner_cmd = [
         "python", bmi_scriptPath,
         f"-config_path={configPath}",
         f"-b_date={b_date}",
@@ -568,17 +571,21 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
     # Conditionally add output path
     if output_path:
-        cmd3.append(f"-output_path={output_path}")
+        inner_cmd.append(f"-output_path={output_path}")
 
     # Add start and end time at the end
-    cmd3 += [start_time, end_time]
+    inner_cmd += [start_time, end_time]
 
     # Prepend mpirun if np is specified
     if np is not None:
-        cmd3 = ["mpirun", "-np", str(np)] + cmd3
+        inner_cmd = ["mpirun", "-np", str(np)] + inner_cmd
 
-    # Prepend conda run
-    cmd3 = ["conda", "run", "-n", engine_env, "--no-capture-output"] + cmd3
+    # Wrap with conda run and PYTHONPATH
+    cmd3 = [
+               "conda", "run", "-n", engine_env, "--no-capture-output",
+               "env", "PYTHONPATH=/ngen-app/ngen-forcing"
+           ] + inner_cmd
+
 
     subprocess.run(cmd3, check=True)
 
