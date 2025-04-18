@@ -129,7 +129,7 @@ docker login registry.sh.nextgenwaterprediction.com
 
 echo
 echo "Building Singularity containers..."
-$NGENCERF_APP/nwm-automation-scripts/build_ngen_ngencerf.sh --build-type=development all
+$NGENCERF_APP/nwm-automation-scripts/parallel_works_scripts/build_cluster.sh --build-type=development all
 
 # ------------------------------------------------------------------------------
 # Copy nginx-unprivileged.sif to singularity directory
