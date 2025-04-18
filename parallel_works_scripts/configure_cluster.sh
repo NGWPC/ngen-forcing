@@ -112,7 +112,7 @@ else
     fi
 
     edit_file_with_message "/tmp/aws.credentials" \
-      "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
+        "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
 
     source /tmp/aws.credentials
 

@@ -74,20 +74,20 @@ SELECTED_REPOS=()
 parse_args() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --build-type=*)
-                BUILD_TYPE="${1#*=}"
-                ;;
-            --build-type)
-                shift
-                BUILD_TYPE="$1"
-                ;;
-            -*)
-                echo "Unknown option: $1"
-                exit 1
-                ;;
-            *)
-                SELECTED_REPOS+=("$1")
-                ;;
+        --build-type=*)
+            BUILD_TYPE="${1#*=}"
+            ;;
+        --build-type)
+            shift
+            BUILD_TYPE="$1"
+            ;;
+        -*)
+            echo "Unknown option: $1"
+            exit 1
+            ;;
+        *)
+            SELECTED_REPOS+=("$1")
+            ;;
         esac
         shift
     done
@@ -102,9 +102,12 @@ if [[ -z "$BUILD_TYPE" && -t 0 ]]; then
     echo "2) release"
     read -p "Enter number [1-2]: " build_choice
     case $build_choice in
-        1) BUILD_TYPE="development" ;;
-        2) BUILD_TYPE="release" ;;
-        *) echo "Invalid choice, exiting."; exit 1 ;;
+    1) BUILD_TYPE="development" ;;
+    2) BUILD_TYPE="release" ;;
+    *)
+        echo "Invalid choice, exiting."
+        exit 1
+        ;;
     esac
 fi
 
@@ -147,31 +150,31 @@ declare -A TAGS
 if [[ "$BUILD_TYPE" == "release" ]]; then
     for repo in "${SELECTED_REPOS[@]}"; do
         case $repo in
-            ngencerf_ui)
-                read -p "Enter ngencerf_ui tag: " TAGS[ngencerf_ui]
-                ;;
-            ngencerf-server)
-                read -p "Enter ngencerf-server tag: " TAGS[ngencerf-server]
-                ;;
-            ngencerf-docker)
-                read -p "Enter ngencerf-docker tag: " TAGS[ngencerf-docker]
-                ;;
-            ngen)
-                read -p "Enter ngen tag: " TAGS[ngen]
-                ;;
-            ngen-cal)
-                read -p "Enter ngen-cal tag: " TAGS[ngen-cal]
-                ;;
-            ngen-bmi-forcing | ngen-lumped-forcing)
-                read -p "Enter ngen-forcing tag (shared for both forcing repos): " TAGS[forcing]
-                ;;
-            ngen-fcst)
-                read -p "Enter ngen-fcst tag: " TAGS[ngen-fcst]
-                ;;
-            ngen-verf)
-                read -p "Enter ngen-verf tag: " TAGS[ngen-verf]
-                read -p "Enter ngen-eval tag: " TAGS[ngen-eval]
-                ;;
+        ngencerf_ui)
+            read -p "Enter ngencerf_ui tag: " TAGS[ngencerf_ui]
+            ;;
+        ngencerf-server)
+            read -p "Enter ngencerf-server tag: " TAGS[ngencerf-server]
+            ;;
+        ngencerf-docker)
+            read -p "Enter ngencerf-docker tag: " TAGS[ngencerf-docker]
+            ;;
+        ngen)
+            read -p "Enter ngen tag: " TAGS[ngen]
+            ;;
+        ngen-cal)
+            read -p "Enter ngen-cal tag: " TAGS[ngen-cal]
+            ;;
+        ngen-bmi-forcing | ngen-lumped-forcing)
+            read -p "Enter ngen-forcing tag (shared for both forcing repos): " TAGS[forcing]
+            ;;
+        ngen-fcst)
+            read -p "Enter ngen-fcst tag: " TAGS[ngen-fcst]
+            ;;
+        ngen-verf)
+            read -p "Enter ngen-verf tag: " TAGS[ngen-verf]
+            read -p "Enter ngen-eval tag: " TAGS[ngen-eval]
+            ;;
         esac
     done
 fi
@@ -189,7 +192,7 @@ build_singularity_container_update_symlink() {
     # use 'latest' tag for development builds and provided tag for release builds
     if [[ "$build_type" == "development" ]]; then
         local sif_file="${repo}-latest-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
-    
+
     else
         local sif_file="${repo}-${TAGS[$repo]}-$(date -u +"%Y-%m-%dT%H:%M:%SZ").sif"
     fi
@@ -286,59 +289,59 @@ if [[ "$BUILD_TYPE" == "release" ]]; then
 
     for repo in "${SELECTED_REPOS[@]}"; do
         case "$repo" in
-            "ngen-cal")
-                # checkout ngen-cal to specified tag
-                checkout_repo_tag "ngen-cal" "${TAGS[ngen-cal]}"
-                echo "Building ngen-cal Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
-                    --progress=plain \
-                    --no-cache \
-                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                    --build-arg IMAGE_TAG="${TAGS[ngen]}" \
-                    --tag="${REGISTRY}/ngen-cal:${TAGS[ngen-cal]}" \
-                    "${BASE_PATH}/ngen-cal"
-                ;;
+        "ngen-cal")
+            # checkout ngen-cal to specified tag
+            checkout_repo_tag "ngen-cal" "${TAGS[ngen - cal]}"
+            echo "Building ngen-cal Docker image..."
+            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
+                --progress=plain \
+                --no-cache \
+                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                --build-arg IMAGE_TAG="${TAGS[ngen]}" \
+                --tag="${REGISTRY}/ngen-cal:${TAGS[ngen - cal]}" \
+                "${BASE_PATH}/ngen-cal"
+            ;;
 
-            "ngen-bmi-forcing")
-                echo "Pulling ngen-bmi-forcing Docker image..."
-                docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
-                ;;
+        "ngen-bmi-forcing")
+            echo "Pulling ngen-bmi-forcing Docker image..."
+            docker pull "${REGISTRY}/ngen-forcing/ngen-bmi-forcing:${TAGS[forcing]}"
+            ;;
 
-            "ngen-lumped-forcing")
-                echo "Pulling ngen-lumped-forcing Docker image..."
-                docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
-                ;;
+        "ngen-lumped-forcing")
+            echo "Pulling ngen-lumped-forcing Docker image..."
+            docker pull "${REGISTRY}/ngen-forcing/ngen-lumped-forcing:${TAGS[forcing]}"
+            ;;
 
-            "ngen-fcst")
-                # checkout ngen-fcst to specified tag
-                checkout_repo_tag "ngen-fcst" "${TAGS[ngen-fcst]}"
-                echo "Building ngen-fcst Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
-                    --progress=plain \
-                    --no-cache \
-                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                    --build-arg NGEN_VERSION="${TAGS[ngen]}" \
-                    --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen-fcst]}" \
-                    "${BASE_PATH}/ngen-fcst"
-                ;;
+        "ngen-fcst")
+            # checkout ngen-fcst to specified tag
+            checkout_repo_tag "ngen-fcst" "${TAGS[ngen - fcst]}"
+            echo "Building ngen-fcst Docker image..."
+            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
+                --progress=plain \
+                --no-cache \
+                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                --build-arg NGEN_VERSION="${TAGS[ngen]}" \
+                --tag="${REGISTRY}/ngen-fcst:${TAGS[ngen - fcst]}" \
+                "${BASE_PATH}/ngen-fcst"
+            ;;
 
-            "ngen-verf")
-                # checkout ngen-verf to specified tag
-                checkout_repo_tag "ngen-verf" "${TAGS[ngen-verf]}"
-                echo "Building ngen-verf Docker image..."
-                GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
-                    --progress=plain \
-                    --no-cache \
-                    --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
-                    --build-arg NGEN_EVAL_TAG="${TAGS[ngen-eval]}" \
-                    --tag="${REGISTRY}/ngen-verf:${TAGS[ngen-verf]}" \
-                    "${BASE_PATH}/ngen-verf"
-                ;;
-            
-            ngencerf*)
-                # checkout ngencerf* repos to specified tag
-                checkout_repo_tag "$repo" "${TAGS[$repo]}"
-                ;;
+        "ngen-verf")
+            # checkout ngen-verf to specified tag
+            checkout_repo_tag "ngen-verf" "${TAGS[ngen - verf]}"
+            echo "Building ngen-verf Docker image..."
+            GITLAB_TOKEN=$(cat "${BASE_PATH}/.gitlab_token") docker build \
+                --progress=plain \
+                --no-cache \
+                --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN \
+                --build-arg NGEN_EVAL_TAG="${TAGS[ngen - eval]}" \
+                --tag="${REGISTRY}/ngen-verf:${TAGS[ngen - verf]}" \
+                "${BASE_PATH}/ngen-verf"
+            ;;
+
+        ngencerf*)
+            # checkout ngencerf* repos to specified tag
+            checkout_repo_tag "$repo" "${TAGS[$repo]}"
+            ;;
         esac
 
         if [[ "$repo" != ngencerf* ]]; then
@@ -364,7 +367,7 @@ if [[ "$BUILD_TYPE" == "development" ]]; then
         if [[ "$repo" == ngencerf* ]]; then
             # update ngencerf* repos to latest from development branch
             update_repo_branch "$repo" "development"
-        else 
+        else
             if [[ "$repo" == "ngen-bmi-forcing" || "$repo" == "ngen-lumped-forcing" ]]; then
                 IMAGE="${REGISTRY}/ngen-forcing/${repo}:latest"
             else
