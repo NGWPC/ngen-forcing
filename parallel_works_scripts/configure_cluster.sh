@@ -112,7 +112,7 @@ else
     fi
 
     edit_file_with_message "/tmp/aws.credentials" \
-      "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
+        "Paste export statements for your AWS credentials in this file.  These are temporary credentials to copy the static files"
 
     source /tmp/aws.credentials
 
@@ -129,7 +129,7 @@ docker login registry.sh.nextgenwaterprediction.com
 
 echo
 echo "Building Singularity containers..."
-$NGENCERF_APP/nwm-automation-scripts/build_ngen_ngencerf.sh --build-type=development all
+$NGENCERF_APP/nwm-automation-scripts/parallel_works_scripts/build_cluster.sh --build-type=development all
 
 # ------------------------------------------------------------------------------
 # Copy nginx-unprivileged.sif to singularity directory
