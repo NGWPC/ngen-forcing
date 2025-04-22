@@ -342,6 +342,7 @@ class ConfigOptions:
         if self.sub_output_freq == 0:
             self.sub_output_freq = None
 
+        # TODO Can this be a /tmp directory?
         # Read in the scratch temporary directory, which also may contain output forcing file if requested.
         try:
             self.scratch_dir = cfg_bmi['ScratchDir']
@@ -351,8 +352,8 @@ class ConfigOptions:
             err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.')
         except configparser.NoOptionError:
             err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.')
-        if not os.path.isdir(self.scratch_dir):
-            err_handler.err_out_screen('Specified output directory: ' + self.scratch_dir + ' not found')
+        os.makedirs(self.scratch_dir, exist_ok=True)
+        print(f'Scratch dir: {self.scratch_dir}')
 
         # Read in compression option
         try:
@@ -724,7 +725,7 @@ class ConfigOptions:
         # Process geospatial information
 
         if self.geogrid:
-            print(f"self.geogrid: {self.geogrid}")
+            print(f"Geogrid: {self.geogrid}")
         else:
             try:
                 self.geogrid = cfg_bmi['GeogridIn']

@@ -3,13 +3,13 @@ import os
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
 
-class NBMPuertoRicoDownloader(ForecastDownloader):
+class NBMConusDownloader(ForecastDownloader):
     """
-    Downloader for NBM forecast data over Puerto Rico using predictable filenames.
+    Downloader for CONUS NBM forecast data on the Gaussian grid in GRIB2 format.
 
-    - Files are stored in: blend.YYYYMMDD/HH/core/
-    - File pattern: blend.t{HH}z.core.f{forecast_hour}.pr.grib2
-    - Forecast hours range from f001 to f264.
+    - Files are deterministic: blend.t00z.core.fXXX.co.grib2
+    - Located in: blend.YYYYMMDD/HH/core/
+    - Forecast hours from f001 to f264.
     """
 
     @property
@@ -32,13 +32,13 @@ class NBMPuertoRicoDownloader(ForecastDownloader):
 
     def build_file_url_and_name(self, d_current, target):
         fhr_str = f"f{str(target).zfill(3)}"
-        filename = f"blend.t{d_current.strftime('%H')}z.core.{fhr_str}.pr.grib2"
+        filename = f"blend.t{d_current.strftime('%H')}z.core.{fhr_str}.co.grib2"
         url = os.path.join(
             self.base_url,
             f"blend.{d_current.strftime('%Y%m%d')}",
             d_current.strftime('%H'),
             "core",
-            filename
+            filename,
         )
         return url, filename
 
@@ -48,5 +48,5 @@ class NBMPuertoRicoDownloader(ForecastDownloader):
 
 
 if __name__ == "__main__":
-    downloader = NBMPuertoRicoDownloader.from_cli_args()
+    downloader = NBMConusDownloader.from_cli_args()
     downloader.run()
