@@ -33,7 +33,7 @@ class ARWHawaiiDownloader(ForecastDownloader):
         return url, filename
 
     @property
-    def recursive_cleanup(self):
+    def recursive_cleanup(self) -> bool:
         return True
 
 

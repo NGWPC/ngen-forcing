@@ -1,7 +1,7 @@
 import configparser
-import datetime
 import json
 import os
+from datetime import timezone, datetime, timedelta
 
 import numpy as np
 
@@ -118,7 +118,7 @@ class ConfigOptions:
         self.rqiMethod = None
         self.rqiThresh = 1.0
         self.globalNdv = -9999.0
-        self.d_program_init = datetime.datetime.utcnow()
+        self.d_program_init = datetime.now(timezone.utc)
         self.errFlag = 0
         self.nwmVersion = None
         self.nwmConfig = None
@@ -439,7 +439,6 @@ class ConfigOptions:
 
         if self.b_date_proc:
             beg_date_tmp = self.b_date_proc
-            print(f"beg_date_tmp: {beg_date_tmp}")
         else:
             try:
                 beg_date_tmp = cfg_bmi['RefcstBDateProc']
@@ -451,17 +450,20 @@ class ConfigOptions:
                 err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
                                            'configuration file.')
                 beg_date_tmp = None
+
         if beg_date_tmp != -9999:
-            if len(beg_date_tmp) != 12:
+            if isinstance(beg_date_tmp, str) and len(beg_date_tmp) != 12:
                 err_handler.err_out_screen('Improper RefcstBDateProc length entered into the '
                                            'configuration file. Please check your entry.')
             try:
-                self.b_date_proc = datetime.datetime.strptime(beg_date_tmp, '%Y%m%d%H%M')
+                self.b_date_proc = datetime.strptime(beg_date_tmp, '%Y%m%d%H%M')
             except ValueError:
                 err_handler.err_out_screen('Improper RefcstBDateProc value entered into the '
                                            'configuration file. Please check your entry.')
         else:
             self.b_date_proc = -9999
+
+        print('Begin date:', beg_date_tmp)
 
         # If the Retro flag is off, and lookback is off, then we assume we are
         # running a reforecast.
@@ -788,7 +790,7 @@ class ConfigOptions:
             try:
                 # Read weight file directory (optional)
                 self.weightsDir = cfg_bmi['RegridWeightsDir']
-            except:
+            except Exception:
                 # Assign the weights directory then to the temporary scratch directory
                 self.weightsDir = self.scratch_dir
             if self.weightsDir:
@@ -801,6 +803,9 @@ class ConfigOptions:
         if self.realtime_flag:
             time_handling.calculate_lookback_window(self)
 
+        # Create temporary array to hold flags if we need input parameter files.
+        param_flag = np.empty([len(self.input_forcings)], int)
+        param_flag[:] = 0
         if not self.precip_only_flag:
             # Read in temporal interpolation options.
             try:
@@ -824,9 +829,6 @@ class ConfigOptions:
                                                'Please choose a value of 0-2 for each corresponding input forcing.')
 
             # Read in the temperature downscaling options.
-            # Create temporary array to hold flags of if we need input parameter files.
-            param_flag = np.empty([len(self.input_forcings)], int)
-            param_flag[:] = 0
             try:
                 self.t2dDownscaleOpt = cfg_bmi['TemperatureDownscaling']
             except KeyError:
@@ -950,13 +952,13 @@ class ConfigOptions:
             # Process the geogrid information for downscaling
             try:
                 self.sinalpha_var = cfg_bmi['SINALPHA']
-            except:
+            except Exception:
                 self.sinalpha_var = None
             try:
                 self.cosalpha_var = cfg_bmi['COSALPHA']
-            except:
+            except Exception:
                 self.cosalpha_var = None
-            if (self.grid_type.lower() == "hydrofabric"):
+            if self.grid_type.lower() == "hydrofabric":
                 try:
                     self.slope_var = cfg_bmi['SLOPE']
                 except KeyError:
@@ -976,20 +978,20 @@ class ConfigOptions:
             else:
                 try:
                     self.slope_var = cfg_bmi['SLOPE']
-                except:
+                except Exception:
                     self.slope_var = None
                 try:
                     self.slope_azimuth_var = cfg_bmi['SLOPE_AZIMUTH']
-                except:
+                except Exception:
                     self.slope_azimuth_var = None
-                if (self.grid_type.lower() == "unstructured"):
+                if self.grid_type.lower() == "unstructured":
                     try:
                         self.slope_var_elem = cfg_bmi['SLOPE_ELEM']
-                    except:
+                    except Exception:
                         self.slope_var_elem = None
                     try:
                         self.slope_azimuth_var_elem = cfg_bmi['SLOPE_AZIMUTH_ELEM']
-                    except:
+                    except Exception:
                         self.slope_azimuth_var_elem = None
 
             if self.grid_type.lower() == "unstructured":
@@ -1256,8 +1258,7 @@ class ConfigOptions:
                         if len(self.rqiMethod) != self.number_supp_pcp:
                             err_handler.err_out_screen('Number of RqiMethods ({}) must match the number '
                                                        'of SuppPcp inputs ({}) in the configuration file, or '
-                                                       'supply a single method for all inputs'.format(
-                                len(self.rqiMethod), self.number_supp_pcp))
+                                                       'supply a single method for all inputs'.format(len(self.rqiMethod), self.number_supp_pcp))
                     elif type(self.rqiMethod) is int:
                         # Support 'classic' mode of single method
                         self.rqiMethod = [self.rqiMethod] * self.number_supp_pcp
@@ -1283,8 +1284,7 @@ class ConfigOptions:
                         if len(self.rqiThresh) != self.number_supp_pcp:
                             err_handler.err_out_screen('Number of RqiThresholds ({}) must match the number '
                                                        'of SuppPcp inputs ({}) in the configuration file, or '
-                                                       'supply a single threshold for all inputs'.format(
-                                len(self.rqiThresh), self.number_supp_pcp))
+                                                       'supply a single threshold for all inputs'.format(len(self.rqiThresh), self.number_supp_pcp))
                     elif type(self.rqiThresh) is float:
                         # Support 'classic' mode of single threshold
                         self.rqiThresh = [self.rqiThresh] * self.number_supp_pcp
@@ -1398,8 +1398,7 @@ class ConfigOptions:
                 if len(self.supp_pcp_max_hours) != self.number_supp_pcp:
                     err_handler.err_out_screen('Number of SuppPcpMaxHours ({}) must match the number '
                                                'of SuppPcp inputs ({}) in the configuration file, or '
-                                               'supply a single threshold for all inputs'.format(
-                        len(self.supp_pcp_max_hours), self.number_supp_pcp))
+                                               'supply a single threshold for all inputs'.format(len(self.supp_pcp_max_hours), self.number_supp_pcp))
             elif type(self.supp_pcp_max_hours) is float:
                 # Support 'classic' mode of single threshold
                 self.supp_pcp_max_hours = [self.supp_pcp_max_hours] * self.number_supp_pcp
@@ -1484,6 +1483,6 @@ class ConfigOptions:
     def use_data_at_current_time(self):
         if self.supp_pcp_max_hours:
             hrs_since_start = self.current_output_date - self.current_fcst_cycle
-            return hrs_since_start <= datetime.timedelta(hours=self.supp_pcp_max_hours)
+            return hrs_since_start <= timedelta(hours=self.supp_pcp_max_hours)
         else:
             return True
