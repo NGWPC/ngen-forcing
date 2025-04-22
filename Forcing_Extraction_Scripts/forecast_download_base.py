@@ -229,7 +229,7 @@ class ForecastDownloader(ABC):
         - default timestamp-based cleanup (subdirectory per forecast cycle)
         - recursive directory cleanup with pruning
         """
-        for hour in range(self.cleanback_hours, self.lagback_hours, -1):
+        for hour in range(self.cleanback_hours, self.lookback_hours, -1):
             d_current = self.d_now - timedelta(hour)
             if not self.should_process_hour(d_current):
                 continue
