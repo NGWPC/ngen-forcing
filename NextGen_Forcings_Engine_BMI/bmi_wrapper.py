@@ -176,8 +176,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", gfs_extract_scriptPath, gfs_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}"
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}"
             ])
         )
 
@@ -186,8 +186,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nbm_extract_scriptPath, nbm_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}"
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}"
             ])
         )
 
@@ -232,8 +232,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -243,8 +243,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", rap_extract_scriptPath, rap_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -255,8 +255,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", mrms_ms_extract_scriptPath, mrms_ms_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
             ])
         )
 
@@ -265,8 +265,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", mrms_ro_extract_scriptPath, mrms_ro_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
             ])
         )
 
@@ -316,8 +316,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", cfs_extract_scriptPath, cfs_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
             ])
         )
 
@@ -360,8 +360,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -371,8 +371,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", rap_extract_scriptPath, rap_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -382,8 +382,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", stage_iv_extract_scriptPath, stage_iv_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}"
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}"
             ])
         )
 
@@ -429,8 +429,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nam_extract_scriptPath, nam_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}"
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}"
             ])
         )
 
@@ -439,8 +439,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nbm_extract_scriptPath, nbm_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -450,8 +450,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", arw_extract_scriptPath, arw_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -495,8 +495,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nam_extract_scriptPath, nam_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -506,8 +506,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", arw_extract_scriptPath, arw_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -548,8 +548,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
@@ -559,8 +559,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nbm_extract_scriptPath, nbm_extract_outPath,
-                f"--lookBackHours={lookback}",
-                f"--lagBackHours={lagback}",
+                f"--lookBackHours={int(lookback)}",
+                f"--lagBackHours={int(lagback)}",
                 "--cleanBackHours=0"
             ])
         )
