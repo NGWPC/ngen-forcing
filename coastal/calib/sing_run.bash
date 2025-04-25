@@ -14,40 +14,40 @@ export NPROCS=$((NODES*NCORES))
 #
 # define the start time of the calibration
 # in the format of YYYYMMDD
-export STARTPDY=20230101
+export STARTPDY=20240913
 #
 # define the start hour of the calibration
 export STARTCYC=00
 # define the forecast length in hours of the calibration
-export FCST_LENGTH_HRS=12
+export FCST_LENGTH_HRS=18
 #
-# location of the hot restart file for SCHISM
-export HOT_START_FILE=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/com/nwm/v3.0/nwm.20240220/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
+# location of the hot restart file for SCHISM. For cold start, set the value to ''.
+export HOT_START_FILE=/ngwpc-coastal/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
 
 #
 # location of the archived STOFS file if STOFS data is 
 # going to be used for the boundary nodes
-export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.1/estofs_20230101/estofs.t00z.fields.cwl.nc
+export STOFS_FILE=/efs/schism_use_case/stofs_20240913/stofs_2d_glo.t00z.fields.cwl.nc
 
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
-export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_forcing
+export NWM_FORCING_DIR=/efs/schism_use_case/hi_nwm_ana_forcing_20240913/
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
-export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_chout
+export NWM_CHROUT_DIR=/efs/schism_use_case/hi_nwm_ana_chout_20240913/
 #
 # Whether or not to use TPXO forecast instead of STOFS data
 # "YES" or "NO"
-export USE_TPXO="YES"
+export USE_TPXO="NO"
 #
 #the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
 #export COASTAL_DOMAIN=prvi
 export COASTAL_DOMAIN=hawaii
 #
 #define working directory of the SCHISM calibration run
-export COASTAL_WORK_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/hi_nwm_ana_arch_test_tpxo_sing
+export COASTAL_WORK_DIR=/efs/schism_use_case/hi_nwm_ana_20240913
 ##################################################################################################
 # End of user defined section
 ##################################################################################################
@@ -108,8 +108,9 @@ unset __conda_setup
 # <<< conda initialize <<<
 #
 
+export NFS_MOUNT=/efs
 export PATH=/opt/conda/bin:${PATH}
-export CONDA_ENVS_PATH=/efs/ngen-app/conda/envs/
+export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
@@ -137,9 +138,13 @@ export GEOGRID_FILE=${PARMnwm}/${coastal_domain_to_inland_domain[$COASTAL_DOMAIN
 
 export DATAlogs=$DATAexec
 
+if [[ ! -d $DATAexec ]]; then
+   mkdir -p $DATAexec
+fi
+
 export NSCRIBES=2
 
-export BINDINGS="$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
+export BINDINGS="$NFS_MOUNT,$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
 
 work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/calib
 
