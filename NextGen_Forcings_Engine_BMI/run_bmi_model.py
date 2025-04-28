@@ -19,7 +19,6 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     :param start_time: The start time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
     :param end_time: The end time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
     :param config_path: Optional path to the configuration file. Defaults to './config.yml' if not provided.
-    :param config_path: Optional path to the configuration file. Defaults to './config.yml' if not provided.
     :param b_date: The begin date for the forecast cycle, in the format 'YYYYMMDDHHmm'. If omitted, reads from config.
     :param geogrid: Path to the geospatial grid file. If omitted, reads from the config file.
     :param output_path: Path to the output file. If omitted, a default output path is generated.
@@ -96,12 +95,13 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     # Run through each timestep
     # ===============================
     model_start_time = start_time
-    print(f'Now looping through {len(ngen_datetimes)} timesteps, updating the model, and extracting forcing data\n')
+    num_iterations = len(ngen_datetimes)
+    print(f'\nNow looping through {num_iterations} timesteps, updating the model, and extracting forcing data\n')
     print(f'rank: {model._mpi_meta.rank}')
     print(f'grid_type: {model._grid_type}')
     for num, timestamp in enumerate(ngen_datetimes):
         print('\n---------------------------------------------------')
-        print(f'Iteration #{num} for {timestamp}')
+        print(f'Iteration #{num} of {num_iterations} for {timestamp}')
         model.update()
 
         include_lqfrac = model._job_meta.include_lqfrac == 1
@@ -260,7 +260,7 @@ def main():
     Calls the `run_bmi` function with parsed command-line arguments.
     """
     args = get_options()
-    print('args', args)
+    print('run_bmi_model args:', vars(args))
     run_bmi(
         start_time=args.start_time,
         end_time=args.end_time,

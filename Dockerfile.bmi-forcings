@@ -154,6 +154,8 @@ RUN set -eux; \
     chmod +x /ngen-app/bin/run-ngen-forcing.sh
 
 COPY . /ngen-app/ngen-forcing/
+ENV PYTHONPATH="/ngen-app/ngen-forcing"
+
 
 WORKDIR /ngen-app/ngen-forcing
 

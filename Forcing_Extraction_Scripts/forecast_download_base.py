@@ -302,9 +302,9 @@ class ForecastDownloader(ABC):
     def _download_file(self, url, out_path):
         """
         Attempt to download a file from the URL with retry logic.
-        Retries up to 20 times with a 30-second interval between attempts.
+        Retries up to 10 times with a 30-second interval between attempts.
         """
-        max_attempts = 20
+        max_attempts = 10
         interval = 30  # seconds
         attempt = 0
 

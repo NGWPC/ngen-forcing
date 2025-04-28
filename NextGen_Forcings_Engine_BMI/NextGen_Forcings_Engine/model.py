@@ -117,6 +117,7 @@ class NWMv3_Forcing_Engine_model:
                 f"LOG_{ConfigOptions.nwmConfig}"
                 f"{'_' if ConfigOptions.nwmConfig != 'long_range' else f'_mem{ConfigOptions.cfsv2EnsMember}_'}"
                 f"{ConfigOptions.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
+                ".log"
             )
             ConfigOptions.logFile = os.path.join(ConfigOptions.scratch_dir, log_filename)
 
