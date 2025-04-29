@@ -7,6 +7,7 @@ Created on Wed Mar 13 2023
 """
 
 import os, glob, numpy as np, netCDF4 as nc
+import shutil
 import argparse
 import datetime
 import pandas as pd
@@ -53,6 +54,9 @@ start_time = datetime.datetime.strptime(start_time, '%Y-%m-%d %H:%M:%S')
 end_time = datetime.datetime.strptime(end_time, '%Y-%m-%d %H:%M:%S')
 HRRR_datetimes = pd.date_range(start=start_time.strftime('%Y-%m-%d %H:%M:%S'),end=end_time.strftime('%Y-%m-%d %H:%M:%S'),freq='h')
 
+#HRRR forecast issue time should be 1 hour earlier
+forecast_issue_time = start_time - datetime.timedelta( hours=1 )
+
 #file for rest of atmo variables, which will be used in the simulation so this should be saved in the folder where it will be used in the run
 outFile = os.path.join(path,'sflux_air_1.0001.nc')
 vFile = os.path.join(path,'source2.nc')
@@ -77,11 +81,12 @@ time = np.zeros((len(HRRR_datetimes)+1))
 
 subhourly = False
 # Specify where a Alaska HRRR raw grib2 file is on your system
-hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[0].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[0].strftime('%H') +'z.wrfsfcf01.grib2')
+#hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[0].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[0].strftime('%H') +'z.wrfsfcf01.grib2')
+hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfsfcf01.grib2')
 if(os.path.exists(hrrr_file) == False):
-    hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[0].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[0].strftime('%H') +'z.wrfprsf01.grib2')
+    hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfprsf01.grib2')
     if(os.path.exists(hrrr_file) == False):
-        hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[0].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[0].strftime('%H') +'z.wrfsubhf01.grib2')
+        hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfsubhf01.grib2')
         subhourly = True
 
 hrrr_tmp_nc = os.path.join(dataPath,'HRRR_tmp.nc')
@@ -104,11 +109,15 @@ ref_date = pd.Timestamp(data.variables['time'].units[14:-7])
 ref_time = data.variables['time'].units[:-7]
 # calculate start time of the HRRR dataset extraction
 # based on user specification
-start = (HRRR_datetimes[0] - ref_date).total_seconds()
+#start = (HRRR_datetimes[0] - ref_date).total_seconds()
+#SCHISM assuses the units always start at hour 0 of the day
+start = ( pd.Timestamp( HRRR_datetimes[0].year, HRRR_datetimes[0].month,HRRR_datetimes[0].day) - ref_date).total_seconds()
 # create SCHISM string of reference data
-ref = 'days since ' + HRRR_datetimes[0].strftime('%Y-%m-%d ') + str(HRRR_datetimes[0].hour)
+#ref = 'days since ' + HRRR_datetimes[0].strftime('%Y-%m-%d ') + str(HRRR_datetimes[0].hour)
+ref = 'days since ' + HRRR_datetimes[0].strftime('%Y-%m-%d')
 # Get base date of start date for SCHISM file
-baseDate = [HRRR_datetimes[0].year,HRRR_datetimes[0].month,HRRR_datetimes[0].day,HRRR_datetimes[0].hour]
+#baseDate = [HRRR_datetimes[0].year,HRRR_datetimes[0].month,HRRR_datetimes[0].day,HRRR_datetimes[0].hour]
+baseDate = [HRRR_datetimes[0].year,HRRR_datetimes[0].month,HRRR_datetimes[0].day, 0]
 # close and remove the temporary HRRR file
 data.close()
 
@@ -156,19 +165,20 @@ os.remove(hrrr_tmp_nc)
 
 
 # Make a temporary directory to store all netcdf converted files if it doesn't already exist
-hrrr_nc_dir = os.path.join('./','HRRR_nc_files')
+hrrr_nc_dir = os.path.join(path,'HRRR_nc_files')
 if (os.path.exists(hrrr_nc_dir) == False):
     os.mkdir(hrrr_nc_dir)
-
+else:
+    shutil.rmtree( hrrr_nc_dir )
 
 for i in range(len(HRRR_datetimes)):
     file_avail = True
     subhourly = False
-    hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[i].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[i].strftime('%H') +'z.wrfsfcf01.grib2')
+    hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfsfcf' + f"{i+1:02}.grib2")
     if(os.path.exists(hrrr_file) == False):
-        hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[i].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[i].strftime('%H') +'z.wrfprsf01.grib2')
+        hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfprsf' + f"{i+1:02}.grib2")
         if(os.path.exists(hrrr_file) == False):
-            hrrr_file = os.path.join(dataPath,'hrrr.'+HRRR_datetimes[i].strftime('%Y%m%d') +'/' + 'hrrr.t'+ HRRR_datetimes[i].strftime('%H') +'z.wrfsubhf01.grib2')
+            hrrr_file = os.path.join(dataPath,'hrrr.'+forecast_issue_time.strftime('%Y%m%d') +'/' + 'hrrr.t'+ forecast_issue_time.strftime('%H') +'z.wrfsubhf' + f"{i+1:02}.grib2")
             if(os.path.exists(hrrr_file) == False):
                 file_avail = False
             else:
