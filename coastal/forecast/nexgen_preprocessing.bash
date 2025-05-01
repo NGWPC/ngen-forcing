@@ -22,7 +22,7 @@ nexgen_preprocessing() {
 #       $hrrrfile \
 #       $coastal_work_dir \
 #       $domain
-     #instead, copy the pre-createt file  
+#     #instead, copy the pre-createt file  
     cp $coastal_parm_dir/$domain/sflux2sourceInput.nc $coastal_work_dir/
 
     $coastal_script_dir/Coastal_Modeling_Preprocessing_Scripts/SCHISM/HRRR/CONUS/makeAtmoHRRR.py \

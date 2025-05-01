@@ -17,9 +17,9 @@ export NPROCS=$((NODES*NCORES))
 export STARTPDY=20240219
 #
 # define the start hour of the calibration
-export STARTCYC=00
+export STARTCYC=12
 # define the forecast length in hours of the calibration
-export FCST_LENGTH_HRS=12
+export FCST_LENGTH_HRS=11
 #
 # location of the hot restart file for SCHISM. For cold start, set the value to ''.
 export HOT_START_FILE=/efs/ngwpc-coastal/restart_coastal/hotstart_analysis_assim_coastal_atlgulf_ana_20240220_1000.nc
@@ -35,7 +35,7 @@ export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.
 # note that the time span of the files must cover the whole simulation period
 export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pacific_nwm_ana_forcing
 export HRRRDIR=/contrib/Zhengtao.Cui/home/ngwpc/hrrr_20240219/conus
-export HRRRFILE=$HRRRDIR/hrrr.20240219/hrrr.t00z.wrfsfcf00.grib2
+export HRRRFILE=$HRRRDIR/hrrr.20240219/hrrr.t12z.wrfsfcf00.grib2
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
@@ -44,10 +44,10 @@ export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp
 #export COASTAL_DOMAIN=prvi
 export COASTAL_DOMAIN=atlgulf
 #
-export TROUTE_PATH=/contrib/Zhengtao.Cui/home/ngwpc/t-route/test/LowerColorado_TX_HYFeatures_v22/output_schism_test
+export TROUTE_PATH=/contrib/Zhengtao.Cui/home/ngwpc/Lower_Colorado_River_ngen/output_schism_test
 
 #define working directory of the SCHISM calibration run
-export COASTAL_WORK_DIR=/efs/coastal_testdata/atl_nwm_ana_nexgen_20240219
+export COASTAL_WORK_DIR=/efs/coastal_testdata/atl_nwm_ana_nexgen_20240219_ngen
 ##################################################################################################
 # End of user defined section
 ##################################################################################################
