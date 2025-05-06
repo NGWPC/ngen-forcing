@@ -25,14 +25,14 @@ nexgen_preprocessing() {
 #     #instead, copy the pre-createt file  
     cp $coastal_parm_dir/$domain/sflux2sourceInput.nc $coastal_work_dir/
 
-    $coastal_script_dir/Coastal_Modeling_Preprocessing_Scripts/SCHISM/HRRR/CONUS/makeAtmoHRRR.py \
-	    $coastal_work_dir/sflux2sourceInput.nc \
-       $coastal_script_dir/Coastal_Modeling_Preprocessing_Scripts/Coastal_Data/Enclosure_Polygons/SCHISM_Atl_Enclosure.pol \
-       $hrrrdir \
-       $coastal_work_dir \
-       $domain  \
-       "$start_time" \
-       "$end_time"
+#    $coastal_script_dir/Coastal_Modeling_Preprocessing_Scripts/SCHISM/HRRR/CONUS/makeAtmoHRRR.py \
+#	    $coastal_work_dir/sflux2sourceInput.nc \
+#       $coastal_script_dir/Coastal_Modeling_Preprocessing_Scripts/Coastal_Data/Enclosure_Polygons/SCHISM_Atl_Enclosure.pol \
+#       $hrrrdir \
+#       $coastal_work_dir \
+#       $domain  \
+#       "$start_time" \
+#       "$end_time"
 
     mkdir -p $coastal_work_dir/sflux
     ln -s  $coastal_work_dir/sflux_air_1.0001.nc $coastal_work_dir/sflux
