@@ -43,28 +43,28 @@ nwm_coastal_update_params ${STARTPDY}${STARTCYC} $COASTAL_DOMAIN $FCST_LENGTH_HR
 
 deactivate
 
-## User specific aliases and functions
-## >>> conda initialize >>>
-## !! Contents within this block are managed by 'conda init' !!
-#__conda_setup="$('/contrib/software/miniconda/miniconda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-#if [ $? -eq 0 ]; then
-#    eval "$__conda_setup"
-#else
-#    if [ -f "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh" ]; then
-#        . "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh"
-#    else
-#        export PATH="/contrib/software/miniconda/miniconda/bin:$PATH"
-#    fi
-#fi
-#unset __conda_setup
-## <<< conda initialize <<<
-#
-#conda activate /contrib/software/miniconda/miniconda/envs/nwm
-#
-#nwm_coastal_regrid_estofs ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS \
-#	$STOFS_FILE
-#
-#conda deactivate
-#conda deactivate
-#
-#nwm_coastal
+# User specific aliases and functions
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/contrib/software/miniconda/miniconda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh" ]; then
+        . "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh"
+    else
+        export PATH="/contrib/software/miniconda/miniconda/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+
+conda activate /contrib/software/miniconda/miniconda/envs/nwm
+
+nwm_coastal_regrid_estofs ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS \
+	$STOFS_FILE
+
+conda deactivate
+conda deactivate
+
+nwm_coastal
