@@ -27,25 +27,21 @@ export HOT_START_FILE=/efs/ngwpc-coastal/restart_coastal/hotstart_analysis_assim
 #
 # location of the archived STOFS file if STOFS data is 
 # going to be used for the boundary nodes
-#export STOFS_FILE=/efs/schism_use_case/stofs_20240913/stofs_2d_glo.t00z.fields.cwl.nc
 export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.1/stofs_20240219/stofs_2d_glo.t00z.fields.cwl.nc
 
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
-export NWM_FORCING_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pacific_nwm_ana_forcing
 export HRRRDIR=/contrib/Zhengtao.Cui/home/ngwpc/hrrr_20240219/conus
 export HRRRFILE=$HRRRDIR/hrrr.20240219/hrrr.t12z.wrfsfcf00.grib2
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
-export NWM_CHROUT_DIR=/contrib/Zhengtao.Cui/home/ngwpc/nwmv3_oe_install/test/tmp/pacific_nwm_ana_chout
-#the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
-#export COASTAL_DOMAIN=prvi
-export COASTAL_DOMAIN=atlgulf
-#
 export TROUTE_PATH=/contrib/Zhengtao.Cui/home/ngwpc/Lower_Colorado_River_ngen/output_schism_test
 
+#the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
+export COASTAL_DOMAIN=atlgulf
+#
 #define working directory of the SCHISM calibration run
 export COASTAL_WORK_DIR=/efs/coastal_testdata/atl_nwm_ana_nexgen_20240219_ngen
 ##################################################################################################
@@ -58,7 +54,8 @@ SIF_PATH="singularity/ngen_coastal_sing.sif"
 export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
 
 #export NGEN_APP_DIR=/ngen-app
-export NGEN_APP_DIR=/contrib/software/nwmv3_oe_install/test/packages
+#export NGEN_APP_DIR=/contrib/software/nwmv3_oe_install/test/packages
+export NGEN_APP_DIR=/contrib/Zhengtao.Cui/home/ngwpc
 
 #
 # define the model time step in seconds
@@ -143,15 +140,13 @@ export NSCRIBES=2
 
 export BINDINGS="/contrib,$NFS_MOUNT,$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
 
-#work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/forecast
-work_dir=/contrib/Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/forecast
+work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/forecast
+#work_dir=/contrib/Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/forecast
 export COASTAL_PREPROCESSING_SCRIPT_DIR=$work_dir/../
 
 #export WGRIB2=/contrib/software/nwmv3_oe_install/test/packages/grib2/wgrib2/wgrib2
-export WGRIB2=${NGEN_APP_DIR}/grib2/wgrib2/wgrib2
+#export WGRIB2=${NGEN_APP_DIR}/grib2/wgrib2/wgrib2
 
-#singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
-#	 ./run_forecast_nexgen_preprocessing.bash
 
 
 export LENGTH_HRS=$FCST_LENGTH_HRS
@@ -163,5 +158,7 @@ itime=$(( 10#${LENGTH_HRS} * 3600 + $start_timestamp ))
 export FORCING_END_DATE=$(date -u -d "@${itime}" +"%Y%m%d%H00")
 export END_TIME="$(date -u -d "@${itime}" +"%Y-%m-%d %H:00:00")"
 
-cd ${work_dir}
-./run_forecast_nexgen_preprocessing.bash
+#cd ${work_dir}
+#./run_forecast_nexgen_preprocessing.bash
+singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
+	 ./run_forecast_nexgen_preprocessing.bash

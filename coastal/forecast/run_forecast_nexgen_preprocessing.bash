@@ -22,7 +22,8 @@ set -x
 ##conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 #conda activate $CONDA_ENV_NAME
 
-source /contrib/software/py_venvs/ngen_python_3_10_14/bin/activate
+#source /contrib/software/py_venvs/ngen_python_3_10_14/bin/activate
+source /ngen-app/ngen-python/bin/activate
 source ./nexgen_preprocessing.bash
 source ../calib/update_param.bash
 source ../calib/regrid_stofs.bash

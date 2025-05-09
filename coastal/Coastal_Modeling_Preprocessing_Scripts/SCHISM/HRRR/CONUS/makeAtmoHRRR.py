@@ -170,6 +170,7 @@ if (os.path.exists(hrrr_nc_dir) == False):
     os.mkdir(hrrr_nc_dir)
 else:
     shutil.rmtree( hrrr_nc_dir )
+    os.mkdir(hrrr_nc_dir)
 
 for i in range(len(HRRR_datetimes)):
     file_avail = True
