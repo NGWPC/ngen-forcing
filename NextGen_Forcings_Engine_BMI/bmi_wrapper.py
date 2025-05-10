@@ -150,7 +150,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         configPath = config['medium_range_blend']['mrb_config_path']
         gfs_extract_scriptPath = os.path.join(extraction_scriptPath, "Global", "get_prod_GFS.py")
         gfs_extract_outPath = os.path.join(extraction_outPath, config['medium_range_blend']['gfs_out_path'].lstrip('/'))
-        nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_prod_NBM.py")
+        nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_prod_NBM_Conus.py")
         nbm_extract_outPath = os.path.join(extraction_outPath, config['medium_range_blend']['nbm_out_path'].lstrip('/'))
 
         # Set cycle-specific time variables for medium-range forecast
