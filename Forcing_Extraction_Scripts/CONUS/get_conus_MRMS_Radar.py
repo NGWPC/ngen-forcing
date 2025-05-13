@@ -7,8 +7,7 @@ class MRMSRadarConusDownloader(FixedFileDownloader, ABC):
     """
     Downloader for MRMS RadarOnly hourly QPE for CONUS.
 
-    - Each file is named based on the hour and stored in a directory
-      like RadarOnly_QPE/YYYYMMDD/
+    - Files are stored directly in the RadarOnly_QPE_01H directory.
     - No forecast hours are involved; only one file per timestamp.
     - This subclass overrides cleanup and download logic to reflect
       the simpler structure (one file per hour).
@@ -16,16 +15,16 @@ class MRMSRadarConusDownloader(FixedFileDownloader, ABC):
 
     @property
     def base_url(self):
-        # Base directory; files are organized by subdir per day (e.g., RadarOnly_QPE/YYYYMMDD)
-        return "https://mrms.ncep.noaa.gov/data/2D/"
+        # Base directory; files are directly in the RadarOnly_QPE_01H directory
+        return "https://mrms.ncep.noaa.gov/data/2D/RadarOnly_QPE_01H"
 
     def build_output_dir(self, d_current):
         return self.out_dir
 
     def get_file_specs(self, d_current):
-        subdir = f"RadarOnly_QPE/{d_current.strftime('%Y%m%d')}"
+        # Construct the filename without subdirectory
         filename = f"MRMS_RadarOnly_QPE_01H_00.00_{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
-        return [(subdir, filename)]
+        return [("", filename)]
 
 
 if __name__ == "__main__":
