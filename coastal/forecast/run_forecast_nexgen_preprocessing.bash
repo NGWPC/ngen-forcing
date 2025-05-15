@@ -23,11 +23,15 @@ set -x
 #conda activate $CONDA_ENV_NAME
 
 #source /contrib/software/py_venvs/ngen_python_3_10_14/bin/activate
-source /ngen-app/ngen-python/bin/activate
+source $COASTAL_VENV/bin/activate
+
 source ./nexgen_preprocessing.bash
 source ../calib/update_param.bash
 source ../calib/regrid_stofs.bash
 source ../calib/nwm_coastal.bash
+
+OLD_LD_LIBRARY_PATH=$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$COASTAL_VENV/lib:$LD_LIBRARY_PATH
 
 nexgen_preprocessing  $COASTAL_PREPROCESSING_SCRIPT_DIR \
 	$NGWPC_COASTAL_PARM_DIR/parm/coastal \
@@ -42,29 +46,4 @@ nexgen_preprocessing  $COASTAL_PREPROCESSING_SCRIPT_DIR \
 nwm_coastal_update_params ${STARTPDY}${STARTCYC} $COASTAL_DOMAIN $FCST_LENGTH_HRS $HOT_START_FILE 
 
 deactivate
-
-# User specific aliases and functions
-# >>> conda initialize >>>
-# !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/contrib/software/miniconda/miniconda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-if [ $? -eq 0 ]; then
-    eval "$__conda_setup"
-else
-    if [ -f "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh" ]; then
-        . "/contrib/software/miniconda/miniconda/etc/profile.d/conda.sh"
-    else
-        export PATH="/contrib/software/miniconda/miniconda/bin:$PATH"
-    fi
-fi
-unset __conda_setup
-# <<< conda initialize <<<
-
-conda activate /contrib/software/miniconda/miniconda/envs/nwm
-
-nwm_coastal_regrid_estofs ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS \
-	$STOFS_FILE
-
-conda deactivate
-conda deactivate
-
-nwm_coastal
+export LD_LIBRARY_PATH=$OLD_LD_LIBRARY_PATH

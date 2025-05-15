@@ -134,7 +134,6 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
     pip3 install --upgrade pip setuptools wheel && \
     pip3 install 'numpy==1.26.4' 'netcdf4<=1.6.3'
 
-
 RUN set -eux; \
 	\
 	curl --location --output szip.gz "https://docs.hdfgroup.org/archive/support/ftp/lib-external/szip/${SZIP_VERSION%%[a-z]*}/src/szip-${SZIP_VERSION}.tar.gz"; \
@@ -258,36 +257,17 @@ RUN --mount=type=secret,id=GITLAB_TOKEN \
     \
     git config --global url."https://oauth2:$(cat /run/secrets/GITLAB_TOKEN)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
 
-# check out the nwm.v3.0.6_no_svn repo
+# check out the ngen repo
 RUN set -eux; \
     \
    git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen.git;
 
-#   git submodule set-branch --branch development extern/SoilFreezeThaw/SoilFreezeThaw; \
-#   git submodule update  --remote extern/SoilFreezeThaw/SoilFreezeThaw; \
-#   git submodule set-branch --branch development extern/SoilMoistureProfiles/SoilMoistureProfiles; \
-#   git submodule update  --remote extern/SoilMoistureProfiles/SoilMoistureProfiles; \
-#   git submodule set-branch --branch development extern/evapotranspiration/evapotranspiration; \
-#   git submodule update  --remote extern/evapotranspiration/evapotranspiration; \
-#   git submodule set-branch --branch development extern/noah-owp-modular/noah-owp-modular; \
-#   git submodule update  --remote extern/noah-owp-modular/noah-owp-modular; \
-#   git submodule set-branch --branch development extern/topmodel/topmodel; \
-#   git submodule update  --remote extern/topmodel/topmodel; \
-#   git submodule set-branch --branch development extern/t-route; \
-#   git submodule update  --remote extern/t-route; \
-#   git submodule set-branch --branch development extern/sloth; \
-#   git submodule update  --remote extern/sloth; \
-#   git submodule set-branch --branch development extern/sac-sma/sac-sma; \
-#   git submodule update  --remote extern/sac-sma/sac-sma; \
-#   git submodule set-branch --branch development extern/snow17; \
-#   git submodule update  --remote extern/snow17; \
-#   git submodule update  --remote extern/ueb-bmi
-
-   #git submodule set-branch --branch development extern/cfe/cfe; \
-   #git submodule update  --remote extern/cfe/cfe; \
-   #git submodule add https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/LGAR-C.git extern/LASAM/; \
-   #git submodule add https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/snow17.git extern/snow17/; \
-   #git submodule add https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/sac-sma.git ./extern/sac-sma/sac-sma/; 
+# check out the github t-route development branch repo
+# the t-route repo on gitlab doesn't work with the HF v2.2 in the 
+# Lower Colorado River domain
+RUN set -eux; \
+    \
+   git clone -b development https://github.com/NGWPC/t-route.git
 
 ##############################
 # Stage: Submodules Build
@@ -307,9 +287,10 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
 ENV LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
 
 # Use cache for building the t-route submodule
+# use the development branch on github
 RUN --mount=type=cache,target=/root/.cache/t-route,id=t-route-build \
     set -eux && \
-    cd extern/t-route && \
+    cd /ngen-app/t-route && \
    echo "Running compiler.sh" && \
     LDFLAGS='-Wl,-L/usr/local/lib64/,-L/usr/local/lib/,-rpath,/usr/local/lib64/,-rpath,/usr/local/lib/' && \
     ./compiler.sh no-e
@@ -541,12 +522,29 @@ RUN set -eux; \
     conda clean --all ; \
     rm --force environment.yaml
 
+ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
+COPY ./ngen-forcing/ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
+RUN set -eux; \
+    \
+    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
+    conda clean --all ; \
+    conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
+    rm --force environment.yaml
+
 ENV WGRIB2=/usr/local/bin/wgrib2
 
 #ENV PATH=${OLD_PATH}
 
 COPY ./ngen-forcing/ /ngen-app/ngen-forcing/
+
 WORKDIR /ngen-app/
+
+ENV COASTAL_VENV="/ngen-app/ngen-forcing-coastal"
+RUN set -eux; python3 -m venv ${COASTAL_VENV}
+
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    set -eux && \
+    ${COASTAL_VENV}/bin/python -m pip install -r ./ngen-forcing/coastal/forecast/requirements.txt
 
 RUN set -eux; \
     \
