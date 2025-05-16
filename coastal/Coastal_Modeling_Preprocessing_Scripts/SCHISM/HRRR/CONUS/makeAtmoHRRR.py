@@ -15,6 +15,7 @@ import subprocess
 import xarray as xr
 import geopandas as gpd
 from shapely.geometry import Polygon
+import math
 from common.io import read_pli, read_polygon
 
 parser = argparse.ArgumentParser()
@@ -77,7 +78,6 @@ v = np.zeros((len(HRRR_datetimes)+1,x.shape[0],x.shape[1]))
 p = np.zeros((len(HRRR_datetimes)+1,x.shape[0],x.shape[1]))
 rainrate = np.zeros((len(HRRR_datetimes)+1,x.shape[0],x.shape[1]))
 r = np.zeros((len(HRRR_datetimes),len(precip2flux)))
-time = np.zeros((len(HRRR_datetimes)+1))
 
 subhourly = False
 # Specify where a Alaska HRRR raw grib2 file is on your system
@@ -239,7 +239,6 @@ q[0:-1,:,:] = data.variables['SPFH_2maboveground'][:,:,:].values[:,ind_y,:][:,:,
 u[0:-1,:,:] = data.variables['UGRD_10maboveground'][:,:,:].values[:,ind_y,:][:,:,ind_x]
 v[0:-1,:,:] = data.variables['VGRD_10maboveground'][:,:,:].values[:,ind_y,:][:,:,ind_x]
 p[0:-1,:,:] = data.variables['PRES_surface'][:,:,:].values[:,ind_y,:][:,:,ind_x]
-time[0:-1] = ((HRRR_datetimes - ref_date).total_seconds()-start)/c2
 rainrate = data.variables['APCP_surface'][:,:,:].values
 for i in range(len(HRRR_datetimes)):
     if(i == len(HRRR_datetimes) -1):
@@ -253,12 +252,24 @@ q[-1,:,:] = data.variables['SPFH_2maboveground'][-1,:,:].values[ind_y,:][:,ind_x
 u[-1,:,:] = data.variables['UGRD_10maboveground'][-1,:,:].values[ind_y,:][:,ind_x]
 v[-1,:,:] = data.variables['VGRD_10maboveground'][-1,:,:].values[ind_y,:][:,ind_x]
 p[-1,:,:] = data.variables['PRES_surface'][-1,:,:].values[ind_y,:][:,ind_x]
+time = np.zeros((len(HRRR_datetimes)+1))
+#
+#By default, the time values are rounded up by numpy. This causes probelms in SCHISM
+# at reading the times when the time is a number with repeating digits.
+#time[0:-1] = ((HRRR_datetimes - ref_date).total_seconds()-start)/c2
+#time[0:-1] = ((HRRR_datetimes - ref_date).total_seconds()-start)/3600/24
+#Here, we must round down (truncate) the numbers such that SCHISM can read the time correctly
+for i, tm in enumerate( HRRR_datetimes ):
+    time[i] = math.floor(((tm - ref_date).total_seconds()-start)/3600/24 * 10000000 ) / 10000000
+
 #time[-1] = ((HRRR_datetimes[-1] - ref_date).total_seconds()-start)/c2
 #expect 1 hour intervals. Add one more time step to the end
-time[-1] = ((HRRR_datetimes[-1] - ref_date).total_seconds()-start + 3600)/c2
+#
+#time[-1] = ((HRRR_datetimes[-1] - ref_date).total_seconds()-start + 3600)/c2
+#time[-1] = ((HRRR_datetimes[-1] - ref_date).total_seconds()-start + 3600)/3600/24
+time[-1] = math.floor(((HRRR_datetimes[-1] - ref_date).total_seconds()-start + 3600)/3600/24 * 10000000)/10000000
 
 data.close()
-
 
 # Remove the HRRR netcdf file diectory
 # after we're finished with the files
