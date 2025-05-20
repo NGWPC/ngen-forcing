@@ -8,16 +8,16 @@
 
 set -x
 
-export NODES=4          #this must match the number of nodes defined above by slurm
+export NODES=4         #this must match the number of nodes defined above by slurm
 export NCORES=18        #this must match the number of cores per node defined above by slurm
 export NPROCS=$((NODES*NCORES))
 #
 # define the start time of the calibration
 # in the format of YYYYMMDD
-export STARTPDY=20240219
+export STARTPDY=20250513
 #
 # define the start hour of the calibration
-export STARTCYC=12
+export STARTCYC=06
 # define the forecast length in hours of the calibration
 export FCST_LENGTH_HRS=11
 #
@@ -27,23 +27,23 @@ export HOT_START_FILE=/efs/ngwpc-coastal/restart_coastal/hotstart_analysis_assim
 #
 # location of the archived STOFS file if STOFS data is 
 # going to be used for the boundary nodes
-export STOFS_FILE=/contrib/Zhengtao.Cui/home/ngwpc/lfs/h1/ops/prod/com/stofs/v1.1/stofs_20240219/stofs_2d_glo.t00z.fields.cwl.nc
+export STOFS_FILE=/efs/$LOGNAME/schism_forecast_test/stofs/stofs_2d_glo.t06z.fields.cwl.nc
 
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
-export HRRRDIR=/contrib/Zhengtao.Cui/home/ngwpc/hrrr_20240219/conus
-export HRRRFILE=$HRRRDIR/hrrr.20240219/hrrr.t12z.wrfsfcf00.grib2
+export HRRRDIR=/efs/$LOGNAME/schism_forecast_test/hrrr
+export HRRRFILE=$HRRRDIR/hrrr.20250513/hrrr.t05z.wrfsfcf01.grib2
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
-export TROUTE_PATH=/contrib/Zhengtao.Cui/home/ngwpc/Lower_Colorado_River_ngen/output_schism_test
+export TROUTE_PATH=/efs/$LOGNAME/schism_forecast_test/Lower_Colorado_River_ngen/output_schism_test
 
 #the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
 export COASTAL_DOMAIN=atlgulf
 #
 #define working directory of the SCHISM calibration run
-export COASTAL_WORK_DIR=/efs/coastal_testdata/atl_nwm_ana_nexgen_20240219_ngen
+export COASTAL_WORK_DIR=/efs/$LOGNAME/schism_forecast_test/schism_forecast_2025051100
 ##################################################################################################
 # End of user defined section
 ##################################################################################################
@@ -53,10 +53,7 @@ SIF_PATH="singularity/ngen_coastal_sing.sif"
 
 export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
 
-#export NGEN_APP_DIR=/ngen-app
-#export NGEN_APP_DIR=/contrib/software/nwmv3_oe_install/test/packages
-export NGEN_APP_DIR=/contrib/Zhengtao.Cui/home/ngwpc
-
+export NGEN_APP_DIR=/ngen-app
 #
 # define the model time step in seconds
 export FCST_TIMESTEP_LENGTH_SECS=3600
@@ -84,30 +81,31 @@ export FI_OFI_RXM_SAR_LIMIT=3145728
 export FI_MR_CACHE_MAX_COUNT=0
 export FI_EFA_RECVWIN_SIZE=65536
 
-## User specific aliases and functions
-## >>> conda initialize >>>
-## !! Contents within this block are managed by 'conda init' !!
-#__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
-#if [ $? -eq 0 ]; then
-#    eval "$__conda_setup"
-#else
-#    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-#        . "/opt/conda/etc/profile.d/conda.sh"
-#    else
-#        export PATH="/opt/conda/bin:$PATH"
-#    fi
-#fi
-##unset __conda_setup
-## <<< conda initialize <<<
-##
+# User specific aliases and functions
+# >>> conda initialize >>>
+# !! Contents within this block are managed by 'conda init' !!
+__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+if [ $? -eq 0 ]; then
+    eval "$__conda_setup"
+else
+    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
+        . "/opt/conda/etc/profile.d/conda.sh"
+    else
+        export PATH="/opt/conda/bin:$PATH"
+    fi
+fi
+unset __conda_setup
+# <<< conda initialize <<<
+#
 
 export NFS_MOUNT=/efs
-#export PATH=/opt/conda/bin:${PATH}
-#export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
-#export CONDA_ENV_NAME=ngen_forcing_coastal
-#export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
+export PATH=/opt/conda/bin:${PATH}
+export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
+export CONDA_ENV_NAME=ngen_forcing_coastal
+export COASTAL_VENV=${NGEN_APP_DIR}/ngen-forcing-coastal
+export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
-#conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
+conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
 export PATH=/contrib/software/python_3_10_14/bin:${PATH}
 export LD_LIBRARY_PATH=/contrib/software/python_3_10_14/lib:/contrib/software/netcdf/4.7.4/lib:/contrib/software/hdf5/1.12.3/lib:/opt/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
@@ -141,13 +139,8 @@ export NSCRIBES=2
 export BINDINGS="/contrib,$NFS_MOUNT,$CONDA_ENVS_PATH,$NGWPC_COASTAL_PARM_DIR,/usr/bin/bc,/usr/bin/srun,/usr/lib64/libpmi2.so,/usr/lib64/libefa.so,/usr/lib64/libibmad.so,/usr/lib64/libibnetdisc.so,/usr/lib64/libibumad.so,/usr/lib64/libibverbs.so,/usr/lib64/libmana.so,/usr/lib64/libmlx4.so,/usr/lib64/libmlx5.so,/usr/lib64/librdmacm.so"
 
 work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/forecast
-#work_dir=/contrib/Zhengtao.Cui/home/ngwpc/ngen-forcing/coastal/forecast
+calib_work_dir=${NGEN_APP_DIR}/ngen-forcing/coastal/calib
 export COASTAL_PREPROCESSING_SCRIPT_DIR=$work_dir/../
-
-#export WGRIB2=/contrib/software/nwmv3_oe_install/test/packages/grib2/wgrib2/wgrib2
-#export WGRIB2=${NGEN_APP_DIR}/grib2/wgrib2/wgrib2
-
-
 
 export LENGTH_HRS=$FCST_LENGTH_HRS
 export FORCING_BEGIN_DATE=${STARTPDY}${STARTCYC}00
@@ -158,7 +151,47 @@ itime=$(( 10#${LENGTH_HRS} * 3600 + $start_timestamp ))
 export FORCING_END_DATE=$(date -u -d "@${itime}" +"%Y%m%d%H00")
 export END_TIME="$(date -u -d "@${itime}" +"%Y-%m-%d %H:00:00")"
 
-#cd ${work_dir}
-#./run_forecast_nexgen_preprocessing.bash
 singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
 	 ./run_forecast_nexgen_preprocessing.bash
+
+export CYCLE_DATE=$STARTPDY
+export CYCLE_TIME=${STARTCYC}00
+export LENGTH_HRS=$(singularity exec -B $BINDINGS \
+	  --pwd ${work_dir} \
+         $SIF_PATH \
+	 ./run_sing_coastal_workflow_pre_make_stofs_ocean.bash)
+
+export ESTOFS_INPUT_FILE=$STOFS_FILE
+export SCHISM_OUTPUT_FILE=$DATAexec/elev2D.th.nc
+export OPEN_BNDS_HGRID_FILE=$DATAexec/open_bnds_hgrid.nc
+
+${MPICOMMAND2} singularity exec -B $BINDINGS \
+	  --pwd ${work_dir} \
+         $SIF_PATH \
+	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
+         $USHnwm/wrf_hydro_workflow_dev/coastal/regrid_estofs.py $ESTOFS_INPUT_FILE $OPEN_BNDS_HGRID_FILE $SCHISM_OUTPUT_FILE 
+
+singularity exec -B $BINDINGS \
+	  --pwd ${work_dir} \
+         $SIF_PATH \
+	 ./run_sing_coastal_workflow_post_make_stofs_ocean.bash
+
+singularity exec -B $BINDINGS \
+	  --pwd ${work_dir} \
+         $SIF_PATH \
+	 ./run_sing_coastal_workflow_pre_schism.bash
+
+export PATH=/opt/amazon/openmpi/bin:/opt/amazon/efa/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+
+export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/openmpi/lib64
+export OMPI_ALLOW_RUN_AS_ROOT=1
+export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
+
+${MPICOMMAND2} singularity exec -B $BINDINGS --pwd $COASTAL_WORK_DIR \
+         $SIF_PATH \
+	/bin/bash -c "/ngen-app/nwm.v3.0.6/exec/pschism_wcoss2_NO_PARMETIS_TVD-VL.openmpi $NSCRIBES"
+
+singularity exec -B $BINDINGS \
+	  --pwd ${calib_work_dir} \
+         $SIF_PATH \
+	 ./run_sing_coastal_workflow_post_schism.bash
