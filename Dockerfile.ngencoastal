@@ -501,7 +501,7 @@ RUN set -eux; \
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     rm --force environment.yaml
 
 #RUN set -eux; \
@@ -519,7 +519,7 @@ COPY ./ngen-forcing/NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     rm --force environment.yaml
 
 ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
@@ -527,7 +527,7 @@ COPY ./ngen-forcing/ESMF_Mesh_Domain_Configuration_Production/environment.yml en
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
     rm --force environment.yaml
 
