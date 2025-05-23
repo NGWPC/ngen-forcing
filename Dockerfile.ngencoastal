@@ -544,7 +544,7 @@ RUN set -eux; python3 -m venv ${COASTAL_VENV}
 
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
     set -eux && \
-    ${COASTAL_VENV}/bin/python -m pip install -r ./coastal/forecast/requirements.txt
+    ${COASTAL_VENV}/bin/python -m pip install -r ./ngen-forcing/coastal/forecast/requirements.txt
 
 RUN set -eux; \
     \
