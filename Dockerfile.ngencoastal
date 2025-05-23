@@ -250,7 +250,7 @@ RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
 
 WORKDIR /ngen-app/
 
-# TODO This wil invaalidate the cache for all subsequent stages so we don't really want to do this
+# TODO This will invalidate the cache for all subsequent stages so we don't really want to do this
 # Copy the remainder of your application code
 RUN --mount=type=secret,id=GITLAB_TOKEN \
     set -eux; \
@@ -494,14 +494,14 @@ RUN set -eux; \
 ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
 
 ARG CONDA_ENV_NAME=ngen_forcing_coastal
-COPY ./ngen-forcing/coastal/environment.yml environment.yaml
+COPY ./coastal/environment.yml environment.yaml
 RUN set -eux; \
     \
     conda init
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     rm --force environment.yaml
 
 #RUN set -eux; \
@@ -515,19 +515,19 @@ RUN set -eux; \
 #ENV PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
 
 ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
-COPY ./ngen-forcing/NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
+COPY ./NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     rm --force environment.yaml
 
 ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
-COPY ./ngen-forcing/ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
+COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
 RUN set -eux; \
     \
     conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
+    conda clean --all --yes ; \
     conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
     rm --force environment.yaml
 
@@ -535,7 +535,7 @@ ENV WGRIB2=/usr/local/bin/wgrib2
 
 #ENV PATH=${OLD_PATH}
 
-COPY ./ngen-forcing/ /ngen-app/ngen-forcing/
+COPY . /ngen-app/ngen-forcing/
 
 WORKDIR /ngen-app/
 
