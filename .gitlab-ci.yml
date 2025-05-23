@@ -19,18 +19,14 @@ variables:
 
 build:
   stage: build
-  # before_script:
-  #   - git config --global url."https://oauth2:${GITLAB_TOKEN}@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
-  #   - chown -R `whoami` .
   script:
-    - docker version
     - echo "Logging in to Gitlab Container Registry..."
     - echo $CI_JOB_TOKEN | docker login -u $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
     - echo "Building ${CI_PROJECT_NAME} docker images.. "
-    # - docker build --file=Dockerfile.bmi-forcings --build-arg CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME} --tag "$DOCKER_IMAGE_NAME_BMI_FORCING:$DOCKER_IMAGE_TAG" .
-    # - docker push $DOCKER_IMAGE_NAME_BMI_FORCING:$DOCKER_IMAGE_TAG
-    # - docker build --file=Dockerfile.lumped-forcings --build-arg CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME} --tag "$DOCKER_IMAGE_NAME_LUMPED_FORCING:$DOCKER_IMAGE_TAG" .
-    # - docker push $DOCKER_IMAGE_NAME_LUMPED_FORCING:$DOCKER_IMAGE_TAG
+    - docker build --file=Dockerfile.bmi-forcings --build-arg CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME} --tag "$DOCKER_IMAGE_NAME_BMI_FORCING:$DOCKER_IMAGE_TAG" .
+    - docker push $DOCKER_IMAGE_NAME_BMI_FORCING:$DOCKER_IMAGE_TAG
+    - docker build --file=Dockerfile.lumped-forcings --build-arg CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME} --tag "$DOCKER_IMAGE_NAME_LUMPED_FORCING:$DOCKER_IMAGE_TAG" .
+    - docker push $DOCKER_IMAGE_NAME_LUMPED_FORCING:$DOCKER_IMAGE_TAG
     - docker build --secret id=GITLAB_TOKEN,env=GITLAB_TOKEN --file=Dockerfile.ngencoastal --build-arg CI_COMMIT_REF_NAME=${CI_COMMIT_REF_NAME} --tag "$DOCKER_IMAGE_NAME_COASTAL:$DOCKER_IMAGE_TAG" .
     - docker push $DOCKER_IMAGE_NAME_COASTAL:$DOCKER_IMAGE_TAG
     - docker logout
