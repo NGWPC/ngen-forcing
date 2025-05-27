@@ -216,8 +216,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # Set cycle-specific time variables for analysis run
         # TODO: Make timesteps configurable with defaults set in config file?
         b_date_dt = dNow - ONE_HOUR
-        start_time_dt = b_date_dt + THREE_HOURS
-        end_time_dt = b_date_dt + ONE_HOUR
+        start_time_dt = b_date_dt - THREE_HOURS
+        end_time_dt = b_date_dt - ONE_HOUR
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
         end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
