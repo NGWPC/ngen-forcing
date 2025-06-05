@@ -401,7 +401,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         """
         # Set cycle-specific path variables for Puerto Rico
         configPath = config['pr_short_range']['pr_sr_config_path']
-        nam_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_prod_NAM_Nest_PuertoRico.py")
+        nam_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_prod_NAM_Nest_Puerto_Rico.py")
         nam_extract_outPath = os.path.join(extraction_outPath, config['pr_short_range']['nam_out_path'].lstrip('/'))
         nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "Puerto_Rico", "get_prod_NBM_Puerto_Rico.py")
         nbm_extract_outPath = os.path.join(extraction_outPath, config['pr_short_range']['nbm_out_path'].lstrip('/'))
