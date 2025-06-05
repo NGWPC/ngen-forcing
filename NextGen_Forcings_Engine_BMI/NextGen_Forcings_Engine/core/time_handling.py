@@ -2001,10 +2001,10 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
     # TODO: Update for keyValue 6 and 10
 
     if supplemental_precip.keyValue == 1:
-        tmp_file1 = (supplemental_precip.inDir + "/RadarOnly_QPE/MRMS_RadarOnly_QPE_01H_00.00_" +
+        tmp_file1 = (supplemental_precip.inDir + "/MRMS_RadarOnly_QPE_01H_00.00_" +
                      date_path1 + "-" + supplemental_precip.pcp_date1.strftime('%H') + \
                      "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else ''))
-        tmp_file2 = (supplemental_precip.inDir + "/RadarOnly_QPE/MRMS_RadarOnly_QPE_01H_00.00_" +
+        tmp_file2 = (supplemental_precip.inDir + "/MRMS_RadarOnly_QPE_01H_00.00_" +
                      date_path2 + "-" + supplemental_precip.pcp_date2.strftime('%H') + \
                      "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else ''))
     elif supplemental_precip.keyValue == 2:
