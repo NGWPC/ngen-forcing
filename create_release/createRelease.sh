@@ -1,5 +1,11 @@
 #!/bin/bash
 
+# Start logging everything to a file
+LOGFILE="createRelease_$(date +%Y%m%d_%H%M%S).log"
+exec > >(tee >(sed -r "s/\x1B\[[0-9;]*[mK]//g" >> "$LOGFILE")) 2>&1
+echo "All output will be logged to: $LOGFILE"
+
+
 declare -a TEMP_BRANCHES
 
 #-----------------------------------------
@@ -495,7 +501,11 @@ execute_merge_request() {
   previous_branch=$(git rev-parse --abbrev-ref HEAD)  # Save current branch
 
   # Check if the target branch exists in the remote repository
+  echo Checking if $target_branch exists...
   if ! git ls-remote --exit-code --heads origin "$target_branch" > /dev/null 2>&1; then
+    ### for debugging
+    git ls-remote --exit-code --heads origin "$target_branch"
+    ###
     echo -e "${YELLOW}Target branch $target_branch does not exist. Creating it from $source_branch...${NC}"
 
     # Create the target branch locally from the source branch
@@ -812,6 +822,32 @@ process_repo() {
 
   # We echo here so we can show the full release number.  So technically, we are missing out the timing for the get_next_rc_number
   echo -e "$start_time ${GREEN}Processing repository: $repo_directory (Release: $RELEASE_NUMBER)${NC}"
+  echo
+
+
+  echo -e "$start_time ${GREEN}Processing repository: $repo_directory (Release: $RELEASE_NUMBER)${NC}"
+
+  echo -e "${YELLOW}Proceed with processing this repository? (C)ontinue, (S)kip, (Q)uit [default: C in 10s]:${NC}"
+  read -t 10 -n 1 -s -r user_input
+  echo
+
+  # Default to Continue if no input is provided
+  user_input="${user_input:-C}"
+  user_input=$(echo "$user_input" | tr '[:lower:]' '[:upper:]')
+
+  case "$user_input" in
+    Q)
+      echo -e "${RED}Quitting script.${NC}"
+      exit 2
+      ;;
+    S)
+      echo -e "${YELLOW}Skipping this repository.${NC}"
+      return 1
+      ;;
+    C|*)
+      echo -e "${GREEN}Continuing with $repo_directory...${NC}"
+      ;;
+  esac
 
   # Get the remote URL.
   repo_remote=$(git remote get-url origin)
