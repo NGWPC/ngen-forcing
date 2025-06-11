@@ -181,6 +181,10 @@ def log_critical(ConfigOptions,MpiConfig):
     except:
         err_out_screen_para(('Unable to write CRITICAL message on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile),MpiConfig)
+
+    # Add this for debugging:
+    print(f"[DEBUG] log_critical called on RANK {MpiConfig.rank}: {ConfigOptions.errMsg}", flush=True)
+
     ConfigOptions.errFlag = 1
 
 def log_warning(ConfigOptions,MpiConfig):
