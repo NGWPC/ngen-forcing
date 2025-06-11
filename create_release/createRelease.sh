@@ -554,7 +554,7 @@ execute_merge_request() {
     return 1
   fi
 
-  echo -e "${GREEN}Local merge test successful. Proceeding with API call...${NC}"
+  echo -e "${GREEN}Local merge test successful. Proceeding with API call to create merge request...${NC}"
   echo
   git checkout --quiet "$previous_branch"
   git branch --quiet -D "$temp_merge_branch"
@@ -789,13 +789,11 @@ process_repo() {
 
   local start_time=$(date +"%Y-%m-%d %H:%M:%S")
   local start_seconds=$SECONDS  # Capture start time in seconds
+  export start_seconds
 
   echo "----------------------------------------------------------"
 
   local return_code=0  # Default to success
-
-  # Ensure cleanup_repo always runs when this function returns
-  trap 'cleanup_repo; trap - RETURN' RETURN
 
   # Convert full path to tilde-prefixed path if it starts with $HOME
   if [[ $repo_directory == "$HOME"* ]]; then
@@ -810,13 +808,20 @@ process_repo() {
   else
     RELEASE_NUMBER="$base_release_number"
   fi
+  export RELEASE_NUMBER
 
   # We echo here so we can show the full release number.  So technically, we are missing out the timing for the get_next_rc_number
   echo -e "$start_time ${GREEN}Processing repository: $repo_directory (Release: $RELEASE_NUMBER)${NC}"
 
   # Get the remote URL.
   repo_remote=$(git remote get-url origin)
+  REPO_PROJECT=$(echo "$repo_remote" | sed -E 's|.*/([^/]+/[^/.]+)(\.git)?$|\1|')
+
+
   echo "Remote URL: $repo_remote"
+
+  # Ensure cleanup_repo always runs when this function returns
+  trap "cleanup_repo '$REPO_PROJECT' '$repo_directory_short'; trap - RETURN" RETURN
 
   # URL-encode the project path using url_encode_project.
   local ENCODED_PROJECT
@@ -853,6 +858,10 @@ process_repo() {
 
   echo -e "Source branch: ${GREEN}$SOURCE_BRANCH${NC}"
   echo -e "Target branch: ${GREEN}$TARGET_BRANCH${NC}"
+
+  echo -e "Pulling latest updates for branch ${GREEN}${SOURCE_BRANCH}${NC}..."
+  git checkout --quiet "$SOURCE_BRANCH" && git pull --quiet
+
 
   # Perform the merge request for the initial RC1 or Official release
   if [ "$RELEASE_TYPE" = "OFFICIAL" ] || [[ "$RELEASE_NUMBER" =~ -rc1$ ]]; then
@@ -915,7 +924,6 @@ process_repo() {
  fi
 
 
-
   # If submodules exist, set all submodules to development
   if [ "$has_submodules" = "true" ]; then
     process_submodules "development"
@@ -953,6 +961,9 @@ process_repo() {
 #   - Sets a global return code variable (GLOBAL_RETURN_CODE) to reflect the overall status.
 #-----------------------------------------
 cleanup_repo() {
+  local repo_project="$1"
+  local repo_short="$2"
+
   local exit_code=$return_code  # Preserve the return code
   local end_time=$(date +"%Y-%m-%d %H:%M:%S")
   local elapsed_seconds=$(( SECONDS - start_seconds ))
