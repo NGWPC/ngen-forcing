@@ -528,6 +528,7 @@ execute_merge_request() {
     return 0
   fi
 
+  echo
   echo -e "${YELLOW}Checking merge viability between $source_branch and $target_branch...${NC}"
 
   # Ensure we have the latest updates for source branch
@@ -827,8 +828,8 @@ process_repo() {
 
   echo -e "$start_time ${GREEN}Processing repository: $repo_directory (Release: $RELEASE_NUMBER)${NC}"
 
-  echo -e "${YELLOW}Proceed with processing this repository? (C)ontinue, (S)kip, (Q)uit [default: C in 10s]:${NC}"
-  read -t 10 -n 1 -s -r user_input
+  echo -e "${YELLOW}Proceed with processing this repository? (C)ontinue, (S)kip, (Q)uit [default: C in 60s]:${NC}"
+  read -t 60 -n 1 -s -r user_input
   echo
 
   # Default to Continue if no input is provided
@@ -862,7 +863,6 @@ process_repo() {
   # URL-encode the project path using url_encode_project.
   local ENCODED_PROJECT
   ENCODED_PROJECT=$(clean_and_encode_project "$repo_remote")
-  echo "Encoded Project: $ENCODED_PROJECT"
 
   # Build the API URL.
   local REPO_URL="https://gitlab.sh.nextgenwaterprediction.com/api/v4/projects/${ENCODED_PROJECT}"
@@ -929,19 +929,9 @@ process_repo() {
     generate_changelog
   fi
 
-  while true; do
-    read -n 1 -s -r -p "Proceed with the actual GitLab $RELEASE_TYPE release for $REPO_PROJECT? (Y)es, (N)o, (Q)uit: " choice
-    echo
-    choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
-    case "$choice" in
-      Q) echo "Quitting script."; return_code=2; return;;
-      N) echo "Skipping $repo_directory_short"; return_code=1; return;;
-      Y) echo "Continuing processing $repo_directory_short..."; break;;
-      *) echo "Invalid option. Please try again." >&2;;
-    esac
-  done
 
   # Create GitLab release
+  echo
   echo -e "${GREEN}Creating official GitLab release for $REPO_PROJECT...${NC}"
   if ! create_release "$REPO_URL" "$RELEASE_NUMBER" "Release $RELEASE_NUMBER" "$release_notes" "$TARGET_BRANCH"; then
     echo -e "${RED}Error: Official release creation for $REPO_PROJECT failed.${NC}"
