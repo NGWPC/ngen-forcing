@@ -773,8 +773,7 @@ process_submodules() {
 
 #-----------------------------------------
 # Function: process_repo
-# Processes a single repository given its directory, a base release number, release notes,
-# and optionally NGENCERF_VERSION and NGENCERF_DATE (for repositories with a version.env file).
+# Processes a single repository given its directory, a base release number and release notes.
 #
 # For RC releases the base number is processed through get_next_rc_number so that RELEASE_NUMBER
 # is set (e.g. “10.2-rc1” or “10.2-rc2”). Then, if RELEASE_NUMBER ends with "-rc1" (or if the release
@@ -786,17 +785,13 @@ process_submodules() {
 #   $1 - Repository directory
 #   $2 - Base release number (e.g., "1.2")
 #   $3 - Release notes
-#   $4 - (Optional) NGENCERF_VERSION value
-#   $5 - (Optional) NGENCERF_DATE value
-#   $6 - (Optional) has_submodules flag
+#   $4 - (Optional) has_submodules flag
 #-----------------------------------------
 process_repo() {
   local repo_directory="$1"
   local base_release_number="$2"
   local release_notes="$3"
-  local ngencerf_version="$4"
-  local ngencerf_date="$5"
-  local has_submodules="$6"
+  local has_submodules="$4"
 
   local start_time=$(date +"%Y-%m-%d %H:%M:%S")
   local start_seconds=$SECONDS  # Capture start time in seconds
@@ -1159,9 +1154,6 @@ main() {
     release=$(echo "$json_data" | jq -r ".[$i].release")
 
     release_notes=$(echo "$json_data" | jq -r ".[$i].release_notes")
-    # Read the additional NGENCERF fields; default to empty if not present.
-    ngencerf_version=$(echo "$json_data" | jq -r ".[$i].ngencerf_version // \"\"")
-    ngencerf_date=$(echo "$json_data" | jq -r ".[$i].ngencerf_date // \"\"")
     has_submodules=$(echo "$json_data" | jq -r ".[$i].has_submodules // false")  # Default to false
     skip=$(echo "$json_data" | jq -r ".[$i].skip // false")  # Default to false
 
@@ -1175,7 +1167,7 @@ main() {
       continue
     fi
 
-    process_repo "$repo_directory" "$release" "$release_notes" "$ngencerf_version" "$ngencerf_date" "$has_submodules"
+    process_repo "$repo_directory" "$release" "$release_notes" "$has_submodules"
 
     # If user selected Quit, exit the loop
     if [ "$GLOBAL_RETURN_CODE" -eq 2 ]; then

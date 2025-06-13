@@ -69,8 +69,6 @@
         "repo_directory" : "~/ngwpc/ngencerf-server",
         "release": "1.3.0",
         "release_notes": "Updates for Time Series Viewer, SWE, and SNODAS. Removed Output Variable from DB. Get git info updates.",
-        "ngencerf_version": "1.2.0",
-        "ngencerf_date": "2025-03-28",
         "skip": false
     },
     {
