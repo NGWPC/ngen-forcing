@@ -616,6 +616,9 @@ execute_merge_request() {
 get_next_rc_number() {
   local release_number="$1"  # e.g., "10.2"
 
+  # Update our local tags
+  git fetch --tags --prune --prune-tags
+
   # List tags, filter for those matching "<release_number>-rcX", extract the X part
   local highest_rc=$(git tag | grep -E "^${release_number}-rc[0-9]+$" | sed -E "s/^${release_number}-rc([0-9]+)$/\1/" | sort -nr | head -n1)
 
