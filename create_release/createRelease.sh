@@ -535,6 +535,32 @@ execute_merge_request() {
   git checkout --quiet "$source_branch"
   git pull --quiet
 
+  if [[ -n $(git status --porcelain) ]]; then
+    echo -e "${RED}Local repository has uncommitted changes. Please resolve them before continuing.${NC}"
+    echo
+
+    echo -e "${YELLOW}=== git status ===${NC}"
+    git status
+    echo
+
+    if [[ -n $(git diff) ]]; then
+      echo -e "${YELLOW}=== git diff (unstaged changes) ===${NC}"
+      git diff
+      echo
+    fi
+
+    if [[ -n $(git diff --cached) ]]; then
+      echo -e "${YELLOW}=== git diff --cached (staged changes) ===${NC}"
+      git diff --cached
+      echo
+    fi
+    echo -e "${YELLOW}=== end of local changes ===${NC}"
+
+    git checkout --quiet "$previous_branch"
+    return 1
+  fi
+
+
   # Determine merge base (GitLab considers this as the common ancestor)
   local merge_base
   merge_base=$(git merge-base origin/"$source_branch" origin/"$target_branch")
@@ -556,14 +582,21 @@ execute_merge_request() {
   TEMP_BRANCHES+=("$temp_merge_branch")
 
   # Attempt to merge the source branch into the target branch quietly
-  # if ! git merge --no-commit --no-ff origin/"$source_branch" > /dev/null 2>&1; then
   if ! git merge --no-commit --no-ff origin/"$source_branch" ; then
     echo -e "${RED}Merge conflicts detected between $source_branch and $target_branch. Merge request will not be created.${NC}"
+
+    # Show list of conflicting files
+    echo
+    echo -e "${YELLOW}Conflicting files:${NC}"
+    git diff --name-only --diff-filter=U || echo "(None detected)"
+    echo
+
     git merge --abort
     git checkout --quiet "$previous_branch"
     git branch --quiet -D "$temp_merge_branch"
     return 1
   fi
+
 
   echo -e "${GREEN}Local merge test successful. Proceeding with API call to create merge request...${NC}"
   echo
