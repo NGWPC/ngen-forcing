@@ -535,12 +535,12 @@ execute_merge_request() {
   git checkout --quiet "$source_branch"
   git pull --quiet
 
-  if [[ -n $(git status --porcelain) ]]; then
-    echo -e "${RED}Local repository has uncommitted changes. Please resolve them before continuing.${NC}"
+  if [[ -n $(git status --porcelain | grep -v '^??') ]]; then
+    echo -e "${RED}Local repository has modifications to tracked files. Please resolve them before continuing.${NC}"
     echo
 
-    echo -e "${YELLOW}=== git status ===${NC}"
-    git status
+    echo -e "${YELLOW}=== git status (tracked changes only) ===${NC}"
+    git status | grep -v '^??' || echo "(No tracked changes)"
     echo
 
     if [[ -n $(git diff) ]]; then
