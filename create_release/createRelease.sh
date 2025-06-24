@@ -535,32 +535,6 @@ execute_merge_request() {
   git checkout --quiet "$source_branch"
   git pull --quiet
 
-  if [[ -n $(git status --porcelain | grep -v '^??') ]]; then
-    echo -e "${RED}Local repository has modifications to tracked files. Please resolve them before continuing.${NC}"
-    echo
-
-    echo -e "${YELLOW}=== git status (tracked changes only) ===${NC}"
-    git status | grep -v '^??' || echo "(No tracked changes)"
-    echo
-
-    if [[ -n $(git diff) ]]; then
-      echo -e "${YELLOW}=== git diff (unstaged changes) ===${NC}"
-      git diff
-      echo
-    fi
-
-    if [[ -n $(git diff --cached) ]]; then
-      echo -e "${YELLOW}=== git diff --cached (staged changes) ===${NC}"
-      git diff --cached
-      echo
-    fi
-    echo -e "${YELLOW}=== end of local changes ===${NC}"
-
-    git checkout --quiet "$previous_branch"
-    return 1
-  fi
-
-
   # Determine merge base (GitLab considers this as the common ancestor)
   local merge_base
   merge_base=$(git merge-base origin/"$source_branch" origin/"$target_branch")
