@@ -583,18 +583,24 @@ execute_merge_request() {
 
   # Attempt to merge the source branch into the target branch quietly
   if ! git merge --no-commit --no-ff origin/"$source_branch" ; then
-    echo -e "${RED}Merge conflicts detected between $source_branch and $target_branch. Merge request will not be created.${NC}"
+    echo -e "${YELLOW}Merge conflicts detected between $source_branch and $target_branch.. Checking if they are only submodule pointers...${NC}"
 
-    # Show list of conflicting files
-    echo
-    echo -e "${YELLOW}Conflicting files:${NC}"
-    git diff --name-only --diff-filter=U || echo "(None detected)"
-    echo
+    # Get list of conflicting files
+    conflict_files=$(git diff --name-only --diff-filter=U)
+    non_submodule_conflicts=$(echo "$conflict_files" | grep -vE '^extern/[^/]+(/[^/]+)?$' || true)
 
-    git merge --abort
-    git checkout --quiet "$previous_branch"
-    git branch --quiet -D "$temp_merge_branch"
-    return 1
+    if [[ -n "$non_submodule_conflicts" ]]; then
+      echo -e "${RED}Merge has conflicts outside submodules. Merge request will not be created.${NC}"
+      echo
+      echo -e "${YELLOW}Conflicting files:${NC}"
+      echo "$conflict_files"
+      git merge --abort
+      git checkout --quiet "$previous_branch"
+      git branch --quiet -D "$temp_merge_branch"
+      return 1
+    else
+      echo -e "${GREEN}Only submodule pointer conflicts detected. Safe to ignore due to .gitattributes.${NC}"
+    fi
   fi
 
 
@@ -777,8 +783,26 @@ process_submodules() {
     fi
 
     # Checkout and update submodule
-    echo -e "Checking out submodule ${GREEN}$submodule_path${NC} to branch ${GREEN}$submodule_target_branch${NC}"
+    echo -e "Checking out and pulling submodule ${GREEN}$submodule_path${NC} to branch ${GREEN}$submodule_target_branch${NC}"
     git checkout --quiet "$submodule_target_branch" && git pull --quiet origin "$submodule_target_branch"
+
+    # Diagnostic: confirm current submodule state
+    current_branch=$(git symbolic-ref --short -q HEAD || echo "(detached HEAD)")
+    current_commit=$(git rev-parse --short HEAD)
+    tracking_info=$(git for-each-ref --format='%(upstream:short)' "$(git symbolic-ref -q HEAD)" 2>/dev/null)
+
+    echo -e "${BLUE}Submodule: $submodule_path${NC}"
+    echo -e "  Branch: ${GREEN}$current_branch${NC}"
+    echo -e "  Commit: $current_commit"
+    if [[ -n "$tracking_info" ]]; then
+      echo -e "  Tracking: $tracking_info"
+    else
+      echo -e "  Tracking: (not tracking any upstream)"
+    fi
+
+    if [[ "$current_branch" != "$submodule_target_branch" ]]; then
+      echo -e "${YELLOW}  Warning: Expected branch '$submodule_target_branch', but on '$current_branch'${NC}"
+    fi
 
     cd - > /dev/null  # Go back to the main repository
   done
