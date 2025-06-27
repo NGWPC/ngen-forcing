@@ -760,6 +760,22 @@ process_submodules() {
     echo -e "Checking out and pulling submodule ${GREEN}$submodule_path${NC} to branch ${GREEN}$submodule_target_branch${NC}"
     git checkout --quiet "$submodule_target_branch" && git pull --quiet origin "$submodule_target_branch"
 
+    # Resolve conflicts in favor of target
+    submodule_source_branch=$(git for-each-ref --format='%(upstream:short)' "refs/heads/$submodule_target_branch" 2>/dev/null | sed 's|origin/||')
+
+    if [[ -n "$submodule_source_branch" && "$submodule_source_branch" != "$submodule_target_branch" ]]; then
+      echo "Attempting to merge $submodule_source_branch into $submodule_target_branch in submodule $submodule_path"
+      git fetch origin "$submodule_source_branch"
+
+      if ! git merge -X ours --no-edit "origin/$submodule_source_branch"; then
+        echo -e "${YELLOW}Conflicts occurred in submodule. Resolved in favor of ${GREEN}$submodule_target_branch${NC}"
+      fi
+
+      git commit -m "Auto-merge $submodule_source_branch into $submodule_target_branch (resolved in favor of $submodule_target_branch)" 2>/dev/null || true
+      git push origin "$submodule_target_branch"
+    fi
+
+
     # Diagnostic: confirm current submodule state
     current_branch=$(git symbolic-ref --short -q HEAD || echo "(detached HEAD)")
     current_commit=$(git rev-parse --short HEAD)
@@ -946,6 +962,7 @@ process_repo() {
   echo
 
   if [ "$has_submodules" = "true" ]; then
+    echo Calling process_submodules for $TARGET_BRANCH
     process_submodules "$TARGET_BRANCH"
   fi
 
@@ -971,16 +988,15 @@ process_repo() {
 
   # Merge the target branch back to development only for RC releases that are not -rc1
   if [[ "$RELEASE_TYPE" == "RC" && ! "$RELEASE_NUMBER" =~ -rc1$ ]]; then
-    if ! execute_merge_request "$REPO_URL" "$TARGET_BRANCH" "development" \
-         "Merge $TARGET_BRANCH into development for release $RELEASE_NUMBER" false "$WAIT_TIME"; then
-      return_code=1
-      return
-    fi
- fi
+    # Even if merge request fails, we continue
+    execute_merge_request "$REPO_URL" "$TARGET_BRANCH" "development" \
+      "Merge $TARGET_BRANCH into development for release $RELEASE_NUMBER" false "$WAIT_TIME"
+  fi
 
 
   # If submodules exist, set all submodules to development
   if [ "$has_submodules" = "true" ]; then
+    echo Setting submodules to devleopment
     process_submodules "development"
   fi
 
