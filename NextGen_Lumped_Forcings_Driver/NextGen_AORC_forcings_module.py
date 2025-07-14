@@ -1605,17 +1605,22 @@ def VPU_NGen_files(met_dataset_pathway, datafiles, aorc_filenames, output_root, 
             except Exception as e:
                 print(f"Error joining process {i}: {e}")
 
-    print(f"Collected {len(results)} results from queue")
+    if met_dataset_pathway is not None and met_dataset_pathway.startswith('s3://'):
+        final_df = pd.concat(list(shared_results))
+        
+    else:
+        print(f"Collected {len(results)} results from queue")
+        
+        # Filter out empty results and concatenate
+        valid_results = [r for r in results if len(r) > 0]
+        print(f"Valid results: {len(valid_results)}")
+        
+        if len(valid_results) == 0:
+            print("WARNING: No valid results collected!")
+            return pd.DataFrame()
+        
+        final_df = pd.concat(valid_results)
     
-    # Filter out empty results and concatenate
-    valid_results = [r for r in results if len(r) > 0]
-    print(f"Valid results: {len(valid_results)}")
-    
-    if len(valid_results) == 0:
-        print("WARNING: No valid results collected!")
-        return pd.DataFrame()
-    
-    final_df = pd.concat(valid_results)
     final_df = final_df.sort_values(by=['cat-id','time'])
 
     if netcdf:
@@ -1919,4 +1924,5 @@ def NextGen_Forcings_AORC(output_root, met_dataset_pathway, AORC_start_time, AOR
     # Now clean up I/O files from the script to free up memory for the user
     # Remove the temporary hydrofabric file
     os.remove(hyfabfile_final)
+
 
