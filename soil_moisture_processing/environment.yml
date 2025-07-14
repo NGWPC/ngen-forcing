@@ -1,0 +1,10 @@
+name: soil_moisture
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+  - geopandas
+  - s3fs
+  - boto3
+  - requests
