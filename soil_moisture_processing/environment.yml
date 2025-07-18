@@ -4,7 +4,14 @@ channels:
   - defaults
 dependencies:
   - python=3.10
+  - xarray
+  - netcdf4
+  - scipy
+  - matplotlib
+  - cartopy
+  - numpy
   - geopandas
+  - pandas
+  - fsspec
   - s3fs
-  - boto3
   - requests
