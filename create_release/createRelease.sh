@@ -1183,9 +1183,9 @@ main() {
     # Read the skip flag (default to false)
     skip=$(echo "$json_data" | jq -r ".[$i].skip // false")
     if [ "$skip" = "true" ]; then
-      echo "Repo: $repo_directory (Release: $release) (skipping)"
+      echo -e "${YELLOW}Repo: $repo_directory (Release: $release) (skipping)${NC}"
     else
-      echo "Repo: $repo_directory (Release: $release)"
+      echo -e "${GREEN}Repo: $repo_directory (Release: $release)${NC}"
     fi
   done
 
