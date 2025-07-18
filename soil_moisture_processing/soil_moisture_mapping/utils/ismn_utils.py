@@ -58,13 +58,12 @@ class ISMNDataLoader:
 
         print(matching_dirs)
         return matching_dirs, fs
-    
 
     @staticmethod
     def get_ismn_files(ismn_dir: str, fs: fsspec.filesystem) -> list:
         """
         Get all ISMN files in a given directory recursively.
-        
+
         Parameters
         ----------
         ismn_dir : str
@@ -86,15 +85,14 @@ class ISMNDataLoader:
 
         for ismn_file in ismn_files:
             print(ismn_file)
-        
+
         return ismn_files
 
 if __name__ == "__main__":
-    # Example usage
     ismn_base_dir = "/home/miguel.pena/noaa-owp/ngen-forcing/soil_moisture_processing/sample_data"
     date = "2025-07-17"
     ismn_dirs, fs = ISMNDataLoader.get_ismn_dirs_by_date(ismn_base_dir, date)
-    ismn_files: list = []
-    
+    ismn_files = []
+
     for ismn_dir in ismn_dirs:
         ismn_files.append(ISMNDataLoader.get_ismn_files(ismn_dir, fs))
