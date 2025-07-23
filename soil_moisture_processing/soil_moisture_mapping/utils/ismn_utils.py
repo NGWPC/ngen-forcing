@@ -285,6 +285,23 @@ class ISMNCalculator:
         """
         pass
 
+    @staticmethod
+    def calculate_depth_weighted_average(ismn_data_gdf):
+        """
+        Calculate depth-weighted average of ISMN soil moisture data.
+
+        Parameters
+        ----------
+        ismn_data_gdf : geopandas.GeoDataFrame
+            GeoDataFrame containing ISMN data
+
+        Returns
+        -------
+        pd.DataFrame
+            DataFrame with station information and ISMN soil moisture depth-weighted average values.
+        """
+        pass
+
 
 class ISMNPlotter:
     @staticmethod
