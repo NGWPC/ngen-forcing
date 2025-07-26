@@ -409,7 +409,7 @@ class ISMNPlotter:
 
 
 if __name__ == "__main__":
-    ismn_base_dir = "/home/miguel.pena/noaa-owp/ngen-forcing/soil_moisture_processing/sample_data"
+    ismn_base_dir = "/home/miguel.pena/noaa-owp/soil_moisture_sample_data"
     date = "2024-09-20"
     ismn_dirs, fs = ISMNDataLoader.get_ismn_dirs_by_date(ismn_base_dir, date)
     # print(f"Total ISMN directories found: {len(ismn_dirs)}\n")
