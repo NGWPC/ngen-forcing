@@ -106,7 +106,7 @@ class ISMNDataLoader:
         Returns
         -------
         BytesIO
-            A binary buffer containing the preprocessed CSV data
+            A binary buffer containing the preprocessed data for file
         """
         # compile regex to capture two datetime stamps and the rest of the line
         ts_pattern = re.compile(
@@ -216,7 +216,7 @@ class ISMNDataLoader:
             'value', 'ismn_flag', 'provider_flag'
 
         ]
-        print(f"number of columns: {len(column_names)}")
+        # print(f"number of columns: {len(column_names)}")
 
         usecols = [
             'utc_nominal', 'network', 'station', 'lat', 'lon',
@@ -245,29 +245,29 @@ class ISMNDataLoader:
                 )
 
                 print(f"Processing file: {ismn_file}")
-                n = min(10, len(ismn_file_df))
-                print(ismn_file_df.sample(n).to_string(index=False))
+                # n = min(10, len(ismn_file_df))
+                # print(ismn_file_df.sample(n).to_string(index=False))
 
                 all_ismn_dfs.append(ismn_file_df)
 
         print(f"Total ISMN files processed: {len(all_ismn_dfs)}")
-        n = min(25, len(all_ismn_dfs))
-        print(all_ismn_dfs[:n])
+        # n = min(25, len(all_ismn_dfs))
+        # print(all_ismn_dfs[:n])
 
-        combined_ismn_df = pd.concat(all_ismn_dfs, ignore_index=True)
-        print(f"Combined ISMN DataFrame shape: {combined_ismn_df.shape}")
+        # concatenate all DataFrames into a single GeoDataFrame
+        ismn_data_gdf = gpd.GeoDataFrame(pd.concat(all_ismn_dfs, ignore_index=True), geometry='geometry', crs='EPSG:4326')
 
-        # print 10 random rows from the combined_ismn_df
-        n = min(10, len(combined_ismn_df))
-        print(combined_ismn_df.sample(n).to_string(index=False))
-
-        ismn_data_gdf = gpd.GeoDataFrame(combined_ismn_df, geometry='geometry', crs='EPSG:4326')
+        print(f"ISMN data GeoDataFrame shape: {ismn_data_gdf.shape}")
+        # print 10 random rows from the ismn_data_gdf
+        n = min(10, len(ismn_data_gdf))
+        print("Sample ISMN data GeoDataFrame:")
+        print(ismn_data_gdf.sample(n).to_string(index=False))
         return ismn_data_gdf
 
 
 class ISMNCalculator:
     @staticmethod
-    def find_stations_basin(ismn_data_gdf, basin_geometry):
+    def find_stations_in_basin(ismn_data_gdf: gpd.GeoDataFrame, basin_geometry: shapely.geometry) -> gpd.GeoDataFrame:
         """
         Find ISMN stations within a given basin geometry.
 
@@ -286,21 +286,108 @@ class ISMNCalculator:
         pass
 
     @staticmethod
-    def calculate_depth_weighted_average(ismn_data_gdf):
+    def calculate_depth_weighted_average(ismn_data_gdf: gpd.GeoDataFrame) -> pd.DataFrame:
         """
-        Calculate depth-weighted average of ISMN soil moisture data.
+        Calculate depth-weighted average of ISMN soil moisture data over a fixed 1.25 m depth range
+        The top bound is always 0 m, and the bottom bound is always 1.25 m
 
         Parameters
         ----------
         ismn_data_gdf : geopandas.GeoDataFrame
-            GeoDataFrame containing ISMN data
+            GeoDataFrame containing ISMN data with columns:
+            ['utc_nominal','network','station','lat','lon',
+            'depth_from','depth_to','value','ismn_flag','provider_flag','geometry']
 
         Returns
         -------
         pd.DataFrame
-            DataFrame with station information and ISMN soil moisture depth-weighted average values.
+            DataFrame with columns ['station','hour','date','depth_weighted_sm','lat','lon']
+            giving, for each station-hour, the date and depth-weighted soil moisture average.
+
+        Examples
+        --------
+        with all depths present:
+        measurement depths (m): [0.05, 0.10, 0.20, 0.50, 1.00]
+        midpoints of depth layers (m): [0.075, 0.150, 0.350, 0.750]
+        lower bounds of depth layers (m): [0.000, 0.075, 0.150, 0.350, 0.750]
+        upper bounds of depth layers (m): [0.075, 0.150, 0.350, 0.750, 1.250]
+        weights per depth (m):
+            0.05: 0.075,
+            0.1: 0.075,
+            0.2: 0.200,
+            0.5: 0.400,
+            1.0: 0.500
+        normalized weights per depth (divide by total thickness, 1.25 m):
+            .05 m: 0.06,
+            .10 m: 0.06,
+            .20 m: 0.16,
+            .50 m: 0.32,
+            1.00 m: 0.40
+
+        with 0.5 m missing:
+        measurement depths (m): [0.05, 0.10, 0.20, 1.00]
+        midpoints of depth layers (m): [0.075, 0.150, 0.600]
+        lower bounds of depth layers (m): [0.000, 0.075, 0.150, 0.600]
+        upper bounds of depth layers (m): [0.075, 0.150, 0.600, 1.250]
+        weights per depth (m):
+            0.05: 0.075,
+            0.1: 0.075,
+            0.2: 0.450,
+            1.0: 0.650
+        normalized weights per depth (divide by total thickness, 1.25 m):
+            .05 m: 0.06,
+            .10 m: 0.06,
+            .20 m: 0.36,
+            1.00 m: 0.52
         """
-        pass
+
+        # work on a copy to avoid mutating the input geodataframe
+        df = ismn_data_gdf.copy()
+
+        # round each timestamp down to the start of its hour for grouping
+        df['hour'] = df['utc_nominal'].dt.floor('H')
+
+        # determine the unique measurement depths (we assume depth_to == depth_from)
+        depths = sorted(df['depth_to'].unique())
+
+        # calculate the midpoints between each pair of adjacent sensor depths
+        midpoints = [
+            (depths[i] + depths[i+1]) / 2
+            for i in range(len(depths) - 1)
+        ]
+
+        # the topmost layer starts at 0 m; subsequent layers start at each midpoint
+        lower_bounds = [0.0] + midpoints
+
+        # each layer ends at the next midpoint, except the deepest always ends at 1.25 m
+        upper_bounds = midpoints + [1.25]
+
+        # build a mapping from depth to layer thickness (upper_bound minus lower_bound)
+        weight_map = {
+            depth: ub - lb
+            for depth, lb, ub in zip(depths, lower_bounds, upper_bounds)
+        }
+
+        # assign each measurement its layer thickness as its weight
+        df['weight'] = df['depth_to'].map(weight_map)
+
+        # compute the depth-weighted average soil moisture per station-hour
+        hourly = (
+            df
+            .groupby(['station', 'hour'])
+            .apply(lambda grp: (grp['value'] * grp['weight']).sum()
+                                / grp['weight'].sum())
+            .reset_index(name='depth_weighted_sm')
+        )
+
+        # extract the calendar date from the hourly timestamp
+        hourly['date'] = hourly['hour'].dt.date
+
+        # bring lat/lon back by merging on station (one coordinate per station)
+        coords = df.drop_duplicates('station')[['station', 'lat', 'lon']]
+        result = hourly.merge(coords, on='station', how='left')
+
+        return result
 
 
 class ISMNPlotter:
@@ -323,22 +410,22 @@ class ISMNPlotter:
 
 if __name__ == "__main__":
     ismn_base_dir = "/home/miguel.pena/noaa-owp/ngen-forcing/soil_moisture_processing/sample_data"
-    date = "2025-07-16"
+    date = "2024-09-20"
     ismn_dirs, fs = ISMNDataLoader.get_ismn_dirs_by_date(ismn_base_dir, date)
-    print(f"Total ISMN directories found: {len(ismn_dirs)}\n")
+    # print(f"Total ISMN directories found: {len(ismn_dirs)}\n")
 
     # print sample dirs
-    n = min(5, len(ismn_dirs))
-    print("Sample ISMN directories:")
-    for i in range(n):
-        print(ismn_dirs[i])
+    # n = min(5, len(ismn_dirs))
+    # print("Sample ISMN directories:")
+    # for i in range(n):
+    #     print(ismn_dirs[i])
 
     ismn_files = []
 
     for ismn_dir in ismn_dirs:
         ismn_files.extend(ISMNDataLoader.get_ismn_files(ismn_dir, fs))
 
-    print(f"Total ISMN files found: {len(ismn_files)}")
+    # print(f"Total ISMN files found: {len(ismn_files)}")
 
     # print("Sample ISMN files:")
     # for i in range(5):
