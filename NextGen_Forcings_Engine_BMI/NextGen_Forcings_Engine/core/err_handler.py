@@ -6,6 +6,7 @@ import traceback
 import numpy as np
 from mpi4py import MPI
 from scipy import spatial
+from logging import FileHandler
 
 
 def err_out_screen(err_msg: str, exc: BaseException | None = None):
@@ -87,37 +88,37 @@ def check_program_status(ConfigOptions, MpiConfig):
 
 def init_log(ConfigOptions, MpiConfig):
     """
-    Function for initializing log file for individual forecast cycles. Each
-    log file is unique to the instant the program was initialized.
-    :param ConfigOptions:
-    :return:
+    Initialize the per‑cycle log file once on rank 0.
+    We only want a single log file per cycle—not one per catchment—so we check
+    existing FileHandlers to avoid opening multiple handlers for the same file.
     """
+    # Only the master rank sets up logging
+    if MpiConfig.rank != 0:
+        return
+
+    log_name = 'logForcing'
+    filename = ConfigOptions.logFile
+
     try:
-        logObj = logging.getLogger('logForcing')
-    except Exception:
-        ConfigOptions.errMsg = "Unable to create logging object " \
-                               "for: " + ConfigOptions.logFile
-        err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
-    try:
-        formatter = logging.Formatter('[%(asctime)s]: %(levelname)s '
-                                      '- %(message)s', '%m/%d %H:%M:%S')
-    except Exception:
-        ConfigOptions.errMsg = "Unable to establish formatting for logger."
-        err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
-    try:
-        ConfigOptions.logHandle = logging.FileHandler(ConfigOptions.logFile, mode='a')
-    except Exception:
-        ConfigOptions.errMsg = "Unable to create log file handle for: " + ConfigOptions.logFile
-        err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
-    try:
-        ConfigOptions.logHandle.setFormatter(formatter)
-    except Exception:
-        ConfigOptions.errMsg = "Unable to set formatting for: " + ConfigOptions.logFile
-        err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
-    try:
-        logObj.addHandler(ConfigOptions.logHandle)
-    except Exception:
-        ConfigOptions.errMsg = "ERROR: Unable to add log handler for: " + ConfigOptions.logFile
+        logger = logging.getLogger(log_name)
+
+        # If a FileHandler for this filename is already attached, skip (prevents one log per catchment)
+        for handler in logger.handlers:
+            if isinstance(handler, FileHandler) and getattr(handler, 'baseFilename', None) == filename:
+                return
+
+        # Otherwise, create and attach a new FileHandler
+        formatter = logging.Formatter(
+            '[%(asctime)s]: %(levelname)s - %(message)s',
+            datefmt='%m/%d %H:%M:%S'
+        )
+        file_handler = FileHandler(filename, mode='a')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+        logger.setLevel(logging.INFO)
+
+    except Exception as e:
+        ConfigOptions.errMsg = f"Unable to initialize log file '{filename}': {e}"
         err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
 
 
@@ -256,21 +257,28 @@ def close_log(ConfigOptions, MpiConfig):
     :param ConfigOptions:
     :return:
     """
+    # Only close if we have an open handler
+    if getattr(ConfigOptions, "logHandle", None) is None:
+        return
+
     try:
         logObj = logging.getLogger('logForcing')
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+
     try:
         logObj.removeHandler(ConfigOptions.logHandle)
     except Exception:
         err_out_screen_para(('Unable to remove logging file handle on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+
     try:
         ConfigOptions.logHandle.close()
     except Exception:
-        err_out_screen_para(('Unable to close looging file: ' + ConfigOptions.logFile +
+        err_out_screen_para(('Unable to close logging file: ' + ConfigOptions.logFile +
                              ' on RANK: ' + str(MpiConfig.rank)), MpiConfig)
+
     ConfigOptions.logHandle = None
 
 

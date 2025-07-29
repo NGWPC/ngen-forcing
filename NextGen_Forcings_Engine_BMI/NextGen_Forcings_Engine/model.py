@@ -20,7 +20,6 @@ from .core import err_handler
 from .core import layeringMod
 from . import nwm_proc
 
-
 class NWMv3_Forcing_Engine_model:
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
     # def __init__(self):
