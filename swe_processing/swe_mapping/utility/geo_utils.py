@@ -6,12 +6,12 @@ class GeoUtils:
     def read_geo(gpkg_file):
         """
         Read the 'divides' layer from a geopackage file and ensure geographic CRS.
-        
+
         Parameters
         ----------
         gpkg_file : str
             Path to the geopackage file
-            
+
         Returns
         -------
         geopandas.GeoDataFrame
@@ -24,19 +24,19 @@ class GeoUtils:
 
         if basin_gdf.crs is None or not basin_gdf.crs.is_geographic:
             basin_gdf = basin_gdf.to_crs('EPSG:4326')
-            
+
         return basin_gdf
 
     @staticmethod
     def get_basin_geometry(basin_gdf):
         """
         Extract a unified basin geometry and bounds from a GeoDataFrame.
-        
+
         Parameters
         ----------
         basin_gdf : geopandas.GeoDataFrame
             GeoDataFrame containing basin divides
-            
+
         Returns
         -------
         tuple
@@ -49,7 +49,7 @@ class GeoUtils:
             basin_geometry = basin_gdf.union_all()
         except AttributeError:
             basin_geometry = basin_gdf.unary_union
-            
+
         # Store catchment boundaries
         bounds = basin_geometry.bounds
 

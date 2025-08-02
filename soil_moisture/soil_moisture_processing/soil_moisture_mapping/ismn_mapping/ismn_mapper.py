@@ -36,7 +36,7 @@ def get_options(args_list=None):
 
     if args_list is not None:
         return parser.parse_args(args_list)
-    
+
     return parser.parse_args()
 
 

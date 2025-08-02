@@ -15,3 +15,4 @@ dependencies:
   - fsspec
   - s3fs
   - requests
+  - pyogrio

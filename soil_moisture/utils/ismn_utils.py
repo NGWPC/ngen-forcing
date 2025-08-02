@@ -1,6 +1,7 @@
 import re
 import csv
 import fsspec
+import shapely.geometry
 import pandas as pd
 import geopandas as gpd
 
@@ -28,7 +29,6 @@ class ISMNDataLoader:
         Returns
         -------
         tuple
-        -------
         matching_dirs : list[str]
             List of directories that match the target date.
         fs : fsspec.filesystem
@@ -267,25 +267,6 @@ class ISMNDataLoader:
 
 class ISMNCalculator:
     @staticmethod
-    def find_stations_in_basin(ismn_data_gdf: gpd.GeoDataFrame, basin_geometry: shapely.geometry) -> gpd.GeoDataFrame:
-        """
-        Find ISMN stations within a given basin geometry.
-
-        Parameters
-        ----------
-        ismn_data_gdf : geopandas.GeoDataFrame
-            GeoDataFrame containing ISMN data
-        basin_geometry : shapely.geometry
-            Basin geometry of the basin to filter ISMN stations
-
-        Returns
-        -------
-        geopandas.GeoDataFrame
-            Filtered GeoDataFrame containing ISMN stations within the basin.
-        """
-        pass
-
-    @staticmethod
     def calculate_depth_weighted_average(ismn_data_gdf: gpd.GeoDataFrame) -> pd.DataFrame:
         """
         Calculate depth-weighted average of ISMN soil moisture data over a fixed 1.25 m depth range
@@ -301,54 +282,38 @@ class ISMNCalculator:
         Returns
         -------
         pd.DataFrame
-            DataFrame with columns ['station','hour','date','depth_weighted_sm','lat','lon']
+            DataFrame with columns ['network','station','date','hour','lat','lon','depth_weighted_sm_avg']
             giving, for each station-hour, the date and depth-weighted soil moisture average.
-
-        Examples
-        --------
-        with all depths present:
-        measurement depths (m): [0.05, 0.10, 0.20, 0.50, 1.00]
-        midpoints of depth layers (m): [0.075, 0.150, 0.350, 0.750]
-        lower bounds of depth layers (m): [0.000, 0.075, 0.150, 0.350, 0.750]
-        upper bounds of depth layers (m): [0.075, 0.150, 0.350, 0.750, 1.250]
-        weights per depth (m):
-            0.05: 0.075,
-            0.1: 0.075,
-            0.2: 0.200,
-            0.5: 0.400,
-            1.0: 0.500
-        normalized weights per depth (divide by total thickness, 1.25 m):
-            .05 m: 0.06,
-            .10 m: 0.06,
-            .20 m: 0.16,
-            .50 m: 0.32,
-            1.00 m: 0.40
-
-        with 0.5 m missing:
-        measurement depths (m): [0.05, 0.10, 0.20, 1.00]
-        midpoints of depth layers (m): [0.075, 0.150, 0.600]
-        lower bounds of depth layers (m): [0.000, 0.075, 0.150, 0.600]
-        upper bounds of depth layers (m): [0.075, 0.150, 0.600, 1.250]
-        weights per depth (m):
-            0.05: 0.075,
-            0.1: 0.075,
-            0.2: 0.450,
-            1.0: 0.650
-        normalized weights per depth (divide by total thickness, 1.25 m):
-            .05 m: 0.06,
-            .10 m: 0.06,
-            .20 m: 0.36,
-            1.00 m: 0.52
         """
-
         # work on a copy to avoid mutating the input geodataframe
         df = ismn_data_gdf.copy()
 
+        # ensure utc_nominal is a datetime column
+        df['utc_nominal'] = pd.to_datetime(
+            df['utc_nominal'],
+            format='%Y/%m/%d %H:%M',
+            errors='raise'
+        )
+
         # round each timestamp down to the start of its hour for grouping
-        df['hour'] = df['utc_nominal'].dt.floor('H')
+        df['hour'] = df['utc_nominal'].dt.floor('h')
 
         # determine the unique measurement depths (we assume depth_to == depth_from)
         depths = sorted(df['depth_to'].unique())
+
+        # print(f"Measurement depths (m): {depths}")
+
+        unique_depth_from = sorted(df['depth_from'].unique())
+
+        print("unique depth_from values (m):")
+        for d_f in unique_depth_from:
+            print(f"{d_f} m")
+
+        unique_depth_to = depths.copy()
+
+        print("unique depth_to values (m):")
+        for d_t in unique_depth_to:
+            print(f"{d_t} m")
 
         # calculate the midpoints between each pair of adjacent sensor depths
         midpoints = [
@@ -359,8 +324,16 @@ class ISMNCalculator:
         # the topmost layer starts at 0 m; subsequent layers start at each midpoint
         lower_bounds = [0.0] + midpoints
 
+        print("Lower bounds of depth layers (m):")
+        for lb in lower_bounds:
+            print(f"{lb:.3f} m")
+
         # each layer ends at the next midpoint, except the deepest always ends at 1.25 m
         upper_bounds = midpoints + [1.25]
+
+        print("Upper bounds of depth layers (m):")
+        for ub in upper_bounds:
+            print(f"{ub:.3f} m")
 
         # build a mapping from depth to layer thickness (upper_bound minus lower_bound)
         weight_map = {
@@ -368,25 +341,45 @@ class ISMNCalculator:
             for depth, lb, ub in zip(depths, lower_bounds, upper_bounds)
         }
 
+        for k, v in weight_map.items():
+            print(f"Weight for depth {k} m: {v:.3f} m")
+
         # assign each measurement its layer thickness as its weight
         df['weight'] = df['depth_to'].map(weight_map)
 
-        # compute the depth-weighted average soil moisture per station-hour
+        # create a new DataFrame hourly that holds one row per station-hour,
+        # computing the depth-weighted average soil moisture for each group
         hourly = (
             df
-            .groupby(['station', 'hour'])
+            .groupby(['network', 'station', 'hour'])[['value', 'weight']]
             .apply(lambda grp: (grp['value'] * grp['weight']).sum()
                                 / grp['weight'].sum())
-            .reset_index(name='depth_weighted_sm')
+            .reset_index(name='depth_weighted_sm_avg')
         )
 
-        # extract the calendar date from the hourly timestamp
+        # add date column to 'hourly' by extracting just the calendar date from the hourly timestamp
         hourly['date'] = hourly['hour'].dt.date
 
-        # bring lat/lon back by merging on station (one coordinate per station)
+        # convert the 'hour' column to a string format 'HH:MM'
+        hourly['hour'] = hourly['hour'].dt.strftime('%H:%M')
+
+        # build a small DataFrame 'coords' with one entry per station,
+        # containing the station identifier and its latitude/longitude
         coords = df.drop_duplicates('station')[['station', 'lat', 'lon']]
+
+        # merge coords into hourly to attach the geographic coordinates
+        # to each station-hour weighted average, producing the result DataFrame
         result = hourly.merge(coords, on='station', how='left')
 
+        # reorder columns
+        result = result[['network', 'station', 'date', 'hour', 'lat', 'lon', 'depth_weighted_sm_avg']]
+
+        print(f"Result DataFrame shape: {result.shape}")
+        print("First 10 rows of result DataFrame:")
+        print(result.head(10).to_string(index=False))
+
+        print("Last 10 rows of result DataFrame:")
+        print(result.tail(10).to_string(index=False))
         return result
 
 
@@ -411,6 +404,8 @@ class ISMNPlotter:
 if __name__ == "__main__":
     ismn_base_dir = "/home/miguel.pena/noaa-owp/soil_moisture_sample_data"
     date = "2024-09-20"
+
+    # get list of ISMN directories for the given date
     ismn_dirs, fs = ISMNDataLoader.get_ismn_dirs_by_date(ismn_base_dir, date)
     # print(f"Total ISMN directories found: {len(ismn_dirs)}\n")
 
@@ -422,6 +417,7 @@ if __name__ == "__main__":
 
     ismn_files = []
 
+    # get all ISMN files from the directories
     for ismn_dir in ismn_dirs:
         ismn_files.extend(ISMNDataLoader.get_ismn_files(ismn_dir, fs))
 
@@ -432,4 +428,8 @@ if __name__ == "__main__":
     #     ismn_file = ismn_files[i]
     #     print(ismn_file)
 
+    # load ISMN data into a GeoDataFrame
     ismn_data_gdf = ISMNDataLoader.get_ismn_data(ismn_files, date, fs)
+
+    # getting the depth-weighted average of ISMN soil moisture data into a DataFrame
+    depth_weighted_avg_df = ISMNCalculator.calculate_depth_weighted_average(ismn_data_gdf)
