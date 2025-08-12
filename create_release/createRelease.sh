@@ -15,20 +15,20 @@ declare -a TEMP_BRANCHES
 usage() {
   echo "Usage: $(basename "$0") <RELEASE_TYPE> [JSON_FILE] [WAIT_TIME]"
   echo
-  echo "This script automates the release process for GitLab repositories, handling merges,"
+  echo "This script automates the release process for GitHub repositories, handling merges,"
   echo "submodules, and versioning."
   echo "It performs the following steps based on the release type:"
   echo
   echo "🔹 RC (Release Candidate) Process:"
   echo "  1. Merge from 'development' to 'release-candidate' (except for RC1)."
   echo "  2. If submodules exist, ensure they are on the correct branch."
-  echo "  3. Create a GitLab release for the RC."
+  echo "  3. Create a GitHub release for the RC."
   echo "  4. Merge 'release-candidate' back into 'development' (except for RC1)."
   echo
   echo "🔹 Official Release Process:"
   echo "  1. Merge from 'release-candidate' to 'main' or 'master'."
   echo "  2. If submodules exist, ensure they are on the correct branch."
-  echo "  3. Create a GitLab release for the official version."
+  echo "  3. Create a GiHub release for the official version."
   echo "  4. Merge the final release changes back into 'development'."
   echo
   echo "🔹 Handling Submodules:"
@@ -63,16 +63,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
-#-----------------------------------------
-# Function: read_token
-# Reads the GitLab token from ~/.gitlab_token.
-#
-# Returns:
-#   Sets the global variable GITLAB_TOKEN.
-#-----------------------------------------
-read_token() {
-  GITLAB_TOKEN=$(cat ~/.gitlab_token)
-}
 
 #-----------------------------------------
 # Function: clean_and_encode_project
@@ -117,18 +107,13 @@ clean_and_encode_project() {
 determine_release_branch() {
   local repo_url="$1"
 
-  # Check for the existence of the "main" branch.
-  branch_main=$(curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$repo_url/repository/branches/main" | jq -r '.name')
-  if [ "$branch_main" == "main" ]; then
-    echo "main"
-    return 0
+  # main?
+  if curl --silent -f "$repo_url/branches/main" >/dev/null; then
+    echo "main"; return 0
   fi
-
-  # If not found, check for the "master" branch.
-  branch_master=$(curl --silent --header "PRIVATE-TOKEN: $GITLAB_TOKEN" "$repo_url/repository/branches/master" | jq -r '.name')
-  if [ "$branch_master" == "master" ]; then
-    echo "master"
-    return 0
+  # master?
+  if curl --silent -f "$repo_url/branches/master" >/dev/null; then
+    echo "master"; return 0
   fi
 
   # Neither branch was found.
@@ -162,7 +147,7 @@ create_merge_request() {
   local source_branch="$2"
   local target_branch="$3"
   local title="$4"
-  local should_remove_source_branch="$5"
+  local should_remove_source_branch="$5"  # ignored on GitHub; here to keep signature
 
   # Build the JSON payload for the curl command.
   local data_payload
@@ -171,23 +156,23 @@ create_merge_request() {
   "source_branch": "${source_branch}",
   "target_branch": "${target_branch}",
   "title": "${title}",
-  "should_remove_source_branch": ${should_remove_source_branch}
+  "head": "${source_branch}",
+  "base": "${target_branch}"
 }
 EOF
 )
 
   echo
-  echo -e "Creating merge request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC} (remove source branch: $should_remove_source_branch)" >&2
+  echo -e "Creating pull request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC}" >&2
   local curl_cmd
   curl_cmd="curl --silent --request POST \
-    --header \"PRIVATE-TOKEN: $GITLAB_TOKEN\" \
     --header \"Content-Type: application/json\" \
     --data '$data_payload' \
-    \"$repo_url/merge_requests\" \
+    \"$repo_url/pulls\" \
     -w \"\nHTTP Response Code: %{http_code}\""
 
   # Echo the entire curl command for debugging.
-  # echo "Executing create_merge_request command: $curl_cmd" >&2
+  echo "Executing create_merge_request command: $curl_cmd" >&2
 
   # Execute the curl command.
   local response
@@ -200,16 +185,15 @@ EOF
   json_response=$(echo "$response" | sed '$d')
 
   if [[ $http_code =~ ^2 ]]; then
-    local iid
-    iid=$(echo "$json_response" | jq -r '.iid')
-    if [[ "$iid" != "null" && -n "$iid" ]]; then
-      # Return this in stdout
-      echo "$iid"
-      return 0
+    local number
+    number=$(echo "$json_response" | jq -r '.number')
+    if [[ "$number" != "null" && -n "$number" ]]; then
+      echo "$number"; return 0
     else
-      echo -e "${RED}HTTP success but no valid merge request IID found.${NC}" >&2
+      echo -e "${RED}HTTP success but no valid pull request number found.${NC}" >&2
       return 1
     fi
+  # Do we need this code?
   elif [ "$http_code" -eq 409 ]; then
     # Conflict: extract the merge request IID from the error message.
     local conflict_msg conflict_iid
@@ -225,16 +209,22 @@ EOF
     fi
   fi
 
-  # Print errors if we reach here.
-  if echo "$json_response" | jq -e '.message | type=="array"' >/dev/null 2>&1; then
-    echo -e "${RED}Error creating Merge Request (HTTP $http_code):${NC}" >&2
-    echo -e "${RED}$(echo "$json_response" | jq -r '.message[]')${NC}" >&2
-
-  else
-    local error_message
-    error_message=$(echo "$json_response" | jq -r '.message')
-    echo -e "${RED}Error creating Merge Request (HTTP $http_code): $error_message${NC}" >&2
+  # If PR already exists, GitHub typically returns 422; find existing open PR with same head/base
+  if [ "$http_code" -eq 422 ]; then
+    # Need owner for head param owner:branch
+    local owner
+    owner=$(echo "$REPO_PROJECT" | cut -d'/' -f1)
+    local lookup
+    lookup=$(curl --silent "$repo_url/pulls?state=open&head=${owner}:${source_branch}&base=${target_branch}")
+    local existing
+    existing=$(echo "$lookup" | jq -r '.[0].number // empty')
+    if [ -n "$existing" ]; then
+      echo "$existing"; return 0
+    fi
   fi
+
+  echo -e "${RED}Error creating Pull Request (HTTP $http_code):${NC}" >&2
+  echo -e "${RED}$json_response${NC}" >&2
   return 1
 }
 
@@ -251,22 +241,20 @@ EOF
 #-----------------------------------------
 trigger_merge() {
   local repo_url="$1"
-  local merge_iid="$2"
-  local data_payload='{"should_remove_source_branch": false}'
+  local merge_iid="$2"  # PR number
+  local data_payload='{"merge_method":"merge"}'  # keep simple
 
   # Build the curl command as a string.
   local curl_cmd
   curl_cmd="curl --silent --request PUT \
-    --header \"PRIVATE-TOKEN: $GITLAB_TOKEN\" \
     --header \"Content-Type: application/json\" \
     --data '$data_payload' \
-    \"$repo_url/merge_requests/${merge_iid}/merge\" \
+    \"$repo_url/pulls/${merge_iid}/merge\" \
     -w \"\nHTTP Response Code: %{http_code}\""
 
   # Echo the entire curl command for debugging.
-  # echo "Executing trigger_merge command: $curl_cmd"
-
-  echo "Triggering merge for MR IID: $merge_iid..."
+  echo "Executing trigger_merge command: $curl_cmd"
+  echo "Triggering merge for PR #: $merge_iid..."
   local merge_response
   merge_response=$(eval "$curl_cmd")
   local http_code
