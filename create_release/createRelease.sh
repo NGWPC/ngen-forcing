@@ -63,6 +63,29 @@ BLUE='\033[1;34m'
 NC='\033[0m' # No Color
 
 #-----------------------------------------
+# Function: git_push
+# Quiet wrapper around `git push` that suppresses routine output
+# (e.g., GitHub's "Create a pull request" hint) but still surfaces
+# real errors. It:
+#   - runs `git push -q` with all arguments passed through
+#   - captures stderr/stdout on failure and prints them
+#
+# Arguments:
+#   $@ - Arguments passed directly to `git push`
+#
+# Returns:
+#   0 on success; 1 on failure (after printing the captured error output)
+#-----------------------------------------
+git_push() {
+  if ! out=$(git push -q "$@" 2>&1); then
+    echo -e "${RED}git push failed: git push $*${NC}"
+    echo "$out" >&2
+    return 1
+  fi
+}
+
+
+#-----------------------------------------
 # Function: read_token
 # Reads a GitHub token from ~/.github_token (first line). If no token is found,
 # requests that modify state will likely fail (401/403).
@@ -85,7 +108,6 @@ read_token() {
   # Warn if missing or empty
   [ -z "$GITHUB_TOKEN" ] && \
     echo -e "${YELLOW}Warning: no ~/.github_token found; API writes may fail.${NC}"
-
 }
 
 
@@ -500,7 +522,8 @@ execute_merge_request() {
     # Create the target branch locally from the source branch
     git checkout --quiet "$source_branch"
     git checkout --quiet -b "$target_branch"
-    git push --set-upstream origin "$target_branch"
+    git_push --set-upstream origin "$target_branch" || return 1
+
 
     echo -e "${GREEN}Successfully created and pushed branch $target_branch from $source_branch.${NC}"
     branch_created=1  # Mark that we just created the branch
@@ -753,7 +776,9 @@ process_submodules() {
       fi
 
       git commit -m "Auto-merge $submodule_source_branch into $submodule_target_branch (resolved in favor of $submodule_target_branch)" 2>/dev/null || true
-      git push origin "$submodule_target_branch"
+      if ! git_push origin "$submodule_target_branch"; then
+        return 1
+      fi
     fi
 
     # Diagnostic: confirm current submodule state
@@ -788,7 +813,7 @@ process_submodules() {
 
   if ! git diff --cached --quiet; then
     git commit -m "Update submodules to $target_branch branch"
-    git push --set-upstream origin "$temp_submodule_branch"
+    git_push --set-upstream origin "$temp_submodule_branch" || return 1
 
     if ! execute_merge_request "$REPO_URL" "$temp_submodule_branch" "$target_branch" \
         "Merge submodule updates into $target_branch" "$WAIT_TIME"; then
@@ -1045,7 +1070,7 @@ cleanup_repo() {
     # Remote
     if git ls-remote --heads origin "$temp_branch" | grep -q "$temp_branch"; then
       echo "Deleting remote branch: $temp_branch"
-      git push origin --delete "$temp_branch" >/dev/null 2>&1 || true
+      git_push origin --delete "$temp_branch" || true
     fi
   done
 
