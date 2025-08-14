@@ -161,8 +161,11 @@ determine_release_branch() {
 #   $3 - Title for the pull request
 #
 # Behavior:
-#   - Tries `gh pr create` and echoes the PR number on success.
-#   - If a matching open PR already exists, finds it with `gh pr list` and echoes its number.
+#   - Uses `gh api` to POST the PR and echoes the PR number on success.
+#   - If a matching open PR already exists (HTTP 422 case), queries for it and echoes its number.
+#
+# Requires:
+#   REPO_PROJECT to be set to "owner/repo".
 #
 # Returns:
 #   0 if a PR was created or an existing one was found; 1 otherwise.
@@ -175,19 +178,24 @@ create_merge_request() {
   echo
   echo -e "Creating pull request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC}" >&2
 
-  # Try to create PR
-  if pr_json=$(run_gh pr create \
-      --head "$source_branch" \
-      --base "$target_branch" \
-      --title "$title" \
-      --body "$title" \
-      --json number); then
-    echo "$pr_json" | jq -r '.number'
-    return 0
+  # Try to create PR via REST API and capture its number
+  if pr_num=$(run_gh api \
+        -X POST "repos/$REPO_PROJECT/pulls" \
+        -f title="$title" \
+        -f head="$source_branch" \
+        -f base="$target_branch" \
+        --jq '.number'); then
+    if [[ -n "$pr_num" && "$pr_num" != "null" ]]; then
+      echo "$pr_num"
+      return 0
+    fi
   fi
 
-  # If it already exists, return that PR number
-  if pr_num=$(run_gh pr list --state open --head "$source_branch" --base "$target_branch" --json number -q '.[0].number'); then
+  # If it already exists (typical 422 case), look up the open PR matching head/base
+  local owner="${REPO_PROJECT%%/*}"
+  if pr_num=$(run_gh api \
+        -X GET "repos/$REPO_PROJECT/pulls?state=open&head=${owner}:${source_branch}&base=${target_branch}" \
+        --jq '.[0].number' 2>/dev/null); then
     if [[ -n "$pr_num" && "$pr_num" != "null" ]]; then
       echo "$pr_num"
       return 0
@@ -330,6 +338,10 @@ wait_until_mergeable() {
 #   $3 - Release notes (description)
 #   $4 - Ref branch (the branch to base the release on)
 #
+# Behavior:
+#   - Invokes `gh release create` and captures its stdout (the release URL).
+#   - Prints the URL with a clear label: "New release: <url>".
+#
 # Returns:
 #   0 on success, 1 on failure.
 #-----------------------------------------
@@ -342,14 +354,17 @@ create_release() {
   local prerelease_flag=""
   [[ "$RELEASE_TYPE" == "RC" ]] && prerelease_flag="--prerelease"
 
-  echo "Creating GitHub release for $REPO_PROJECT..."
-  # --target uses a branch/commit; gh will create the tag at that ref
-  if run_gh release create "$release_tag" \
+
+  # Capture stdout from gh (which is the release URL on success). Our run_gh
+  # prints the "Executing:" line to STDERR, so it won't pollute this capture.
+  local release_url
+  if release_url=$(run_gh release create "$release_tag" \
         --title "$release_name" \
         --notes "$release_notes" \
         --target "$ref_branch" \
-        $prerelease_flag; then
-    echo -e "${GREEN}Release created successfully.${NC}"
+        $prerelease_flag); then
+    # Print with context so the URL isn't a naked line in logs
+    echo -e "Release ${GREEN}$release_url${NC} created successfully."
     return 0
   fi
 
@@ -418,9 +433,12 @@ execute_merge_request() {
   git pull --quiet
   git fetch --quiet origin "$target_branch"    # <- ensure target is up-to-date
 
-  # Skip if source has no commits ahead of target
-  if git diff --quiet origin/"$target_branch"..origin/"$source_branch"; then
-    echo -e "${YELLOW}No changes detected in $source_branch relative to $target_branch. Skipping pull request.${NC}"
+  # Definitive check: is source actually ahead of target?
+  # Format: "behind ahead" (target behind source, source ahead of target)
+  local behind ahead
+  read behind ahead < <(git rev-list --left-right --count "origin/$target_branch...origin/$source_branch")
+  if [[ "${ahead:-0}" -eq 0 ]]; then
+    echo -e "${YELLOW}No changes detected in $source_branch relative to $target_branch (ahead=$ahead). Skipping pull request.${NC}"
     git checkout --quiet "$previous_branch"
     return 0
   fi
@@ -428,11 +446,11 @@ execute_merge_request() {
   # Create a temporary test merge branch (delete if it already exists)
   local temp_merge_branch="merge_test_${source_branch}_to_${target_branch}"
   git branch --quiet -D "$temp_merge_branch" >/dev/null 2>&1 || true
-  git checkout --quiet -b "$temp_merge_branch" origin/"$target_branch"
+  git checkout --quiet -b "$temp_merge_branch" "origin/$target_branch"
   TEMP_BRANCHES+=("$temp_merge_branch")
 
   # Attempt to merge the source branch into the target branch quietly
-  if ! git merge --no-commit --no-ff origin/"$source_branch" ; then
+  if ! git merge --no-commit --no-ff "origin/$source_branch" ; then
     echo -e "${YELLOW}Merge conflicts detected between $source_branch and $target_branch.. Checking if they are only submodule pointers...${NC}"
 
     # Get list of conflicting files
