@@ -5,7 +5,6 @@ LOGFILE="createRelease_$(date +%Y%m%d_%H%M%S).log"
 exec > >(tee >(sed -r "s/\x1B\[[0-9;]*[mK]//g" >> "$LOGFILE")) 2>&1
 echo "All output will be logged to: $LOGFILE"
 
-
 declare -a TEMP_BRANCHES
 
 #-----------------------------------------
@@ -85,370 +84,149 @@ git_push() {
   return 0
 }
 
-
-#-----------------------------------------
-# Function: read_token
-# Reads a GitHub token from ~/.github_token (first line). If no token is found,
-# requests that modify state will likely fail (401/403).
-# Sets:
-#   GITHUB_TOKEN, GH_ACCEPT_HEADER, GH_UA_HEADER, GH_AUTH_HEADER
-#-----------------------------------------
-read_token() {
-  GITHUB_TOKEN=""
-  if [ -f "$HOME/.github_token" ]; then
-    GITHUB_TOKEN=$(sed -n '1p' "$HOME/.github_token" | tr -d ' \t\r\n')
-  fi
-
-  GH_ACCEPT_HEADER='Accept: application/vnd.github+json'
-  GH_UA_HEADER='User-Agent: create-release-script'
-  GH_AUTH_HEADER=""
-  if [ -n "${GITHUB_TOKEN}" ]; then
-    GH_AUTH_HEADER="Authorization: Bearer ${GITHUB_TOKEN}"
-  fi
-
-  # Warn if missing or empty
-  [ -z "$GITHUB_TOKEN" ] && \
-    echo -e "${YELLOW}Warning: no ~/.github_token found; API writes may fail.${NC}"
-}
-
-#-----------------------------------------
-# Function: curl_request
-# Runs a GitHub API request using a curl array (no eval), logs the exact command,
-# and captures both the HTTP body and HTTP code in globals: HTTP_BODY, HTTP_CODE.
-#
-# Arguments:
-#   $1 - HTTP method (GET|POST|PUT|PATCH|DELETE)
-#   $2 - Full URL
-#   $3 - (optional) JSON payload string (adds Content-Type and --data)
-#   $@ - (optional) extra -H "Header: value" items
-#
-# Globals set:
-#   HTTP_BODY - response body (string, no trailing HTTP_CODE line)
-#   HTTP_CODE - numeric HTTP status (e.g. 200, 201, 404)
-#
-# Returns:
-#   0 if curl exited successfully (network/SSL/etc.); non-zero otherwise.
-#   Note: HTTP_CODE may still be >= 400 even when return is 0.
-#-----------------------------------------
-curl_request() {
-  local method="$1"
-  local url="$2"
-  local payload=""
-  shift 2
-  # If a third arg was provided, treat it as the JSON payload; headers start after it
-  if [ $# -ge 1 ]; then
-    payload="$1"
-    shift 1
-  fi
-  local extra_headers=( "$@" )
-
-  # Build the array command
-  local cmd=( curl -sS --fail-with-body -X "$method"
-              -H "$GH_ACCEPT_HEADER"
-              -H "$GH_UA_HEADER" )
-
-  # Optional auth header
-  [[ -n "$GH_AUTH_HEADER" ]] && cmd+=( -H "$GH_AUTH_HEADER" )
-
-  # Any additional headers passed by caller
-  if ((${#extra_headers[@]})); then
-    cmd+=( "${extra_headers[@]}" )
-  fi
-
-  # JSON payload if provided
-  if [[ -n "$payload" ]]; then
-    cmd+=( --header "Content-Type: application/json" --data "$payload" )
-  fi
-
-  # Status code footer so we can split body/code later
-  cmd+=( -w $'\nHTTP_CODE:%{http_code}' "$url" )
-
-  # Log the exact command (properly quoted)
-  printf 'Executing: ' ; printf '%q ' "${cmd[@]}" ; echo
-
-  # Run it and split body/code
-  local resp rc
-  resp="$("${cmd[@]}")"
-  rc=$?
-
-  HTTP_CODE=$(printf '%s\n' "$resp" | sed -n '$s/^HTTP_CODE://p')
-  HTTP_BODY=$(printf '%s\n' "$resp" | sed '$d')
-
-  return $rc
-}
-
-
-#-----------------------------------------
-# Function: assert_token_repo_access
-# Verifies the PAT can see the repo and can CREATE a release.
-#
-# Returns 0 only if both read access and "create release" work.
-#-----------------------------------------
-assert_token_repo_access() {
-  local repo_url="$1"
-
-  # 1) Can the token read the repo?
-  curl_request GET "$repo_url"
-  if [[ "$HTTP_CODE" != "200" ]]; then
-    if [[ "$HTTP_CODE" == "403" ]]; then
-      echo -e "${RED}403: Access forbidden for this token to ${repo_url}.${NC}"
-      echo -e "${YELLOW}Likely causes:${NC}"
-      echo "  • Fine-grained PAT is still PENDING org approval"
-      echo "  • Repo not selected in the token’s repository list"
-      echo "  • Missing permissions (Contents: Read)"
-    else
-      echo -e "${RED}Unexpected response reading repo (HTTP $HTTP_CODE).${NC}"
-      [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
-    fi
-    return 1
-  fi
-
-  # (Informational) Show user-permission flags from the repo object
-  local role
-  role=$(printf '%s' "$HTTP_BODY" | jq -r '.permissions | to_entries | map(select(.value==true)) | map(.key) | join(",")')
-  [[ -n "$role" && "$role" != "null" ]] && echo "Repo permissions (user): $role"
-
-  # 2) REAL write probe: create a draft release, then delete it.
-  #    This checks Contents: write in a definitive way.
-  local probe_tag="__permcheck_$(date +%s)__"
-  local data_payload
-  data_payload=$(jq -n \
-    --arg tag   "$probe_tag" \
-    --arg name  "permission-check" \
-    --arg body  "" \
-    --arg ref   "HEAD" \
-    '{tag_name:$tag, name:$name, body:$body, target_commitish:$ref, prerelease:true, draft:true}')
-
-  curl_request POST "$repo_url/releases" "$data_payload"
-  if [[ "$HTTP_CODE" == "201" || "$HTTP_CODE" == "200" ]]; then
-    # Created. Delete it so we leave no trace.
-    local rel_id
-    rel_id=$(printf '%s' "$HTTP_BODY" | jq -r '.id // empty')
-    if [[ -n "$rel_id" ]]; then
-      curl_request DELETE "$repo_url/releases/${rel_id}"
-      if [[ "$HTTP_CODE" =~ ^2 ]]; then
-        echo "Token verified: can create and delete releases."
-        return 0
-      else
-        echo -e "${YELLOW}Warning:${NC} Draft release created but failed to delete (HTTP $HTTP_CODE)."
-        [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
-        # Still return success for permission check.
-        return 0
-      fi
-    fi
-    # No ID? treat as success for permission; nothing was created.
-    echo "Token verified: can call release create endpoint."
-    return 0
-  fi
-
-  if [[ "$HTTP_CODE" == "403" ]]; then
-    echo -e "${RED}Token cannot create releases on this repo (HTTP 403).${NC}"
-    echo -e "${YELLOW}Fix:${NC}"
-    echo "  • Fine-grained PAT must include:"
-    echo "      Repository access: this repo"
-    echo "      Permissions: Contents (Read & write)"
-    echo "  • Token must be approved by the organization."
-    return 1
-  fi
-
-  # Treat 422 and anything else as failure (inconclusive previously).
-  echo -e "${RED}Release creation probe failed (HTTP $HTTP_CODE).${NC}"
-  [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
-  echo -e "${YELLOW}This usually means the PAT is missing Contents: write or isn’t approved for this repo.${NC}"
-  return 1
-}
-
-
-
 #-----------------------------------------
 # Function: clean_and_encode_project
-# Normalizes a remote URL by removing optional auth, the GitHub host prefix,
-# and trailing .git, returning a plain "owner/repo" string suitable for API paths.
-#
-# Parameters:
-#   $1 - The raw remote URL (e.g., "https://user:pass@github.com/owner/repo.git"
-#        or "git@github.com:owner/repo.git")
-#
-# Returns:
-#   "owner/repo"
+# Normalizes a GitHub remote URL to the canonical "owner/repo" form.
+# Works for HTTPS and SSH remotes, and strips embedded credentials and .git suffix.
 #-----------------------------------------
 clean_and_encode_project() {
   local project_url="$1"
-
-  # 1) Strip embedded credentials if present (e.g., https://user:pass@github.com/owner/repo.git)
   project_url=$(echo "$project_url" | sed -e 's#^https\?://[^/]*@#https://#')
-
-  # 2) Remove the GitHub host prefix to get to "owner/repo"
-  #    - HTTPS remotes look like: https://github.com/owner/repo.git
-  #    - SSH remotes look like:   git@github.com:owner/repo.git
   project_url=$(echo "$project_url" | sed -e 's#^https://github\.com/##')
   project_url=$(echo "$project_url" | sed -e 's#^git@github\.com:##')
-
-  # 3) Drop the trailing ".git" if present
   project_url=$(echo "$project_url" | sed -e 's#\.git$##')
-
-  # 4) Return plain "owner/repo" (DO NOT URL-encode for GitHub API path segments)
   echo "$project_url"
 }
 
 #-----------------------------------------
 # Function: determine_release_branch
-# Determines whether the repository has a "main" or "master" branch by querying the GitHub API.
+# Determines whether the remote repository has a branch named "main" or "master"
+# by querying the Git remote directly (no GitHub API).
 #
-# Parameters:
-#   $1 - Repository API URL (e.g., https://api.github.com/repos/owner/repo)
+# Behavior:
+#   - Checks `origin` for refs/heads/main first, then refs/heads/master.
+#   - Returns the found branch name, or an empty string if neither exists.
 #
 # Returns:
-#   The branch name ("main" or "master"), or an empty string if neither exists.
+#   "main" | "master" | "" (empty string if neither exists)
 #-----------------------------------------
 determine_release_branch() {
-  local repo_url="$1"
-
-  # main?
-  curl_request GET "$repo_url/branches/main"
-  if [[ "$HTTP_CODE" == "200" ]]; then
+  if git ls-remote --exit-code --heads origin main >/dev/null 2>&1; then
     echo "main"; return 0
   fi
-
-  # master?
-  curl_request GET "$repo_url/branches/master"
-  if [[ "$HTTP_CODE" == "200" ]]; then
+  if git ls-remote --exit-code --heads origin master >/dev/null 2>&1; then
     echo "master"; return 0
   fi
 
-  # Neither branch was found.
+  # Neither found
   echo ""
+  return 1
 }
 
 #-----------------------------------------
 # Function: create_merge_request
-# Creates a pull request using the GitHub API.
+# Creates a pull request using the GitHub CLI (`gh`).
 #
 # Arguments:
-#   $1 - Repository API URL (e.g., "https://api.github.com/repos/owner/repo")
-#   $2 - Source branch (head)
-#   $3 - Target branch (base)
-#   $4 - Title for the pull request
+#   $1 - Source branch (head)
+#   $2 - Target branch (base)
+#   $3 - Title for the pull request
 #
 # Behavior:
-#   Sends POST /pulls to create a PR.
-#   On success, echoes the PR number.
-#   If GitHub returns 422 because an equivalent open PR already exists,
-#   the function looks it up via GET /pulls?state=open&head=owner:source&base=target
-#   and echoes that PR number instead.
+#   - Tries `gh pr create` and echoes the PR number on success.
+#   - If a matching open PR already exists, finds it with `gh pr list` and echoes its number.
 #
 # Returns:
 #   0 if a PR was created or an existing one was found; 1 otherwise.
 #-----------------------------------------
 create_merge_request() {
-  local repo_url="$1"
-  local source_branch="$2"
-  local target_branch="$3"
-  local title="$4"
-
-  # Build payload safely with jq
-  local data_payload
-  data_payload=$(jq -n \
-    --arg title "$title" \
-    --arg head  "$source_branch" \
-    --arg base  "$target_branch" \
-    '{title:$title, head:$head, base:$base}')
+  local source_branch="$1"
+  local target_branch="$2"
+  local title="$3"
 
   echo
   echo -e "Creating pull request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC}" >&2
 
-  curl_request POST "$repo_url/pulls" "$data_payload"
-  if [[ "$HTTP_CODE" =~ ^2 ]]; then
-    local number
-    number=$(printf '%s' "$HTTP_BODY" | jq -r '.number')
-    if [[ -n "$number" && "$number" != "null" ]]; then
-      echo "$number"
-      return 0
-    fi
-    echo -e "${RED}HTTP success but no valid pull request number found.${NC}" >&2
-    return 1
+  # Try to create PR
+  if pr_json=$(gh pr create \
+      --head "$source_branch" \
+      --base "$target_branch" \
+      --title "$title" \
+      --body "$title" \
+      --json number 2>/dev/null); then
+    echo "$pr_json" | jq -r '.number'
+    return 0
   fi
 
-  # Handle "already exists" case
-  if [[ "$HTTP_CODE" == "422" ]]; then
-    local owner head_q base_q
-    owner=$(echo "$REPO_PROJECT" | cut -d'/' -f1)
-    head_q=$(printf '%s' "${owner}:${source_branch}" | jq -sRr @uri)
-    base_q=$(printf '%s' "${target_branch}" | jq -sRr @uri)
-
-    curl_request GET "$repo_url/pulls?state=open&head=${head_q}&base=${base_q}"
-    local existing
-    existing=$(printf '%s' "$HTTP_BODY" | jq -r '.[0].number // empty')
-    if [[ -n "$existing" ]]; then
-      echo "$existing"
+  # If it already exists, return that PR number
+  if pr_num=$(gh pr list --state open --head "$source_branch" --base "$target_branch" --json number -q '.[0].number' 2>/dev/null); then
+    if [[ -n "$pr_num" && "$pr_num" != "null" ]]; then
+      echo "$pr_num"
       return 0
     fi
   fi
 
-  echo -e "${RED}Error creating Pull Request (HTTP $HTTP_CODE):${NC}" >&2
-  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}" >&2
+  echo -e "${RED}Error creating Pull Request from $source_branch to $target_branch${NC}" >&2
   return 1
 }
 
 #-----------------------------------------
 # Function: trigger_merge
-# Triggers the merge for a given pull request.
+# Triggers merging a pull request using the GitHub CLI (`gh`).
 #
 # Arguments:
-#   $1 - Repository API URL
-#   $2 - Pull request number
+#   $1 - Pull request number
+#
+# Behavior:
+#   - Attempts auto-merge (`--auto`) first; if not allowed, falls back to an immediate merge.
 #
 # Returns:
 #   0 on success, 1 on failure.
 #-----------------------------------------
 trigger_merge() {
-  local repo_url="$1"
-  local pr_number="$2"
-  local data_payload='{"merge_method":"merge"}'  # keep simple
+  local pr_number="$1"
 
   echo "Triggering merge for PR #: $pr_number..."
-  curl_request PUT "$repo_url/pulls/${pr_number}/merge" "$data_payload"
-  if [[ "$HTTP_CODE" =~ ^2 ]]; then
+  if gh pr merge "$pr_number" --merge --auto --delete-branch >/dev/null 2>&1; then
     echo "Merge triggered successfully."
     echo
     return 0
   fi
 
-  echo -e "${RED}Error triggering merge (HTTP $HTTP_CODE). Response:${NC}"
-  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}"
+  # Fall back to non-auto if auto-merge not allowed
+  if gh pr merge "$pr_number" --merge --delete-branch -y; then
+    echo "Merged successfully."
+    echo
+    return 0
+  fi
+
+  echo -e "${RED}Error triggering merge for PR $pr_number.${NC}"
   return 1
 }
 
 #-----------------------------------------
 # Function: poll_merge_status
-# Polls the pull request until its status is either "merged" or "closed".
+# Polls the pull request via `gh` until its status is either "MERGED" or "CLOSED".
 #
 # Arguments:
-#   $1 - Repository API URL
-#   $2 - Pull request number
+#   $1 - Pull request number
 #
 # Behavior:
-#   Continuously queries the pull request status and displays progress until the status
-#   is either "merged" or "closed".
+#   Continuously queries the pull request state and displays progress until the state
+#   is either "MERGED" or "CLOSED".
 #-----------------------------------------
 poll_merge_status() {
-  local repo_url="$1"
-  local pr_number="$2"
+  local pr_number="$1"
 
   echo "Waiting for pull request $pr_number to complete..."
   while true; do
-    curl_request GET "$repo_url/pulls/${pr_number}"
     local state
-    state=$(printf '%s' "$HTTP_BODY" | jq -r '.state // empty')
-
-    if [[ "$state" == "closed" ]]; then
-      # Check if merged
-      curl_request GET "$repo_url/pulls/${pr_number}/merge"
-      if [[ "$HTTP_CODE" == "204" ]]; then
-        echo "Merge is complete."
-      else
-        echo "Pull request closed without merging."
-      fi
+    state=$(gh pr view "$pr_number" --json state -q '.state' 2>/dev/null || echo "")
+    if [[ "$state" == "MERGED" ]]; then
+      echo "Merge is complete."
+      break
+    elif [[ "$state" == "CLOSED" ]]; then
+      echo "Pull request closed without merging."
       break
     else
       echo "Current pull request state: ${state:-unknown}. Waiting 10 seconds..."
@@ -462,19 +240,16 @@ poll_merge_status() {
 # Waits until the pull request is mergeable, or until a timeout is reached.
 #
 # Arguments:
-#   $1 - Repository API URL (e.g., https://api.github.com/repos/owner/repo)
-#   $2 - Pull Request number
-#   $3 - Maximum wait time in seconds
+#   $1 - Pull Request number
+#   $2 - Maximum wait time in seconds
 #
-# GitHub behavior:
-#   - The GET /pulls/{number} response includes:
-#       mergeable        -> true/false/null (null while GitHub is computing)
-#       mergeable_state  -> "clean", "unstable", "blocked", "dirty", etc.
-#   - A PR is typically safe to merge when:
-#       mergeable == true AND mergeable_state is not "blocked" or "dirty".
+# GitHub/gh behavior:
+#   - `gh pr view --json mergeStateStatus` reports a summary of mergeability such as:
+#     CLEAN, BLOCKED, DIRTY, DRAFT, UNKNOWN.
+#   - We treat "CLEAN" as mergeable.
 #
 # Behavior:
-#   - Polls the PR and returns success when it's mergeable per the rule above.
+#   - Polls the PR and returns success when the merge state is CLEAN.
 #   - If the timeout is reached, prompts to Continue waiting or Skip.
 #
 # Returns:
@@ -482,25 +257,23 @@ poll_merge_status() {
 #   1 on timeout (if user chooses Skip).
 #-----------------------------------------
 wait_until_mergeable() {
-  local repo_url="$1"
-  local pr_number="$2"
-  local max_wait="$3"
+  local pr_number="$1"
+  local max_wait="$2"
   local elapsed=0
 
   while true; do
-    curl_request GET "$repo_url/pulls/${pr_number}"
-    local mergeable mergeable_state
-    mergeable=$(printf '%s' "$HTTP_BODY" | jq -r '.mergeable')
-    mergeable_state=$(printf '%s' "$HTTP_BODY" | jq -r '.mergeable_state // ""')
-
-    if [[ "$mergeable" == "true" && "$mergeable_state" != "blocked" && "$mergeable_state" != "dirty" ]]; then
-      echo "Pull request can be merged (mergeable: $mergeable, state: $mergeable_state)"
+    # gh exposes merge state summary as mergeStateStatus
+    local checks_state
+    checks_state=$(gh pr view "$pr_number" --json mergeStateStatus -q '.mergeStateStatus' 2>/dev/null || echo "")
+    # Common values: CLEAN, BLOCKED, DIRTY, DRAFT, UNKNOWN
+    if [[ "$checks_state" == "CLEAN" ]]; then
+      echo "Pull request appears mergeable (state: $checks_state)"
       return 0
     fi
 
     if (( elapsed >= max_wait )); then
       while true; do
-        read -n 1 -s -r -p "Pull request $pr_number is still not mergeable. (C)ontinue waiting, (S)kip this repo: " choice
+        read -n 1 -s -r -p "Pull Request $pr_number not ready (state: ${checks_state:-unknown}). (C)ontinue waiting, (S)kip: " choice
         echo
         choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
         case "$choice" in
@@ -511,7 +284,7 @@ wait_until_mergeable() {
       done
     fi
 
-    echo "Waiting for PR to be mergeable (mergeable: ${mergeable:-null}, state: ${mergeable_state:-unknown})..."
+    echo "Waiting for PR to be mergeable (state: ${checks_state:-unknown})..."
     sleep 2
     elapsed=$((elapsed + 2))
   done
@@ -519,75 +292,65 @@ wait_until_mergeable() {
 
 #-----------------------------------------
 # Function: create_release
-# Creates an official GitHub release.
+# Creates a GitHub release using the GitHub CLI (`gh release create`).
 #
 # Arguments:
-#   $1 - Repository API URL (e.g., "https://api.github.com/repos/owner/repo")
-#   $2 - Release tag (e.g., "v1.1")
-#   $3 - Release name (e.g., "Release 1.1")
-#   $4 - Release notes (description)
-#   $5 - Ref branch (the branch to base the release on)
+#   $1 - Release tag (e.g., "v1.1")
+#   $2 - Release name (e.g., "Release 1.1")
+#   $3 - Release notes (description)
+#   $4 - Ref branch/commit (the ref to tag for this release)
 #
 # Returns:
 #   0 on success, 1 on failure.
 #-----------------------------------------
 create_release() {
-  local repo_url="$1"
-  local release_tag="$2"
-  local release_name="$3"
-  local release_notes="$4"
-  local ref_branch="$5"
+  local release_tag="$1"
+  local release_name="$2"
+  local release_notes="$3"
+  local ref_branch="$4"
 
-  local prerelease_flag=false
-  [[ "$RELEASE_TYPE" == "RC" ]] && prerelease_flag=true
-
-  # Build payload safely with jq to avoid JSON quoting issues
-  local data_payload
-  data_payload=$(jq -n \
-    --arg tag  "$release_tag" \
-    --arg name "$release_name" \
-    --arg body "$release_notes" \
-    --arg ref  "$ref_branch" \
-    --argjson prerelease "$prerelease_flag" \
-    '{tag_name:$tag, name:$name, body:$body, target_commitish:$ref, prerelease:$prerelease}')
+  local prerelease_flag=""
+  [[ "$RELEASE_TYPE" == "RC" ]] && prerelease_flag="--prerelease"
 
   echo "Creating GitHub release for $REPO_PROJECT..."
-  curl_request POST "$repo_url/releases" "$data_payload"
-  if [[ "$HTTP_CODE" =~ ^2 ]]; then
+  # --target uses a branch/commit; gh will create the tag at that ref
+  if gh release create "$release_tag" \
+        --title "$release_name" \
+        --notes "$release_notes" \
+        --target "$ref_branch" \
+        $prerelease_flag; then
     echo -e "${GREEN}Release created successfully.${NC}"
     return 0
   fi
-  echo -e "${RED}Error creating release (HTTP $HTTP_CODE):${NC}"
-  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}"
+
+  echo -e "${RED}Error creating release.${NC}"
   return 1
 }
 
 #-----------------------------------------
 # Function: execute_merge_request
 # Combines creating a pull request, waiting until it becomes mergeable, and triggering the merge.
-# We validate it before creating it, to better ensure that it will succeed.
+# We validate it locally before creating the PR to better ensure that it will succeed.
 #
 # Arguments:
-#   $1 - Repository API URL
-#   $2 - Source branch
-#   $3 - Target branch
-#   $4 - Title for the pull request
-#   $5 - wait time
+#   $1 - Source branch
+#   $2 - Target branch
+#   $3 - Title for the pull request
+#   $4 - wait time (seconds)
 #
 # Behavior:
 #   - Checks if the source branch has changes compared to the target.
 #   - Attempts a local merge to detect conflicts before creating a pull request.
-#   - Only proceeds with the GitHub API call if the merge is clean.
+#   - Only proceeds to create the PR (via `gh`) if the merge is clean or only submodule-pointer conflicts exist.
 #
 # Returns:
 #   0 on success; 1 on failure.
 #-----------------------------------------
 execute_merge_request() {
-  local repo_url="$1"
-  local source_branch="$2"
-  local target_branch="$3"
-  local title="$4"
-  local wait_time="$5"
+  local source_branch="$1"
+  local target_branch="$2"
+  local title="$3"
+  local wait_time="$4"
 
   local branch_created=0  # Flag to track if the target branch was just created
   local previous_branch
@@ -597,7 +360,7 @@ execute_merge_request() {
   echo Checking if $target_branch exists...
   if ! git ls-remote --exit-code --heads origin "$target_branch" > /dev/null 2>&1; then
     ### for debugging
-    git ls-remote --exit-code --heads origin "$target_branch"
+    git ls-remote --exit-code --heads origin "$target_branch" || true
     ###
     echo -e "${YELLOW}Target branch $target_branch does not exist. Creating it from $source_branch...${NC}"
 
@@ -605,7 +368,6 @@ execute_merge_request() {
     git checkout --quiet "$source_branch"
     git checkout --quiet -b "$target_branch"
     git_push --set-upstream origin "$target_branch" || return 1
-
 
     echo -e "${GREEN}Successfully created and pushed branch $target_branch from $source_branch.${NC}"
     branch_created=1  # Mark that we just created the branch
@@ -644,8 +406,7 @@ execute_merge_request() {
     echo -e "${YELLOW}Merge conflicts detected between $source_branch and $target_branch.. Checking if they are only submodule pointers...${NC}"
 
     # Get list of conflicting files
-    local conflict_files
-    local non_submodule_conflicts
+    local conflict_files non_submodule_conflicts
     conflict_files=$(git diff --name-only --diff-filter=U)
     non_submodule_conflicts=$(echo "$conflict_files" | grep -vE '^extern/[^/]+(/[^/]+)?$' || true)
 
@@ -663,14 +424,14 @@ execute_merge_request() {
     fi
   fi
 
-  echo -e "${GREEN}Local merge test successful. Proceeding with API call to create pull request...${NC}"
+  echo -e "${GREEN}Local merge test successful. Proceeding with create pull request...${NC}"
   echo
   git checkout --quiet "$previous_branch"
   git branch --quiet -D "$temp_merge_branch"
 
-  # Now, create the pull request via GitHub API
+  # Now, create the pull request
   local pr_number
-  pr_number=$(create_merge_request "$repo_url" "$source_branch" "$target_branch" "$title" | tr -d '\n')
+  pr_number=$(create_merge_request "$source_branch" "$target_branch" "$title" | tr -d '\n')
   # Our return code check isn't always working, so also check if we have a pr_number
   if [ $? -ne 0 ] || [ -z "$pr_number" ]; then
     echo -e "${RED}Error: Pull Request creation failed for merging $source_branch into $target_branch.${NC}"
@@ -678,20 +439,21 @@ execute_merge_request() {
   fi
 
   echo "Waiting up to $wait_time seconds for pull request $pr_number to become mergeable..."
-  wait_until_mergeable "$repo_url" "$pr_number" "$wait_time"
+  wait_until_mergeable "$pr_number" "$wait_time"
   local ret=$?
 
+  # Leave these as if statements.  It is clearer that way
   if [ $ret -ne 0 ]; then
     echo -e "${RED}Timeout or error waiting for pull request $pr_number to become mergeable.${NC}"
     return 1
   fi
 
-  if ! trigger_merge "$repo_url" "$pr_number"; then
+  if ! trigger_merge "$pr_number"; then
     echo -e "${RED}Merge trigger failed for PR $pr_number.${NC}"
     return 1
   fi
 
-  poll_merge_status "$repo_url" "$pr_number"
+  poll_merge_status "$pr_number"
   return 0
 }
 
@@ -718,7 +480,8 @@ get_next_rc_number() {
   git fetch --tags --prune --prune-tags
 
   # List tags, filter for those matching "<release_number>-rcX", extract the X part
-  local highest_rc=$(git tag | grep -E "^${release_number}-rc[0-9]+$" | sed -E "s/^${release_number}-rc([0-9]+)$/\1/" | sort -nr | head -n1)
+  local highest_rc
+  highest_rc=$(git tag | grep -E "^${release_number}-rc[0-9]+$" | sed -E "s/^${release_number}-rc([0-9]+)$/\1/" | sort -nr | head -n1)
 
   # Determine the next rc number
   if [[ -z "$highest_rc" ]]; then
@@ -728,7 +491,6 @@ get_next_rc_number() {
     echo "${release_number}-rc${next_rc}"
   fi
 }
-
 
 #-----------------------------------------
 # Function: generate_changelog
@@ -794,8 +556,8 @@ generate_changelog() {
 #
 # Behavior:
 #   - Iterates over all submodules.
-#   - For each submodule, it uses clean_and_encode_project to obtain the encoded project path
-#     and then calls determine_release_branch (if needed) to set the correct branch.
+#   - If the parent targets main/master, the submodule branch is determined via `determine_release_branch`;
+#     otherwise, the submodule follows the parent's target branch.
 #   - Checks out each valid submodule to that branch and updates it.
 #   - Creates a temporary branch in the parent repository for submodule updates and triggers a merge request.
 #-----------------------------------------
@@ -822,16 +584,10 @@ process_submodules() {
       continue
     fi
 
-    # Get the remote URL of the submodule and encode the project path
-    submodule_repo_url=$(git remote get-url origin)
-    # Use clean_and_encode_project to process the submodule's remote URL.
-    local submodule_encoded_project
-    submodule_encoded_project=$(clean_and_encode_project "$submodule_repo_url")
-   
-    # Determine the submodule target branch based on the parent's target branch
+    # Decide branch: if parent targets main/master, pick that; else same as parent
+    local submodule_target_branch
     if [[ "$target_branch" == "main" || "$target_branch" == "master" ]]; then
-      submodule_target_branch=$(determine_release_branch "https://api.github.com/repos/${submodule_encoded_project}")
-
+      submodule_target_branch=$(determine_release_branch)
     else
       submodule_target_branch="$target_branch"
     fi
@@ -897,7 +653,7 @@ process_submodules() {
     git commit -m "Update submodules to $target_branch branch"
     git_push --set-upstream origin "$temp_submodule_branch" || return 1
 
-    if ! execute_merge_request "$REPO_URL" "$temp_submodule_branch" "$target_branch" \
+    if ! execute_merge_request "$temp_submodule_branch" "$target_branch" \
         "Merge submodule updates into $target_branch" "$WAIT_TIME"; then
       return 1
     fi
@@ -932,7 +688,8 @@ process_repo() {
   local release_notes="$3"
   local has_submodules="$4"
 
-  local start_time=$(date +"%Y-%m-%d %H:%M:%S")
+  local start_time
+  start_time=$(date +"%Y-%m-%d %H:%M:%S")
   local start_seconds=$SECONDS  # Capture start time in seconds
   export start_seconds
 
@@ -949,8 +706,12 @@ process_repo() {
     repo_directory_short="$repo_directory"
   fi
 
-
-  cd "$repo_directory" || { echo "Cannot cd to $repo_directory"; return_code=1; return; }
+  # Always cd into the repository before any gh/git calls
+  if ! cd "$repo_directory"; then
+    echo "Cannot cd to $repo_directory"
+    return_code=1
+    return
+  fi
 
   # Set the global RELEASE_NUMBER based on RELEASE_TYPE
   if [ "$RELEASE_TYPE" = "RC" ]; then
@@ -997,12 +758,13 @@ process_repo() {
   # Ensure cleanup_repo always runs when this function returns
   trap "cleanup_repo '$REPO_PROJECT' '$repo_directory_short'; trap - RETURN" RETURN
 
-  # Build the API URL from the canonical owner/repo
+  # Build the API URL (kept for logs)
   REPO_URL="https://api.github.com/repos/${REPO_PROJECT}"
   echo "Repository API URL: $REPO_URL"
 
-  # Fail fast if the token can't access/push to this repo
-  if ! assert_token_repo_access "$REPO_URL"; then
+  # Ensure gh is operating on this repo (sanity)
+  if ! gh repo view >/dev/null 2>&1; then
+    echo -e "${RED}gh cannot determine repository context in $repo_directory. Is this a GitHub repo and are you authenticated?${NC}"
     return_code=1
     return
   fi
@@ -1023,7 +785,7 @@ process_repo() {
     TARGET_BRANCH="release-candidate"
   else
     SOURCE_BRANCH="release-candidate"
-    TARGET_BRANCH=$(determine_release_branch "$REPO_URL")
+    TARGET_BRANCH=$(determine_release_branch)
     if [ -z "$TARGET_BRANCH" ]; then
       echo -e "${RED}Error: Neither 'main' nor 'master' branch found in repository $REPO_URL.${NC}"
       return_code=1
@@ -1039,7 +801,7 @@ process_repo() {
 
   # Perform the merge request for the initial RC1 or Official release
   if [ "$RELEASE_TYPE" = "OFFICIAL" ] || [[ "$RELEASE_NUMBER" =~ -rc1$ ]]; then
-    if ! execute_merge_request "$REPO_URL" "$SOURCE_BRANCH" "$TARGET_BRANCH" \
+    if ! execute_merge_request "$SOURCE_BRANCH" "$TARGET_BRANCH" \
          "Merge $SOURCE_BRANCH into $TARGET_BRANCH for release $RELEASE_NUMBER" "$WAIT_TIME"; then
       return_code=1
       return
@@ -1067,23 +829,20 @@ process_repo() {
     generate_changelog
   fi
 
-
   # Create GitHub release
   echo -e "${GREEN}Creating GitHub release for $REPO_PROJECT...${NC}"
-  if ! create_release "$REPO_URL" "$RELEASE_NUMBER" "Release $RELEASE_NUMBER" "$release_notes" "$TARGET_BRANCH"; then
+  if ! create_release "$RELEASE_NUMBER" "Release $RELEASE_NUMBER" "$release_notes" "$TARGET_BRANCH"; then
     echo -e "${RED}Error: GitHub release creation for $REPO_PROJECT failed.${NC}"
     return_code=1
     return
   fi
 
-
   # Merge the target branch back to development only for RC releases that are not -rc1
   if [[ "$RELEASE_TYPE" == "RC" && ! "$RELEASE_NUMBER" =~ -rc1$ ]]; then
     # Even if merge request fails, we continue
-    execute_merge_request "$REPO_URL" "$TARGET_BRANCH" "development" \
+    execute_merge_request "$TARGET_BRANCH" "development" \
       "Merge $TARGET_BRANCH into development for release $RELEASE_NUMBER" "$WAIT_TIME"
   fi
-
 
   # If submodules exist, set all submodules to development
   if [ "$has_submodules" = "true" ]; then
@@ -1127,7 +886,8 @@ cleanup_repo() {
   local repo_short="$2"     # the "~..." path you passed in trap
 
   local exit_code=$return_code  # Preserve the return code
-  local end_time=$(date +"%Y-%m-%d %H:%M:%S")
+  local end_time
+  end_time=$(date +"%Y-%m-%d %H:%M:%S")
   local elapsed_seconds=$(( SECONDS - start_seconds ))
 
   # Park on development to avoid detached state surprises
@@ -1265,8 +1025,12 @@ main() {
   echo -e "${GREEN}Reading from $json_file${NC}"
   echo
 
-  read_token
-
+  # Ensure gh is installed/authed
+  if ! command -v gh >/dev/null 2>&1; then
+    echo -e "${RED}The GitHub CLI (gh) is not installed. Please install and run 'gh auth login'.${NC}"
+    exit 1
+  fi
+  gh auth status || true
 
   # Read JSON data once and display the list of repos that will be processed
   json_data=$(cat "$json_file")
