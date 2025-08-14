@@ -82,6 +82,7 @@ git_push() {
     echo "$out" >&2
     return 1
   fi
+  return 0
 }
 
 
@@ -109,6 +110,154 @@ read_token() {
   [ -z "$GITHUB_TOKEN" ] && \
     echo -e "${YELLOW}Warning: no ~/.github_token found; API writes may fail.${NC}"
 }
+
+#-----------------------------------------
+# Function: curl_request
+# Runs a GitHub API request using a curl array (no eval), logs the exact command,
+# and captures both the HTTP body and HTTP code in globals: HTTP_BODY, HTTP_CODE.
+#
+# Arguments:
+#   $1 - HTTP method (GET|POST|PUT|PATCH|DELETE)
+#   $2 - Full URL
+#   $3 - (optional) JSON payload string (adds Content-Type and --data)
+#   $@ - (optional) extra -H "Header: value" items
+#
+# Globals set:
+#   HTTP_BODY - response body (string, no trailing HTTP_CODE line)
+#   HTTP_CODE - numeric HTTP status (e.g. 200, 201, 404)
+#
+# Returns:
+#   0 if curl exited successfully (network/SSL/etc.); non-zero otherwise.
+#   Note: HTTP_CODE may still be >= 400 even when return is 0.
+#-----------------------------------------
+curl_request() {
+  local method="$1"
+  local url="$2"
+  local payload=""
+  shift 2
+  # If a third arg was provided, treat it as the JSON payload; headers start after it
+  if [ $# -ge 1 ]; then
+    payload="$1"
+    shift 1
+  fi
+  local extra_headers=( "$@" )
+
+  # Build the array command
+  local cmd=( curl -sS --fail-with-body -X "$method"
+              -H "$GH_ACCEPT_HEADER"
+              -H "$GH_UA_HEADER" )
+
+  # Optional auth header
+  [[ -n "$GH_AUTH_HEADER" ]] && cmd+=( -H "$GH_AUTH_HEADER" )
+
+  # Any additional headers passed by caller
+  if ((${#extra_headers[@]})); then
+    cmd+=( "${extra_headers[@]}" )
+  fi
+
+  # JSON payload if provided
+  if [[ -n "$payload" ]]; then
+    cmd+=( --header "Content-Type: application/json" --data "$payload" )
+  fi
+
+  # Status code footer so we can split body/code later
+  cmd+=( -w $'\nHTTP_CODE:%{http_code}' "$url" )
+
+  # Log the exact command (properly quoted)
+  printf 'Executing: ' ; printf '%q ' "${cmd[@]}" ; echo
+
+  # Run it and split body/code
+  local resp rc
+  resp="$("${cmd[@]}")"
+  rc=$?
+
+  HTTP_CODE=$(printf '%s\n' "$resp" | sed -n '$s/^HTTP_CODE://p')
+  HTTP_BODY=$(printf '%s\n' "$resp" | sed '$d')
+
+  return $rc
+}
+
+
+#-----------------------------------------
+# Function: assert_token_repo_access
+# Verifies the PAT can see the repo and can CREATE a release.
+#
+# Returns 0 only if both read access and "create release" work.
+#-----------------------------------------
+assert_token_repo_access() {
+  local repo_url="$1"
+
+  # 1) Can the token read the repo?
+  curl_request GET "$repo_url"
+  if [[ "$HTTP_CODE" != "200" ]]; then
+    if [[ "$HTTP_CODE" == "403" ]]; then
+      echo -e "${RED}403: Access forbidden for this token to ${repo_url}.${NC}"
+      echo -e "${YELLOW}Likely causes:${NC}"
+      echo "  • Fine-grained PAT is still PENDING org approval"
+      echo "  • Repo not selected in the token’s repository list"
+      echo "  • Missing permissions (Contents: Read)"
+    else
+      echo -e "${RED}Unexpected response reading repo (HTTP $HTTP_CODE).${NC}"
+      [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
+    fi
+    return 1
+  fi
+
+  # (Informational) Show user-permission flags from the repo object
+  local role
+  role=$(printf '%s' "$HTTP_BODY" | jq -r '.permissions | to_entries | map(select(.value==true)) | map(.key) | join(",")')
+  [[ -n "$role" && "$role" != "null" ]] && echo "Repo permissions (user): $role"
+
+  # 2) REAL write probe: create a draft release, then delete it.
+  #    This checks Contents: write in a definitive way.
+  local probe_tag="__permcheck_$(date +%s)__"
+  local data_payload
+  data_payload=$(jq -n \
+    --arg tag   "$probe_tag" \
+    --arg name  "permission-check" \
+    --arg body  "" \
+    --arg ref   "HEAD" \
+    '{tag_name:$tag, name:$name, body:$body, target_commitish:$ref, prerelease:true, draft:true}')
+
+  curl_request POST "$repo_url/releases" "$data_payload"
+  if [[ "$HTTP_CODE" == "201" || "$HTTP_CODE" == "200" ]]; then
+    # Created. Delete it so we leave no trace.
+    local rel_id
+    rel_id=$(printf '%s' "$HTTP_BODY" | jq -r '.id // empty')
+    if [[ -n "$rel_id" ]]; then
+      curl_request DELETE "$repo_url/releases/${rel_id}"
+      if [[ "$HTTP_CODE" =~ ^2 ]]; then
+        echo "Token verified: can create and delete releases."
+        return 0
+      else
+        echo -e "${YELLOW}Warning:${NC} Draft release created but failed to delete (HTTP $HTTP_CODE)."
+        [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
+        # Still return success for permission check.
+        return 0
+      fi
+    fi
+    # No ID? treat as success for permission; nothing was created.
+    echo "Token verified: can call release create endpoint."
+    return 0
+  fi
+
+  if [[ "$HTTP_CODE" == "403" ]]; then
+    echo -e "${RED}Token cannot create releases on this repo (HTTP 403).${NC}"
+    echo -e "${YELLOW}Fix:${NC}"
+    echo "  • Fine-grained PAT must include:"
+    echo "      Repository access: this repo"
+    echo "      Permissions: Contents (Read & write)"
+    echo "  • Token must be approved by the organization."
+    return 1
+  fi
+
+  # Treat 422 and anything else as failure (inconclusive previously).
+  echo -e "${RED}Release creation probe failed (HTTP $HTTP_CODE).${NC}"
+  [[ -n "$HTTP_BODY" ]] && echo "$HTTP_BODY"
+  echo -e "${YELLOW}This usually means the PAT is missing Contents: write or isn’t approved for this repo.${NC}"
+  return 1
+}
+
 
 
 #-----------------------------------------
@@ -156,15 +305,14 @@ determine_release_branch() {
   local repo_url="$1"
 
   # main?
-  if curl --silent -f \
-    -H "$GH_ACCEPT_HEADER" -H "$GH_UA_HEADER" ${GH_AUTH_HEADER:+-H "$GH_AUTH_HEADER"} \
-    "$repo_url/branches/main" >/dev/null; then
+  curl_request GET "$repo_url/branches/main"
+  if [[ "$HTTP_CODE" == "200" ]]; then
     echo "main"; return 0
   fi
+
   # master?
-  if curl --silent -f \
-    -H "$GH_ACCEPT_HEADER" -H "$GH_UA_HEADER" ${GH_AUTH_HEADER:+-H "$GH_AUTH_HEADER"} \
-    "$repo_url/branches/master" >/dev/null; then
+  curl_request GET "$repo_url/branches/master"
+  if [[ "$HTTP_CODE" == "200" ]]; then
     echo "master"; return 0
   fi
 
@@ -209,58 +357,36 @@ create_merge_request() {
   echo
   echo -e "Creating pull request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC}" >&2
 
-  local curl_cmd
-  curl_cmd="curl --silent --request POST \
-    -H \"$GH_ACCEPT_HEADER\" -H \"$GH_UA_HEADER\" ${GH_AUTH_HEADER:+-H \"$GH_AUTH_HEADER\"} \
-    --header \"Content-Type: application/json\" \
-    --data \"$data_payload\" \
-    \"$repo_url/pulls\" \
-    -w \"\nHTTP Response Code: %{http_code}\""
-
-  # Echo the entire curl command for debugging.
-  echo "Executing create_merge_request command: $curl_cmd" >&2
-
-  # Execute the curl command.
-  local response
-  response=$(eval "$curl_cmd")
-
-  # Extract the HTTP code using our known output format.
-  local http_code
-  http_code=$(echo "$response" | grep -o "HTTP Response Code: [0-9]*" | awk '{print $4}' | tr -d '\n')
-  local json_response
-  json_response=$(echo "$response" | sed '$d')
-
-  if [[ $http_code =~ ^2 ]]; then
+  curl_request POST "$repo_url/pulls" "$data_payload"
+  if [[ "$HTTP_CODE" =~ ^2 ]]; then
     local number
-    number=$(echo "$json_response" | jq -r '.number')
-    if [[ "$number" != "null" && -n "$number" ]]; then
+    number=$(printf '%s' "$HTTP_BODY" | jq -r '.number')
+    if [[ -n "$number" && "$number" != "null" ]]; then
       echo "$number"
       return 0
-    else
-      echo -e "${RED}HTTP success but no valid pull request number found.${NC}" >&2
-      return 1
     fi
+    echo -e "${RED}HTTP success but no valid pull request number found.${NC}" >&2
+    return 1
   fi
 
-  # If a matching PR already exists, GitHub returns 422. Find and reuse it.
-  if [ "$http_code" -eq 422 ]; then
-    local owner head_q base_q lookup existing
+  # Handle "already exists" case
+  if [[ "$HTTP_CODE" == "422" ]]; then
+    local owner head_q base_q
     owner=$(echo "$REPO_PROJECT" | cut -d'/' -f1)
     head_q=$(printf '%s' "${owner}:${source_branch}" | jq -sRr @uri)
     base_q=$(printf '%s' "${target_branch}" | jq -sRr @uri)
 
-    lookup=$(curl --silent \
-      -H "$GH_ACCEPT_HEADER" -H "$GH_UA_HEADER" ${GH_AUTH_HEADER:+-H "$GH_AUTH_HEADER"} \
-      "$repo_url/pulls?state=open&head=${head_q}&base=${base_q}")
-    existing=$(echo "$lookup" | jq -r '.[0].number // empty')
-    if [ -n "$existing" ]; then
+    curl_request GET "$repo_url/pulls?state=open&head=${head_q}&base=${base_q}"
+    local existing
+    existing=$(printf '%s' "$HTTP_BODY" | jq -r '.[0].number // empty')
+    if [[ -n "$existing" ]]; then
       echo "$existing"
       return 0
     fi
   fi
 
-  echo -e "${RED}Error creating Pull Request (HTTP $http_code):${NC}" >&2
-  echo -e "${RED}$json_response${NC}" >&2
+  echo -e "${RED}Error creating Pull Request (HTTP $HTTP_CODE):${NC}" >&2
+  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}" >&2
   return 1
 }
 
@@ -280,31 +406,17 @@ trigger_merge() {
   local pr_number="$2"
   local data_payload='{"merge_method":"merge"}'  # keep simple
 
-  local curl_cmd
-  curl_cmd="curl --silent --request PUT \
-    -H \"$GH_ACCEPT_HEADER\" -H \"$GH_UA_HEADER\" ${GH_AUTH_HEADER:+-H \"$GH_AUTH_HEADER\"} \
-    --header \"Content-Type: application/json\" \
-    --data \"$data_payload\" \
-    \"$repo_url/pulls/${pr_number}/merge\" \
-    -w \"\nHTTP Response Code: %{http_code}\""
-
-  echo "Executing trigger_merge command: $curl_cmd"
   echo "Triggering merge for PR #: $pr_number..."
-  local merge_response
-  merge_response=$(eval "$curl_cmd")
-  local http_code
-  http_code=$(echo "$merge_response" | grep -o "HTTP Response Code: [0-9]*" | awk '{print $4}')
-
-  if [[ $http_code =~ ^2 ]]; then
+  curl_request PUT "$repo_url/pulls/${pr_number}/merge" "$data_payload"
+  if [[ "$HTTP_CODE" =~ ^2 ]]; then
     echo "Merge triggered successfully."
-    echo 
+    echo
     return 0
-  else
-    echo -e "${RED}Error triggering merge (HTTP $http_code). Response:${NC}"
-    echo -e "${RED}$(echo "$merge_response" | sed '$d')${NC}"
-    echo "Trigger merge command: $curl_cmd"
-    return 1
   fi
+
+  echo -e "${RED}Error triggering merge (HTTP $HTTP_CODE). Response:${NC}"
+  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}"
+  return 1
 }
 
 #-----------------------------------------
@@ -325,24 +437,21 @@ poll_merge_status() {
 
   echo "Waiting for pull request $pr_number to complete..."
   while true; do
-    local pr_json state rc
-    pr_json=$(curl --silent \
-      -H "$GH_ACCEPT_HEADER" -H "$GH_UA_HEADER" ${GH_AUTH_HEADER:+-H "$GH_AUTH_HEADER"} \
-      "$repo_url/pulls/${pr_number}")
-    state=$(echo "$pr_json" | jq -r '.state')
+    curl_request GET "$repo_url/pulls/${pr_number}"
+    local state
+    state=$(printf '%s' "$HTTP_BODY" | jq -r '.state // empty')
 
-    if [ "$state" = "closed" ]; then
-      rc=$(curl -s -o /dev/null -w "%{http_code}" \
-        -H "$GH_ACCEPT_HEADER" -H "$GH_UA_HEADER" ${GH_AUTH_HEADER:+-H "$GH_AUTH_HEADER"} \
-        "$repo_url/pulls/${pr_number}/merge")
-      if [ "$rc" -eq 204 ]; then
+    if [[ "$state" == "closed" ]]; then
+      # Check if merged
+      curl_request GET "$repo_url/pulls/${pr_number}/merge"
+      if [[ "$HTTP_CODE" == "204" ]]; then
         echo "Merge is complete."
       else
         echo "Pull request closed without merging."
       fi
       break
     else
-      echo "Current pull request state: $state. Waiting 10 seconds..."
+      echo "Current pull request state: ${state:-unknown}. Waiting 10 seconds..."
       sleep 10
     fi
   done
@@ -379,30 +488,23 @@ wait_until_mergeable() {
   local elapsed=0
 
   while true; do
-    local curl_cmd
-    curl_cmd="curl --silent \
-      -H \"$GH_ACCEPT_HEADER\" -H \"$GH_UA_HEADER\" ${GH_AUTH_HEADER:+-H \"$GH_AUTH_HEADER\"} \
-       \"$repo_url/pulls/${pr_number}\""
-    echo "Executing wait_until_mergeable command: $curl_cmd"
-    
-    local json_resp mergeable mergeable_state
-    json_resp=$(eval "$curl_cmd")
+    curl_request GET "$repo_url/pulls/${pr_number}"
+    local mergeable mergeable_state
+    mergeable=$(printf '%s' "$HTTP_BODY" | jq -r '.mergeable')
+    mergeable_state=$(printf '%s' "$HTTP_BODY" | jq -r '.mergeable_state // ""')
 
-    mergeable=$(echo "$json_resp" | jq -r '.mergeable')
-    mergeable_state=$(echo "$json_resp" | jq -r '.mergeable_state // ""')
-
-    if [ "$mergeable" = "true" ] && [ "$mergeable_state" != "blocked" ] && [ "$mergeable_state" != "dirty" ]; then
+    if [[ "$mergeable" == "true" && "$mergeable_state" != "blocked" && "$mergeable_state" != "dirty" ]]; then
       echo "Pull request can be merged (mergeable: $mergeable, state: $mergeable_state)"
       return 0
     fi
 
-    if [ "$elapsed" -ge "$max_wait" ]; then
+    if (( elapsed >= max_wait )); then
       while true; do
         read -n 1 -s -r -p "Pull request $pr_number is still not mergeable. (C)ontinue waiting, (S)kip this repo: " choice
         echo
         choice=$(echo "$choice" | tr '[:lower:]' '[:upper:]')
         case "$choice" in
-          C) echo "Continuing to wait..."; elapsed=0;;
+          C) echo "Continuing to wait..."; elapsed=0; break;;
           S) echo "Skipping repository due to timeout."; return 1;;
           *) echo "Invalid option. Please enter C to continue waiting or S to skip.";;
         esac
@@ -437,9 +539,7 @@ create_release() {
   local ref_branch="$5"
 
   local prerelease_flag=false
-  if [[ "$RELEASE_TYPE" == "RC" ]]; then
-    prerelease_flag=true
-  fi
+  [[ "$RELEASE_TYPE" == "RC" ]] && prerelease_flag=true
 
   # Build payload safely with jq to avoid JSON quoting issues
   local data_payload
@@ -451,33 +551,15 @@ create_release() {
     --argjson prerelease "$prerelease_flag" \
     '{tag_name:$tag, name:$name, body:$body, target_commitish:$ref, prerelease:$prerelease}')
 
-
-  local curl_cmd
-  curl_cmd="curl --silent --request POST \
-    -H \"$GH_ACCEPT_HEADER\" -H \"$GH_UA_HEADER\" ${GH_AUTH_HEADER:+-H \"$GH_AUTH_HEADER\"} \
-    --header \"Content-Type: application/json\" \
-    --data \"$data_payload\" \
-    \"$repo_url/releases\" \
-    -w \"\nHTTP Response Code: %{http_code}\""
-
-  # Echo the entire curl command for debugging.
-  echo "Executing create_release command: $curl_cmd"
-  local response
-  response=$(eval "$curl_cmd")
-  local http_code
-  http_code=$(echo "$response" | grep -o "HTTP Response Code: [0-9]*" | awk '{print $4}' | tr -d '\n')
-  local json_response
-  json_response=$(echo "$response" | sed '$d')
-
-  if [[ $http_code =~ ^2 ]]; then
+  echo "Creating GitHub release for $REPO_PROJECT..."
+  curl_request POST "$repo_url/releases" "$data_payload"
+  if [[ "$HTTP_CODE" =~ ^2 ]]; then
     echo -e "${GREEN}Release created successfully.${NC}"
-    echo
     return 0
-  else
-    echo -e "${RED}Error creating release (HTTP $http_code):${NC}"
-    echo -e "${RED}$json_response${NC}"
-    return 1
   fi
+  echo -e "${RED}Error creating release (HTTP $HTTP_CODE):${NC}"
+  [[ -n "$HTTP_BODY" ]] && echo -e "${RED}$HTTP_BODY${NC}"
+  return 1
 }
 
 #-----------------------------------------
@@ -919,6 +1001,12 @@ process_repo() {
   REPO_URL="https://api.github.com/repos/${REPO_PROJECT}"
   echo "Repository API URL: $REPO_URL"
 
+  # Fail fast if the token can't access/push to this repo
+  if ! assert_token_repo_access "$REPO_URL"; then
+    return_code=1
+    return
+  fi
+
   # Fetch the list of tags from the remote repository and check if the release tag already exists.
   local remote_tags
   remote_tags=$(git ls-remote --tags origin | awk '{print $2}' | sed 's#refs/tags/##')
@@ -981,7 +1069,6 @@ process_repo() {
 
 
   # Create GitHub release
-  echo
   echo -e "${GREEN}Creating GitHub release for $REPO_PROJECT...${NC}"
   if ! create_release "$REPO_URL" "$RELEASE_NUMBER" "Release $RELEASE_NUMBER" "$release_notes" "$TARGET_BRANCH"; then
     echo -e "${RED}Error: GitHub release creation for $REPO_PROJECT failed.${NC}"
