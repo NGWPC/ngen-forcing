@@ -7,6 +7,10 @@ echo "All output will be logged to: $LOGFILE"
 
 declare -a TEMP_BRANCHES
 
+# Toggle for printing the exact 'gh' commands being executed.
+# Printed commands go to STDERR so that JSON captures using $(...) are not polluted.
+DEBUG_GH=true
+
 #-----------------------------------------
 # Function: usage
 # Displays usage information and exits.
@@ -28,7 +32,6 @@ usage() {
   echo "  1. Merge from 'release-candidate' to 'main' or 'master'."
   echo "  2. If submodules exist, ensure they are on the correct branch."
   echo "  3. Create a GitHub release for the official version."
-  echo "  4. Merge the final release changes back into 'development'."
   echo
   echo "🔹 Handling Submodules:"
   echo "  - If the repository has submodules, they will be checked out to the correct branch ('release-candidate', 'development', or 'main/master')"
@@ -82,6 +85,31 @@ git_push() {
     return 1
   fi
   return 0
+}
+
+#-----------------------------------------
+# Function: run_gh
+# Prints and executes a `gh` command.
+#
+# WHY:
+#   We want to see the exact `gh` command lines that run (for debugging).
+#
+# BEHAVIOR:
+#   - If DEBUG_GH=true, prints:  Executing: gh <args...>
+#   - The print goes to STDERR so that callers that capture STDOUT via $(...) do not
+#     get the "Executing:" line mixed into JSON or other command output.
+#   - Returns `gh`'s exit status and streams `gh`'s STDOUT/STDERR unchanged.
+#
+# USAGE:
+#   run_gh release create ...
+#   json=$(run_gh pr create --json number)
+#-----------------------------------------
+run_gh() {
+  local args=("$@")
+  if [ "$DEBUG_GH" = true ]; then
+    printf 'Executing: ' >&2; printf '%q ' gh "${args[@]}" >&2; echo >&2
+  fi
+  gh "${args[@]}"
 }
 
 #-----------------------------------------
@@ -148,18 +176,18 @@ create_merge_request() {
   echo -e "Creating pull request from ${GREEN}$source_branch${NC} to ${GREEN}$target_branch${NC}" >&2
 
   # Try to create PR
-  if pr_json=$(gh pr create \
+  if pr_json=$(run_gh pr create \
       --head "$source_branch" \
       --base "$target_branch" \
       --title "$title" \
       --body "$title" \
-      --json number 2>/dev/null); then
+      --json number); then
     echo "$pr_json" | jq -r '.number'
     return 0
   fi
 
   # If it already exists, return that PR number
-  if pr_num=$(gh pr list --state open --head "$source_branch" --base "$target_branch" --json number -q '.[0].number' 2>/dev/null); then
+  if pr_num=$(run_gh pr list --state open --head "$source_branch" --base "$target_branch" --json number -q '.[0].number'); then
     if [[ -n "$pr_num" && "$pr_num" != "null" ]]; then
       echo "$pr_num"
       return 0
@@ -187,14 +215,14 @@ trigger_merge() {
   local pr_number="$1"
 
   echo "Triggering merge for PR #: $pr_number..."
-  if gh pr merge "$pr_number" --merge --auto --delete-branch >/dev/null 2>&1; then
+  if run_gh pr merge "$pr_number" --merge --auto --delete-branch >/dev/null 2>&1; then
     echo "Merge triggered successfully."
     echo
     return 0
   fi
 
   # Fall back to non-auto if auto-merge not allowed
-  if gh pr merge "$pr_number" --merge --delete-branch -y; then
+  if run_gh pr merge "$pr_number" --merge --delete-branch -y; then
     echo "Merged successfully."
     echo
     return 0
@@ -221,7 +249,9 @@ poll_merge_status() {
   echo "Waiting for pull request $pr_number to complete..."
   while true; do
     local state
-    state=$(gh pr view "$pr_number" --json state -q '.state' 2>/dev/null || echo "")
+    # We suppress gh's own stderr here to keep logs tidy; the wrapper's
+    # "Executing:" line is printed to STDERR and will also be suppressed.
+    state=$(run_gh pr view "$pr_number" --json state -q '.state' 2>/dev/null || echo "")
     if [[ "$state" == "MERGED" ]]; then
       echo "Merge is complete."
       break
@@ -298,7 +328,7 @@ wait_until_mergeable() {
 #   $1 - Release tag (e.g., "v1.1")
 #   $2 - Release name (e.g., "Release 1.1")
 #   $3 - Release notes (description)
-#   $4 - Ref branch/commit (the ref to tag for this release)
+#   $4 - Ref branch (the branch to base the release on)
 #
 # Returns:
 #   0 on success, 1 on failure.
@@ -314,7 +344,7 @@ create_release() {
 
   echo "Creating GitHub release for $REPO_PROJECT..."
   # --target uses a branch/commit; gh will create the tag at that ref
-  if gh release create "$release_tag" \
+  if run_gh release create "$release_tag" \
         --title "$release_name" \
         --notes "$release_notes" \
         --target "$ref_branch" \
@@ -336,7 +366,7 @@ create_release() {
 #   $1 - Source branch
 #   $2 - Target branch
 #   $3 - Title for the pull request
-#   $4 - wait time (seconds)
+#   $4 - Wait time (seconds)
 #
 # Behavior:
 #   - Checks if the source branch has changes compared to the target.
@@ -673,8 +703,8 @@ process_submodules() {
 # For RC releases the base number is processed through get_next_rc_number so that RELEASE_NUMBER
 # is set (e.g. “10.2-rc1” or “10.2-rc2”). Then, if RELEASE_NUMBER ends with "-rc1" (or if the release
 # is OFFICIAL), the script creates an initial merge request from the source branch to the target
-# branch. For subsequent RC releases (i.e. not candidate 1), the initial merge
-# and tagging are skipped (assuming the target branch already has all required changes).
+# branch. For subsequent RC releases (i.e. not candidate 1), the initial merge is skipped
+# (assuming the target branch already has all required changes).  Tagging/release creation still occurs
 #
 # Arguments:
 #   $1 - Repository directory
@@ -758,12 +788,8 @@ process_repo() {
   # Ensure cleanup_repo always runs when this function returns
   trap "cleanup_repo '$REPO_PROJECT' '$repo_directory_short'; trap - RETURN" RETURN
 
-  # Build the API URL (kept for logs)
-  REPO_URL="https://api.github.com/repos/${REPO_PROJECT}"
-  echo "Repository API URL: $REPO_URL"
-
   # Ensure gh is operating on this repo (sanity)
-  if ! gh repo view >/dev/null 2>&1; then
+  if ! run_gh repo view >/dev/null 2>&1; then
     echo -e "${RED}gh cannot determine repository context in $repo_directory. Is this a GitHub repo and are you authenticated?${NC}"
     return_code=1
     return
@@ -787,7 +813,7 @@ process_repo() {
     SOURCE_BRANCH="release-candidate"
     TARGET_BRANCH=$(determine_release_branch)
     if [ -z "$TARGET_BRANCH" ]; then
-      echo -e "${RED}Error: Neither 'main' nor 'master' branch found in repository $REPO_URL.${NC}"
+      echo -e "${RED}Error: Neither 'main' nor 'master' branch found in repository $REPO_PROJECT.${NC}"
       return_code=1
       return
     fi
@@ -1030,7 +1056,8 @@ main() {
     echo -e "${RED}The GitHub CLI (gh) is not installed. Please install and run 'gh auth login'.${NC}"
     exit 1
   fi
-  gh auth status || true
+  # Status is informational; use wrapper for consistent "Executing:" line (may be redirected away).
+  run_gh auth status || true
 
   # Read JSON data once and display the list of repos that will be processed
   json_data=$(cat "$json_file")
