@@ -402,7 +402,7 @@ execute_merge_request() {
   previous_branch=$(git rev-parse --abbrev-ref HEAD)  # Save current branch
 
   # Check if the target branch exists in the remote repository
-  echo Checking if $target_branch exists...
+  # echo Checking if $target_branch exists...
   if ! git ls-remote --exit-code --heads origin "$target_branch" > /dev/null 2>&1; then
     ### for debugging
     git ls-remote --exit-code --heads origin "$target_branch" || true
@@ -754,11 +754,27 @@ process_repo() {
     repo_directory_short="$repo_directory"
   fi
 
+  # Expand "~" to $HOME for the actual filesystem path
+  if [[ $repo_directory == ~* ]]; then
+    repo_directory="${repo_directory/#\~/$HOME}"
+  fi
+
+  # If the directory doesn't exist, record a FAILED status and continue
+  if [[ ! -d "$repo_directory" ]]; then
+    echo -e "${RED}Path does not exist:${NC} $repo_directory"
+    # Record a failed entry so the summary table isn't empty
+    repo_status["$repo_directory_short"]="$RELEASE_NUMBER | FAILED | 0s | (no repo)"
+    repo_order+=("$repo_directory_short")
+    return 1
+  fi
+
   # Always cd into the repository before any gh/git calls
   if ! cd "$repo_directory"; then
     echo "Cannot cd to $repo_directory"
-    return_code=1
-    return
+    # Record a failed entry so the summary table isn't empty
+    repo_status["$repo_directory_short"]="$RELEASE_NUMBER | FAILED | 0s | (cd failed)"
+    repo_order+=("$repo_directory_short")
+    return 1
   fi
 
   # Set the global RELEASE_NUMBER based on RELEASE_TYPE
@@ -852,7 +868,7 @@ process_repo() {
     fi
   else
     # For subsequent RC releases, we assume that TARGET_BRANCH already has all needed changes.
-    echo -e "${YELLOW}Subsequent RC release detected. Skipping merge from $SOURCE_BRANCH.${NC}"
+    echo -e "${YELLOW}Subsequent RC (> RC1) release detected. Skipping merge from $SOURCE_BRANCH.${NC}"
   fi
 
   # Pull the latest updates for the target branch.
@@ -874,9 +890,9 @@ process_repo() {
   fi
 
   # Create GitHub release
-  echo -e "${GREEN}Creating GitHub release for $REPO_PROJECT...${NC}"
+  echo -e "${GREEN}Creating GitHub release for $REPO_PROJECT $RELEASE_NUMBER...${NC}"
   if ! create_release "$RELEASE_NUMBER" "Release $RELEASE_NUMBER" "$release_notes" "$TARGET_BRANCH"; then
-    echo -e "${RED}Error: GitHub release creation for $REPO_PROJECT failed.${NC}"
+    echo -e "${RED}Error: GitHub release creation for $REPO_PROJECT $RELEASE_NUMBER failed.${NC}"
     return_code=1
     return
   fi
@@ -981,7 +997,8 @@ repo_order=()
 
 print_summary() {
   local longest_repo_name=0
-  local total_elapsed_seconds=$(( SECONDS - total_seconds ))
+  local total_elapsed_seconds=$(( SECONDS - ${total_seconds:-$SECONDS} ))
+
 
   # Determine the longest repository name from the repo_order array
   for repo in "${repo_order[@]}"; do
@@ -1087,10 +1104,21 @@ main() {
     release=$(echo "$json_data" | jq -r ".[$i].release")
     # Read the skip flag (default to false)
     skip=$(echo "$json_data" | jq -r ".[$i].skip // false")
+
+    display_dir="$repo_directory"
+    resolved_dir="$repo_directory"
+    if [[ $resolved_dir == ~* ]]; then
+      resolved_dir="${resolved_dir/#\~/$HOME}"
+    fi
+    exists_note=""
+    if [[ ! -d "$resolved_dir" ]]; then
+      exists_note=" ${RED}(missing)${NC}"
+    fi
+
     if [ "$skip" = "true" ]; then
-      echo -e "${YELLOW}Repo: $repo_directory (Release: $release) (skipping)${NC}"
+      echo -e "${YELLOW}Repo: $display_dir (Release: $release) (skipping)${NC}${exists_note}"
     else
-      echo -e "${GREEN}Repo: $repo_directory (Release: $release)${NC}"
+      echo -e "${GREEN}Repo: $display_dir (Release: $release)${NC}${exists_note}"
     fi
   done
 
