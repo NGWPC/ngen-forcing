@@ -248,7 +248,6 @@ RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
     rm boost.tar.gz && \
     cd /opt/boost && \
     ./bootstrap.sh && \
-    ./b2 headers && \
     ./b2 -j"$(nproc)" link=shared runtime-link=shared threading=multi \
          --with-serialization --prefix=/opt/boost install && \
     ldconfig
