@@ -245,8 +245,13 @@ RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
     curl --location --output boost.tar.gz https://archives.boost.io/release/${BOOST_VERSION%%[a-z]*}/source/boost_${BOOST_VERSION//./_}.tar.gz && \
     mkdir --parents /opt/boost && \
     tar --extract --directory /opt/boost --strip-components=1 --file boost.tar.gz && \
-    rm boost.tar.gz
-
+    rm boost.tar.gz && \
+    cd /opt/boost && \
+    ./bootstrap.sh && \
+    ./b2 headers && \
+    ./b2 -j"$(nproc)" link=shared runtime-link=shared threading=multi \
+         --with-serialization --prefix=/opt/boost install && \
+    ldconfig
 
 WORKDIR /ngen-app/
 
