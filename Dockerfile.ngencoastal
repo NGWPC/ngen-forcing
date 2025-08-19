@@ -251,19 +251,13 @@ RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
 WORKDIR /ngen-app/
 
 # TODO This will invalidate the cache for all subsequent stages so we don't really want to do this
-# Copy the remainder of your application code
-RUN --mount=type=secret,id=GITLAB_TOKEN \
-    set -eux; \
-    \
-    git config --global url."https://oauth2:$(cat /run/secrets/GITLAB_TOKEN)@gitlab.sh.nextgenwaterprediction.com/".insteadOf "https://gitlab.sh.nextgenwaterprediction.com/"
-
 # check out the ngen repo
 RUN set -eux; \
     \
-   git clone -b development --recurse-submodules https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm-ngen/ngen.git;
+   git clone -b development --recurse-submodules https://github.com/NGWPC/ngen.git;
 
 # check out the github t-route development branch repo
-# the t-route repo on gitlab doesn't work with the HF v2.2 in the 
+# the t-route repo on gitlab doesn't work with the HF v2.2 in the
 # Lower Colorado River domain
 RUN set -eux; \
     \
@@ -439,7 +433,7 @@ ENV PATH=/opt/conda/bin:/ngen-app/OTPSnc:${PATH}
 # check out the nwm.v3.0.6_no_svn repo
 RUN set -eux; \
     \
-   git clone https://gitlab.sh.nextgenwaterprediction.com/NGWPC/nwm.v3.0.6_no_svn.git /ngen-app/nwm.v3.0.6
+   git clone https://github.com/NGWPC/nwm.v3.0.6_no_svn.git /ngen-app/nwm.v3.0.6
 
 RUN set -eux; mkdir -p /ngen-app/nwm.v3.0.6/exec
 
@@ -450,7 +444,7 @@ RUN set -eux;  mkdir -p /ngen-app/nwm.v3.0.6/parm
 #    AWS_SHARED_CREDENTIALS_FILE=/run/secrets/aws \
 #    aws s3 cp s3://ngwpc-data/NWM_Parm_v3.0/coastal.tar.gz ./; \
 #    tar -zxvf coastal.tar.gz -C /ngen-app/nwm.v3.0.6/parm/; \
-#    rm -f coastal.tar.gz 
+#    rm -f coastal.tar.gz
 #
 #RUN --mount=type=secret,id=aws \
 #    set -eux; \
@@ -553,4 +547,4 @@ RUN set -eux; \
 WORKDIR /
 SHELL ["/bin/bash", "-c"]
 
-ENTRYPOINT [ "/bin/bash" ] 
+ENTRYPOINT [ "/bin/bash" ]
