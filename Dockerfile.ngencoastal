@@ -252,9 +252,10 @@ WORKDIR /ngen-app/
 
 # TODO This will invalidate the cache for all subsequent stages so we don't really want to do this
 # check out the ngen repo
-RUN set -eux; \
-    \
-   git clone -b development --recurse-submodules https://github.com/NGWPC/ngen.git;
+RUN set -eux && \
+    git clone -b development --recurse-submodules https://github.com/NGWPC/ngen.git && \
+    cd ngen && \
+    git submodule update --init --recursive
 
 # check out the github t-route development branch repo
 # the t-route repo on gitlab doesn't work with the HF v2.2 in the
