@@ -260,9 +260,8 @@ RUN set -eux && \
 # check out the github t-route development branch repo
 # the t-route repo on gitlab doesn't work with the HF v2.2 in the
 # Lower Colorado River domain
-RUN set -eux; \
-    \
-   git clone -b development https://github.com/NGWPC/t-route.git
+RUN set -eux && \
+    git clone -b development https://github.com/NGWPC/t-route.git
 
 ##############################
 # Stage: Submodules Build
