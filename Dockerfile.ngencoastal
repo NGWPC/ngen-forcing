@@ -242,7 +242,7 @@ RUN set -eux; \
 
 RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
     set -eux && \
-    curl --location --output boost.tar.gz https://archives.boost.io/release/${BOOST_VERSION%%[a-z]*}/source/boost_${BOOST_VERSION//./_}.tar.gz && \
+    curl --location --output boost.tar.gz https://downloads.sourceforge.net/project/boost/boost/${BOOST_VERSION}/boost_${BOOST_VERSION//./_}.tar.gz && \
     mkdir --parents /opt/boost && \
     tar --extract --directory /opt/boost --strip-components=1 --file boost.tar.gz && \
     rm boost.tar.gz && \
