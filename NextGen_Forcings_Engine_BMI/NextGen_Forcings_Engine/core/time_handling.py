@@ -395,17 +395,19 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # Flag to indicate whether or not the time stamp naming convention of
     # the NWM v3 files have changed between CONUS and oCONUS domains
+
     if (config_options.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] != 'CONUS'):
         # Calculate expected file paths.
+
         tmp_file1 = input_forcings.inDir + '/' + \
                     d_current.strftime('%Y%m%d%H') + \
                     input_forcings.file_ext
         tmp_file2 = input_forcings.inDir + '/' + \
                     d_current.strftime('%Y%m%d%H') + \
                     input_forcings.file_ext
-
     else:
         # Calculate expected file paths.
+
         tmp_file1 = input_forcings.inDir + '/' + \
                     d_current.strftime('%Y%m%d%H%M') + \
                     input_forcings.file_ext
