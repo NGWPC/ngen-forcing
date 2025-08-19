@@ -3,81 +3,107 @@ name: CI/CD Pipeline
 on:
   workflow_dispatch:
   push:
-    branches: [ '**' ]
+    branches: ['*']
+    tags: ['*']
   pull_request:
-    branches: [ main ]
+    branches: [main, development]
 
 permissions:
   contents: read
   packages: write
   security-events: write
 
-env:
-  REGISTRY: ghcr.io
-  DOCKER_IMAGE_NAME_BMI_FORCING: ${{ env.REGISTRY }}/ngen-bmi-forcing
-  DOCKER_IMAGE_NAME_LUMPED_FORCING: ${{ env.REGISTRY }}/ngen-lumped-forcing
-  DOCKER_IMAGE_NAME_COASTAL: ${{ env.REGISTRY }}/ngen-coastal
-  DOCKER_IMAGE_TAG: ${{ github.ref_name }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   setup:
     runs-on: ubuntu-latest
     outputs:
-      image: ${{ steps.vars.outputs.image }}
-      tag: ${{ steps.vars.outputs.tag }}
+      image_base:    ${{ steps.vars.outputs.image_base }}
+      tag:           ${{ steps.vars.outputs.tag }}
+      image_bmi:     ${{ steps.vars.outputs.image_bmi }}
+      image_lumped:  ${{ steps.vars.outputs.image_lumped }}
+      image_coastal: ${{ steps.vars.outputs.image_coastal }}
     steps:
-      - name: Set image variables
+      - name: Compute image names and safe tag
         id: vars
+        shell: bash
         run: |
-          ORG=$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')
-          REPO=$(basename "${GITHUB_REPOSITORY}")
-          IMAGE="ghcr.io/${ORG}/${REPO}"
-          TAG="${GITHUB_REF_NAME}"
+          ORG="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
+          REPO="$(basename "${GITHUB_REPOSITORY}")"
+          IMAGE_BASE="ghcr.io/${ORG}/${REPO}"
 
-          echo "image=$IMAGE" >> $GITHUB_OUTPUT
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # sanitize tag to be safe for use in image names
+          RAW_TAG="${GITHUB_REF_NAME}"
+          SAFE_TAG="$(echo "${RAW_TAG}" \
+            | tr '[:upper:]' '[:lower:]' \
+            | tr -c '[:alnum:]._-' '-' \
+            | cut -c1-128)"
 
-  # Build + push all three images (skips pushing on PRs from forks)
+          echo "image_base=${IMAGE_BASE}"                   >> "$GITHUB_OUTPUT"
+          echo "tag=${SAFE_TAG}"                            >> "$GITHUB_OUTPUT"
+          echo "image_bmi=${IMAGE_BASE}-bmi-forcings"       >> "$GITHUB_OUTPUT"
+          echo "image_lumped=${IMAGE_BASE}-lumped-forcings" >> "$GITHUB_OUTPUT"
+          echo "image_coastal=${IMAGE_BASE}-coastal"        >> "$GITHUB_OUTPUT"
+
   build:
     runs-on: ubuntu-latest
+    needs: setup
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR (push only)
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build & push BMI Forcing
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.bmi-forcings
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
+          tags: ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.tag }}
           build-args: |
-            CI_COMMIT_REF_NAME=${{ github.ref_name }}
+            CI_COMMIT_REF_NAME=${{ needs.setup.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build & push Lumped Forcing
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.lumped-forcings
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
+          tags: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.tag }}
           build-args: |
-            CI_COMMIT_REF_NAME=${{ github.ref_name }}
+            CI_COMMIT_REF_NAME=${{ needs.setup.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Build & push Coastal
-        uses: docker/build-push-action@v5
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.ngencoastal
           push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }}
+          tags: ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.tag }}
           build-args: |
-            CI_COMMIT_REF_NAME=${{ github.ref_name }}
+            CI_COMMIT_REF_NAME=${{ needs.setup.outputs.tag }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-  # Unit test placeholders using the built images (mirrors GitLab intent)
   unit-test-bmi:
-    runs-on: self-hosted
-    needs: build
+    runs-on: ubuntu-latest
+    needs: [setup, build]
     if: github.event_name != 'pull_request'
     container:
-      image: ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
+      image: ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -85,11 +111,11 @@ jobs:
       - run: echo "Running BMI Forcing Unit Tests..."
 
   unit-test-lumped:
-    runs-on: self-hosted
-    needs: build
+    runs-on: ubuntu-latest
+    needs: [setup, build]
     if: github.event_name != 'pull_request'
     container:
-      image: ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
+      image: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
@@ -97,19 +123,19 @@ jobs:
       - run: echo "Running Lumped Forcing Unit Tests..."
 
   unit-test-coastal:
-    runs-on: self-hosted
-    needs: build
+    runs-on: ubuntu-latest
+    needs: [setup, build]
     if: github.event_name != 'pull_request'
     container:
-      image: ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }}
+      image: ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.tag }}
       credentials:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - run: echo "Running Coastal Unit Tests..."
 
-  # SonarQube (keeps same behavior; allow failure like GitLab)
   sonarqube:
+    if: github.repository_owner == 'NGWPC'
     runs-on: self-hosted
     needs: [unit-test-bmi, unit-test-lumped, unit-test-coastal]
     continue-on-error: true
@@ -126,100 +152,63 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: sonar-scanner -X -Dsonar.verbose=true
 
-  # Container scanning for each built image (Trivy)
   container_scanning:
-    runs-on: self-hosted
-    needs: build
-    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    needs: [setup, build]
+    strategy:
+      matrix:
+        target:
+          - { name: bmi,     ref: '${{ needs.setup.outputs.image_bmi }}' }
+          - { name: lumped,  ref: '${{ needs.setup.outputs.image_lumped }}' }
+          - { name: coastal, ref: '${{ needs.setup.outputs.image_coastal }}' }
     steps:
-      - name: Login to GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Pull BMI Forcing image
-        run: docker pull ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
-      - name: Trivy scan (BMI Forcing)
-        uses: aquasecurity/trivy-action@master
+      - name: Trivy scan (${{ matrix.target.name }})
+        uses: aquasecurity/trivy-action@0.24.0
         with:
-          image-ref: ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
+          image-ref: ${{ matrix.target.ref }}:${{ needs.setup.outputs.tag }}
           format: sarif
-          output: trivy-results-bmi.sarif
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload SARIF (BMI Forcing) — public repos only
-        if: github.repository_visibility == 'public'
+          output: trivy-results-${{ matrix.target.name }}.sarif
+          severity: CRITICAL,HIGH
+
+      - name: Upload SARIF (${{ matrix.target.name }})
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: trivy-results-bmi.sarif
+          sarif_file: trivy-results-${{ matrix.target.name }}.sarif
 
-      - name: Pull Lumped Forcing image
-        run: docker pull ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
-      - name: Trivy scan (Lumped Forcing)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
-          format: sarif
-          output: trivy-results-lumped.sarif
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload SARIF (Lumped Forcing) — public repos only
-        if: github.repository_visibility == 'public'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results-lumped.sarif
 
-      - name: Pull Coastal image
-        run: docker pull ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }}
-      - name: Trivy scan (Coastal)
-        uses: aquasecurity/trivy-action@master
-        with:
-          image-ref: ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }}
-          format: sarif
-          output: trivy-results-coastal.sarif
-          severity: UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL
-        env:
-          TRIVY_USERNAME: ${{ github.actor }}
-          TRIVY_PASSWORD: ${{ secrets.GITHUB_TOKEN }}
-      - name: Upload SARIF (Coastal) — public repos only
-        if: github.repository_visibility == 'public'
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: trivy-results-coastal.sarif
-
-  # Deploy "latest" tags (match GitLab rule: only on development branch)
   deploy:
     runs-on: self-hosted
-    needs: [build, container_scanning]
+    needs: [setup, build, container_scanning]
     if: github.ref == 'refs/heads/development'
     steps:
-      - name: Login to GHCR
+      - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Tag & push latest (BMI Forcing)
         run: |
-          docker pull ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
-          docker tag  ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:${{ env.DOCKER_IMAGE_TAG }} ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:latest
-          docker push ${{ env.DOCKER_IMAGE_NAME_BMI_FORCING }}:latest
+          docker pull ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.tag }}
+          docker tag  ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.tag }} ${{ needs.setup.outputs.image_bmi }}:latest
+          docker push ${{ needs.setup.outputs.image_bmi }}:latest
 
       - name: Tag & push latest (Lumped Forcing)
         run: |
-          docker pull ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }}
-          docker tag  ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:${{ env.DOCKER_IMAGE_TAG }} ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:latest
-          docker push ${{ env.DOCKER_IMAGE_NAME_LUMPED_FORCING }}:latest
+          docker pull ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.tag }}
+          docker tag  ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.tag }} ${{ needs.setup.outputs.image_lumped }}:latest
+          docker push ${{ needs.setup.outputs.image_lumped }}:latest
 
       - name: Tag & push latest (Coastal)
         run: |
-          docker pull ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }}
-          docker tag  ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:${{ env.DOCKER_IMAGE_TAG }} ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:latest
-          docker push ${{ env.DOCKER_IMAGE_NAME_COASTAL }}:latest
+          docker pull ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.tag }}
+          docker tag  ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.tag }} ${{ needs.setup.outputs.image_coastal }}:latest
+          docker push ${{ needs.setup.outputs.image_coastal }}:latest
