@@ -1,14 +1,12 @@
 name: CI/CD Pipeline
 
 on:
-  workflow_dispatch:
   push:
-    branches: [master, development, release-candidate, pena-github-migration]
-    tags:
-      - '*.*.*.*.*'     # e.g. 3.1.1.3.0
-      - '*.*.*.*.*-rc*' # e.g. 3.1.1.3.0-rc1
+    branches: [master, nwm-master, development, release-candidate]
   pull_request:
-    branches: [master, development, release-candidate]
+    branches: [main, nwm-master, development, release-candidate]
+  release:
+    types: [published]
 
 permissions:
   contents: read
