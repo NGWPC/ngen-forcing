@@ -58,7 +58,7 @@ jobs:
           fi
 
   build-bmi:
-    name: build
+    name: build-bmi
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
     needs: setup
