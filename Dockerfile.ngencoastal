@@ -1,6 +1,9 @@
-## TODO: replace with base image created under NGWPC-3223 ##
-## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
-FROM rockylinux:8
+# syntax=docker/dockerfile:1.4
+
+##############################
+# Stage: Base – Common Setup
+##############################
+FROM rockylinux:8 AS base
 
 # cannot remove LANG even though https://bugs.python.org/issue19846 is fixed
 # last attempted removal of LANG broke many users:
@@ -12,9 +15,7 @@ ENV LANG="C.UTF-8" \
     HDF5_VERSION="1.10.11" \
     NETCDF_C_VERSION="4.7.4" \
     NETCDF_FORTRAN_VERSION="4.5.4" \
-    BOOST_VERSION="1.88.0"
-
-## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
+    BOOST_VERSION="1.83.0"
 
 # Add conda repo
 RUN <<EOF cat > /etc/yum.repos.d/conda.repo
@@ -35,11 +36,13 @@ RUN set -eux && \
         automake \
         bc \
         cmake \
-        conda \
         curl curl-devel \
         file \
         findutils \
+        conda \
         git \
+## FIXME: replace GNU compilers with Intel compiler ##
+        gcc-toolset-10 \
 ## FIXME: replace GNU compilers with Intel compiler ##
         gcc-toolset-10 \
         gcc-toolset-10-libasan-devel \
@@ -62,13 +65,22 @@ RUN set -eux && \
     && dnf clean all && rm -rf /var/cache/dnf
 
 ## FIXME: replace GNU compilers with Intel compiler ##
-SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
+SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10" ]
 ## FIXME: replace openmpi with Intel MPI libraries ##
 ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
 
 # Fix OpenMPI support within container
-ENV PSM3_HAL=loopback
-ENV PSM3_DEVICES=self
+ENV PSM3_HAL=loopback \
+    PSM3_DEVICES=self
+
+RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
+    set -eux && \
+    curl --location --output boost.tar.gz https://archives.boost.io/release/${BOOST_VERSION%%[a-z]*}/source/boost_${BOOST_VERSION//./_}.tar.gz && \
+    mkdir --parents /opt/boost && \
+    tar --extract --directory /opt/boost --strip-components=1 --file boost.tar.gz && \
+    rm boost.tar.gz \
+    # build boost libraries
+    && cd /opt/boost && ./bootstrap.sh && ./b2 && ./b2 install --prefix=/usr/local
 
 # Build Python from source and install it
 RUN --mount=type=cache,target=/root/.cache/build-python,id=build-python \
@@ -240,16 +252,6 @@ RUN set -eux; \
     make -f makefile ; \
     cd -
 
-RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-boost \
-    set -eux && \
-    curl --location --output boost.tar.gz https://downloads.sourceforge.net/project/boost/boost/${BOOST_VERSION}/boost_${BOOST_VERSION//./_}.tar.gz && \
-    mkdir --parents /opt/boost && \
-    tar --extract --directory /opt/boost --strip-components=1 --file boost.tar.gz && \
-    rm boost.tar.gz && \
-    cd /opt/boost && \
-    ./bootstrap.sh && \
-    ./b2 -j"$(nproc)" install
-
 WORKDIR /ngen-app/
 
 # TODO This will invalidate the cache for all subsequent stages so we don't really want to do this
@@ -308,7 +310,7 @@ RUN --mount=type=cache,target=/root/.cache/cmake,id=cmake-ngen \
           -DNGEN_WITH_ROUTING=ON \
           -DNGEN_QUIET=ON \
           -DNGEN_UPDATE_GIT_SUBMODULES=OFF \
-          -DBOOST_ROOT=/opt/boost && \
+          -DBOOST_ROOT=/usr/local && \
       cmake --build cmake_build --target all --parallel $(nproc)
 
 # Build each submodule in a separate layer, using cache for CMake as well
@@ -435,7 +437,7 @@ ENV PATH=/opt/conda/bin:/ngen-app/OTPSnc:${PATH}
 # check out the nwm.v3.0.6_no_svn repo
 RUN set -eux; \
     \
-   git clone https://github.com/NGWPC/nwm.v3.0.6_no_svn.git /ngen-app/nwm.v3.0.6
+   git clone -b main https://github.com/NGWPC/nwm.v3.0.6_no_svn.git /ngen-app/nwm.v3.0.6
 
 RUN set -eux; mkdir -p /ngen-app/nwm.v3.0.6/exec
 
