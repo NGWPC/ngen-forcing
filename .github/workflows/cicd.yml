@@ -36,11 +36,11 @@ jobs:
           set -euo pipefail
           ORG="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
           REPO="$(basename "${GITHUB_REPOSITORY}")"
-          IMAGE_BASE="${REGISTRY}/${ORG}/"
+          IMAGE_BASE="${REGISTRY}/${ORG}"
           echo "image_base=${IMAGE_BASE}" >> "$GITHUB_OUTPUT"
-          echo "image_bmi=${IMAGE_BASE}-ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
-          echo "image_lumped=${IMAGE_BASE}-ngen-lumped-forcing" >> "$GITHUB_OUTPUT"
-          echo "image_coastal=${IMAGE_BASE}-ngen-coastal" >> "$GITHUB_OUTPUT"
+          echo "image_bmi=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
+          echo "image_lumped=${IMAGE_BASE}/ngen-lumped-forcing" >> "$GITHUB_OUTPUT"
+          echo "image_coastal=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
 
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             PR_NUM="${{ github.event.pull_request.number }}"
