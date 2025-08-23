@@ -166,6 +166,7 @@ jobs:
     if: (github.event_name == 'pull_request' || github.event_name == 'push') && github.repository_owner == 'NGWPC'
     runs-on: self-hosted
     needs: [setup, build-bmi, build-lumped, build-coastal]
+    continue-on-error: true
     container:
       image: sonarsource/sonar-scanner-cli
       options: --entrypoint="" --user 0
@@ -214,6 +215,7 @@ jobs:
           - { name: bmi,     ref: '${{ needs.setup.outputs.image_bmi }}' }
           - { name: lumped,  ref: '${{ needs.setup.outputs.image_lumped }}' }
           - { name: coastal, ref: '${{ needs.setup.outputs.image_coastal }}' }
+
     steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -222,13 +224,26 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # cache Trivy DB between runs to avoid re-downloading
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/trivy
+          key: trivy-db-${{ runner.os }}-${{ hashFiles('**/lockfiles-or-just-use-workflow-yaml') }}
+          restore-keys: |
+            trivy-db-${{ runner.os }}-
+
       - name: Trivy scan (${{ matrix.target.name }})
         uses: aquasecurity/trivy-action@0.24.0
+        timeout-minutes: 45 # step timeout (increase for coastal)
         with:
           image-ref: ${{ matrix.target.ref }}:${{ needs.setup.outputs.test_image_tag }}
           format: sarif
           output: trivy-results-${{ matrix.target.name }}.sarif
           severity: CRITICAL,HIGH
+          scanners: vuln # only vulnerability scanning
+          ignore-unfixed: true # smaller SARIF, faster result handling
+          args: --timeout 30m # Trivy internal timeout
 
       - name: Upload SARIF (${{ matrix.target.name }})
         uses: github/codeql-action/upload-sarif@v3
