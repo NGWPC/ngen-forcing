@@ -1,61 +1,18 @@
 #!/usr/bin/env bash
-
 #SBATCH --job-name=sing_mpi  #job name
 #SBATCH -N 2                     #number of nodes to use
 #SBATCH --partition=compute      #the patition
 #SBATCH --ntasks-per-node=18     #numebr of cores per node
 #SBATCH --exclusive 
 
-set -x
-
 export NODES=2          #this must match the number of nodes defined above by slurm
 export NCORES=18        #this must match the number of cores per node defined above by slurm
 export NPROCS=$((NODES*NCORES))
-#
-# define the start time of the calibration
-# in the format of YYYYMMDD
-export STARTPDY=20240913
-#
-# define the start hour of the calibration
-export STARTCYC=00
-# define the forecast length in hours of the calibration
-export FCST_LENGTH_HRS=18
-#
-# location of the hot restart file for SCHISM. For cold start, set the value to ''.
-export HOT_START_FILE=/ngwpc-coastal/restart_coastal/hotstart_analysis_assim_coastal_hawaii_ana_20240220_1000.nc
 
-#
-# location of the archived STOFS file if STOFS data is 
-# going to be used for the boundary nodes
-export STOFS_FILE=/efs/schism_use_case/stofs_20240913/stofs_2d_glo.t00z.fields.cwl.nc
+#load the configuration file
+. ./schism_calib.cfg
 
-#
-# location of the NWM retrospective or archieved forcing files
-# note that the time span of the files must cover the whole simulation period
-export NWM_FORCING_DIR=/efs/schism_use_case/hi_nwm_ana_forcing_20240913/
-#
-# location of the NWM retrospective or archieved streamflow files
-# note that the time span of the files must cover the whole simulation period
-export NWM_CHROUT_DIR=/efs/schism_use_case/hi_nwm_ana_chout_20240913/
-#
-# Whether or not to use TPXO forecast instead of STOFS data
-# "YES" or "NO"
-export USE_TPXO="NO"
-#
-#the name of the NWM domain to calibrate, one of hawaii, prvi, pacific or atlgulf
-#export COASTAL_DOMAIN=prvi
-export COASTAL_DOMAIN=hawaii
-#
-#define working directory of the SCHISM calibration run
-export COASTAL_WORK_DIR=/efs/schism_use_case/hi_nwm_ana_20240913
-##################################################################################################
-# End of user defined section
-##################################################################################################
-
-#set the Singularity image file
-SIF_PATH="singularity/ngen_coastal_sing.sif"
-
-export NGWPC_COASTAL_PARM_DIR=/ngwpc-coastal
+export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #
