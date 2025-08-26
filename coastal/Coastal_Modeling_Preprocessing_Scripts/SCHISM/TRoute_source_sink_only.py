@@ -179,7 +179,7 @@ with open(os.path.join(filePath,'source_sink_BMI.in')) as f:
         data = f.readline().split()
         source_element.append(int(data[0]))
         troute_source.append(str(data[1]))
-#    next(f)
+    next(f)
     nsiel = int(f.readline())
     if(nsiel != 0):
         for i in range(nsiel):
@@ -296,9 +296,11 @@ mso[:,0,:] = int(-9999)
 
 if os.path.exists(filePath+'source_TRoute.nc'):
     os.remove(filePath+'source_TRoute.nc')
- 
+
+print( "write source.nc filewrite source.nc file" )
 #write source.nc file      
 ncout = nc.Dataset(filePath+'source_TRoute.nc','w',format='NETCDF4')
+print( filePath+'source_TRoute.nc')
 
 ncout.createDimension('time_vsource',len(time_final))
 ncout.createDimension('time_vsink',len(time_final))
