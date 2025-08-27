@@ -1,0 +1,7 @@
+# This file is intended to be an example of how one could list domains available to run
+domain:
+  - name: great_lakes_example_bndonly
+    path: ..\..\..\coastalmodels\sfincs\great_lakes_example_bndonly\ # path to base model files
+    region: lake eerie   # General region or basin group
+    notes: >
+      Example SFINCS water level boundary file to demonstrate data extraction from GLOFS (fvcom)
