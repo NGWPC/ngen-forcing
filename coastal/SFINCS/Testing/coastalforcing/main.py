@@ -1,4 +1,5 @@
 import os
+import sys
 import shutil
 import re
 import yaml
@@ -148,15 +149,24 @@ def prepare_sfincs_base_simulation_folder(cfg, domain_info):
 def main():
     here = Path(__file__).resolve().parent
 
+    if len(sys.argv) > 1:
+        config_file = sys.argv[1]
+    else:
+        config_file = "config.yaml"
+
+    if not os.path.exists(config_file):
+        raise FileNotFoundError(f"Config file not found: {config_file}")
+
+    print(f"Using config file: {config_file}")
+
     # Load config (no global chdir)
-    cfg_path = _normpath(here, "config.yaml")
+    cfg_path = _normpath(here, config_file)
     with open(cfg_path) as f:
         cfg = yaml.safe_load(f)
 
     validate_config(cfg)
 
     # Load domain info and normalize base path relative to the domain YAML
-        # Load domain info
     domain_file = f"domain_lists/{cfg['coastal_model']}/{cfg['domain_file']}.yaml"
     with open(domain_file) as f:
         domain_info = yaml.safe_load(f)
@@ -186,7 +196,8 @@ def main():
         meteo_source=cfg['meteo_source'],
         hydrology_source=cfg['hydrology_source'],
         coastal_water_level_source=cfg['coastal_water_level_source'],
-        raw_download_dir=_normpath(here, cfg['raw_download_dir'])
+        raw_download_dir=_normpath(here, cfg['raw_download_dir']),
+        domain_info=domain_info
     )
     downloader.download_all()
 

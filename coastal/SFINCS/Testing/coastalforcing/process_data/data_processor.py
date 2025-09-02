@@ -36,8 +36,6 @@ class DataProcessor:
         hydrology_source: str,
         coastal_water_level_source: str,
         raw_download_dir: str,
-        target_epsg: Optional[int] = None,
-        # target_epsg: int = 32614, # TODO take out hardcoding for target_epsg and refer to sfincs.nc file - not priority
         buffer_m: float = 2000.0,
         ngen_dis_netcdf: Optional[str] = None,
         glofs_model: Optional[str] = None,       # e.g., "leofs", "loofs", "lsofs", "lmhofs"
@@ -65,11 +63,11 @@ class DataProcessor:
         self.ngen_dis_netcdf = ngen_dis_netcdf
         self.tpxo_env = tpxo_env
 
-
+        '''
         # Coastal products (optional)
         # Try to read from domain_info if present, otherwise fallback to defaults.
         di = self.domain_info if isinstance(self.domain_info, dict) else {}
-        di_coastal = di.get("coastal", {}) if isinstance(di.get("coastal", {}), dict) else {}
+        self.di_coastal = di.get("coastal", {}) if isinstance(di.get("coastal", {}), dict) else {}
 
         self.glofs_model = (
             glofs_model
@@ -83,10 +81,13 @@ class DataProcessor:
             or di_coastal.get("stofs_region")
             or "conus.east.cwl"  # default STOFS tile you used
         )
+        '''
+        
+        self.domain_path = self.domain_info["domain"][0]["path"]
+        domain_epsg = self.domain_info["domain"][0]["epsg"]
 
-
-        if target_epsg is not None:
-            self.target_epsg = target_epsg
+        if domain_epsg is not None:
+            self.target_epsg = int(domain_epsg)
         else:
             sfgrid = xr.open_dataset(os.path.join(self.domain_path, "sfincs.nc"))
             self.target_epsg = int(sfgrid.attrs.get("epsg", 32614))  # fallback to 32614
@@ -106,59 +107,63 @@ class DataProcessor:
             return
         else:
             # Meteo
-            if self.meteo == "nwm_ana":
-                self._process_sfincs_meteo_from_nwm_ana()
-            elif self.meteo == "nwm_retro":
-                # TODO: implement
-                # print("[process][meteo] nwm_retro implementaion needs to be verified.")
-                self._process_sfincs_meteo_from_nwm_retro()
-            else:
-                print(f"[process][meteo] Unknown source '{self.meteo}', skipping.")
+
+            try:
+                if self.meteo == "nwm_ana":
+                    print("\nProcessing sfincs meteo from nwm_ana")
+                    self._process_sfincs_meteo_from_nwm_ana()
+                elif self.meteo == "nwm_retro":
+                    # TODO: Verify
+                    # print("[process][meteo] nwm_retro implementaion needs to be verified.")
+                    print("\nProcessing sfincs meteo from nwm_metro")
+                    self._process_sfincs_meteo_from_nwm_retro()
+                else:
+                    print(f"[process][meteo] Unknown source '{self.meteo}', skipping.")
+            except Exception as e:
+                print(f"ERROR : {str(e)}")
+                traceback.print_exc()
 
             # Discharge
-            if self.hydro == "nwm" and self.meteo == "nwm_ana":
-                self._process_sfincs_dis_from_nwm_ana()
-            elif self.hydro == "nwm" and self.meteo == "nwm_retro":
-                # TODO: Verify implementation
-                try:
-                    print("[process][hydro] nwm_retro implementation has not been verified yet")
+            try:
+                if self.hydro == "nwm" and self.meteo == "nwm_ana":
+                    print("\nProcessing sfincs dis from nwm_ana")
+                    self._process_sfincs_dis_from_nwm_ana()
+                elif self.hydro == "nwm" and self.meteo == "nwm_retro":
+                    # TODO: Verify implementation
+            
+                    print("\nProcessing sfincs dis from nwm_retro")
                     self._process_sfincs_dis_from_nwm_retro()
-                except Exception as e:
-                    print(f"ERROR : {str(e)}")
-                    traceback.print_exc()
 
-            elif self.hydro == "ngen":
-                # TODO: Verify implementation - not a priority right now
-                try:
+                elif self.hydro == "ngen":
+                    # TODO: Verify implementation - not a priority right now
+                
+                    print("\nProcessing sfincs dis from ngen netcdf")
                     self._process_sfincs_dis_from_ngen_netcdf()
-                except Exception as e:
-                    print(f"ERROR : {str(e)}")
-                    traceback.print_exc()
-                print("[process][hydro] ngen implementation has not been verified yet.")
-            else:
-                print(f"[process][hydro] Unknown source '{self.hydro}', skipping.")
+                else:
+                    print(f"[process][hydro] Unknown source '{self.hydro}', skipping.")
+            except Exception as e:
+                print(f"ERROR : {str(e)}")
+                traceback.print_exc()
+
             # Coastal Water Levels
             # TODO: implement all
-            if self.coastal == "stofs":
-                try:
+            try:
+                if self.coastal == "stofs":
+                    print("\nProcessing sfincs coastal: stofs")
                     self.run_stofs_timeseries_legacy()
-                except Exception as e:
-                    print(f"ERROR : {str(e)}")
-                    traceback.print_exc()
-
                 # self._process_coastal_stofs()
-            elif self.coastal == "tpxo":
-                # TODO: Verify implementation - not a priority right now
-                # print("[process][coastal] TPXO NOT VERIFIED yet.")
-                self._process_coastal_tpxo()
-            elif self.coastal == "glofs":
-                try:
+                elif self.coastal == "tpxo":
+                    # TODO: Verify implementation - not a priority right now
+                    print("\nProcessing sfincs coastal: tpxo")
+                    self._process_coastal_tpxo()
+                elif self.coastal == "glofs":
+                    print("\nProcessing sfincs coastal: glofs")
                     self._process_coastal_glofs()
-                except Exception as e:
-                    print(f"ERROR : {str(e)}")
-                    traceback.print_exc()
-            else:
-                print(f"[process][waterlevels] Unknown source '{self.coastal}', skipping.")
+                else:
+                    print(f"[process][waterlevels] Unknown source '{self.coastal}', skipping.")
+            except Exception as e:
+                print(f"ERROR : {str(e)}")
+                traceback.print_exc()
 
 
     # ----------------- Meteo -----------------
@@ -741,11 +746,15 @@ class DataProcessor:
 
         out_bzs = os.path.join(self.sim_dir, "sfincs.bzs")
         utm_epsg_str = f"EPSG:{int(self.target_epsg)}"
+        access_area = self.domain_info["domain"][0].get("access_area", "lake-erie-operational-forecast-system-leofs")
+        model = access_area.split("-")[-1]
+        if model not in ["leofs", "lmhofs", "lsofs", "loofs"]:
+            print(f"Invalid acces area : {access_area}")
 
         # print(f"[process][coastal:glofs] starting legacy flow: model={self.glofs_model}")
         try:
             written = build_bzs_from_glofs_legacy(
-                model=self.glofs_model,
+                model=model,
                 bnd_file=bnd_path,
                 bzs_outfile=out_bzs,
                 start_dt=self.start_dt,
@@ -756,6 +765,23 @@ class DataProcessor:
                 add_360_longitudes=True,
             )
             print(f"[process][coastal:glofs] wrote {written}")
+
+            '''
+            written = build_bzs_from_glofs_legacy(
+                model="leofs",
+                bnd_file=bnd_path,
+                bzs_outfile=out_bzs,
+                start_dt=self.start_dt,
+                end_dt=self.end_dt,
+                time_step_hours=1,
+                utm_epsg=utm_epsg_str,
+                base_dir=None,
+                add_360_longitudes=True,,
+                downloads_dir: Optional[str] = None,
+                extra_search_dirs: Optional[List[str]] = None,
+                base_dir: Optional[str] = None,  # ignored; kept for legacy signature
+            )
+            '''
         except Exception as e:
             print(f"[process][coastal:glofs] failed: {e}")
             traceback.print_exc()

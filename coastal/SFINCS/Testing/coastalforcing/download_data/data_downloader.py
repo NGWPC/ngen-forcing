@@ -4,6 +4,7 @@ import shutil
 from datetime import datetime, timedelta
 import requests
 from typing import Optional, Dict
+from .glofs_downloader import download_glofs_range
 
 class DataDownloader:
     """
@@ -21,7 +22,8 @@ class DataDownloader:
         raw_download_dir: str,
         # optional: provide local paths for sources that already exist on disk
         # local_paths: dict | None = None,
-        local_paths: Optional[Dict] = None
+        local_paths: Optional[Dict] = None,
+        domain_info: Optional[Dict] = None
     ):
         self.start_dt = self._parse_time(start_time)
         self.end_dt   = self._parse_time(end_time)
@@ -30,6 +32,7 @@ class DataDownloader:
         self.coastal  = coastal_water_level_source.lower()
         self.raw_root = os.path.normpath(raw_download_dir)
         self.local_paths = local_paths or {}
+        self.domain_info = domain_info
 
     # ---------- Public API ----------
     def download_all(self):
@@ -54,22 +57,6 @@ class DataDownloader:
         else:
             print(f"[coastal] Unknown source '{self.coastal}', skipping.")
         # --- Meteo retrospective ---
-
-    def _download_nwm_meteo_retrospective_orig(self):
-        """
-        NWM Retrospective (R2/R3 etc.) usually lives at NOAA/NCAR endpoints.
-        TODO: Confirm exact URL pattern for your deployment.
-        Sketch (example only):
-          https://noaa-nwm-retrospective.s3.amazonaws.com/.../nwm.t{HH}z.analysis_assim.forcing.conus.nc
-        """
-        base = "https://<RETRO_ENDPOINT>"  # TODO
-        outdir = self._ensure_dir("meteo", "nwm_retro")
-        for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            url = f"{base}/nwm.{date_str}/forcing/.../nwm.t{hour_str}z....nc"  # TODO confirm
-            dest = os.path.join(outdir, f"nwm_forcing_{date_str}_{hour_str}.nc")
-            self._safe_download(url, dest)
 
     # --- Meteo retrospective (NWM R3 FORCING LDASIN) ---
 
@@ -186,34 +173,98 @@ class DataDownloader:
         else:
             print("[coastal:tpxo] no remote download; set local_paths['tpxo']")
 
-    # --- GLOFS ---
-    def _download_glofs_old(self):
-        """
-        GLOFS via NCEI THREDDS can be slow programmatically.
-        Two modes:
-          1) OPeNDAP (your current scripts) – no local download, read-on-the-fly
-          2) If required: stage NetCDFs via OPeNDAP to disk with xarray.to_netcdf
-        For now: prefer on-the-fly access; just ensure directory exists for parity.
-        """
-        self._ensure_dir("coastal", "glofs")
-        print("[coastal:glofs] using on-the-fly OPeNDAP in processing; no downloads here.")
 
+    def _download_glofs(self):
+        """
+        Download GLOFS forecast/nowcast files over the configured time window
+        using download_glofs_range().
+        """
+        from .glofs_downloader import download_glofs_range
+
+        outdir = self._ensure_dir("coastal", "glofs")
+
+        access_area = self.domain_info["domain"][0].get("access_area", "lake-erie-operational-forecast-system-leofs")
+
+        try:
+            files = download_glofs_range(
+                start=self.start_dt,
+                end=self.end_dt,
+                step=timedelta(hours=1),
+                outdir=outdir,
+                access_area=access_area,
+                base_url=os.environ.get(
+                    "GLOFS_BASE_URL",
+                    "https://www.ncei.noaa.gov/data/"
+                    "operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access",
+                ),
+                allow_cached=True,
+            )
+            print(f"[coastal:glofs] wrote {len(files)} files to {outdir}")
+        except Exception as e:
+            print(f"[coastal:glofs] failed: {e}")
+
+
+
+    def _download_glofs_schism(self):
+        """
+        Download GLOFS files for the configured [start_dt, end_dt) range.
+
+        - Groups hourly window into unique UTC dates and calls `download_glofs`
+          once per day.
+        - Output goes under: <raw_download_dir>/coastal/glofs/<domain>/
+        - Domains default to all ("leofs,lmhofs,loofs,lsofs"), override via:
+              GLOFS_DOMAINS="leofs,lsofs"
+        - Overwrite behavior defaults to False, override via:
+              GLOFS_OVERWRITE=1
+        """
+        outdir = self._ensure_dir("coastal", "glofs")
+
+        # Domains from env or default to all four
+
+        '''
+        domains_env = os.environ.get("GLOFS_DOMAINS", "")
+        if domains_env.strip():
+            domains = [d.strip() for d in domains_env.split(",") if d.strip()]
+        else:
+            domains = ["leofs", "lmhofs", "loofs", "lsofs"]
+
+        # Overwrite flag from env (0/1, false/true)
+        overwrite_env = os.environ.get("GLOFS_OVERWRITE", "").strip().lower()
+        overwrite = overwrite_env in ("1", "true", "yes", "y")
+        '''
+
+        # Collect unique yyyymmdd strings across the hourly window
+        unique_dates = sorted({dt.strftime("%Y%m%d") for dt in self._iter_hours()})
+
+        for ymd in unique_dates:
+            try:
+                download_glofs(
+                    utcdate=ymd,
+                    domains=["leofs"],
+                    output_dir=outdir,
+                    overwrite=False,
+                )
+            except Exception as e:
+                print(f"[coastal:glofs] date {ymd} failed: {e}")
 
 
     # ---------- Internals ----------
     def _download_meteo(self):
         if self.meteo == "nwm_ana":
+            print("\ndownload_nwm_meteo_ana:")
             self._download_nwm_meteo_ana()
         elif self.meteo == "nwm_retro":
-            print("[meteo:nwm_retro] not available yet")
+            print("\ndownload_nwm_meteo_retrospective")
             self._download_nwm_meteo_retrospective()
         else:
             print(f"[meteo] Unhandled meteo source '{self.meteo}'")
 
     def _download_hydro(self):
         if self.hydro == "nwm" and self.meteo == "nwm_ana":
+            print("\ndownload_nwm_channel_rt_ana:")
             self._download_nwm_channel_rt_ana()
         elif self.hydro == "nwm" and self.meteo == "nwm_retro":
+            print("\ndownload_nwm_channel_rt_ana:")
             self._download_nwm_channel_rt_retrospective()
         elif self.hydro == "ngen":
             print(f"[hydro:ngen] not available yet")
@@ -221,14 +272,14 @@ class DataDownloader:
 
     def _download_coastal(self):
         if self.coastal == "stofs":
-            print("[coastal:stofs]")
+            print("\n[coastal:stofs]")
             self._download_stofs()
         elif self.coastal == "tpxo":
-            print("[coastal:tpxo]")
+            print("\n[coastal:tpxo]")
             self._download_tpxo()
         elif self.coastal == "glofs":
             print("[coastal:glofs]")
-            self._download_glofs()
+            # self._download_glofs()
         else:
             print(f"[hydro] Unhandled hydro source '{self.hydro}'")
 
@@ -268,157 +319,6 @@ class DataDownloader:
             self._safe_download(url, dest)
 
 
-    def _download_glofs(self, model: Optional[str] = None):
-        """
-        Download GLOFS forecast NetCDF files to the local cache, trying multiple
-        filename/host patterns. If a file already exists locally, it is skipped.
-        """
-        import os
-
-        model_map = {
-            "leofs": "lake-erie-operational-forecast-system-leofs",
-            "loofs": "lower-ohio-operational-forecast-system-loofs",
-            "lsofs": "lake-st-clair-operational-forecast-system-lsofs",
-            "lmhofs": "lake-michigan-huron-operational-forecast-system-lmhofs",
-        }
-
-        short_model = (
-            model
-            or getattr(self, "glofs_model", None)
-            or os.environ.get("GLOFS_MODEL")
-            or "leofs"
-        ).lower()
-
-        if short_model not in model_map:
-            raise ValueError(f"Unknown GLOFS model '{short_model}'.")
-
-        full_model = model_map[short_model]
-        base_access = (
-            "https://www.ncei.noaa.gov/data/"
-            "operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access"
-        )
-        base_fileserver = "https://www.ncei.noaa.gov/thredds/fileServer"
-
-        outdir = self._ensure_dir("coastal", "glofs")
-
-        def _try_all_locations(url_paths: list[str]) -> None:
-            bases = [base_access, base_fileserver]
-            for rel in url_paths:
-                for base in bases:
-                    url = f"{base}/{rel}"
-                    dest = os.path.join(outdir, os.path.basename(url))
-                    if os.path.exists(dest) and os.path.getsize(dest) > 0:
-                        print(f"[GLOFS] exists: {dest}")
-                        return
-                    try:
-                        print(f"GET {url} -> {dest}")
-                        self._safe_download(url, dest)
-                        return
-                    except Exception as e:
-                        print(f"[GLOFS] miss {url}: {e}")
-
-        for dt in self._iter_hours():
-            datestr = dt.strftime("%Y%m%d")
-            year = dt.strftime("%Y")
-            month = dt.strftime("%m")
-            cycle_hour = (dt.hour // 6) * 6
-            cycle = f"t{cycle_hour:02d}z"
-            suffix = f"n{dt.hour % 6:03d}"
-
-            rel_a = f"{full_model}/{year}/{month}/{short_model}.{cycle}.{datestr}.fields.{suffix}.nc"
-            rel_b = f"{full_model}/{year}/{month}/nos.{short_model}.fields.{suffix}.{datestr}.{cycle}.nc"
-            rel_a_legacy = f"model-{short_model}/{year}/{month}/{short_model}.{cycle}.{datestr}.fields.{suffix}.nc"
-            rel_b_legacy = f"model-{short_model}/{year}/{month}/nos.{short_model}.fields.{suffix}.{datestr}.{cycle}.nc"
-
-            _try_all_locations([rel_a, rel_b, rel_a_legacy, rel_b_legacy])
-
-
-    def _download_glofs2(self, model: Optional[str] = None):
-        """
-        Download GLOFS forecast files as NetCDFs from NCEI data directory.
-        """
-        # Map short model codes to full directory names
-        model_map = {
-            "leofs": "lake-erie-operational-forecast-system-leofs",
-            "loofs": "lower-ohio-operational-forecast-system-loofs",
-            "lsofs": "lake-st-clair-operational-forecast-system-lsofs",
-            "lmhofs": "lake-michigan-huron-operational-forecast-system-lmhofs",
-            # add others as needed
-        }
-
-        short_model = (
-            model
-            or getattr(self, "glofs_model", None)
-            or os.environ.get("GLOFS_MODEL")
-            or "leofs"
-        )
-        full_model = model_map[short_model]
-
-        base = (
-            "https://www.ncei.noaa.gov/data/"
-            "operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access"
-        )
-
-        outdir = self._ensure_dir("coastal", "glofs")
-
-        for dt in self._iter_hours():
-            datestr = dt.strftime("%Y%m%d")
-            year = dt.strftime("%Y")
-            month = dt.strftime("%m")
-
-            cycle_hour = (dt.hour // 6) * 6
-            cycle = f"t{cycle_hour:02d}z"
-            suffix = f"n{dt.hour % 6:03d}"
-
-            relpath = f"{full_model}/{year}/{month}/{short_model}.{cycle}.{datestr}.fields.{suffix}.nc"
-            url = f"{base}/{relpath}"
-            dest = os.path.join(outdir, f"{short_model}.{cycle}.{datestr}.fields.{suffix}.nc")
-
-            self._safe_download(url, dest)
-
-
-    def _download_glofs_new(self, model: Optional[str] = None):
-
-        """
-        Download GLOFS forecast files as NetCDFs from NCEI THREDDS fileServer.
-
-        Mapping of hour -> (cycle, suffix):
-          cycle  = t{(hour//6)*6}z   e.g., hour=13 -> t12z
-          suffix = n{hour%6:03d}     e.g., hour=13 -> n001
-
-        URL pattern (fileServer):
-          https://www.ncei.noaa.gov/thredds/fileServer/model-{model}/{YYYY}/{MM}/
-              {model}.{cycle}.{YYYYMMDD}.fields.{suffix}.nc
-
-        Notes:
-        - `model` can be one of: leofs, loofs, lsofs, lmhofs (etc. per NCEI).
-        - Destination: {raw_download_dir}/coastal/glofs/{model}/{model}.{cycle}.{YYYYMMDD}.fields.{suffix}.nc
-        """
-        base = "https://www.ncei.noaa.gov/thredds/fileServer"
-        model = (
-            model
-            or getattr(self, "glofs_model", None)
-            or os.environ.get("GLOFS_MODEL")
-            or "leofs"
-        )
-
-        outdir = self._ensure_dir("coastal", "glofs")
-
-        for dt in self._iter_hours():
-            datestr = dt.strftime("%Y%m%d")
-            year = dt.strftime("%Y")
-            month = dt.strftime("%m")
-
-            cycle_hour = (dt.hour // 6) * 6
-            cycle = f"t{cycle_hour:02d}z"
-            suffix = f"n{dt.hour % 6:03d}"
-
-            relpath = f"model-{model}/{year}/{month}/{model}.{cycle}.{datestr}.fields.{suffix}.nc"
-            url = f"{base}/{relpath}"
-            dest = os.path.join(outdir, f"{model}.{cycle}.{datestr}.fields.{suffix}.nc")
-
-            self._safe_download(url, dest)
-
 
     # ---------- Utilities ----------
     def _iter_hours(self):
@@ -434,8 +334,30 @@ class DataDownloader:
         os.makedirs(d, exist_ok=True)
         return d
 
-    def _safe_download(self, url: str, dest: str, max_retries: int = 3, backoff_sec: float = 1.5):
-        """Stream download with simple retries; overwrite if file already exists (idempotent runs)."""
+
+    def _safe_download(self, url: str, dest: str, max_retries: int = 3, backoff_sec: float = 1.5, overwrite: bool = False):
+        """
+        Stream download with simple retries.
+
+        Parameters
+        ----------
+        url : str
+            Remote URL to download.
+        dest : str
+            Destination file path.
+        max_retries : int, optional
+            Number of retry attempts on failure. Default = 3.
+        backoff_sec : float, optional
+            Backoff multiplier between retries. Default = 1.5.
+        overwrite : bool, optional
+            If False (default), skip download if file already exists.
+            If True, always download (replace any existing file).
+        """
+        # Skip if file exists and overwrite is False
+        if not overwrite and os.path.exists(dest) and os.path.getsize(dest) > 0:
+            print(f"[safe_download] exists (skipped): {dest}")
+            return
+
         for attempt in range(1, max_retries + 1):
             try:
                 print(f"GET {url} -> {dest}")
@@ -453,9 +375,11 @@ class DataDownloader:
                     os.replace(tmp, dest)
                 return
             except Exception as e:
-                print(f"  attempt {attempt}/{max_retries} failed: {e}")
+                print(f"    attempt {attempt}/{max_retries} failed: {e}")
                 time.sleep(backoff_sec * attempt)
-        print(f"  FAILED after {max_retries} attempts: {url}")
+
+        print(f"    FAILED after {max_retries} attempts: {url}")
+
 
     @staticmethod
     def _copy_tree(src_dir: str, dst_dir: str):
