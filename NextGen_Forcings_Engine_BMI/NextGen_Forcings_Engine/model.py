@@ -7,6 +7,9 @@ import numpy as np
 import pandas as pd
 import s3fs
 import xarray as xr
+import zarr
+import time
+import dask.array as da
 # from mpi4py.futures import MPIPoolExecutor
 from mpi4py.futures import MPICommExecutor
 
@@ -15,6 +18,7 @@ from .core import disaggregateMod
 from .core import downscale
 from .core import err_handler
 from .core import layeringMod
+from . import nwm_proc
 
 
 class NWMv3_Forcing_Engine_model:
@@ -199,10 +203,12 @@ class NWMv3_Forcing_Engine_model:
 
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
+            print(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
             # Loop over each of the input forcings specified.
             print(f"\nModel.py looping over {len(ConfigOptions.input_forcings)} input forcings")
             for forceKey in ConfigOptions.input_forcings:
                 print('forceKey', forceKey)
+                print(f"ConfigOptions.aws: {ConfigOptions.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
                 if forceKey == 23 and [12, 21] in ConfigOptions.input_forcings:
@@ -238,25 +244,11 @@ class NWMv3_Forcing_Engine_model:
                             MpiConfig.comm.barrier()
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
+                    
+                    # Added separate processing path for CONUS NWM retrospective data
+                    # TODO: Expand functionality for oCONUS domains (different zarr structure)
                     elif forceKey == 27:
-                        if ConfigOptions.aws_time is None:
-                            ConfigOptions.aws_time = ConfigOptions.current_time
-                            _s3 = s3fs.S3FileSystem(anon=True)
-                            if ConfigOptions.nwm_domain == 'CONUS':
-                                nwm_vars = ['lwdown', 'precip', 'psfc', 'q2d', 'swdown', 't2d', 'u2d', 'v2d']
-                                files = [s3fs.S3Map(
-                                    root=ConfigOptions.nwm_url.format(source=ConfigOptions.nwm_source, domain=ConfigOptions.nwm_domain, var=var),
-                                    s3=_s3, check=False, ) for var in nwm_vars]
-                            else:
-                                files = [
-                                    s3fs.S3Map(root=ConfigOptions.nwm_url.format(source=ConfigOptions.nwm_source, domain=ConfigOptions.nwm_domain),
-                                               s3=_s3, check=False, )]
-                            with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
-                                with dask.config.set(scheduler=executor):
-                                    if MpiConfig.rank == 0:
-                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
-                                        ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
-                            MpiConfig.comm.barrier()
+                        ConfigOptions.aws_obj = nwm_proc.proc_nwm(ConfigOptions, MpiConfig)
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:

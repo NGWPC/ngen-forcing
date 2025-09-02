@@ -17,3 +17,4 @@ dependencies:
   - zarr
   - s3fs
   - xarray
+  - pyproj

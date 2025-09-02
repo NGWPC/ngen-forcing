@@ -39,6 +39,7 @@ RUN set -eux && \
         curl curl-devel \
         file \
         findutils \
+        conda \
         git \
 ## FIXME: replace GNU compilers with Intel compiler ##
         gcc-toolset-10 \

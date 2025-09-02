@@ -312,8 +312,12 @@ def check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig):
         numCells = len(indCheck[0])
         if numCells > 0:
             min = input_forcings.regridded_forcings2[variable_range[varTmp][0]][indCheck].min()
-            ConfigOptions.errMsg = f"Data (min = {min}) below minimum threshold for: {varTmp} in " \
-                                   f"{input_forcings.file_in2} for {numCells} regridded pixel cells."
+            if input_forcings.productName == 'NWM':
+                ConfigOptions.errMsg = f"Data (min = {min}) below minimum threshold for: {varTmp} in " \
+                                       f"NWM data for {numCells} regridded pixel cells."
+            else:    
+                ConfigOptions.errMsg = f"Data (min = {min}) below minimum threshold for: {varTmp} in " \
+                                       f"{input_forcings.file_in2} for {numCells} regridded pixel cells."
             log_critical(ConfigOptions, MpiConfig)
             indCheck = None
             return
@@ -324,8 +328,12 @@ def check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig):
         numCells = len(indCheck[0])
         if numCells > 0:
             max = input_forcings.regridded_forcings2[variable_range[varTmp][0]][indCheck].max()
-            ConfigOptions.errMsg = f"Data (max = {max}) above maximum threshold for: {varTmp} in " \
-                                   f"{src_file} for {numCells} regridded pixel cells."
+            if input_forcings.productName == 'NWM':
+                ConfigOptions.errMsg = f"Data (max = {max}) above maximum threshold for: {varTmp} in " \
+                                       f"NWM data for {numCells} regridded pixel cells."
+            else:    
+                ConfigOptions.errMsg = f"Data (max = {max}) above maximum threshold for: {varTmp} in " \
+                                       f"{src_file} for {numCells} regridded pixel cells."
             log_critical(ConfigOptions, MpiConfig)
             indCheck = None
             return
