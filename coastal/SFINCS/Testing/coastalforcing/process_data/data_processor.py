@@ -256,11 +256,24 @@ class DataProcessor:
                     writers["amp"]  = open_writer("sfincs.amp",  "air_pressure", "Pa")
 
                 imin, imax, jmin, jmax = crop_idx
+                js = slice(jmax, jmin - 1, -1)  # reverse j: jmax → jmin
+
+                u  = ds["U2D"].values[0, imin:imax+1, js]
+                v  = ds["V2D"].values[0, imin:imax+1, js]
+                rr = ds["RAINRATE"].values[0, imin:imax+1, js] * 3600.0  # mm/s → mm/hr
+                p  = ds["PSFC"].values[0, imin:imax+1, js]
+
+                u = np.flipud(u)
+                v = np.flipud(v)
+                rr = np.flipud(rr)
+                p = np.flipud(p)
+
+                '''
                 u  = ds["U2D"].values[0, imin:imax+1, jmin:jmax+1]
                 v  = ds["V2D"].values[0, imin:imax+1, jmin:jmax+1]
                 rr = ds["RAINRATE"].values[0, imin:imax+1, jmin:jmax+1] * 3600.0  # mm/s → mm/hr
                 p  = ds["PSFC"].values[0, imin:imax+1, jmin:jmax+1]
-
+                '''
                 # time offset in HOURS since epoch (naive epoch to match naive dt)
                 epoch = datetime(1970, 1, 1)
                 offset_hours = (dt - epoch).total_seconds() / 3600.0
@@ -451,18 +464,31 @@ class DataProcessor:
                     writers["ampr"] = open_writer("sfincs.ampr", "rainfall",     "mm hr-1")
                     writers["amp"]  = open_writer("sfincs.amp",  "air_pressure", "Pa")
 
+
+
+
                 # Slice to crop (time=0 because each file is a single hour)
+
                 imin, imax, jmin, jmax = crop_idx
+                js = slice(jmax, jmin - 1, -1)  # reverse j: jmax → jmin
+
+                u_raw  = ds["U2D"].values[0, imin:imax+1, js]
+                v_raw  = ds["V2D"].values[0, imin:imax+1, js]
+                rr_raw = ds["RAINRATE"].values[0, imin:imax+1, js]  # mm s^-1
+                p_raw  = ds["PSFC"].values[0, imin:imax+1, js]
+
+                '''
                 u_raw  = ds["U2D"].isel(time=0, y=slice(imin, imax+1), x=slice(jmin, jmax+1)).values
                 v_raw  = ds["V2D"].isel(time=0, y=slice(imin, imax+1), x=slice(jmin, jmax+1)).values
                 p_raw  = ds["PSFC"].isel(time=0, y=slice(imin, imax+1), x=slice(jmin, jmax+1)).values
                 rr_raw = ds["RAINRATE"].isel(time=0, y=slice(imin, imax+1), x=slice(jmin, jmax+1)).values.astype(float)
-
+                '''
                 # Scale/offset integer vars; RAINRATE already float mm s^-1
                 u = _decode_scaled(ds, "U2D", u_raw)
                 v = _decode_scaled(ds, "V2D", v_raw)
                 p = _decode_scaled(ds, "PSFC", p_raw)
 
+                # Apply _FillValue to rain, then convert to mm/hr once
                 rr_fill = ds["RAINRATE"].attrs.get("_FillValue", None)
                 if rr_fill is not None:
                     rr_raw = _np.where(rr_raw == rr_fill, _np.nan, rr_raw)
@@ -1151,457 +1177,6 @@ class DataProcessor:
                 f.write(line + "\n")
         print(f"[process][coastal:stofs] wrote {final_path} ({interp_mat.shape[0]} rows @10-min)")
 
-
-    def run_stofs_timeseries_legacy_slow(self):
-        """
-        Build sfincs.bzs from STOFS GRIB2 files saved with original names, e.g.:
-          data/raw/coastal/stofs/stofs_2d_glo.t00z.conus.east.cwl.grib2
-        Only 00/06/12/18z cycles are expected (matching the downloader).
-        """
-        import os
-        import numpy as np
-        import pandas as pd
-        import xarray as xr
-        import pyproj
-        from scipy.interpolate import griddata, interp1d
-        from datetime import datetime
-
-        in_dir = os.path.join(self.raw_root, "coastal", "stofs")
-
-        # --- find files by the same naming pattern as the downloader ---
-        paths = []
-        for dt in self._iter_hours():
-            if dt.hour not in (0, 6, 12, 18):
-                continue
-            hour = f"{dt.hour:02d}"
-            fname = f"stofs_2d_glo.t{hour}z.conus.east.cwl.grib2"
-            path = os.path.join(in_dir, fname)
-            if os.path.exists(path):
-                paths.append(path)
-
-        if not paths:
-            print(f"[process][coastal:stofs] no GRIB files found in {in_dir} for window {self.start_dt}..{self.end_dt}")
-            return
-
-        print(f"[process][coastal:stofs] using {len(paths)} files:")
-        for p in paths:
-            print(f"  - {os.path.basename(p)}")
-
-        # --- read SFINCS boundary (UTM -> lon/lat) ---
-        bnd_path = os.path.join(self.domain_path, "sfincs.bnd")
-        if not os.path.exists(bnd_path):
-            print(f"[process][coastal:stofs] missing {bnd_path}")
-            return
-
-        bnd_df = pd.read_csv(bnd_path, sep=r"\s+", header=None, names=["x", "y"])
-        utm = pyproj.CRS(f"EPSG:{self.target_epsg}")
-        wgs84 = pyproj.CRS("EPSG:4326")
-        to_ll = pyproj.Transformer.from_crs(utm, wgs84, always_xy=True)
-        lon_bnd, lat_bnd = to_ll.transform(bnd_df["x"].values, bnd_df["y"].values)
-
-        # --- STOFS grid (Lambert) constants (as in your working script) ---
-        lambert = pyproj.CRS.from_proj4("+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=265 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs")
-        to_latlon = pyproj.Transformer.from_crs(lambert, wgs84, always_xy=True)
-        wgs84_to_lcc = pyproj.Transformer.from_crs(wgs84, lambert, always_xy=True)
-
-        dx = 2539.703
-        dy = 2539.703
-        lon0 = 238.445999
-        lat0 = 20.191999
-        x0, y0 = wgs84_to_lcc.transform(lon0, lat0)
-
-        # --- helpers to open and choose variable/dims robustly ---
-        def _open_stofs(path):
-            return xr.open_dataset(
-                path,
-                engine="cfgrib",
-                backend_kwargs={"indexpath": "", "filter_by_keys": {"typeOfLevel": "surface"}},
-            )
-
-        def _pick_var(ds):
-            for name in ("cwl", "slev", "zeta"):
-                if name in ds:
-                    return name
-            # fallback: pick biggest 2D/3D
-            best = None
-            best_size = -1
-            for vname, da in ds.data_vars.items():
-                if len(da.dims) >= 2:
-                    ny_nx = np.prod([da.sizes[d] for d in da.dims[-2:]])
-                    if ny_nx > best_size:
-                        best = vname
-                        best_size = ny_nx
-            return best
-
-        def _spatial_shape(da):
-            dims = list(da.dims)
-            for tdim in ("time", "step", "valid_time", "forecast_time"):
-                while tdim in dims:
-                    dims.remove(tdim)
-            if len(dims) < 2:
-                dims = list(da.dims)[-2:]
-            ydim, xdim = dims[-2], dims[-1]
-            return (da.sizes[ydim], da.sizes[xdim])
-
-        # --- build lon/lat grid once using the first readable file ---
-        first_ds = None
-        first_path = None
-        for p in paths:
-            try:
-                first_ds = _open_stofs(p)
-                first_path = p
-                break
-            except Exception as e:
-                print(f"[process][coastal:stofs] warn: cannot open {os.path.basename(p)} ({e}); trying next...")
-        if first_ds is None:
-            print("[process][coastal:stofs] failed to open any GRIB file")
-            return
-
-        vname0 = _pick_var(first_ds)
-        if not vname0:
-            print(f"[process][coastal:stofs] could not find a STOFS variable in {os.path.basename(first_path)}")
-            return
-        ny, nx = _spatial_shape(first_ds[vname0])
-        x = x0 + np.arange(nx) * dx
-        y = y0 + np.arange(ny) * dy
-        X, Y = np.meshgrid(x, y)
-        lon_grid, lat_grid = to_latlon.transform(X, Y)
-        grid_points = np.column_stack((lat_grid.ravel(), lon_grid.ravel()))
-        print(f"[process][coastal:stofs] grid: ny={ny}, nx={nx}, var={vname0}")
-
-        # --- iterate files, interpolate boundary, collect rows ---
-        all_lines = []
-        for path in paths:
-            try:
-                ds = _open_stofs(path)
-                vname = _pick_var(ds)
-                if not vname:
-                    print(f"[process][coastal:stofs] no usable var in {os.path.basename(path)}; skipping")
-                    continue
-                var = ds[vname]
-
-                # time coordinate as seconds from file’s base to align later
-                if "step" in ds:
-                    tsec = ds["step"].values / np.timedelta64(1, "s")
-                    tcoord = "step"
-                    base_abs = None
-                elif "time" in ds and var.sizes.get("time", 0) > 0:
-                    tcoord = "time"
-                    tvals = pd.to_datetime(ds["time"].values).to_pydatetime()
-                    tvals = [t.replace(tzinfo=None) for t in tvals]
-                    base_abs = tvals[0]
-                    tsec = np.array([(t - base_abs).total_seconds() for t in tvals], dtype=float)
-                else:
-                    tcoord = None
-                    # derive absolute seconds from the cycle hour in the filename
-                    try:
-                        hh = int(os.path.basename(path).split(".t")[1][:2])
-                    except Exception:
-                        hh = 0
-                    base_abs = self.start_dt
-                    tsec = np.array([hh * 3600.0], dtype=float)
-
-                nstep = var.sizes.get(tcoord, 1) if tcoord else 1
-                for i in range(nstep):
-                    sel = {tcoord: i} if tcoord else {}
-                    frame = var.isel(**sel).values
-                    vals = griddata(
-                        points=grid_points,
-                        values=frame.ravel(),
-                        xi=np.column_stack((lat_bnd, lon_bnd)),
-                        method="linear",
-                        fill_value=np.nan,
-                    )
-                    # absolute timestamp (seconds since workflow start)
-                    if base_abs is None:
-                        # try to parse date from path folder name (not used here since we save flat)
-                        # fall back to start time offset only
-                        ts_abs = int((self.start_dt - self.start_dt).total_seconds() + float(tsec[i if i < len(tsec) else 0]))
-                    else:
-                        ts_abs = int((base_abs - self.start_dt).total_seconds() + float(tsec[i if i < len(tsec) else 0]))
-
-                    all_lines.append([ts_abs] + [np.nan if np.isnan(v) else float(v) for v in vals])
-
-                ds.close()
-                print(f"[process][coastal:stofs] processed {os.path.basename(path)} ({nstep} step(s))")
-            except Exception as e:
-                print(f"[process][coastal:stofs] read/interp failed {os.path.basename(path)}: {e}")
-
-        if not all_lines:
-            print("[process][coastal:stofs] no samples created")
-            return
-
-        # sort by time, resample to 10-min grid, write bzs
-        all_lines.sort(key=lambda r: r[0])
-        arr = np.array(all_lines, dtype=float)
-        t = arr[:, 0]
-        V = arr[:, 1:]
-
-        new_t = np.arange(int(t.min()), int(t.max()) + 1, 600, dtype=int)
-        out = np.zeros((len(new_t), V.shape[1]), dtype=float)
-        for j in range(V.shape[1]):
-            col = V[:, j]
-            ok = ~np.isnan(col)
-            if ok.sum() > 1:
-                f = interp1d(t[ok], col[ok], kind="cubic", fill_value="extrapolate")
-                out[:, j] = f(new_t)
-            else:
-                out[:, j] = 0.0
-
-        bzs_path = os.path.join(self.sim_dir, "sfincs.bzs")
-        with open(bzs_path, "w") as f:
-            for i, tt in enumerate(new_t):
-                f.write(str(int(tt)) + " " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in out[i, :]) + "\n")
-
-        print(f"[process][coastal:stofs] wrote {bzs_path} with {len(new_t)} rows and {out.shape[1]} boundary points")
-
-
-    def run_stofs_timeseries_legacy2(self):
-        """
-        Build sfincs.bzs from STOFS GRIB2 files downloaded hourly into:
-            <raw_root>/coastal/stofs/
-        Uses every available file between start_time and end_time.
-        Supports both filename styles:
-          - stofs_2d_glo.t{HH}z.conus.east.cwl.grib2
-          - stofs_2d_glo_{YYYYMMDD}_{HH}.grib2
-        """
-        import numpy as np
-        import pandas as pd
-        import xarray as xr
-        import pyproj
-        from scipy.interpolate import griddata
-
-        try:
-            # 0) Locate inputs/outputs
-            sto_dir = os.path.join(self.raw_root, "coastal", "stofs")
-            if not os.path.isdir(sto_dir):
-                print(f"[process][coastal:stofs] missing dir: {sto_dir}")
-                return
-
-            # bnd file (prefer run folder, fallback to domain folder)
-            bnd_file = os.path.join(self.sim_dir, "sfincs.bnd")
-            if not os.path.exists(bnd_file):
-                bnd_alt = os.path.join(self.domain_path, "sfincs.bnd")
-                bnd_file = bnd_alt if os.path.exists(bnd_alt) else bnd_file
-            if not os.path.exists(bnd_file):
-                print("[process][coastal:stofs] no sfincs.bnd found in sim_dir or domain_path")
-                return
-
-            # 1) Read boundary points (UTM) and convert to lon/lat
-            bnd_df = pd.read_csv(bnd_file, sep=r"\s+", header=None, names=["x", "y"])
-            if bnd_df.empty:
-                print(f"[process][coastal:stofs] empty boundary file: {bnd_file}")
-                return
-
-            utm_crs = pyproj.CRS.from_epsg(int(str(self.target_epsg).replace("EPSG:", "")))
-            wgs84 = pyproj.CRS("EPSG:4326")
-            to_geog = pyproj.Transformer.from_crs(utm_crs, wgs84, always_xy=True)
-            lon_bnd, lat_bnd = to_geog.transform(bnd_df["x"].to_numpy(), bnd_df["y"].to_numpy())
-
-            # 2) Collect all STOFS files for each hour in the window
-            file_list = []
-            for dt in self._iter_hours():
-                date_str = dt.strftime("%Y%m%d")
-                hour = f"{dt.hour:02d}"
-                # candidates: original server basename vs a timestamped local alias
-                cands = [
-                    os.path.join(sto_dir, f"stofs_2d_glo.t{hour}z.conus.east.cwl.grib2"),
-                    os.path.join(sto_dir, f"stofs_2d_glo_{date_str}_{hour}.grib2"),
-                ]
-                for p in cands:
-                    if os.path.exists(p):
-                        file_list.append((dt, p))
-                        break  # prefer the first existing candidate
-
-            if not file_list:
-                print(f"[process][coastal:stofs] no STOFS files found in {sto_dir} for given time range")
-                return
-
-            # Sort by datetime to ensure monotonic time
-            file_list.sort(key=lambda t: t[0])
-
-            # 3) Open first file to prepare grid (once)
-            first_path = file_list[0][1]
-            try:
-                ds0 = xr.open_dataset(
-                    first_path,
-                    engine="cfgrib",
-                    backend_kwargs={"indexpath": "", "filter_by_keys": {"typeOfLevel": "surface"}},
-                )
-            except Exception as e:
-                print(f"[process][coastal:stofs] failed to open first file: {first_path} | {e}")
-                return
-
-            # Pick a variable (match your working script; if not present, take the only data var)
-            var_candidates = ["unknown", "cwl", "slev", "zeta"]
-            var_name = None
-            for name in var_candidates:
-                if name in ds0.data_vars:
-                    var_name = name
-                    break
-            if var_name is None:
-                # fallback: choose the only var if there's exactly one data var
-                data_vars = list(ds0.data_vars)
-                if len(data_vars) == 1:
-                    var_name = data_vars[0]
-                else:
-                    # heuristics: pick a 3D (step,y,x) or (time,y,x) var if present
-                    for cand in data_vars:
-                        if set(ds0[cand].dims) & {"x", "y"}:
-                            var_name = cand
-                            break
-            if var_name is None:
-                print(f"[process][coastal:stofs] could not determine variable in {first_path}")
-                return
-
-            # Build lon/lat grid (Lambert → WGS84) once using constants from your working script
-            # (these constants match STOFS CONUS Lambert grid)
-            lambert = pyproj.CRS.from_proj4(
-                "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=265 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs"
-            )
-            to_latlon = pyproj.Transformer.from_crs(lambert, wgs84, always_xy=True)
-            wgs_to_lambert = pyproj.Transformer.from_crs(wgs84, lambert, always_xy=True)
-
-            # grid constants (from your script)
-            dx = 2539.703
-            dy = 2539.703
-            lon0 = 238.445999
-            lat0 = 20.191999
-            x0, y0 = wgs_to_lambert.transform(lon0, lat0)
-
-            nx = ds0.dims.get("x", None)
-            ny = ds0.dims.get("y", None)
-            if nx is None or ny is None:
-                print("[process][coastal:stofs] grid dims x/y not found")
-                return
-
-            x = x0 + np.arange(nx) * dx
-            y = y0 + np.arange(ny) * dy
-            X, Y = np.meshgrid(x, y)
-            lon_grid, lat_grid = to_latlon.transform(X, Y)
-
-            # Precompute flattened grid points for interpolation
-            grid_points = np.column_stack((lat_grid.ravel(), lon_grid.ravel()))
-
-            # 4) Loop through all files/steps → interpolate to boundary → assemble lines
-            lines = []   # each item: (seconds_since_start, [values...])
-            global_start64 = np.datetime64(self.start_dt)  # naive OK
-
-            for dt, path in file_list:
-                try:
-                    ds = xr.open_dataset(
-                        path,
-                        engine="cfgrib",
-                        backend_kwargs={"indexpath": "", "filter_by_keys": {"typeOfLevel": "surface"}},
-                    )
-                except Exception as e:
-                    print(f"[process][coastal:stofs] skip {os.path.basename(path)}: {e}")
-                    continue
-
-                if var_name not in ds:
-                    # try to find an alternative in this file
-                    chosen = None
-                    for name in var_candidates:
-                        if name in ds.data_vars:
-                            chosen = name
-                            break
-                    if chosen is None:
-                        dvs = list(ds.data_vars)
-                        if len(dvs) == 1:
-                            chosen = dvs[0]
-                        else:
-                            for cand in dvs:
-                                if set(ds[cand].dims) & {"x", "y"}:
-                                    chosen = cand
-                                    break
-                    if chosen is None:
-                        print(f"[process][coastal:stofs] file has no expected var: {path}")
-                        continue
-                    var_name = chosen  # update for next files
-
-                var = ds[var_name]
-
-                # Absolute time for each step: ds['time'] + ds['step']
-                if ("time" in ds.coords) and ("step" in ds.coords):
-                    base_time = np.array(ds["time"].values).ravel()[0]  # datetime64[ns] or [s]
-                    steps = np.array(ds["step"].values)                 # timedelta64
-                    abs_times = base_time + steps
-                else:
-                    # fallback: treat each index as the file's nominal hour (dt) + i hours
-                    steps = np.arange(var.sizes.get("step", 1), dtype="timedelta64[h]")
-                    abs_times = np.datetime64(dt) + steps
-
-                # Interpolate for each step
-                nsteps = abs_times.shape[0]
-                for i in range(nsteps):
-                    try:
-                        # data snapshot
-                        if "step" in var.dims:
-                            data_t = var.isel(step=i).values
-                        elif "time" in var.dims:
-                            data_t = var.isel(time=i).values
-                        else:
-                            data_t = var.values  # single slice
-
-                        data_flat = np.asarray(data_t).ravel()
-
-                        vals = griddata(
-                            points=grid_points,
-                            values=data_flat,
-                            xi=np.column_stack((lat_bnd, lon_bnd)),
-                            method="linear",
-                            fill_value=np.nan,
-                        )
-
-                        # seconds since global start
-                        secs = int(((abs_times[i] - global_start64).astype("timedelta64[s]")).astype(int))
-                        lines.append((secs, vals))
-                    except Exception as e:
-                        print(f"[process][coastal:stofs] interp fail {os.path.basename(path)} step {i}: {e}")
-
-            if not lines:
-                print("[process][coastal:stofs] no lines produced (no valid data)")
-                return
-
-            # 5) Sort by time, write raw and 10-min resampled .bzs
-            lines.sort(key=lambda t: t[0])
-            raw_path = os.path.join(self.sim_dir, "sfincs_raw.bzs")
-            with open(raw_path, "w") as f:
-                for secs, arr in lines:
-                    vals_str = " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in arr)
-                    f.write(f"{secs} {vals_str}\n")
-
-            # Build 10-min (600 s) time grid and cubic interp across time for each point
-            times = np.array([t for t, _ in lines], dtype=float)
-            values = np.stack([v for _, v in lines], axis=0)  # (T, Npoints)
-
-            t0 = times.min()
-            t1 = times.max()
-            new_t = np.arange(t0, t1 + 1, 600, dtype=float)
-
-            # Interp each column independently
-            from scipy.interpolate import interp1d
-            interp_cols = []
-            for k in range(values.shape[1]):
-                col = values[:, k]
-                mask = np.isfinite(col)
-                if mask.sum() >= 2:
-                    f_itp = interp1d(times[mask], col[mask], kind="cubic", bounds_error=False, fill_value="extrapolate")
-                    interp_cols.append(f_itp(new_t))
-                else:
-                    interp_cols.append(np.zeros_like(new_t))
-            interp_arr = np.stack(interp_cols, axis=1)  # (Tnew, Npoints)
-
-            out_path = os.path.join(self.sim_dir, "sfincs.bzs")
-            with open(out_path, "w") as f:
-                for i, t in enumerate(new_t.astype(int)):
-                    vals_str = " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in interp_arr[i])
-                    f.write(f"{t} {vals_str}\n")
-
-            print(f"[process][coastal:stofs] wrote {raw_path} and {out_path}")
-
-        except Exception as e:
-            print(f"[process][coastal:stofs] failed: {e}")
 
 
     def run_tpxo_timeseries_for_sfincs(
