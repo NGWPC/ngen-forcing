@@ -1,38 +1,25 @@
 # coastalforcing/process_data/glofs_sfincs.py
 """
-GLOFS → SFINCS .bzs generator (robust/local-first)
+GLOFS → SFINCS .bzs generator (LOCAL → OPeNDAP → on-demand download)
 
-Key features:
-- Local-first: every dataset is materialized to disk before reading (with cache-hit logs).
-- Multiple URL patterns tried for both the sample mesh and each hourly file.
-- Clear diagnostics: prints mesh lon/lat bbox and first few transformed boundary points.
-- Non-fatal outside-mesh behavior: writes NaNs instead of aborting, so time axis still appears.
-- utm_epsg is passed in by the caller (no hard-coded CRS).
+Flow per required NetCDF (sample + each hourly):
+  1) Look for pre-downloaded files on disk (both new and NOS legacy names).
+  2) If not found, try opening remote OPeNDAP dodsC URL directly (no local write).
+  3) If that fails, call download_glofs_range() just for that hour, then open locally.
 
-Usage from DataProcessor:
-    from .glofs_sfincs import build_bzs_from_glofs_legacy
-
-    build_bzs_from_glofs_legacy(
-        model="leofs",                          # leofs, lsofs, lmhofs, loofs, ...
-        bnd_file=path_to_sfincs_bnd,
-        bzs_outfile=path_to_sfincs_bzs,
-        start_dt=self.start_dt,
-        end_dt=self.end_dt,
-        time_step_hours=1,
-        utm_epsg=f"EPSG:{self.target_epsg}",    # e.g., "EPSG:32617" for Lake Erie
-        add_360_longitudes=True,
-        downloads_dir=os.path.join(self.sim_dir, "glofs_nc")  # optional; defaults next to bzs_outfile
-    )
+Notes
+- We always check BOTH filename patterns when searching locally:
+    A) {model}.t{HH}z.{YYYYMMDD}.fields.n{xxx}.nc
+    B) nos.{model}.fields.n{xxx}.{YYYYMMDD}.t{HH}z.nc
+- For OPeNDAP we use only the A-pattern URL (as requested).
+- add_360_longitudes=True will wrap negative lons into [0, 360], like your legacy.
 """
 
 from __future__ import annotations
 
 import os
-import re
-import time
+import sys
 import math
-import shutil
-import tempfile
 from datetime import datetime, timedelta
 from typing import List, Optional, Tuple
 
@@ -41,12 +28,12 @@ import xarray as xr
 import matplotlib.tri as tri
 from pyproj import Transformer
 
-# ----------------------------
-# Helpers
-# ----------------------------
+
+# -----------------------------------------------------------------------------
+# Utilities
+# -----------------------------------------------------------------------------
 
 def _parse_dt_utc_any(s) -> datetime:
-    """Parse common ISO-ish strings into naive datetimes (UTC-like)."""
     if isinstance(s, datetime):
         return s.replace(tzinfo=None)
     s = str(s).strip()
@@ -56,7 +43,8 @@ def _parse_dt_utc_any(s) -> datetime:
         return datetime.fromisoformat(s.replace("T", " ")).replace(tzinfo=None)
     except Exception:
         pass
-    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%Y-%m-%d"):
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y/%m/%d %H:%M:%S",
+                "%Y-%m-%d %H:%M", "%Y/%m/%d %H:%M", "%Y-%m-%d"):
         try:
             return datetime.strptime(s, fmt)
         except Exception:
@@ -66,191 +54,110 @@ def _parse_dt_utc_any(s) -> datetime:
     return pd.to_datetime(s).to_pydatetime().replace(tzinfo=None)
 
 
-def _safe_open_nc(local_path: str) -> xr.Dataset:
-    """Open NetCDF locally, with a fallback to disable time decoding if needed."""
-    drop_vars = ["siglay", "siglev", "siglay_center", "siglev_center"]
-    try:
-        return xr.open_dataset(local_path, engine="netcdf4", decode_times=True, drop_variables=drop_vars)
-    except Exception as e:
-        print(f"[GLOFS] retrying without time decoding due to: {e}")
-        return xr.open_dataset(local_path, engine="netcdf4", decode_times=False, drop_variables=drop_vars)
-
-
 def _ensure_dir(path: str) -> str:
     os.makedirs(path, exist_ok=True)
     return path
 
 
-def _cache_path(downloads_dir: str, url: str) -> str:
-    """Local filename by URL basename."""
-    return os.path.join(downloads_dir, os.path.basename(url))
-
-
-def _download_stream(url: str, dest: str, timeout: int = 90) -> str:
-    """Stream a remote file to disk."""
-    import requests
-    _ensure_dir(os.path.dirname(dest))
-    print(f"[GLOFS] GET {url} -> {dest}")
-    with requests.get(url, stream=True, timeout=timeout) as r:
-        r.raise_for_status()
-        with open(dest, "wb") as f:
-            for chunk in r.iter_content(chunk_size=1024 * 1024):
-                if chunk:
-                    f.write(chunk)
-    return dest
-
-
-def _opendap_subset_to_local(url_with_query: str, dest: str, timeout: int = 90) -> str:
-    """
-    Read an OPeNDAP (dodsC) URL with section spec (or query naming) and write a local NetCDF.
-    Uses xarray -> netcdf write.
-    """
-    # We use engine=netcdf4 to support dodsC; if server responds with HTML, xarray will error.
-    print(f"[GLOFS] OPeNDAP (subset) try: {url_with_query}")
-    ds = xr.open_dataset(url_with_query, engine="netcdf4")
-    _ensure_dir(os.path.dirname(dest))
-    ds.to_netcdf(dest)
-    ds.close()
-    print(f"[GLOFS] wrote subset NetCDF -> {dest}")
-    return dest
-
-
-def _ensure_local_file(
-    downloads_dir: str,
-    raw_url: str,
-    *,
-    opendap_query: Optional[str] = None,
-    alternates: Optional[List[str]] = None,
-    allow_cached: bool = True,
-) -> Optional[str]:
-    """
-    Ensure we have a usable local file for a given timestamp.
-    Order:
-      1) If cached (non-empty), return it.
-      2) Try OPeNDAP subset (if opendap_query provided).
-      3) Try raw_url direct download (fileServer style).
-      4) Try each alternate URL (direct download).
-    Returns the local path, or None if all attempts fail.
-    """
-    alternates = alternates or []
-    dest = _cache_path(downloads_dir, raw_url)
-    if allow_cached and os.path.exists(dest) and os.path.getsize(dest) > 0:
-        print(f"[GLOFS] cache hit: {dest}")
-        return dest
-
-    last_err = None
-
-    # 1) OPeNDAP subset (if provided query)
-    if opendap_query:
-        # The subset dest should be named by the base (consistent)
-        try:
-            return _opendap_subset_to_local(opendap_query, dest)
-        except Exception as e:
-            last_err = e
-            print(f"[GLOFS] OPeNDAP subset failed: {e}")
-
-    # 2) Raw direct download
+def _safe_open_local_nc(path: str) -> xr.Dataset:
+    """Open a LOCAL NetCDF with a tolerant decode."""
+    drop_vars = ["siglay", "siglev", "siglay_center", "siglev_center"]
     try:
-        return _download_stream(raw_url, dest)
+        return xr.open_dataset(path, engine="netcdf4", decode_times=True, drop_variables=drop_vars)
     except Exception as e:
-        last_err = e
-        print(f"[GLOFS] try url failed: {raw_url} → {e}")
+        print(f"[GLOFS] retrying without time decoding for {os.path.basename(path)} due to: {e}")
+        return xr.open_dataset(path, engine="netcdf4", decode_times=False, drop_variables=drop_vars)
 
-    # 3) Alternates
-    for alt in alternates:
-        dest_alt = _cache_path(downloads_dir, alt)
-        try:
-            return _download_stream(alt, dest_alt)
-        except Exception as e:
-            last_err = e
-            print(f"[GLOFS] try url failed: {alt} → {e}")
 
-    print(f"[GLOFS] no local file after tries (last error: {last_err})")
+def _open_opendap(url: str) -> xr.Dataset:
+    """Open a REMOTE OPeNDAP URL (no local write). Single attempt."""
+    print(f"[GLOFS] OPeNDAP open: {url}")
+    drop_vars = ["siglay", "siglev", "siglay_center", "siglev_center"]
+    # We keep decode_times=True first; if it fails, try without time decoding.
+    try:
+        return xr.open_dataset(url, engine="netcdf4", decode_times=True, drop_variables=drop_vars)
+    except Exception as e:
+        print(f"[GLOFS] OPeNDAP decode_times=True failed: {e}; retry decode_times=False")
+        return xr.open_dataset(url, engine="netcdf4", decode_times=False, drop_variables=drop_vars)
+
+
+# -----------------------------------------------------------------------------
+# Filename helpers
+# -----------------------------------------------------------------------------
+
+def _cycle_suffix_for(dt: datetime) -> Tuple[str, str]:
+    """Return (cycle_str, n_suffix) like ('t00z', 'n000') for a specific hour."""
+    h = dt.hour
+    cycle_hour = (h // 6) * 6
+    return f"t{cycle_hour:02d}z", f"n{h % 6:03d}"
+
+
+def _local_basenames_for(model: str, dt: datetime) -> List[str]:
+    """
+    Return both name styles for local search, regardless of date cutoffs:
+      A) model.t??z.YYYYMMDD.fields.nxxx.nc
+      B) nos.model.fields.nxxx.YYYYMMDD.t??z.nc
+    """
+    datestr = dt.strftime("%Y%m%d")
+    cycle, n = _cycle_suffix_for(dt)
+    # A (new)
+    a = f"{model}.{cycle}.{datestr}.fields.{n}.nc"
+    # B (legacy NOS)
+    b = f"nos.{model}.fields.{n}.{datestr}.{cycle}.nc"
+    return [a, b]
+
+
+def _find_local_file(search_dirs: List[str], basenames: List[str]) -> Optional[str]:
+    """Return the first existing non-empty path among search_dirs × basenames."""
+    for d in search_dirs:
+        if not d:
+            continue
+        for name in basenames:
+            cand = os.path.join(d, name)
+            if os.path.exists(cand) and os.path.getsize(cand) > 0:
+                print(f"[GLOFS] local hit: {cand}")
+                return cand
     return None
 
 
-def _glofs_url_patterns(model: str, dt: datetime) -> Tuple[str, List[str]]:
-    """
-    Build URL patterns for a given time. Returns (primary_file_url, [alternates]).
-    `primary_file_url` is the 'leofs.t00z.20250611.fields.n000.nc' style.
-    Alternates include the 'nos.leofs.fields.n000.20250611.t00z.nc' style.
-    """
-    date_str = dt.strftime("%Y%m%d")
-    hour = dt.hour
-    cycle_hour = (hour // 6) * 6
-    cycle = f"t{cycle_hour:02d}z"
-    suffix = f"n{hour % 6:03d}"
+def _opendap_hour_url(model: str, dt: datetime) -> str:
+    """Requested OPeNDAP URL pattern (A-style) for a specific hour."""
     yyyy = f"{dt.year:04d}"
     mm = dt.strftime("%m")
-
-    # Pattern A: "model.t00z.YYYYMMDD.fields.nxxx.nc"
-    primary = (
-        f"https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/"
-        f"lake-erie-operational-forecast-system-leofs".replace("leofs", model) +  # keep generic path per model
-        f"/{yyyy}/{mm}/{model}.{cycle}.{date_str}.fields.{suffix}.nc"
-    )
-
-    # Pattern B: "nos.model.fields.nxxx.YYYYMMDD.t00z.nc"
-    alt = (
-        f"https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/"
-        f"lake-erie-operational-forecast-system-leofs".replace("leofs", model) +
-        f"/{yyyy}/{mm}/nos.{model}.fields.{suffix}.{date_str}.{cycle}.nc"
-    )
-
-    # Pattern C/D: legacy THREDDS (OPeNDAP/fileServer)
-    thredds_dods = (
+    datestr = dt.strftime("%Y%m%d")
+    cycle, n = _cycle_suffix_for(dt)
+    return (
         f"https://www.ncei.noaa.gov/thredds/dodsC/model-{model}/{yyyy}/{mm}/"
-        f"{model}.{cycle}.{date_str}.fields.{suffix}.nc"
+        f"{model}.{cycle}.{datestr}.fields.{n}.nc"
     )
-    thredds_file = thredds_dods.replace("/thredds/dodsC/", "/thredds/fileServer/")
-
-    return primary, [alt, thredds_file, thredds_dods]
 
 
-def _glofs_sample_patterns(model: str, dt: datetime) -> Tuple[str, List[str], str]:
-    """
-    Build patterns for the sample (t00z, n000) file to get mesh.
-    Returns (primary_file_url, alternates, opendap_subset_url_with_query).
-    """
-    date_str = dt.strftime("%Y%m%d")
+def _opendap_sample_url(model: str, dt: datetime) -> str:
+    """Use the t00z n000 file of the start day for mesh (matches your legacy sample)."""
     yyyy = f"{dt.year:04d}"
     mm = dt.strftime("%m")
-
-    # Pattern A: "model.t00z.YYYYMMDD.fields.n000.nc"
-    primary = (
-        f"https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/"
-        f"lake-erie-operational-forecast-system-leofs".replace("leofs", model) +
-        f"/{yyyy}/{mm}/{model}.t00z.{date_str}.fields.n000.nc"
-    )
-
-    # Pattern B/C: legacy THREDDS
-    thredds_dods = (
+    datestr = dt.strftime("%Y%m%d")
+    return (
         f"https://www.ncei.noaa.gov/thredds/dodsC/model-{model}/{yyyy}/{mm}/"
-        f"{model}.t00z.{date_str}.fields.n000.nc"
-    )
-    thredds_file = thredds_dods.replace("/thredds/dodsC/", "/thredds/fileServer/")
-
-    # OPeNDAP subset (keep small): lon/lat/nv + a single time slice of zeta to verify structure
-    opendap_subset = (
-        f"{thredds_dods}"
-        f"?lon[0:1:6105],lat[0:1:6105],nv[0:1:2][0:1:11508],zeta[0:1:0][0:1:6105],Times[0:1:0]"
+        f"{model}.t00z.{datestr}.fields.n000.nc"
     )
 
-    return primary, [thredds_file, thredds_dods], opendap_subset
 
+# -----------------------------------------------------------------------------
+# Mesh + interpolation
+# -----------------------------------------------------------------------------
 
 def _build_triangulation(ds: xr.Dataset) -> Tuple[tri.Triangulation, np.ndarray, np.ndarray]:
-    """Return triangulation and lon/lat arrays (1D)."""
     lon = ds["lon"].values
     lat = ds["lat"].values
-    nv = ds["nv"].values.T - 1  # 0-based
+    nv = ds["nv"].values.T - 1  # 1-based → 0-based
     triang = tri.Triangulation(lon, lat, nv)
     return triang, lon, lat
 
 
-# ----------------------------
+# -----------------------------------------------------------------------------
 # Main extractor
-# ----------------------------
+# -----------------------------------------------------------------------------
 
 def extract_glofs_timeseries(
     model: str,
@@ -262,77 +169,96 @@ def extract_glofs_timeseries(
     utm_epsg: str,
     add_360_longitudes: bool = True,
     downloads_dir: Optional[str] = None,
+    extra_search_dirs: Optional[List[str]] = None,
 ) -> None:
     """
-    Generate SFINCS .bzs from GLOFS.
-
-    - model: 'leofs', 'lsofs', 'lmhofs', 'loofs', ...
-    - bnd_file: SFINCS .bnd (x y ... in `utm_epsg`)
-    - bzs_outfile: output .bzs
-    - start_time/end_time: datetime (naive UTC-like)
-    - time_step: timedelta (usually 1 hour)
-    - utm_epsg: CRS of .bnd, e.g. "EPSG:32617"
-    - add_360_longitudes: wrap negative lons to [0,360] if True
-    - downloads_dir: local cache folder for NetCDFs (defaults to sibling 'glofs_nc' next to bzs)
+    Generate SFINCS .bzs using local files if present; else OPeNDAP; else on-demand download.
     """
-    # --- I/O setup ---
+    # Where to look for already-downloaded files
     if downloads_dir is None:
         downloads_dir = os.path.join(os.path.dirname(os.path.abspath(bzs_outfile)), "glofs_nc")
     _ensure_dir(downloads_dir)
 
-    # --- Read boundary points (UTM) ---
-    bnd_coords: List[Tuple[float, float]] = []
+    # prepend our run folder first, then any extras (e.g., global cache)
+    search_dirs: List[str] = [downloads_dir] + list(filter(None, extra_search_dirs or []))
+
+    # Import the downloader
+    try:
+        # If running as a package, this works:
+        from download_data.glofs_downloader import download_glofs_range
+    except Exception:
+        # Fallback if running as a plain folder structure
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.abspath(os.path.join(here, ".."))
+        sys.path.insert(0, root)
+        from download_data.glofs_downloader import download_glofs_range
+
+    # Read SFINCS boundary in UTM
+    coords: List[Tuple[float, float]] = []
     with open(bnd_file, "r", encoding="utf-8") as f:
         for line in f:
             s = line.strip()
             if not s or s.startswith("#"):
                 continue
-            parts = s.split()
-            if len(parts) >= 2:
-                bnd_coords.append((float(parts[0]), float(parts[1])))
-    if not bnd_coords:
-        raise RuntimeError(f"No valid boundary points found in {bnd_file}")
+            p = s.split()
+            if len(p) >= 2:
+                coords.append((float(p[0]), float(p[1])))
+    if not coords:
+        raise RuntimeError(f"No valid boundary points in {bnd_file}")
 
-    # --- Transform to WGS84 ---
+    # Transform to lon/lat
     transformer = Transformer.from_crs(utm_epsg, "EPSG:4326", always_xy=True)
-    xs, ys = zip(*bnd_coords)
+    xs, ys = zip(*coords)
     qlon, qlat = transformer.transform(xs, ys)
-    qlon = np.asarray(qlon, dtype=float)
-    qlat = np.asarray(qlat, dtype=float)
+    qlon = np.asarray(qlon, float)
+    qlat = np.asarray(qlat, float)
     if add_360_longitudes:
         qlon = np.where(qlon < 0, qlon + 360.0, qlon)
 
     print(f"[GLOFS] boundary points: {len(qlon)}")
 
-    # --- Get sample mesh file locally (tries: OPeNDAP subset → fileServer/direct patterns) ---
-    primary_s, alternates_s, opendap_subset_s = _glofs_sample_patterns(model, start_time)
-    sample_local = _ensure_local_file(
-        downloads_dir,
-        primary_s,
-        opendap_query=opendap_subset_s,
-        alternates=alternates_s,
-        allow_cached=True,
-    )
-    if not sample_local:
-        raise RuntimeError("Could not obtain a sample GLOFS file for mesh triangulation.")
+    # ---- SAMPLE (mesh) ----
+    # 1) local search (both patterns)
+    sample_local = _find_local_file(search_dirs, _local_basenames_for(model, start_time.replace(hour=0)))
+    ds0: Optional[xr.Dataset] = None
 
-    ds0 = _safe_open_nc(sample_local)
+    if sample_local:
+        ds0 = _safe_open_local_nc(sample_local)
+    else:
+        # 2) OPeNDAP (t00z n000 for start day)
+        sample_url = _opendap_sample_url(model, start_time)
+        try:
+            ds0 = _open_opendap(sample_url)
+        except Exception as e:
+            print(f"[GLOFS] OPeNDAP sample failed: {e}")
+
+        if ds0 is None:
+            # 3) On-demand download just this one hour-range to get n000
+            try:
+                download_glofs_range(
+                    start=start_time.replace(minute=0, second=0, microsecond=0),
+                    end=start_time.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1),
+                    step=timedelta(hours=1),
+                    outdir=downloads_dir,
+                    # access_area/base_url use defaults inside the downloader
+                    allow_cached=True,
+                )
+                # search again locally (both names)
+                sample_local = _find_local_file(search_dirs, _local_basenames_for(model, start_time.replace(hour=0)))
+                if not sample_local:
+                    raise RuntimeError("download_glofs_range finished but sample file still not found.")
+                ds0 = _safe_open_local_nc(sample_local)
+            except Exception as e:
+                raise RuntimeError(f"Could not obtain a sample GLOFS file for mesh triangulation: {e}")
+
+    # Build mesh + barycentric setup
     triang, lon1d, lat1d = _build_triangulation(ds0)
     finder = triang.get_trifinder()
     tri_idx = finder(qlon, qlat)
+    print(f"[GLOFS] mesh lon/lat bbox: "
+          f"lon[{float(np.nanmin(lon1d)):.3f},{float(np.nanmax(lon1d)):.3f}], "
+          f"lat[{float(np.nanmin(lat1d)):.3f},{float(np.nanmax(lat1d)):.3f}]")
 
-    # Diagnostics: mesh bbox + first few points
-    mesh_lon_min, mesh_lon_max = float(np.nanmin(lon1d)), float(np.nanmax(lon1d))
-    mesh_lat_min, mesh_lat_max = float(np.nanmin(lat1d)), float(np.nanmax(lat1d))
-    print(
-        f"[GLOFS] mesh from {os.path.basename(sample_local)} (nodes={len(lon1d)}, elems={len(triang.triangles)})"
-    )
-    print(f"[GLOFS] mesh lon/lat bbox: lon[{mesh_lon_min:.3f},{mesh_lon_max:.3f}], "
-          f"lat[{mesh_lat_min:.3f},{mesh_lat_max:.3f}]")
-    preview = [(round(qlon[i], 4), round(qlat[i], 4)) for i in range(min(3, len(qlon)))]
-    print(f"[GLOFS] first 3 transformed points (lon,lat): {preview}")
-
-    # Precompute interpolation data (barycentric) using sample triangulation
     interp_data: List[Optional[Tuple[np.ndarray, List[float]]]] = []
     for i, t_idx in enumerate(tri_idx):
         if t_idx == -1:
@@ -341,122 +267,111 @@ def extract_glofs_timeseries(
         nodes = triang.triangles[t_idx]
         x = triang.x[nodes]
         y = triang.y[nodes]
-
         A = np.array([[x[1] - x[0], x[2] - x[0]],
                       [y[1] - y[0], y[2] - y[0]]], dtype=float)
         b = np.array([qlon[i] - x[0], qlat[i] - y[0]], dtype=float)
         try:
             l1, l2 = np.linalg.solve(A, b)
             w0 = 1.0 - l1 - l2
-            weights = [w0, l1, l2]
-            interp_data.append((nodes, weights))
+            interp_data.append((nodes, [w0, l1, l2]))
         except np.linalg.LinAlgError:
             interp_data.append(None)
 
-    node_list = sorted({n for item in interp_data if item for n in item[0]})
-    node_index_map = {n: i for i, n in enumerate(node_list)}
-
-    if all(item is None for item in interp_data):
-        print(f"[GLOFS][warn] {len(qlon)}/{len(qlon)} boundary points fall outside mesh; "
+    node_list = sorted({n for it in interp_data if it for n in it[0]})
+    if all(it is None for it in interp_data):
+        print(f"[GLOFS][warn] all boundary points fall outside mesh; "
               f"values will be NaN. Check utm_epsg and add_360_longitudes.")
 
-    # --- Time loop ---
+    # ---- TIME LOOP ----
     lines: List[str] = []
-    current_time = start_time
-    while current_time <= end_time:
-        primary, alternates = _glofs_url_patterns(model, current_time)
-        # Also construct an OPeNDAP subset URL for this time (smaller fetch if dodsC works)
-        # We reuse the same subset variable list; the slice for zeta/time is single-slice.
-        odt = current_time
-        datestr = odt.strftime("%Y%m%d")
-        yyyy = f"{odt.year:04d}"
-        mm = odt.strftime("%m")
-        hour = odt.hour
-        cycle_hour = (hour // 6) * 6
-        cycle = f"t{cycle_hour:02d}z"
-        suffix = f"n{hour % 6:03d}"
-        opendap_subset = (
-            f"https://www.ncei.noaa.gov/thredds/dodsC/model-{model}/{yyyy}/{mm}/"
-            f"{model}.{cycle}.{datestr}.fields.{suffix}.nc"
-            f"?lon[0:1:6105],lat[0:1:6105],nv[0:1:2][0:1:11508],zeta[0:1:0][0:1:6105],Times[0:1:0]"
-        )
+    t = start_time
+    while t <= end_time:
+        basenames = _local_basenames_for(model, t)
 
-        local_path = _ensure_local_file(
-            downloads_dir,
-            primary,
-            opendap_query=opendap_subset,
-            alternates=alternates,
-            allow_cached=True,
-        )
-        if not local_path:
-            print(f"[GLOFS] no data for {current_time} (all sources failed)")
-            # Still write a NaN row to preserve time axis consistency
-            sec = int((current_time - start_time).total_seconds())
-            lines.append(" ".join([str(sec)] + ["nan"] * len(qlon)))
-            current_time += time_step
+        # 1) local?
+        local_nc = _find_local_file(search_dirs, basenames)
+        ds_hour: Optional[xr.Dataset] = None
+
+        if local_nc:
+            ds_hour = _safe_open_local_nc(local_nc)
+        else:
+            # 2) OPeNDAP (A-pattern URL only)
+            url = _opendap_hour_url(model, t)
+            try:
+                ds_hour = _open_opendap(url)
+            except Exception as e:
+                print(f"[GLOFS] OPeNDAP failed for {t}: {e}")
+
+            if ds_hour is None:
+                # 3) on-demand download just this hour, then open locally
+                try:
+                    download_glofs_range(
+                        start=t.replace(minute=0, second=0, microsecond=0),
+                        end=(t + time_step).replace(minute=0, second=0, microsecond=0),
+                        step=time_step,
+                        outdir=downloads_dir,
+                        allow_cached=True,
+                    )
+                    local_nc = _find_local_file(search_dirs, basenames)
+                    if not local_nc:
+                        raise RuntimeError("download_glofs_range finished but file still not found.")
+                    ds_hour = _safe_open_local_nc(local_nc)
+                except Exception as e:
+                    print(f"[GLOFS] no data for {t} after on-demand download: {e}")
+
+        sec = int((t - start_time).total_seconds())
+        row = [str(sec)]
+
+        if ds_hour is None:
+            row.extend(["nan"] * len(qlon))
+            lines.append(" ".join(row))
+            t += time_step
             continue
 
         try:
-            ds = _safe_open_nc(local_path)
-            # Expect shape time x node; we take time=0 slice
-            zeta0 = ds["zeta"].isel(time=0)
-            max_node = int(zeta0.sizes.get("node", ds.sizes.get("node", 0))) - 1
+            z0 = ds_hour["zeta"].isel(time=0)
+            max_node = int(z0.sizes.get("node", ds_hour.sizes.get("node", 0))) - 1
             valid_nodes = [n for n in node_list if 0 <= n <= max_node]
 
-            sec = int((current_time - start_time).total_seconds())
-            row = [str(sec)]
-
             if not valid_nodes or not node_list:
-                # All outside mesh → NaNs
                 row.extend(["nan"] * len(qlon))
                 lines.append(" ".join(row))
-                current_time += time_step
+                t += time_step
                 continue
 
-            # Pull only the nodes we need (fast)
-            z_vals = zeta0.isel(node=valid_nodes).load().values
+            vals = z0.isel(node=valid_nodes).load().values
+            idx_map = {n: i for i, n in enumerate(valid_nodes)}
 
-            # Map original node ids -> compact index
-            idx_map_local = {n: i for i, n in enumerate(valid_nodes)}
-
-            for interp in interp_data:
-                if interp is None:
+            for it in interp_data:
+                if it is None:
                     row.append("nan")
                 else:
-                    nodes, weights = interp
-                    vals = []
+                    nodes, w = it
+                    v = []
                     for n in nodes:
-                        j = idx_map_local.get(n, None)
-                        if j is None:
-                            vals.append(np.nan)
-                        else:
-                            vals.append(float(z_vals[j]))
-                    # Weighted sum
-                    if any(math.isnan(v) for v in vals):
-                        row.append("nan")
-                    else:
-                        row.append(f"{np.dot(weights, vals):.4f}")
+                        j = idx_map.get(n)
+                        v.append(float(vals[j]) if j is not None else math.nan)
+                    row.append("nan" if any(math.isnan(x) for x in v) else f"{np.dot(w, v):.4f}")
 
             lines.append(" ".join(row))
         except Exception as e:
-            print(f"[GLOFS] failed to process {os.path.basename(local_path)}: {e}")
-            # Write a NaN row to maintain time axis
-            sec = int((current_time - start_time).total_seconds())
-            lines.append(" ".join([str(sec)] + ["nan"] * len(qlon)))
+            print(f"[GLOFS] failed to process hour {t}: {e}")
+            row.extend(["nan"] * len(qlon))
+            lines.append(" ".join(row))
 
-        current_time += time_step
+        t += time_step
 
-    # --- Write SFINCS .bzs ---
+    # Write .bzs
     _ensure_dir(os.path.dirname(os.path.abspath(bzs_outfile)))
     with open(bzs_outfile, "w", encoding="utf-8") as f:
-        for line in lines:
-            f.write(line + "\n")
+        f.write("\n".join(lines) + "\n")
     print(f"[GLOFS] wrote {bzs_outfile}")
 
 
-# ----------------------------
-# Thin wrapper for your pipeline
-# ----------------------------
+# -----------------------------------------------------------------------------
+# Wrapper for pipeline
+# -----------------------------------------------------------------------------
+
 def build_bzs_from_glofs_legacy(
     *,
     model: str,
@@ -468,35 +383,14 @@ def build_bzs_from_glofs_legacy(
     utm_epsg: str = "EPSG:32617",
     add_360_longitudes: bool = True,
     downloads_dir: Optional[str] = None,
-    base_dir: Optional[str] = None,   # <— accepted for backward-compat (ignored)
+    extra_search_dirs: Optional[List[str]] = None,
+    base_dir: Optional[str] = None,  # ignored; kept for legacy signature
 ) -> str:
     """
-    Public entry point. Returns `bzs_outfile`.
-
-    Parameters
-    ----------
-    model : str
-        GLOFS short code: "leofs", "lsofs", "lmhofs", "loofs", ...
-    bnd_file : str
-        Path to SFINCS .bnd (x y ...).
-    bzs_outfile : str
-        Output .bzs path.
-    start_dt, end_dt :
-        Datetime or string (parsed). Naive OK; treated as UTC.
-    time_step_hours : int
-        Typically 1.
-    utm_epsg : str
-        CRS of .bnd coordinates, e.g. "EPSG:32617".
-    add_360_longitudes : bool
-        If True, wraps negative longitudes to [0,360].
-    downloads_dir : Optional[str]
-        Local cache folder for NetCDFs. If None, defaults to sibling "glofs_nc".
-    base_dir : Optional[str]
-        Ignored (kept for backward-compatibility with legacy caller).
+    Public entry point compatible with your existing caller.
     """
     start = _parse_dt_utc_any(start_dt)
     end = _parse_dt_utc_any(end_dt)
-
     extract_glofs_timeseries(
         model=model,
         bnd_file=bnd_file,
@@ -507,7 +401,7 @@ def build_bzs_from_glofs_legacy(
         utm_epsg=utm_epsg,
         add_360_longitudes=add_360_longitudes,
         downloads_dir=downloads_dir,
+        extra_search_dirs=extra_search_dirs,
     )
     return bzs_outfile
-
 
