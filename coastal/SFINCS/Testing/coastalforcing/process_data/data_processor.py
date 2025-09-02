@@ -255,25 +255,21 @@ class DataProcessor:
                     writers["ampr"] = open_writer("sfincs.ampr", "rainfall",  "mm hr-1")
                     writers["amp"]  = open_writer("sfincs.amp",  "air_pressure", "Pa")
 
-                imin, imax, jmin, jmax = crop_idx
-                js = slice(jmax, jmin - 1, -1)  # reverse j: jmax → jmin
 
-                u  = ds["U2D"].values[0, imin:imax+1, js]
-                v  = ds["V2D"].values[0, imin:imax+1, js]
-                rr = ds["RAINRATE"].values[0, imin:imax+1, js] * 3600.0  # mm/s → mm/hr
-                p  = ds["PSFC"].values[0, imin:imax+1, js]
+
+                imin, imax, jmin, jmax = crop_idx
+
+                u  = ds["U2D"].values[0, imin:imax+1, jmin:jmax+1]
+                v  = ds["V2D"].values[0, imin:imax+1, jmin:jmax+1]
+                rr = ds["RAINRATE"].values[0, imin:imax+1, jmin:jmax+1] * 3600.0  # mm/s → mm/hr
+                p  = ds["PSFC"].values[0, imin:imax+1, jmin:jmax+1]
 
                 u = np.flipud(u)
                 v = np.flipud(v)
                 rr = np.flipud(rr)
                 p = np.flipud(p)
 
-                '''
-                u  = ds["U2D"].values[0, imin:imax+1, jmin:jmax+1]
-                v  = ds["V2D"].values[0, imin:imax+1, jmin:jmax+1]
-                rr = ds["RAINRATE"].values[0, imin:imax+1, jmin:jmax+1] * 3600.0  # mm/s → mm/hr
-                p  = ds["PSFC"].values[0, imin:imax+1, jmin:jmax+1]
-                '''
+                
                 # time offset in HOURS since epoch (naive epoch to match naive dt)
                 epoch = datetime(1970, 1, 1)
                 offset_hours = (dt - epoch).total_seconds() / 3600.0
@@ -295,7 +291,231 @@ class DataProcessor:
                     f.close()
         print("[process][meteo] Wrote sfincs.amu/.amv/.ampr/.amp")
 
+
     def _process_sfincs_meteo_from_nwm_retro(self):
+        """
+        Build SFINCS meteo time series from NWM retrospective (LDASIN) FORCING files.
+        Expected hourly files under: data/raw/meteo/nwm_retro/
+          - YYYYMMDDHH00.LDASIN_DOMAIN1[.nc]  (S3-style or locally normalized)
+          - nwm_forcing_YYYYMMDD_HH.nc        (optional normalized alias)
+
+        Behavior is intentionally identical to `_process_sfincs_meteo_from_nwm_ana`
+        except for input discovery, so outputs align 1:1 with SFINCS 'meteo_on_equidistant_grid'.
+        """
+        import os, traceback
+        from datetime import datetime
+        import numpy as np
+        import xarray as xr
+        import pyproj
+        from shapely.geometry import box
+        from shapely.affinity import rotate
+
+        # ---------- helpers ----------
+        def _candidate_paths(base_dir: str, dt: datetime) -> list[str]:
+            stamp = dt.strftime("%Y%m%d%H") + "00"
+            return [
+                os.path.join(base_dir, f"{stamp}.LDASIN_DOMAIN1.nc"),
+                os.path.join(base_dir, f"{stamp}.LDASIN_DOMAIN1"),
+                os.path.join(base_dir, f"nwm_forcing_{dt:%Y%m%d}_{dt:%H}.nc"),
+            ]
+
+        def _find_local_file(base_dir: str, dt: datetime) -> str | None:
+            for p in _candidate_paths(base_dir, dt):
+                if os.path.exists(p):
+                    return p
+            return None
+
+        def _decode_scaled(ds: xr.Dataset, varname: str, arr: np.ndarray) -> np.ndarray:
+            """
+            Apply _FillValue masking, then scale_factor/add_offset for integer-packed vars.
+            (U2D, V2D, PSFC are commonly packed; RAINRATE is usually float.)
+            """
+            a = arr.astype(float, copy=False)
+            v = ds[varname]
+            fv = v.attrs.get("_FillValue", None)
+            if fv is not None:
+                a = np.where(a == fv, np.nan, a)
+            scale = float(v.attrs.get("scale_factor", 1.0))
+            offs  = float(v.attrs.get("add_offset", 0.0))
+            return a * scale + offs
+
+        # ---------- SFINCS bbox (buffered) ----------
+        sfgrid = xr.open_dataset(os.path.join(self.domain_path, "sfincs.nc"))
+        x0 = sfgrid.attrs["x0"]; y0 = sfgrid.attrs["y0"]
+        nmax = sfgrid.attrs["nmax"]; mmax = sfgrid.attrs["mmax"]
+        dx  = sfgrid.attrs["dx"];  dy  = sfgrid.attrs["dy"]
+        rotation = sfgrid.attrs.get("rotation", 0.0)
+
+        width  = mmax * dx
+        height = nmax * dy
+        domain_box = box(x0, y0, x0 + width, y0 + height)
+        rotated_domain = rotate(domain_box, rotation, origin=(x0, y0), use_radians=False)
+
+        xsf = np.array(rotated_domain.exterior.xy[0])
+        ysf = np.array(rotated_domain.exterior.xy[1])
+        xmin, xmax = xsf.min() - self.buffer_m, xsf.max() + self.buffer_m
+        ymin, ymax = ysf.min() - self.buffer_m, ysf.max() + self.buffer_m
+        sfgrid.close()
+
+        # ---------- outputs (lazy-open) ----------
+        writers = {"amu": None, "amv": None, "ampr": None, "amp": None}
+        crop_idx = None  # (imin, imax, jmin, jmax)
+        nx = ny = None
+        x0_out = y0_out = None
+        dx_out = dy_out = None
+
+        def _open_writer(fname: str, quantity: str, unit: str):
+            f = open(os.path.join(self.sim_dir, fname), "w", encoding="utf-8")
+            f.write(
+                "FileVersion = 1.03\n"
+                "filetype = meteo_on_equidistant_grid\n"
+                f"n_cols = {nx}\n"
+                f"n_rows = {ny}\n"
+                "grid_unit = m\n"
+                f"x_llcorner = {x0_out:.0f}\n"
+                f"y_llcorner = {y0_out:.0f}\n"
+                f"dx = {dx_out:.0f}\n"
+                f"dy = {dy_out:.0f}\n"
+                "n_quantity = 1\n"
+                f"quantity1 = {quantity}\n"
+                f"unit1 = {unit}\n"
+                "NODATA_value = -999\n"
+            )
+            return f
+
+        meteo_dir = os.path.join(self.raw_root, "meteo", "nwm_retro")
+        any_written = False
+
+        try:
+            for dt in self._iter_hours():
+                fpath = _find_local_file(meteo_dir, dt)
+                if not fpath:
+                    print(f"[meteo:retro][miss] {dt:%Y-%m-%d %H}: no local file found")
+                    continue
+
+                # Keep behavior identical to ANA: we'll stamp "TIME" from loop dt
+                # and crop/orient exactly the same way.
+                ds = xr.open_dataset(fpath)  # let xarray decode attrs normally
+
+                # First file: compute crop + init writers
+                if crop_idx is None:
+                    # CRS detection: prefer CF on 'crs' var; fallback to proj4 on U2D attrs
+                    proj = None
+                    try:
+                        if "crs" in ds and hasattr(ds["crs"], "attrs"):
+                            # Try CF first, then WKT if present
+                            crs_attrs = ds["crs"].attrs
+                            if "spatial_ref" in crs_attrs:
+                                proj = pyproj.CRS.from_wkt(crs_attrs["spatial_ref"])
+                            else:
+                                proj = pyproj.CRS.from_cf(crs_attrs)
+                    except Exception:
+                        proj = None
+                    if proj is None and "U2D" in ds.variables:
+                        pv = ds["U2D"].attrs.get("proj4", None)
+                        if pv:
+                            proj = pyproj.CRS.from_string(pv)
+                    if proj is None:
+                        raise RuntimeError("[meteo:retro] Could not determine source CRS from dataset.")
+
+                    transformer = pyproj.Transformer.from_crs(proj, f"EPSG:{self.target_epsg}", always_xy=True)
+
+                    # Build full 2D grid in source CRS (x,y), transform to target (meters)
+                    x = ds["x"].values  # (nx,)
+                    y = ds["y"].values  # (ny,)
+                    X, Y = np.meshgrid(x, y)
+                    xutm, yutm = transformer.transform(X, Y)
+
+                    mask = (xutm >= xmin) & (xutm <= xmax) & (yutm >= ymin) & (yutm <= ymax)
+                    iy, ix = np.where(mask)
+                    if iy.size == 0:
+                        ds.close()
+                        print("[meteo:retro] No overlap between NWM grid and SFINCS domain; check EPSG/buffer.")
+                        return
+
+                    imin, imax = iy.min(), iy.max()
+                    jmin, jmax = ix.min(), ix.max()
+                    crop_idx = (imin, imax, jmin, jmax)
+
+                    x_crop = xutm[imin:imax+1, jmin:jmax+1]
+                    y_crop = yutm[imin:imax+1, jmin:jmax+1]
+                    ny, nx = x_crop.shape
+                    x0_out, y0_out = float(x_crop[0, 0]), float(y_crop[0, 0])
+
+                    # Use transformed spacing where available; fall back to SFINCS dx/dy
+                    dx_out = float(x_crop[0, 1] - x_crop[0, 0]) if nx > 1 else float(dx)
+                    dy_out = float(y_crop[1, 0] - y_crop[0, 0]) if ny > 1 else float(dy)
+
+                    writers["amu"]  = _open_writer("sfincs.amu",  "x_wind",   "m s-1")
+                    writers["amv"]  = _open_writer("sfincs.amv",  "y_wind",   "m s-1")
+                    writers["ampr"] = _open_writer("sfincs.ampr", "rainfall", "mm hr-1")
+                    writers["amp"]  = _open_writer("sfincs.amp",  "air_pressure", "Pa")
+
+                # Crop + orientation to match ANA path exactly
+                imin, imax, jmin, jmax = crop_idx
+
+                u  = ds["U2D"].values[0, imin:imax+1, jmin:jmax+1]
+                v  = ds["V2D"].values[0, imin:imax+1, jmin:jmax+1]
+                rr = ds["RAINRATE"].values[0, imin:imax+1, jmin:jmax+1] * 3600.0  # mm/s → mm/hr
+                p  = ds["PSFC"].values[0, imin:imax+1, jmin:jmax+1]
+
+                u = np.flipud(u)
+                v = np.flipud(v)
+                rr = np.flipud(rr)
+                p = np.flipud(p)
+
+
+                # Apply scale/offset & fill consistently
+                u = _decode_scaled(ds, "U2D", u)
+                v = _decode_scaled(ds, "V2D", v)
+                p = _decode_scaled(ds, "PSFC", p)
+
+                # For rain, mask fill then convert mm/s → mm/hr
+                rr_fill = ds["RAINRATE"].attrs.get("_FillValue", None)
+                if rr_fill is not None:
+                    rr_raw = np.where(rr_raw == rr_fill, np.nan, rr_raw)
+                rr = rr_raw * 3600.0
+
+                # Final orientation match: flip rows top→bottom (same as ANA)
+                u  = np.flipud(u)
+                v  = np.flipud(v)
+                rr = np.flipud(rr)
+                p  = np.flipud(p)
+
+                # TIME header: use loop dt (identical to ANA)
+                epoch = datetime(1970, 1, 1)
+                offset_hours = (dt - epoch).total_seconds() / 3600.0
+                stamp = f"TIME = {offset_hours:.6f} hours since 1970-01-01 00:00:00 +00:00 # {dt:%Y-%m-%d %H:%M:%S}\n"
+
+                for f, data in (
+                    (writers["amu"],  u),
+                    (writers["amv"],  v),
+                    (writers["ampr"], rr),
+                    (writers["amp"],  p),
+                ):
+                    f.write(stamp)
+                    for row in data:
+                        f.write(" ".join(f"{val:.5g}" for val in row) + "\n")
+
+                ds.close()
+                any_written = True
+
+        except Exception as e:
+            print(f"[meteo:retro][fail] {e}")
+            traceback.print_exc()
+
+        finally:
+            for f in writers.values():
+                if f:
+                    f.close()
+
+        if any_written:
+            print("[process][meteo:retro] Wrote sfincs.amu/.amv/.ampr/.amp")
+        else:
+            print("[process][meteo:retro] No timesteps written (no input files found).")
+
+
+    def _process_sfincs_meteo_from_nwm_retro2(self):
         """
         Build SFINCS meteo time series from NWM retrospective FORCING files.
 
