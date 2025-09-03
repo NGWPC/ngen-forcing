@@ -27,7 +27,7 @@ import numpy as np
 import xarray as xr
 import matplotlib.tri as tri
 from pyproj import Transformer
-
+from scipy.interpolate import interp1d
 
 # -----------------------------------------------------------------------------
 # Utilities
@@ -173,6 +173,7 @@ def extract_glofs_timeseries(
 ) -> None:
     """
     Generate SFINCS .bzs using local files if present; else OPeNDAP; else on-demand download.
+    Now matches STOFS behavior: writes a raw hourly *and* a 10-minute-resampled final file.
     """
     # Where to look for already-downloaded files
     if downloads_dir is None:
@@ -184,10 +185,8 @@ def extract_glofs_timeseries(
 
     # Import the downloader
     try:
-        # If running as a package, this works:
         from download_data.glofs_downloader import download_glofs_range
     except Exception:
-        # Fallback if running as a plain folder structure
         here = os.path.dirname(os.path.abspath(__file__))
         root = os.path.abspath(os.path.join(here, ".."))
         sys.path.insert(0, root)
@@ -218,14 +217,12 @@ def extract_glofs_timeseries(
     print(f"[GLOFS] boundary points: {len(qlon)}")
 
     # ---- SAMPLE (mesh) ----
-    # 1) local search (both patterns)
     sample_local = _find_local_file(search_dirs, _local_basenames_for(model, start_time.replace(hour=0)))
     ds0: Optional[xr.Dataset] = None
 
     if sample_local:
         ds0 = _safe_open_local_nc(sample_local)
     else:
-        # 2) OPeNDAP (t00z n000 for start day)
         sample_url = _opendap_sample_url(model, start_time)
         try:
             ds0 = _open_opendap(sample_url)
@@ -233,17 +230,14 @@ def extract_glofs_timeseries(
             print(f"[GLOFS] OPeNDAP sample failed: {e}")
 
         if ds0 is None:
-            # 3) On-demand download just this one hour-range to get n000
             try:
                 download_glofs_range(
                     start=start_time.replace(minute=0, second=0, microsecond=0),
                     end=start_time.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1),
                     step=timedelta(hours=1),
                     outdir=downloads_dir,
-                    # access_area/base_url use defaults inside the downloader
                     allow_cached=True,
                 )
-                # search again locally (both names)
                 sample_local = _find_local_file(search_dirs, _local_basenames_for(model, start_time.replace(hour=0)))
                 if not sample_local:
                     raise RuntimeError("download_glofs_range finished but sample file still not found.")
@@ -251,7 +245,6 @@ def extract_glofs_timeseries(
             except Exception as e:
                 raise RuntimeError(f"Could not obtain a sample GLOFS file for mesh triangulation: {e}")
 
-    # Build mesh + barycentric setup
     triang, lon1d, lat1d = _build_triangulation(ds0)
     finder = triang.get_trifinder()
     tri_idx = finder(qlon, qlat)
@@ -282,8 +275,10 @@ def extract_glofs_timeseries(
         print(f"[GLOFS][warn] all boundary points fall outside mesh; "
               f"values will be NaN. Check utm_epsg and add_360_longitudes.")
 
-    # ---- TIME LOOP ----
-    lines: List[str] = []
+    # ---- TIME LOOP (collect; don't write yet) ----
+    times_sec: List[int] = []
+    rows_vals: List[List[float]] = []
+
     t = start_time
     while t <= end_time:
         basenames = _local_basenames_for(model, t)
@@ -295,7 +290,7 @@ def extract_glofs_timeseries(
         if local_nc:
             ds_hour = _safe_open_local_nc(local_nc)
         else:
-            # 2) OPeNDAP (A-pattern URL only)
+            # 2) OPeNDAP (A-pattern)
             url = _opendap_hour_url(model, t)
             try:
                 ds_hour = _open_opendap(url)
@@ -303,7 +298,7 @@ def extract_glofs_timeseries(
                 print(f"[GLOFS] OPeNDAP failed for {t}: {e}")
 
             if ds_hour is None:
-                # 3) on-demand download just this hour, then open locally
+                # 3) on-demand download
                 try:
                     download_glofs_range(
                         start=t.replace(minute=0, second=0, microsecond=0),
@@ -320,11 +315,12 @@ def extract_glofs_timeseries(
                     print(f"[GLOFS] no data for {t} after on-demand download: {e}")
 
         sec = int((t - start_time).total_seconds())
-        row = [str(sec)]
+        vals_for_time: List[float] = []
 
         if ds_hour is None:
-            row.extend(["nan"] * len(qlon))
-            lines.append(" ".join(row))
+            vals_for_time = [math.nan] * len(qlon)
+            times_sec.append(sec)
+            rows_vals.append(vals_for_time)
             t += time_step
             continue
 
@@ -334,38 +330,82 @@ def extract_glofs_timeseries(
             valid_nodes = [n for n in node_list if 0 <= n <= max_node]
 
             if not valid_nodes or not node_list:
-                row.extend(["nan"] * len(qlon))
-                lines.append(" ".join(row))
-                t += time_step
-                continue
+                vals_for_time = [math.nan] * len(qlon)
+            else:
+                vals = z0.isel(node=valid_nodes).load().values
+                idx_map = {n: i for i, n in enumerate(valid_nodes)}
 
-            vals = z0.isel(node=valid_nodes).load().values
-            idx_map = {n: i for i, n in enumerate(valid_nodes)}
-
-            for it in interp_data:
-                if it is None:
-                    row.append("nan")
-                else:
-                    nodes, w = it
-                    v = []
-                    for n in nodes:
-                        j = idx_map.get(n)
-                        v.append(float(vals[j]) if j is not None else math.nan)
-                    row.append("nan" if any(math.isnan(x) for x in v) else f"{np.dot(w, v):.4f}")
-
-            lines.append(" ".join(row))
+                for it in interp_data:
+                    if it is None:
+                        vals_for_time.append(math.nan)
+                    else:
+                        nodes, w = it
+                        v = []
+                        for n in nodes:
+                            j = idx_map.get(n)
+                            v.append(float(vals[j]) if j is not None else math.nan)
+                        vals_for_time.append(math.nan if any(math.isnan(x) for x in v) else float(np.dot(w, v)))
         except Exception as e:
             print(f"[GLOFS] failed to process hour {t}: {e}")
-            row.extend(["nan"] * len(qlon))
-            lines.append(" ".join(row))
+            vals_for_time = [math.nan] * len(qlon)
 
+        times_sec.append(sec)
+        rows_vals.append(vals_for_time)
         t += time_step
 
-    # Write .bzs
+    # ---- SORT + DEDUP (keep last) ----
+    times = np.asarray(times_sec, dtype=np.int64)
+    vals = np.asarray(rows_vals, dtype=float)
+
+    order = np.argsort(times)
+    times = times[order]
+    vals = vals[order, :]
+
+    # keep LAST occurrence for duplicates
+    _, last_indices_rev = np.unique(times[::-1], return_index=True)
+    keep = (times.size - 1) - last_indices_rev
+    keep = np.sort(keep)
+    times = times[keep]
+    vals = vals[keep, :]
+
+    # ---- WRITE RAW HOURLY ----
+    base, ext = os.path.splitext(os.path.abspath(bzs_outfile))
+    raw_path = base + "_raw.bzs"
+    with open(raw_path, "w", encoding="utf-8") as f:
+        for tsec, row in zip(times, vals):
+            f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "nan" for v in row) + "\n")
+    print(f"[GLOFS] wrote raw hourly: {raw_path} ({vals.shape[0]} rows, {vals.shape[1]} points)")
+
+    # ---- RESAMPLE TO 10-MIN (600s), like STOFS ----
+    if times.size < 2:
+        print("[GLOFS][warn] not enough data points to interpolate; copying raw → final")
+        final_times = times
+        final_vals = vals
+    else:
+        t0, t1 = int(times[0]), int(times[-1])
+        final_times = np.arange(t0, t1 + 1, 600, dtype=int)
+
+        final_vals = np.zeros((final_times.size, vals.shape[1]), dtype=float)
+        for j in range(vals.shape[1]):
+            col = vals[:, j]
+            mask = np.isfinite(col)
+            nvalid = int(mask.sum())
+            if nvalid >= 4:
+                kind = "cubic"
+            elif nvalid >= 2:
+                kind = "linear"
+            else:
+                final_vals[:, j] = 0.0
+                continue
+            f = interp1d(times[mask], col[mask], kind=kind, fill_value="extrapolate", assume_sorted=True)
+            final_vals[:, j] = f(final_times)
+
+    # ---- WRITE FINAL 10-MIN FILE ----
     _ensure_dir(os.path.dirname(os.path.abspath(bzs_outfile)))
     with open(bzs_outfile, "w", encoding="utf-8") as f:
-        f.write("\n".join(lines) + "\n")
-    print(f"[GLOFS] wrote {bzs_outfile}")
+        for tsec, row in zip(final_times, final_vals):
+            f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row) + "\n")
+    print(f"[GLOFS] wrote 10-min: {bzs_outfile} ({final_vals.shape[0]} rows @600s)")
 
 
 # -----------------------------------------------------------------------------
