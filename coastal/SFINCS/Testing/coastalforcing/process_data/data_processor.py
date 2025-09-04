@@ -206,7 +206,7 @@ class DataProcessor:
             target_epsg=self.target_epsg,
             buffer_m=2000.0,
             flip_vertical=True,
-            decode_packed=False
+            decode_packed=True
         )
 
         print("Done:", summary)

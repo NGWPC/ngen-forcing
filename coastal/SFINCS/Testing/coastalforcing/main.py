@@ -3,12 +3,13 @@ import sys
 import shutil
 import re
 import yaml
+import traceback
 from datetime import datetime, timezone
 from pathlib import Path
 from download_data.data_downloader import DataDownloader
 from process_data.data_processor import DataProcessor
-
-# ---- Helpers ----
+from process_data.extract_noaa_stations_in_domain import run_noaa_stations_from_params
+from process_data.download_noaa_obv_wl_sfincs import run_download_noaa_obv_wl_from_params
 
 def _parse_utc(s: str) -> str:
     """
@@ -58,7 +59,7 @@ def _replace_param_line(lines, key, new_value):
     for ln in lines:
         m = pat.match(ln)
         if m and not replaced:
-            out.append(f"{m.group(1)}{new_value}{m.group(3)}\n")
+            out.append(f"{m.group(1)}{new_value}{m.group(3)}")
             replaced = True
         else:
             out.append(ln)
@@ -233,7 +234,58 @@ def main():
         tpxo_model_control=cfg.get('tpxo_model_control', None),
         tpxo_env=tpxo_env
     )
-    processor.process_all()
+    #processor.process_all()
+
+    
+    # Download NOAA data
+
+    try:
+
+        run_noaa_stations_from_params(
+            geojson_path=cfg["geojson_path"],
+            utm_epsg=32614,
+            start_time=cfg['start_time'],
+            end_time=cfg['end_time'],
+            interval_minutes=int(cfg.get("interval_minutes", 6)),
+            output_dir=sim_dir,
+            obs_filename=os.path.join(sim_dir, "sfincs.obs"),
+            out_filename=cfg.get("out_filename", "noaa.out"),
+            station_types=cfg['station_types'],
+        )
+
+    except Exception as e:
+        print(f"Error downloading from NOAA : {str(e)}")
+        traceback.print_exc()
+
+
+    try:
+        run_download_noaa_obv_wl_from_params(
+            output_dir=sim_dir,
+            start_time=cfg['start_time'],
+            end_time=cfg['end_time'],
+            station_list=[8772985,8773146,8773259,8773701,8773767],
+            auto_find_if_empty=True,
+            station_discovery_type=cfg.get("station_discovery_type", "water_level"),
+            station_discovery_base_url="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json",
+            station_discovery_extra_params=None,
+            api_datagetter_base="https://api.tidesandcurrents.noaa.gov/api/prod/datagetter",
+            api_datums_base_template="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/{station}/datums.json?units=metric",
+            application=cfg.get('application', "NOS.COOPS.TAC.WL"),
+            datum=cfg.get('datum', 'MLLW'),
+            units=cfg.get('units', 'metric'),
+            time_zone=cfg.get('time_zone', 'GMT'),
+            response_format=cfg.get('resplonse_format', 'json'),
+            product_hourly=cfg.get('product_hourly', "hourly_height"),
+            product_sixmin=cfg.get("product_sixmin", "water_level"),
+            use_sixmin=True,
+            extra_query_params=cfg.get('extra_query_params', {"interval": "6"})
+        )
+
+    except Exception as e:
+        print(f"Error downloading from NOAA : {str(e)}")
+        traceback.print_exc()
+    
+
 
 if __name__ == "__main__":
     main()
