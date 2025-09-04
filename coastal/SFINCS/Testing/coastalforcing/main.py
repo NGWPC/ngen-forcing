@@ -8,8 +8,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from download_data.data_downloader import DataDownloader
 from process_data.data_processor import DataProcessor
-from process_data.extract_noaa_stations_in_domain import run_noaa_stations_from_params
-from process_data.download_noaa_obv_wl_sfincs import run_download_noaa_obv_wl_from_params
+from .download_noaa_obv_wl_sfincs import run_download_noaa_obv_wl_from_params
 
 def _parse_utc(s: str) -> str:
     """
@@ -234,11 +233,11 @@ def main():
         tpxo_model_control=cfg.get('tpxo_model_control', None),
         tpxo_env=tpxo_env
     )
-    #processor.process_all()
+    processor.process_all()
 
     
     # Download NOAA data
-
+    '''
     try:
 
         run_noaa_stations_from_params(
@@ -257,13 +256,14 @@ def main():
         print(f"Error downloading from NOAA : {str(e)}")
         traceback.print_exc()
 
+    '''
 
     try:
         run_download_noaa_obv_wl_from_params(
             output_dir=sim_dir,
             start_time=cfg['start_time'],
             end_time=cfg['end_time'],
-            station_list=[8772985,8773146,8773259,8773701,8773767],
+            station_list=[], #[8772985,8773146,8773259,8773701,8773767],
             auto_find_if_empty=True,
             station_discovery_type=cfg.get("station_discovery_type", "water_level"),
             station_discovery_base_url="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json",
@@ -284,7 +284,6 @@ def main():
     except Exception as e:
         print(f"Error downloading from NOAA : {str(e)}")
         traceback.print_exc()
-    
 
 
 if __name__ == "__main__":
