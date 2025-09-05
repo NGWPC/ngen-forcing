@@ -26,9 +26,10 @@ SIXTEEN_HOURS = timedelta(hours=16)
 SEVENTEEN_HOURS = timedelta(hours=17)
 TWENTY_TWO_HOURS = timedelta(hours=22)
 FORTY_EIGHT_HOURS = timedelta(hours=48)
+TEN_DAYS = timedelta(hours=240)
 
 
-def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_path: str = None, csv_path: str = None, np: str = None):
+def execute(cycle_name: str, hyfab_name: str, forcing_config_input: str, config_input: str = None, output_path: str = None, csv_path: str = None, np: str = None):
     """
     Execute the full forcings engine BMI pipeline in standalone mode.
 
@@ -41,6 +42,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
     :param cycle_name: The NWM Forecast cycle to execute (i.e., short_range, medium_range_blend, etc.)
     :param hyfab_name: The full path of the hydrofabric domain file to use (e.g., /srv/data/Gage_01011000.gpkg)
+    :param forcing_config: Path to forcing engine configuration file for forecast run
     :param config_input: Optional path to the wrapper config file.
     :param output_path: Optional full path to specify forcing engine output location.
     :param csv_path: Optional path for CSV output, if desired.
@@ -58,6 +60,10 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     with open(config_read, 'r') as config_file:
         config = yaml.safe_load(config_file)
 
+    # Read in forcing engine configuration file
+    with open(forcing_config_input, 'r') as forcing_config_file:
+        forcing_config = yaml.safe_load(forcing_config_file)
+
     # Set the mesh file name based on the hydrofabric file
     base_geo_name = os.path.splitext(os.path.basename(hyfab_name))[0]
     mesh_fileName = f"{base_geo_name}_ESMF_Mesh.nc"
@@ -73,9 +79,8 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
     extraction_env = config['global']['extract_env']
     engine_env = config['global']['engine_env']
 
-    # Get the current UTC time
-    dNowUTC = datetime.now(timezone.utc)
-    dNow = datetime(dNowUTC.year, dNowUTC.month, dNowUTC.day, dNowUTC.hour)
+    # Get start time from the config file
+    refcstbdate = datetime.strptime(forcing_config['RefcstBDateProc'], "%Y%m%d%H%M")
 
     # Check if the mesh file already exists and skip conversion if it does
     if not os.path.exists(mesh_outPath):
@@ -91,15 +96,15 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         """
         The short_range cycle processes the forcing data for short-range weather forecasts, typically looking back
         2 hours for HRRR data and 1 hour for RAP data.
-        
+
         - **Default lagback**: 1 hour (lookback time for RAP).
         - **Default lookback**: 2 hours for HRRR (using a 2-hour lookback window).
-        
+
         The cycle will extract HRRR and RAP forcing data from the appropriate sources. This is done by extracting HRRR 
         data for the last 2 hours and RAP data for the last 1 hour.
         """
         # Set cycle-specific path variables
-        configPath = config['short_range']['sr_config_path']
+        configPath = forcing_config_input
         hrrr_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_HRRR.py")
         hrrr_extract_outPath = os.path.join(extraction_outPath, config['short_range']['hrrr_out_path'].lstrip('/'))
         rap_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_conus_RAP.py")
@@ -107,7 +112,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
 
         # Set cycle-specific time variables for short-range forecast
         # TODO: Make timesteps configurable with defaults set in config file?
-        b_date_dt = dNow - TWO_HOURS
+        b_date_dt = refcstbdate
         start_time_dt = b_date_dt + ONE_HOUR
         end_time_dt = start_time_dt + SEVENTEEN_HOURS
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
@@ -119,8 +124,9 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", hrrr_extract_scriptPath, hrrr_extract_outPath,
-                "--lookBackHours=2",
-                "--lagBackHours=1"
+                start_time,
+                "--lookBackHours=1",
+                "--lagBackHours=0"
             ])
         )
 
@@ -129,8 +135,9 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", rap_extract_scriptPath, rap_extract_outPath,
-                "--lookBackHours=2",
-                "--lagBackHours=1"
+                start_time,
+                "--lookBackHours=1",
+                "--lagBackHours=0"
             ])
         )
 
@@ -147,7 +154,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         windows based on the current time and the selected base date.
         """
         # Set cycle-specific path variables for GFS and NBM
-        configPath = config['medium_range_blend']['mrb_config_path']
+        configPath = forcing_config_input
         gfs_extract_scriptPath = os.path.join(extraction_scriptPath, "Global", "get_prod_GFS.py")
         gfs_extract_outPath = os.path.join(extraction_outPath, config['medium_range_blend']['gfs_out_path'].lstrip('/'))
         nbm_extract_scriptPath = os.path.join(extraction_scriptPath, "CONUS", "get_prod_NBM_Conus.py")
@@ -157,27 +164,23 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # TODO: Make timesteps configurable with defaults set in config file?
         # TODO: Set end time to actual NWM cycle (10-day)
 
-        b_date_dt = dNow - THREE_HOURS
-        # Round down to the nearest 6-hours multiple
-        b_date_dt = b_date_dt.replace(hour=(b_date_dt.hour // 6) * 6, minute=0, second=0, microsecond=0)
+        # This must be a 6-hour multiple!
+        # Therefore, the start time must be a 6-hour multiple + 1 hour
+        b_date_dt = refcstbdate
         start_time_dt = b_date_dt + ONE_HOUR
-        end_time_dt = start_time_dt + SEVENTEEN_HOURS
+        end_time_dt = start_time_dt + TEN_DAYS
         b_date = b_date_dt.strftime("%Y%m%d%H%M")
         start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
         end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
-
-        # Calculate lookback and lagback based on the current time
-        hours_difference = (dNow - b_date_dt).total_seconds() // 3600
-        lagback = hours_difference - 1
-        lookback = hours_difference
 
         # Run the forcing_extraction script for GFS
         run_conda_command(
             env_name=extraction_env,
             command=list([
                 "python", gfs_extract_scriptPath, gfs_extract_outPath,
-                f"--lookBackHours={int(lookback)}",
-                f"--lagBackHours={int(lagback)}"
+                start_time,
+                "--lookBackHours=1",
+                "--lagBackHours=0"
             ])
         )
 
@@ -186,8 +189,9 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
             env_name=extraction_env,
             command=list([
                 "python", nbm_extract_scriptPath, nbm_extract_outPath,
-                f"--lookBackHours={int(lookback)}",
-                f"--lagBackHours={int(lagback)}"
+                start_time,
+                "--lookBackHours=1",
+                "--lagBackHours=0"
             ])
         )
 
@@ -286,7 +290,7 @@ def execute(cycle_name: str, hyfab_name: str, config_input: str = None, output_p
         # TODO: alter for NWM cycle - ensemble forecasting, 30 day
 
         # Set cycle-specific path variables for CFS
-        configPath = config['long_range']['lr_config_path']
+        configPath = forcing_config_input
         cfs_extract_scriptPath = os.path.join(extraction_scriptPath, "Global", "get_CFSv2.py")
         cfs_extract_outPath = os.path.join(extraction_outPath, config['long_range']['cfs_out_path'].lstrip('/'))
 
@@ -666,6 +670,7 @@ def main():
     execute(
         cycle_name=args.cycle_name,
         hyfab_name=args.hyfab_name,
+        forcing_config_input=args.forcing_config_input,
         config_input=args.config_input,
         output_path=args.output_path,
         np=args.np,
@@ -688,6 +693,9 @@ def get_options():
     parser.add_argument('hyfab_name',
                         type=str,
                         help='Path to hydrofabric file for conversion to ESMF. Ex: /srv/data/Gage_01011000.gpkg')
+    parser.add_argument('forcing_config_input',
+                        type=str,
+                        help='Path to forcing engine configuration file for forecast run')
     parser.add_argument('-output_path',
                         type=str,
                         help='Full path for nc output file. If omitted, and -csv_path is provided, output_path will be set to /tmp/temp.nc.')
