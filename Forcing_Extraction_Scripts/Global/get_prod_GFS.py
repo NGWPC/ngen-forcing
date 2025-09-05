@@ -20,29 +20,29 @@ class GFSDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
 
-    def should_process_hour(self, d_current):
-        return d_current.hour in [0, 6, 12, 18]
+    def should_process_hour(self, d_start):
+        return d_start.hour in [0, 6, 12, 18]
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, d_start):
         hourly = range(1, 121)  # 1 through 120
         every_3h = range(123, 241, 3)  # 123 through 240, step of 3
         return list(hourly) + list(every_3h)
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start):
         return os.path.join(
             self.out_dir,
-            f"gfs.{d_current.strftime('%Y%m%d')}",
-            d_current.strftime('%H'),
+            f"gfs.{d_start.strftime('%Y%m%d')}",
+            d_start.strftime('%H'),
             "atmos"
         )
 
-    def build_file_url_and_name(self, d_current, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour):
         fhr = str(forecast_hour).zfill(3)
-        filename = f"gfs.t{d_current.strftime('%H')}z.sfluxgrbf{fhr}.grib2"
+        filename = f"gfs.t{d_start.strftime('%H')}z.sfluxgrbf{fhr}.grib2"
         url = os.path.join(
             self.base_url,
-            f"gfs.{d_current.strftime('%Y%m%d')}",
-            d_current.strftime('%H'),
+            f"gfs.{d_start.strftime('%Y%m%d')}",
+            d_start.strftime('%H'),
             "atmos",
             filename
         )
