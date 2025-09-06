@@ -8,7 +8,38 @@ from datetime import datetime, timezone
 from pathlib import Path
 from download_data.data_downloader import DataDownloader
 from process_data.data_processor import DataProcessor
-from .download_noaa_obv_wl_sfincs import run_download_noaa_obv_wl_from_params
+from download_data.download_noaa_obv_wl_sfincs import get_waterlevel_station_ids_from_nc, get_waterlevel_station_ids_from_obs, run_download_noaa_obv_wl_from_params
+from process_data.compare_sfincs_map_vs_noaa import compare_sfincs_his_vs_noaa
+import subprocess
+import os
+
+def run_sfincs_cmd(forcing_output_dir: str) -> None:
+    """
+    Run the SFINCS docker container with the given forcing_output_dir mounted to /data.
+    Waits for completion and reports success or errors.
+    """
+    cmd = [
+        "sudo", "docker", "run", "-ti",
+        "-v", f"{os.path.abspath(forcing_output_dir)}:/data",
+        "deltares/sfincs-cpu"
+    ]
+
+    try:
+        print(f"[INFO] Running SFINCS with directory: {forcing_output_dir}")
+        result = subprocess.run(
+            cmd,
+            check=True,            # raises CalledProcessError if non-zero exit
+            capture_output=True,   # capture both stdout and stderr
+            text=True
+        )
+        print("[SUCCESS] SFINCS completed successfully.")
+        print(result.stdout)
+    except subprocess.CalledProcessError as e:
+        print("[ERROR] SFINCS run failed.")
+        print("Exit code:", e.returncode)
+        print("Stdout:", e.stdout)
+        print("Stderr:", e.stderr)
+        raise
 
 def _parse_utc(s: str) -> str:
     """
@@ -235,8 +266,23 @@ def main():
     )
     processor.process_all()
 
-    
+    run_sfincs = cfg.get('run_sfincs', False)
+
+    if not run_sfincs:
+        print("Forcing file generation COMPLETE")
+        print("As sfincs will be run separately, exiting ...")
+
+
+    print(f"\nRunning sfincs with forcing files in {sim_dir}")
+
+    run_sfincs_cmd(sim_dir)
+
+    noaa_output_dir = cfg.get('noaa_output_dir', sim_dir)
+
     # Download NOAA data
+    his_nc_path = os.path.join(sim_dir, 'sfincs_his.nc')
+    station_list=cfg.get('station_list', get_waterlevel_station_ids_from_nc(his_nc_path))
+
     '''
     try:
 
@@ -258,12 +304,14 @@ def main():
 
     '''
 
+    print("\nDownloading NOAA output")
+
     try:
         run_download_noaa_obv_wl_from_params(
-            output_dir=sim_dir,
+            output_dir=noaa_output_dir,
             start_time=cfg['start_time'],
             end_time=cfg['end_time'],
-            station_list=[], #[8772985,8773146,8773259,8773701,8773767],
+            station_list=station_list, #[8772985,8773146,8773259,8773701,8773767],
             auto_find_if_empty=True,
             station_discovery_type=cfg.get("station_discovery_type", "water_level"),
             station_discovery_base_url="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json",
@@ -283,6 +331,25 @@ def main():
 
     except Exception as e:
         print(f"Error downloading from NOAA : {str(e)}")
+        traceback.print_exc()
+
+    print("\nCompairing SFINCS output with NOAA output")
+    stations=list(map(str, station_list))
+    print(stations)
+
+    try:
+        compare_sfincs_his_vs_noaa(
+            sfincs_his_nc=his_nc_path,
+            noaa_dir=noaa_output_dir,
+            stations=stations,
+            outdir=noaa_output_dir,
+            datum_shift=0.0,
+            resample_to="model",
+            fig_dpi=140,
+            verbose=True,
+        )
+    except Exception as e:
+        print(f"Compairing SFINCS output with NOAA output : {str(e)}")
         traceback.print_exc()
 
 

@@ -139,6 +139,7 @@ def compare_sfincs_his_vs_noaa(
     os.makedirs(outdir, exist_ok=True)
 
     # Open sfincs_his.nc
+
     ds = xr.open_dataset(sfincs_his_nc, decode_cf=True)
 
     # Time → pandas
@@ -214,14 +215,34 @@ def compare_sfincs_his_vs_noaa(
         # ------- plot -------
         fig, ax = plt.subplots(figsize=(10, 4), dpi=fig_dpi)
 
+        # Trim obs to model window for plotting
         tmin = t_model[0] - pd.Timedelta(hours=1)
         tmax = t_model[-1] + pd.Timedelta(hours=1)
         mask_plot_obs = (t_obs >= tmin) & (t_obs <= tmax)
+        t_obs_plot = t_obs[mask_plot_obs]
+        v_obs_plot = v_obs[mask_plot_obs]
 
-        ax.plot_date(t_obs[mask_plot_obs], v_obs[mask_plot_obs], fmt="o-", markersize=5,
-                     markerfacecolor="None", color="k", label="obv")
-        ax.plot_date(t_model, v_model, fmt="x:", markersize=5,
-                     markerfacecolor="None", color="k", label="sim")
+        # NOAA observation: blue circles, solid line
+        ax.plot_date(
+                t_obs_plot,
+                v_obs_plot,
+                fmt="o-",
+                markersize=5,
+                markerfacecolor="None",
+                color="blue",
+                label="NOAA obs"
+        )
+
+        # SFINCS simulation: red crosses, dashed line
+        ax.plot_date(
+                t_model,
+                v_model,
+                fmt="x:",
+                markersize=5,
+                markerfacecolor="None",
+                color="red",
+                label="SFINCS sim"
+        )
 
         ax.xaxis.set_major_formatter(major_fmt)
         ax.xaxis.set_minor_formatter(minor_fmt)
@@ -233,14 +254,15 @@ def compare_sfincs_his_vs_noaa(
 
         ax.set_xlim(tmin, tmax)
 
+        # Y limits spanning both
         yvals = []
         if len(v_model) > 0:
-            yvals.extend(v_model.tolist())
-        if mask_plot_obs.any():
-            yvals.extend(v_obs[mask_plot_obs].tolist())
+                yvals.extend(v_model.tolist())
+        if len(v_obs_plot) > 0:
+                yvals.extend(v_obs_plot.tolist())
         yvals = [y for y in yvals if np.isfinite(y)]
         if yvals:
-            ax.set_ylim(bottom=min(yvals), top=max(yvals))
+                ax.set_ylim(bottom=min(yvals), top=max(yvals))
 
         ax.grid(True, which="minor", axis="x")
         ax.grid(True, which="major", axis="y")
@@ -250,28 +272,29 @@ def compare_sfincs_his_vs_noaa(
 
         lgd = ax.legend(bbox_to_anchor=(1.02, 1), loc=2, borderaxespad=0.)
         fig.tight_layout()
-
-        png_path = os.path.join(outdir, f"{sid}.png")
-        fig.savefig(png_path, bbox_inches="tight")
+        fig.savefig(os.path.join(outdir, f"{sid}.png"), bbox_inches="tight")
         plt.close(fig)
-        print(f"[save] {png_path}")
 
         # ------- text outputs -------
-        sim_txt = os.path.join(outdir, f"{sid}_sim.txt")
-        with open(sim_txt, "w", encoding="utf-8") as ftxt:
-            ftxt.write(f"#SFINCS station idx: {sidx} name: {names[sidx]}\n")
-            ftxt.write("#time(YYYYmmdd_HH:%M)    water_levelation above sea level (m)\n")
-            for t, val in zip(t_model, v_model):
-                ftxt.write(f"{t.strftime('%Y%m%d_%H:%M')} {val}\n")
-        print(f"[save] {sim_txt}")
+        with open(os.path.join(outdir, f"{sid}_sim.txt"), "w", encoding="utf-8") as ftxt:
+                ftxt.write(f"#SFINCS station idx: {sidx} name: {names[sidx]}\n")
+                ftxt.write("#time(YYYYmmdd_HH:%M)    water_level (m NAVD88)\n")
+                for t, val in zip(t_model, v_model):
+                        ftxt.write(f"{t.strftime('%Y%m%d_%H:%M')} {val}\n")
 
-        obv_txt = os.path.join(outdir, f"{sid}_obv.txt")
-        with open(obv_txt, "w", encoding="utf-8") as ftxt:
-            ftxt.write(f"#{meta}\n")
-            ftxt.write("#time(YYYYmmdd_HH:%M)    water_levelation above sea level (m)\n")
-            for t, val in zip(t_obs, v_obs):
-                ftxt.write(f"{t.strftime('%Y%m%d_%H:%M')} {val}\n")
-        print(f"[save] {obv_txt}")
+        with open(os.path.join(outdir, f"{sid}_obv.txt"), "w", encoding="utf-8") as ftxt:
+                ftxt.write(f"#{meta}\n")
+                ftxt.write("#time(YYYYmmdd_HH:%M)    water_level (m NAVD88)\n")
+                for t, val in zip(t_obs, v_obs):
+                        ftxt.write(f"{t.strftime('%Y%m%d_%H:%M')} {val}\n")
+
+        # ------- CSV (aligned, with labels) -------
+        pd.DataFrame({
+                "time_utc": times_aligned,
+                "NOAA_obs_m": obs_aligned,
+                "SFINCS_sim_m": mod_aligned
+        }).to_csv(os.path.join(outdir, f"{sid}.csv"), index=False)
+
 
         # CSV (aligned)
         csv_path = os.path.join(outdir, f"{sid}.csv")
