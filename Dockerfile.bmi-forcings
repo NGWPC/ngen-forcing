@@ -91,7 +91,7 @@ RUN set -eux; \
     export ESMF_DIR=/esmf-8.8.0; \
     export ESMF_INSTALL_PREFIX=/usr/local/esmf; \
     export ESMF_COMPILER=gfortran; \
-    export ESMF_COMM=mpiuni; \
+    export ESMF_COMM=openmpi; \
     export ESMF_NETCDF="nc-config"; \
     export ESMF_F90COMPILEPATHS="-I/usr/lib64/gfortran/modules"; \
     export ESMF_BOPT=O; \
@@ -101,7 +101,7 @@ RUN set -eux; \
     rm -rf esmf-8.8.0
 
 # Install ESMPy
-ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.mpiuni.default/esmf.mk
+ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
 RUN set -eux; \
     pip3.11 install setuptools-git-versioning; \
     git clone --depth 1 --branch v8.8.0 https://github.com/esmf-org/esmf.git; \

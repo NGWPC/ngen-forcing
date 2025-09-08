@@ -16,17 +16,18 @@ dependencies = [
     "bs4",
     "dask",
     #"gdal == 3.7.3",
-    "geopandas",
+    "fiona>=1.8.0,<1.10.0",  
+    "geopandas>=0.11.0,<0.14.0",  # Pin to avoid Shapely 2.x issues
     "mpi4py>3.1.4",
     "netCDF4",
     "numpy",
     "pandas",
-    "pyproj",
+    "pyproj>=3.2.0,<4.0.0",  # Pin compatible version
     "requests",
     "ruamel.yaml",
     "s3fs",
     "scipy",
-    "shapely",
+    "shapely>=1.8.0,<2.0.0",  # Pin to avoid 2.x compatibility issues
     "xarray",
     "zarr"
 ]
@@ -42,8 +43,8 @@ requires = ["setuptools >= 61.0"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["NextGen_Forcings_Engine_BMI"]
-include = ["NextGen_Forcings_Engine*"]
+where = ["NextGen_Forcings_Engine_BMI", "."]
+include = ["NextGen_Forcings_Engine*", "Forcing_Extraction_Scripts*", "ESMF_Mesh_Domain_Configuration_Production*"]
 namespaces = false
 
 [tool.setuptools.dynamic]
