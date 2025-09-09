@@ -23,11 +23,11 @@ class HRRRDownloader(ForecastDownloader):
         # HRRR cycles at 00, 06, 12, 18 UTC produce 48-hour forecasts; others produce 18-hour forecasts
         return range(0, 49) if d_start.hour % 6 == 0 else range(0, 19)
 
-    def build_output_dir(self, d_start):
+    def build_output_dir(self, d_start, _):
         # Output directory format: <out_dir>/hrrr.YYYYMMDD/conus
         return os.path.join(self.out_dir, f"hrrr.{d_start.strftime('%Y%m%d')}", "conus")
 
-    def build_file_url_and_name(self, d_start, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         """
         Construct both the download URL and the filename for a given forecast hour.
 

@@ -22,11 +22,11 @@ class RAPDownloader(ForecastDownloader):
         # RAP cycles at 03, 09, 15, 21 UTC produce 51-hour forecasts; others produce 21-hour forecasts
         return range(0, 52) if d_start.hour in [3, 9, 15, 21] else range(0, 22)
 
-    def build_output_dir(self, d_start):
+    def build_output_dir(self, d_start, _):
         # Output directory format: <out_dir>/rap.YYYYMMDD/
         return os.path.join(self.out_dir, f"rap.{d_start.strftime('%Y%m%d')}")
 
-    def build_file_url_and_name(self, d_start, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         """
         Construct the download URL and filename for a given forecast hour.
 

@@ -22,7 +22,7 @@ class NBMConusDownloader(ForecastDownloader):
     def get_download_targets(self, d_start):
         return range(1, 265) if d_start.hour in [0, 6, 12, 18] else []
 
-    def build_output_dir(self, d_start):
+    def build_output_dir(self, d_start, _):
         return os.path.join(
             self.out_dir,
             f"blend.{d_start.strftime('%Y%m%d')}",
@@ -30,7 +30,7 @@ class NBMConusDownloader(ForecastDownloader):
             "core"
         )
 
-    def build_file_url_and_name(self, d_start, target):
+    def build_file_url_and_name(self, d_start, target, _):
         fhr_str = f"f{str(target).zfill(3)}"
         filename = f"blend.t{d_start.strftime('%H')}z.core.{fhr_str}.co.grib2"
         url = os.path.join(

@@ -23,12 +23,12 @@ class GFSDownloader(ForecastDownloader):
     def should_process_hour(self, d_start):
         return d_start.hour in [0, 6, 12, 18]
 
-    def get_download_targets(self, d_start):
+    def get_download_targets(self, _):
         hourly = range(1, 121)  # 1 through 120
         every_3h = range(123, 241, 3)  # 123 through 240, step of 3
         return list(hourly) + list(every_3h)
 
-    def build_output_dir(self, d_start):
+    def build_output_dir(self, d_start, _):
         return os.path.join(
             self.out_dir,
             f"gfs.{d_start.strftime('%Y%m%d')}",
@@ -36,7 +36,7 @@ class GFSDownloader(ForecastDownloader):
             "atmos"
         )
 
-    def build_file_url_and_name(self, d_start, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         fhr = str(forecast_hour).zfill(3)
         filename = f"gfs.t{d_start.strftime('%H')}z.sfluxgrbf{fhr}.grib2"
         url = os.path.join(

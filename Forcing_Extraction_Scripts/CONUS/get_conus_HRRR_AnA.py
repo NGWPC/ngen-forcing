@@ -19,15 +19,15 @@ class HRRRAnAConusDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, _):
         # Only download forecast hours 01 and 02
         return [1, 2]
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start, _):
         # Output directory format: <out_dir>/hrrr.YYYYMMDD/conus
-        return os.path.join(self.out_dir, f"hrrr.{d_current.strftime('%Y%m%d')}", "conus")
+        return os.path.join(self.out_dir, f"hrrr.{d_start.strftime('%Y%m%d')}", "conus")
 
-    def build_file_url_and_name(self, d_current, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         """
         Construct both the download URL and filename for f01/f02 forecast hours.
 
@@ -35,8 +35,8 @@ class HRRRAnAConusDownloader(ForecastDownloader):
         URL format: https://.../hrrr.YYYYMMDD/conus/hrrr.tHHz.wrfsfcf01.grib2
         """
         fhr_str = str(forecast_hour).zfill(2)
-        filename = f"hrrr.t{d_current.strftime('%H')}z.wrfsfcf{fhr_str}.grib2"
-        url = os.path.join(self.base_url, f"hrrr.{d_current.strftime('%Y%m%d')}", "conus", filename)
+        filename = f"hrrr.t{d_start.strftime('%H')}z.wrfsfcf{fhr_str}.grib2"
+        url = os.path.join(self.base_url, f"hrrr.{d_start.strftime('%Y%m%d')}", "conus", filename)
         return url, filename
 
 

@@ -18,12 +18,12 @@ class MRMSRadarConusDownloader(FixedFileDownloader, ABC):
         # Base directory; files are directly in the RadarOnly_QPE_01H directory
         return "https://mrms.ncep.noaa.gov/data/2D/RadarOnly_QPE_01H"
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, _, __):
         return self.out_dir
 
-    def get_file_specs(self, d_current):
+    def get_file_specs(self, d_start):
         # Construct the filename without subdirectory
-        filename = f"MRMS_RadarOnly_QPE_01H_00.00_{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
+        filename = f"MRMS_RadarOnly_QPE_01H_00.00_{d_start.strftime('%Y%m%d')}-{d_start.strftime('%H')}0000.grib2.gz"
         return [("", filename)]
 
 

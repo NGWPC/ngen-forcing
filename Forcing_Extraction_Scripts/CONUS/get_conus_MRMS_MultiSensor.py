@@ -22,14 +22,14 @@ class MRMSMultiSensorConusDownloader(FixedFileDownloader, ABC):
         # Root URL is pass-agnostic; we append /Pass1 or /Pass2 per file.
         return "https://mrms.ncep.noaa.gov/data/2D/"
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, _, __):
         return self.out_dir
 
-    def get_file_specs(self, d_current):
+    def get_file_specs(self, d_start):
         specs = []
         for pass_num in ["Pass1", "Pass2"]:
             subdir = f"MultiSensor_QPE_01H_{pass_num}"
-            filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_current.strftime('%Y%m%d')}-{d_current.strftime('%H')}0000.grib2.gz"
+            filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_start.strftime('%Y%m%d')}-{d_start.strftime('%H')}0000.grib2.gz"
             specs.append((subdir, filename))
         return specs
 
