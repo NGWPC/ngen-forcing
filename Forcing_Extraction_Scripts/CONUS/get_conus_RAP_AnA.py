@@ -19,18 +19,18 @@ class RAPAnADownloader(ForecastDownloader):
         # Download only forecast hours 01 and 02
         return [1, 2]
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start, _):
         # Example: output/rap.20250415/
-        return os.path.join(self.out_dir, f"rap.{d_current.strftime('%Y%m%d')}")
+        return os.path.join(self.out_dir, f"rap.{d_start.strftime('%Y%m%d')}")
 
-    def build_file_url_and_name(self, d_current, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         """
         Build both the URL and the filename for RAP forecast hour files.
         Ex: rap.t00z.awp130bgrbf01.grib2
         """
         fhr_str = str(forecast_hour).zfill(2)
-        filename = f"rap.t{d_current.strftime('%H')}z.awp130bgrbf{fhr_str}.grib2"
-        url = os.path.join(self.base_url, f"rap.{d_current.strftime('%Y%m%d')}", filename)
+        filename = f"rap.t{d_start.strftime('%H')}z.awp130bgrbf{fhr_str}.grib2"
+        url = os.path.join(self.base_url, f"rap.{d_start.strftime('%Y%m%d')}", filename)
         return url, filename
 
 

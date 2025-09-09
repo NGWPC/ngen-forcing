@@ -33,7 +33,7 @@ class ForecastDownloader(ABC):
     default_cleanback = 240
     default_lagback = 6
 
-    def __init__(self, out_dir, start_time, lookback_hours, cleanback_hours, lagback_hours):
+    def __init__(self, out_dir, start_time, lookback_hours, cleanback_hours, lagback_hours, ens_number):
         """
         Initialize downloader with common configuration.
 
@@ -54,9 +54,13 @@ class ForecastDownloader(ABC):
         self.lookback_hours = lookback_hours
         self.cleanback_hours = cleanback_hours
         self.lagback_hours = lagback_hours
+        self.ens_number = ens_number
 
         # Current hour, rounded to the top of the hour in UTC
         self.d_now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+
+        # Format ens_number
+        self.ens_number = str(self.ens_number).zfill(2)
 
         # Ensure output directory exists
         os.makedirs(self.out_dir, exist_ok=True)
@@ -97,6 +101,7 @@ class ForecastDownloader(ABC):
         parser.add_argument('--lookBackHours', type=int, default=cls.default_lookback)
         parser.add_argument('--cleanBackHours', type=int, default=cls.default_cleanback)
         parser.add_argument('--lagBackHours', type=int, default=cls.default_lagback)
+        parser.add_argument('--ensNumber', type=int, default=None)
         args = parser.parse_args()
 
         print(f"{cls.__name__} args:", vars(args))
@@ -107,6 +112,7 @@ class ForecastDownloader(ABC):
             lookback_hours=args.lookBackHours,
             cleanback_hours=args.cleanBackHours,
             lagback_hours=args.lagBackHours,
+            ens_number=args.ensNumber
         )
 
     def run(self):
@@ -160,14 +166,14 @@ class ForecastDownloader(ABC):
         return True
 
     @abstractmethod
-    def build_output_dir(self, d_start):
+    def build_output_dir(self, d_start, ens_number):
         """
         Return the output directory for the given forecast cycle datetime.
         """
         pass
 
     @abstractmethod
-    def build_file_url_and_name(self, d_start, target):
+    def build_file_url_and_name(self, d_start, target, ens_number):
         pass
 
     #
@@ -234,17 +240,17 @@ class ForecastDownloader(ABC):
         - recursive directory cleanup with pruning
         """
         for hour in range(self.cleanback_hours, self.lookback_hours, -1):
-            d_start = self.start_time - timedelta(hour)
+            d_start = self.start_time - timedelta(hours=hour)
             if not self.should_process_hour(d_start):
                 continue
 
             if self.recursive_cleanup:
                 # Recursively remove subdir, parent hour dir, then date dir if empty
-                leaf_dir = self.build_output_dir(d_start)
+                leaf_dir = self.build_output_dir(d_start, self.ens_number)
                 self._remove_dir_and_empty_parents(leaf_dir, levels=2)
             else:
                 # Default behavior: remove build_output_dir if it exists
-                dir_path = self.build_output_dir(d_start)
+                dir_path = self.build_output_dir(d_start, self.ens_number)
                 if os.path.isdir(dir_path):
                     print(f"Removing old data: {dir_path}")
                     shutil.rmtree(dir_path)
@@ -279,24 +285,19 @@ class ForecastDownloader(ABC):
             d_start = self.start_time - timedelta(hours=hour)
 
             if self.should_process_hour(d_start):
-                print(f"start_time: {self.start_time}")
-                print(f"timedelta: {timedelta(hour)}")
-                print(f"d_start: {d_start}")
-                print(f"lookback_hours: {self.lookback_hours}")
-                print(f"effective_lagback: {self.effective_lagback()}")
                 print(f"Processing hour offset: {hour}, timestamp: {d_start}")
             else:
                 print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
-            output_dir = self.build_output_dir(d_start)
+            output_dir = self.build_output_dir(d_start, self.ens_number)
             os.makedirs(output_dir, exist_ok=True)
 
             self.pre_download_hook(d_start)
 
             targets = self.get_download_targets(d_start)
             for target in targets:
-                url, filename = self.build_file_url_and_name(d_start, target)
+                url, filename = self.build_file_url_and_name(d_start, target, self.ens_number)
                 out_path = os.path.join(output_dir, filename)
 
                 if os.path.isfile(out_path):
@@ -374,7 +375,7 @@ class FixedFileDownloader(ForecastDownloader, ABC):
                 print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
-            for subdir, filename in self.get_file_specs(d_start):
+            for subdir, filename in self.get_file_specs(self, d_start):
                 full_dir = os.path.join(self.out_dir, subdir)
                 os.makedirs(full_dir, exist_ok=True)
                 url = os.path.join(self.base_url, subdir, filename)

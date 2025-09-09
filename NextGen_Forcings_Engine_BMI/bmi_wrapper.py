@@ -29,7 +29,7 @@ FORTY_EIGHT_HOURS = timedelta(hours=48)
 TEN_DAYS = timedelta(hours=240)
 
 
-def execute(cycle_name: str, hyfab_name: str, forcing_config_input: str, config_input: str = None, output_path: str = None, csv_path: str = None, np: str = None):
+def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None, output_path: str = None, csv_path: str = None, np: str = None):
     """
     Execute the full forcings engine BMI pipeline in standalone mode.
 
@@ -40,7 +40,6 @@ def execute(cycle_name: str, hyfab_name: str, forcing_config_input: str, config_
     It handles mesh conversion, forcing extraction, and finally the execution of the
     BMI engine using the specified parameters.
 
-    :param cycle_name: The NWM Forecast cycle to execute (i.e., short_range, medium_range_blend, etc.)
     :param hyfab_name: The full path of the hydrofabric domain file to use (e.g., /srv/data/Gage_01011000.gpkg)
     :param forcing_config: Path to forcing engine configuration file for forecast run
     :param config_input: Optional path to the wrapper config file.
@@ -85,6 +84,9 @@ def execute(cycle_name: str, hyfab_name: str, forcing_config_input: str, config_
     input_forcing_dirs = forcing_config['InputForcingDirectories'] + forcing_config['SuppPcpDirectories']
     input_horizons = forcing_config['ForecastInputHorizons']
     input_horizons = input_horizons + [input_horizons[0]] * len(forcing_config['SuppPcp'])
+    ens_number = forcing_config['cfsEnsNumber']
+    ana_flag = forcing_config['AnAFlag']
+    look_back = forcing_config['LookBack']
 
     # Check if the mesh file already exists and skip conversion if it does
     if not os.path.exists(mesh_outPath):
@@ -140,30 +142,54 @@ def execute(cycle_name: str, hyfab_name: str, forcing_config_input: str, config_
                    "supp15": "NBM_PR"
                    }
 
+    # Set mapping between InputForcings codes and forcing extraction scripts
+    forcing_ana_src = {5: "CONUS/get_conus_HRRR_AnA.py",
+                       6: "CONUS/get_conus_RAP_AnA.py",
+                       "supp1": "CONUS/get_conus_MRMS_MultiSensor.py",
+                       "supp2": "CONUS/get_conus_MRMS_Radar.py"}
+
     # Set time variables for forcing engine
     b_date_dt = refcstbdate
     b_date = b_date_dt.strftime("%Y%m%d%H%M")
-    start_time_dt = b_date_dt + ONE_HOUR
+
+    if ana_flag == 0:
+        start_time_dt = b_date_dt + ONE_HOUR
+        end_time_dt = b_date_dt + timedelta(minutes=input_horizons[0])
+    if ana_flag == 1:
+        end_time_dt = b_date_dt
+        start_time_dt = b_date_dt - timedelta(minutes=look_back)
+
     start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
-    end_time_dt = b_date_dt + timedelta(minutes=input_horizons[0])
     end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
 
     # Extract forcing data from appropriate sources
     for i in range(len(input_forcings)):
 
-        # Format extraction paths
-        extract_scriptPath = os.path.join(extraction_scriptPath, forcing_src.get(input_forcings[i]))
+        # Format extraction path
         extract_outPath = input_forcing_dirs[i]
+
+        # Set lookback hours and extraction scripts
+        if ana_flag == 0:
+            look_back_hours = 1
+            forcing_script = forcing_src.get(input_forcings[i])
+        elif ana_flag == 1:
+            look_back_hours = int(look_back / 60)
+            forcing_script = forcing_ana_src.get(input_forcings[i])
+
+        # Set path to extraction script
+        extract_scriptPath = os.path.join(extraction_scriptPath, forcing_script)
+
+        # Format forcing extraction command
+        command_list = list(["python", extract_scriptPath, extract_outPath,
+                            start_time, f"--lookBackHours={look_back_hours}", "--lagBackHours=0"])
+
+        if ens_number != '':
+            command_list.append(f"--ensNumber={ens_number}")
 
         # Run forcing extraction script
         run_conda_command(
             env_name=extraction_env,
-            command=list([
-                "python", extract_scriptPath, extract_outPath,
-                start_time,
-                "--lookBackHours=1",
-                "--lagBackHours=0"
-            ])
+            command=command_list
         )
 
     # # Process based on NWM forecast cycle
@@ -742,7 +768,6 @@ def main():
 
     # Call execute with parsed arguments
     execute(
-        cycle_name=args.cycle_name,
         hyfab_name=args.hyfab_name,
         forcing_config_input=args.forcing_config_input,
         config_input=args.config_input,
@@ -762,8 +787,6 @@ def get_options():
     """
     # TODO keyword arguments should start with --
     parser = argparse.ArgumentParser()
-    parser.add_argument('cycle_name',
-                        help='Name of NWM cycle. Valid names: short_range, medium_range_blend, standard_ana, long_range, extended_ana, pr_short_range')
     parser.add_argument('hyfab_name',
                         type=str,
                         help='Path to hydrofabric file for conversion to ESMF. Ex: /srv/data/Gage_01011000.gpkg')
