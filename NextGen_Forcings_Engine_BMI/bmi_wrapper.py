@@ -145,8 +145,8 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
     # Set mapping between InputForcings codes and forcing extraction scripts
     forcing_ana_src = {5: "CONUS/get_conus_HRRR_AnA.py",
                        6: "CONUS/get_conus_RAP_AnA.py",
-                       "supp1": "CONUS/get_conus_MRMS_MultiSensor.py",
-                       "supp2": "CONUS/get_conus_MRMS_Radar.py"}
+                       "supp1": "CONUS/get_conus_MRMS_Radar.py",
+                       "supp2": "CONUS/get_conus_MRMS_MultiSensor.py"}
 
     # Set time variables for forcing engine
     b_date_dt = refcstbdate
@@ -156,8 +156,8 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
         start_time_dt = b_date_dt + ONE_HOUR
         end_time_dt = b_date_dt + timedelta(minutes=input_horizons[0])
     if ana_flag == 1:
-        end_time_dt = b_date_dt
-        start_time_dt = b_date_dt - timedelta(minutes=look_back)
+        end_time_dt = b_date_dt - ONE_HOUR
+        start_time_dt = b_date_dt - timedelta(minutes=(look_back))
 
     start_time = start_time_dt.strftime("%Y-%m-%d %H:%M:%S")
     end_time = end_time_dt.strftime("%Y-%m-%d %H:%M:%S")
@@ -172,8 +172,10 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
         if ana_flag == 0:
             look_back_hours = 1
             forcing_script = forcing_src.get(input_forcings[i])
+            forcing_start_time = start_time
         elif ana_flag == 1:
             look_back_hours = int(look_back / 60)
+            forcing_start_time = end_time
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
@@ -181,7 +183,7 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
 
         # Format forcing extraction command
         command_list = list(["python", extract_scriptPath, extract_outPath,
-                            start_time, f"--lookBackHours={look_back_hours}", "--lagBackHours=0"])
+                            forcing_start_time, f"--lookBackHours={look_back_hours}", "--lagBackHours=0"])
 
         if ens_number != '':
             command_list.append(f"--ensNumber={ens_number}")
