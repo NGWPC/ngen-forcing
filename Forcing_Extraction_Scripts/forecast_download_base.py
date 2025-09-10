@@ -375,7 +375,7 @@ class FixedFileDownloader(ForecastDownloader, ABC):
                 print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
-            for subdir, filename in self.get_file_specs(self, d_start):
+            for subdir, filename in self.get_file_specs(d_start):
                 full_dir = os.path.join(self.out_dir, subdir)
                 os.makedirs(full_dir, exist_ok=True)
                 url = os.path.join(self.base_url, subdir, filename)
