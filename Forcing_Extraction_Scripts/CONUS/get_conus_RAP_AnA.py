@@ -13,7 +13,7 @@ class RAPAnADownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
+        return "https://noaa-rap-pds.s3.amazonaws.com"
 
     def get_download_targets(self, _):
         # Download only forecast hours 01 and 02

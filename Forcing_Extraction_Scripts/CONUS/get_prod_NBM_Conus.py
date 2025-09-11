@@ -20,7 +20,11 @@ class NBMConusDownloader(ForecastDownloader):
         return d_start.hour in [0, 6, 12, 18]
 
     def get_download_targets(self, d_start):
-        return range(1, 265) if d_start.hour in [0, 6, 12, 18] else []
+        hourly = range(1, 37)  # 1 through 36
+        every_3h = range(36, 193, 3)  # 123 through 240, step of 3
+        every_6h = range(198, 265, 6)  # 198 through 264, step of 6
+        return list(hourly) + list(every_3h) + list(every_6h) if d_start.hour in [0, 6, 12, 18] else []
+        # return range(1, 265) if d_start.hour in [0, 6, 12, 18] else []
 
     def build_output_dir(self, d_start, _):
         return os.path.join(

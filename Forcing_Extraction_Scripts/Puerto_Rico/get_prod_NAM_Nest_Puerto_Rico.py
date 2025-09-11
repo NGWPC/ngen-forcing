@@ -12,21 +12,21 @@ class NAMNestPuertoRicoDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://ftp.ncep.noaa.gov/data/nccf/com/nam/prod"
+        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/nam/prod/"
 
-    def should_process_hour(self, d_current):
-        return d_current.hour in [0, 6, 12, 18]
+    def should_process_hour(self, d_start):
+        return d_start.hour in [0, 6, 12, 18]
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, _):
         return range(1, 61)
 
-    def build_output_dir(self, d_current):
-        return os.path.join(self.out_dir, f"nam.{d_current.strftime('%Y%m%d')}")
+    def build_output_dir(self, d_start, _):
+        return os.path.join(self.out_dir, f"nam.{d_start.strftime('%Y%m%d')}")
 
-    def build_file_url_and_name(self, d_current, target):
+    def build_file_url_and_name(self, d_start, target, _):
         fhr = str(target).zfill(2)
-        filename = f"nam.t{d_current.strftime('%H')}z.priconest.hiresf{fhr}.tm00.grib2"
-        url = os.path.join(self.base_url, f"nam.{d_current.strftime('%Y%m%d')}", filename)
+        filename = f"nam.t{d_start.strftime('%H')}z.priconest.hiresf{fhr}.tm00.grib2"
+        url = os.path.join(self.base_url, f"nam.{d_start.strftime('%Y%m%d')}", filename)
         return url, filename
 
 

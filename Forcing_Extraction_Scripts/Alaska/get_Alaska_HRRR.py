@@ -7,7 +7,7 @@ class AlaskaHRRRDownloader(ForecastDownloader):
     """
     Downloader for Alaska HRRR surface forecast data.
 
-    - Files are stored under `hrrr.YYYYMMDD/alaska/` on the NOMADS server.
+    - Files are stored under `hrrr.YYYYMMDD/alaska/` on the s3 server.
     - File naming pattern: hrrr.t{HH}z.wrfsfcf{fhr}.ak.grib2
     - Forecast range depends on cycle:
         - 00z: 48 hours
@@ -20,28 +20,28 @@ class AlaskaHRRRDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
+        return "https://noaa-hrrr-bdp-pds.s3.amazonaws.com"
 
-    def should_process_hour(self, d_current):
-        return d_current.hour % 3 == 0
+    def should_process_hour(self, d_start):
+        return d_start.hour % 3 == 0
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, d_start):
         # Forecast hours vary depending on cycle
-        if d_current.hour % 3 == 0:
-            return range(0, 49) if d_current.hour == 0 else range(0, 19)
+        if d_start.hour % 3 == 0:
+            return range(0, 49) if d_start.hour == 0 else range(0, 19)
         else:
             return []  # Skip non-forecast cycles
 
-    def build_output_dir(self, d_current):
-        return os.path.join(self.out_dir, "hrrr." + d_current.strftime('%Y%m%d'), "alaska")
+    def build_output_dir(self, d_start, _):
+        return os.path.join(self.out_dir, "hrrr." + d_start.strftime('%Y%m%d'), "alaska")
 
-    def build_file_url_and_name(self, d_current, fhr):
+    def build_file_url_and_name(self, d_start, fhr, _):
         """
         Alaska HRRR files use .ak.grib2 extension and are in the /alaska/ folder.
         """
         fhr_str = str(fhr).zfill(2)
-        filename = f"hrrr.t{d_current.strftime('%H')}z.wrfsfcf{fhr_str}.ak.grib2"
-        date_path = "hrrr." + d_current.strftime('%Y%m%d')
+        filename = f"hrrr.t{d_start.strftime('%H')}z.wrfsfcf{fhr_str}.ak.grib2"
+        date_path = "hrrr." + d_start.strftime('%Y%m%d')
         url = os.path.join(self.base_url, date_path, "alaska", filename)
         return url, filename
 
