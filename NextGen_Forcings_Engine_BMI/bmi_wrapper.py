@@ -175,8 +175,10 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = start_time
         elif ana_flag == 1:
-            look_back_hours = int(look_back / 60) + 2
-            forcing_start_time = (b_date_dt + ONE_HOUR).strftime("%Y-%m-%d %H:%M:%S")
+            # look_back_hours = int(look_back / 60) + 2  # For standard_ana
+            # forcing_start_time = (b_date_dt + ONE_HOUR).strftime("%Y-%m-%d %H:%M:%S")  # For standard_ana
+            look_back_hours = int(look_back / 60) + 3  # For extended_ana
+            forcing_start_time = (b_date_dt + TWO_HOURS).strftime("%Y-%m-%d %H:%M:%S")  # For extended_ana
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
