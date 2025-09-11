@@ -9685,9 +9685,9 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
                                                     supplemental_precip.esmf_field_out,
                                                     src_mask_values=np.array([0]),
-                                                    regrid_method=ESMF.RegridMethod.BILINEAR,
+                                                    regrid_method = ESMF.RegridMethod.BILINEAR,
                                                     unmapped_action=ESMF.UnmappedAction.IGNORE)
-
+        
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
         supplemental_precip.esmf_field_out = supplemental_precip.regridObj(supplemental_precip.esmf_field_in,
@@ -9722,11 +9722,18 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
-                                                    supplemental_precip.esmf_field_out,
-                                                    src_mask_values=np.array([0]),
-                                                    regrid_method=ESMF.RegridMethod.BILINEAR,
-                                                    unmapped_action=ESMF.UnmappedAction.IGNORE)
+        if supplemental_precip.regridOpt == 1:
+            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+                                                        supplemental_precip.esmf_field_out,
+                                                        src_mask_values=np.array([0]),
+                                                        regrid_method=ESMF.RegridMethod.BILINEAR,
+                                                        unmapped_action=ESMF.UnmappedAction.IGNORE)
+        elif supplemental_precip.regridOpt == 2:
+            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+                                                        supplemental_precip.esmf_field_out,
+                                                        src_mask_values=np.array([0]),
+                                                        regrid_method=ESMF.RegridMethod.NEAREST_STOD,
+                                                        unmapped_action=ESMF.UnmappedAction.IGNORE)            
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
@@ -9764,7 +9771,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.regridObj_elem = ESMF.Regrid(supplemental_precip.esmf_field_in_elem,
                                                          supplemental_precip.esmf_field_out_elem,
                                                          src_mask_values=np.array([0]),
-                                                         regrid_method=ESMF.RegridMethod.BILINEAR,
+                                                         regrid_method= ESMF.RegridMethod.BILINEAR,
                                                          unmapped_action=ESMF.UnmappedAction.IGNORE)
 
         # Run the regridding object on this test dataset. Check the output grid for
@@ -9801,11 +9808,20 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         # Place temporary data into the field array for generating the regridding object.
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
-        supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
-                                                    supplemental_precip.esmf_field_out,
-                                                    src_mask_values=np.array([0]),
-                                                    regrid_method=ESMF.RegridMethod.BILINEAR,
-                                                    unmapped_action=ESMF.UnmappedAction.IGNORE, extrap_method=ESMF.ExtrapMethod.NEAREST_STOD)
+        if supplemental_precip.regridOpt == 2:
+            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+                                                        supplemental_precip.esmf_field_out,
+                                                        src_mask_values=np.array([0]),
+                                                        regrid_method=ESMF.RegridMethod.NEAREST_STOD,
+                                                        unmapped_action=ESMF.UnmappedAction.IGNORE, 
+                                                        extrap_method=ESMF.ExtrapMethod.NEAREST_STOD)
+        elif supplemental_precip.regridOpt == 1:
+            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+                                                        supplemental_precip.esmf_field_out,
+                                                        src_mask_values=np.array([0]),
+                                                        regrid_method=ESMF.RegridMethod.BILINEAR,
+                                                        unmapped_action=ESMF.UnmappedAction.IGNORE, 
+                                                        extrap_method=ESMF.ExtrapMethod.NEAREST_STOD)
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
