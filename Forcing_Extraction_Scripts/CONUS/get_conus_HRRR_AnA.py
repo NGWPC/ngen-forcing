@@ -17,7 +17,8 @@ class HRRRAnAConusDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod"
+        # HRRR data base URL from S3 archive
+        return "https://noaa-hrrr-bdp-pds.s3.amazonaws.com"
 
     def get_download_targets(self, _):
         # Only download forecast hours 01 and 02

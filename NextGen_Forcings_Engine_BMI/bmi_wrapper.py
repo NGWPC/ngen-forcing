@@ -110,13 +110,13 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
                    10: "netcdf_hour_0",
                    11: "netcdf_hour_1",
                    12: "AORC",
-                   13: "NAM_Nest_HI",
-                   14: "NAM_Nest_PR",
+                   13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
+                   14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico.py",
                    15: "AK_Nest",
                    16: "NAM_Nest_HI_Rad",
                    17: "NAM_Nest_PR_Rad",
                    18: "WRF_ARW_PR",
-                   19: "HRRR_AK",
+                   19: "Alaska/get_Alaska_HRRR.py",
                    20: "AK_AnA",
                    21: "AK_AORC",
                    22: "AK_Ext_AnA",
@@ -133,20 +133,21 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
                    "supp6": "MRMS_Multi_HI",
                    "supp7": "MRMS_SBCv2",
                    "supp8": "CONUS/get_prod_NBM_Conus.py",
-                   "supp9": "NBM_AK",
+                   "supp9": "Alaska/get_prod_NBM_Alaska.py",
                    "supp10": "MRMS_AK",
                    "supp11": "Stage_IV_AK",
-                   "supp12": "Stage_IV_CONUS",
+                   "supp12": "CONUS/get_conus_StageIV.py",
                    "supp13": "MRMS_PrecipFlag",
                    "supp14": "CFSP",
-                   "supp15": "NBM_PR"
+                   "supp15": "Puerto_Rico/get_prod_NBM_Puerto_Rico.py"
                    }
 
     # Set mapping between InputForcings codes and forcing extraction scripts
     forcing_ana_src = {5: "CONUS/get_conus_HRRR_AnA.py",
                        6: "CONUS/get_conus_RAP_AnA.py",
                        "supp1": "CONUS/get_conus_MRMS_Radar.py",
-                       "supp2": "CONUS/get_conus_MRMS_MultiSensor.py"}
+                       "supp2": "CONUS/get_conus_MRMS_MultiSensor.py",
+                       "supp12": "CONUS/get_conus_StageIV.py"}
 
     # Set time variables for forcing engine
     b_date_dt = refcstbdate
@@ -174,8 +175,8 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = start_time
         elif ana_flag == 1:
-            look_back_hours = int(look_back / 60)
-            forcing_start_time = end_time
+            look_back_hours = int(look_back / 60) + 2
+            forcing_start_time = (b_date_dt + ONE_HOUR).strftime("%Y-%m-%d %H:%M:%S")
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script

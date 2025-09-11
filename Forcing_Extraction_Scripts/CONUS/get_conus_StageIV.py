@@ -30,11 +30,11 @@ class StageIVDownloader(ForecastDownloader, ABC):
         # Stage IV has a single file per hour — just return a placeholder
         return [None]
 
-    def build_output_dir(self, d_start, _):
+    def build_output_dir(self, _, __):
         # Store all files directly in the output directory (flat structure)
         return self.out_dir
 
-    def build_file_url_and_name(self, d_start, _):
+    def build_file_url_and_name(self, d_start, _, __):
         subdir = f"pcpanl.{d_start.strftime('%Y%m%d')}"
         filename = f"st4_conus.{d_start.strftime('%Y%m%d%H')}.01h.grb2"
         url = os.path.join(self.base_url, subdir, filename)
