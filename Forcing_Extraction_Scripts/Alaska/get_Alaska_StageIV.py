@@ -22,24 +22,24 @@ class AlaskaStageIVDownloader(ForecastDownloader):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
 
-    def should_process_hour(self, d_current):
-        return d_current.hour % 6 == 0
+    def should_process_hour(self, d_start):
+        return d_start.hour % 6 == 0
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, d_start):
         return [0]  # Single file per valid hour
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start, _):
         # All files go to the main output directory (flat structure)
         return self.out_dir
 
-    def build_file_url_and_name(self, d_current, _):
+    def build_file_url_and_name(self, d_start, _, __):
         """
         Constructs the URL and filename for Alaska Stage IV files.
         - Located in pcpanl.YYYYMMDD/
         - Named as: st4_ak.YYYYMMDDHH.06h.grb2
         """
-        date_folder = f"pcpanl.{d_current.strftime('%Y%m%d')}"
-        filename = f"st4_ak.{d_current.strftime('%Y%m%d%H')}.06h.grb2"
+        date_folder = f"pcpanl.{d_start.strftime('%Y%m%d')}"
+        filename = f"st4_ak.{d_start.strftime('%Y%m%d%H')}.06h.grb2"
         url = os.path.join(self.base_url, date_folder, filename)
         return url, filename
 

@@ -98,55 +98,33 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
         print(f"ESMF mesh file already exists at {mesh_outPath}, skipping conversion.")
 
     # Set mapping between InputForcings codes and forcing extraction scripts
-    forcing_src = {1: "NLDAS",
-                   2: "NARR",
-                   3: "Global/get_prod_GFS.py",
-                   4: "NAM",
+    forcing_src = {3: "Global/get_prod_GFS.py",
                    5: "CONUS/get_conus_HRRR.py",
                    6: "CONUS/get_conus_RAP.py",
                    7: "Global/get_CFSv2.py",
-                   8: "WRF_ARW_HI",
-                   9: "GFS_grid",
-                   10: "netcdf_hour_0",
-                   11: "netcdf_hour_1",
-                   12: "AORC",
                    13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
                    14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico.py",
-                   15: "AK_Nest",
-                   16: "NAM_Nest_HI_Rad",
-                   17: "NAM_Nest_PR_Rad",
-                   18: "WRF_ARW_PR",
                    19: "Alaska/get_Alaska_HRRR.py",
-                   20: "AK_AnA",
-                   21: "AK_AORC",
-                   22: "AK_Ext_AnA",
-                   23: "ERA5",
                    24: "CONUS/get_prod_NBM_Conus.py",
-                   25: "NDFD",
-                   26: "HRRR_15",
-                   27: "NWM",
-                   "supp1": "MRMS_radar",
-                   "supp2": "MRMS_gage",
-                   "supp3": "WRF_ARM_HI",
-                   "supp4": "WRF_ARW_PR",
-                   "supp5": "MRMS_Multi_CONUS",
-                   "supp6": "MRMS_Multi_HI",
-                   "supp7": "MRMS_SBCv2",
                    "supp8": "CONUS/get_prod_NBM_Conus.py",
                    "supp9": "Alaska/get_prod_NBM_Alaska.py",
-                   "supp10": "MRMS_AK",
-                   "supp11": "Stage_IV_AK",
+                   "supp11": "Alaska/get_Alaska_StageIV.py",
                    "supp12": "CONUS/get_conus_StageIV.py",
-                   "supp13": "MRMS_PrecipFlag",
-                   "supp14": "CFSP",
                    "supp15": "Puerto_Rico/get_prod_NBM_Puerto_Rico.py"
                    }
 
     # Set mapping between InputForcings codes and forcing extraction scripts
     forcing_ana_src = {5: "CONUS/get_conus_HRRR_AnA.py",
                        6: "CONUS/get_conus_RAP_AnA.py",
+                       13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
+                       14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico.py",
+                       19: "Alaska/get_Alaska_HRRR.py",
+                       20: "Alaska/get_Alaska_HRRR_AnA.py",
                        "supp1": "CONUS/get_conus_MRMS_Radar.py",
                        "supp2": "CONUS/get_conus_MRMS_MultiSensor.py",
+                       "supp6": "Hawaii/get_MRMS_MultiSensor_Hawaii.py",
+                       "supp10": "Alaska/get_MRMS_MultiSensor_Alaska.py",
+                       "supp11": "Alaska/get_Alaska_StageIV.py",
                        "supp12": "CONUS/get_conus_StageIV.py"}
 
     # Set time variables for forcing engine
@@ -173,12 +151,10 @@ def execute(hyfab_name: str, forcing_config_input: str, config_input: str = None
         if ana_flag == 0:
             look_back_hours = 1
             forcing_script = forcing_src.get(input_forcings[i])
-            forcing_start_time = start_time
+            forcing_start_time = (b_date_dt + ONE_HOUR).strftime("%Y-%m-%d %H:%M:%S")
         elif ana_flag == 1:
-            # look_back_hours = int(look_back / 60) + 2  # For standard_ana
-            # forcing_start_time = (b_date_dt + ONE_HOUR).strftime("%Y-%m-%d %H:%M:%S")  # For standard_ana
-            look_back_hours = int(look_back / 60) + 3  # For extended_ana
-            forcing_start_time = (b_date_dt + TWO_HOURS).strftime("%Y-%m-%d %H:%M:%S")  # For extended_ana
+            look_back_hours = int(look_back / 60) + 3
+            forcing_start_time = (b_date_dt + TWO_HOURS).strftime("%Y-%m-%d %H:%M:%S")
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
