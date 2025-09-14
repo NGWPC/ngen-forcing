@@ -834,12 +834,27 @@ class DataProcessor:
         times_sec = times_sec[idx]
         values = values[idx, :]
 
+
+        raw_path = os.path.join(self.sim_dir, "sfincs_raw.bzs")
+        with open(raw_path, "w") as f:
+            for t, row in zip(times_sec, values):
+                # add +0.25 to all values
+                temp=row
+                # row = row + 1.0
+                print(f"{temp} : {row}")
+                line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
+                f.write(line + "\n")
+        print(f"[process][coastal:stofs] wrote {raw_path} ({values.shape[0]} rows, {values.shape[1]} points)")
+
+
+        '''
         raw_path = os.path.join(self.sim_dir, "sfincs_raw.bzs")
         with open(raw_path, "w") as f:
             for t, row in zip(times_sec, values):
                 line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
                 f.write(line + "\n")
         print(f"[process][coastal:stofs] wrote {raw_path} ({values.shape[0]} rows, {values.shape[1]} points)")
+        '''
 
         # Interpolate to 10-minute cadence
         t0, t1 = int(times_sec[0]), int(times_sec[-1])
@@ -858,10 +873,22 @@ class DataProcessor:
         final_path = os.path.join(self.sim_dir, "sfincs.bzs")
         with open(final_path, "w") as f:
             for t, row in zip(new_t, interp_mat):
+                # add +0.25 to all values
+                temp=row
+                # row = row + 1.0
+                print(f"{temp} : {row}")
                 line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
                 f.write(line + "\n")
         print(f"[process][coastal:stofs] wrote {final_path} ({interp_mat.shape[0]} rows @10-min)")
 
+        '''
+        final_path = os.path.join(self.sim_dir, "sfincs.bzs")
+        with open(final_path, "w") as f:
+            for t, row in zip(new_t, interp_mat):
+                line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
+                f.write(line + "\n")
+        print(f"[process][coastal:stofs] wrote {final_path} ({interp_mat.shape[0]} rows @10-min)")
+        '''
 
 
     def run_tpxo_timeseries_for_sfincs(
@@ -1058,6 +1085,19 @@ class DataProcessor:
         data = np.array([r[1] for r in rows], dtype=float)  # (nt, npts)
 
         # --- Write raw hourly bzs ---
+
+        with open(raw_bzs_path, "w", encoding="utf-8") as f:
+            for i, sec in enumerate(secs):
+                row = data[i] + 0.25     # <-- add offset
+                print(f"{data[i]} : {row}")
+                f.write(str(int(sec)))
+                f.write(" ")
+                f.write(" ".join(f"{v:.4f}" for v in row))
+                f.write("\n")
+        if verbose:
+            print(f"[tpxo] wrote raw → {raw_bzs_path} (nt={len(secs)}, npts={npts})")
+
+        '''
         with open(raw_bzs_path, "w", encoding="utf-8") as f:
             for i, sec in enumerate(secs):
                 f.write(str(int(sec)))
@@ -1066,6 +1106,7 @@ class DataProcessor:
                 f.write("\n")
         if verbose:
             print(f"[tpxo] wrote raw → {raw_bzs_path} (nt={len(secs)}, npts={npts})")
+        '''
 
         # --- Interpolate to uniform out_dt_seconds ---
         tmin, tmax = int(secs[0]), int(secs[-1])
@@ -1083,10 +1124,22 @@ class DataProcessor:
 
         with open(bzs_path, "w", encoding="utf-8") as f:
             for i, sec in enumerate(tgt):
+                row = out[i] + 0.25      # <-- add offset
+                print(f"{out[i]} : {row}")
+                f.write(str(int(sec)))
+                f.write(" ")
+                f.write(" ".join(f"{v:.4f}" for v in row))
+                f.write("\n")
+        if verbose:
+            print(f"[tpxo] wrote bzs  → {bzs_path} (nt={tgt.size}, npts={npts}, dt={out_dt_seconds}s)")
+        '''    
+        with open(bzs_path, "w", encoding="utf-8") as f:
+            for i, sec in enumerate(tgt):
                 f.write(str(int(sec)))
                 f.write(" ")
                 f.write(" ".join(f"{v:.4f}" for v in out[i]))
                 f.write("\n")
         if verbose:
             print(f"[tpxo] wrote bzs  → {bzs_path} (nt={tgt.size}, npts={npts}, dt={out_dt_seconds}s)")
+        '''
 

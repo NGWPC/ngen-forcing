@@ -152,8 +152,6 @@ def prepare_sfincs_base_simulation_folder(cfg, domain_info):
     # convert normalized 'YYYY-%m-%dT%H-%M-%SZ' into SFINCS 'YYYYMMDD HHMMSS'
     dts = datetime.strptime(_parse_utc(cfg['start_time']), "%Y-%m-%dT%H-%M-%SZ")
     dte = datetime.strptime(_parse_utc(cfg['end_time']), "%Y-%m-%dT%H-%M-%SZ")
-    output_timestep = float(cfg['output_timestep'])
-    
     sfincs_start = dts.strftime("%Y%m%d %H%M%S")
     sfincs_end   = dte.strftime("%Y%m%d %H%M%S")
 
@@ -166,10 +164,8 @@ def prepare_sfincs_base_simulation_folder(cfg, domain_info):
         lines, ok1 = _replace_param_line(lines, "tref",   sfincs_start)
         lines, ok2 = _replace_param_line(lines, "tstart", sfincs_start)
         lines, ok3 = _replace_param_line(lines, "tstop",  sfincs_end)
-        lines, ok4 = _replace_param_line(lines, "dtmapout",  output_timestep)
-
         srcfile_value = "sfincs_nwm.src" if want_nwm else "sfincs_ngen.src"
-        lines, ok5 = _replace_param_line(lines, "srcfile", srcfile_value)
+        lines, ok4 = _replace_param_line(lines, "srcfile", srcfile_value)
 
         with open(inp_path, "w") as f:
             f.writelines(lines)
@@ -270,7 +266,93 @@ def main():
     )
     processor.process_all()
 
-    print("Forcing file generation COMPLETE")
+    run_sfincs = cfg.get('run_sfincs', False)
+
+    if not run_sfincs:
+        print("Forcing file generation COMPLETE")
+        print("As sfincs will be run separately, exiting ...")
+        exit(0)
+
+
+    print(f"\nRunning sfincs with forcing files in {sim_dir}")
+
+    run_sfincs_cmd(sim_dir)
+
+    noaa_output_dir = cfg.get('noaa_output_dir', sim_dir)
+
+    # Download NOAA data
+    his_nc_path = os.path.join(sim_dir, 'sfincs_his.nc')
+    station_list=cfg.get('station_list', get_waterlevel_station_ids_from_nc(his_nc_path))
+
+    '''
+    try:
+
+        run_noaa_stations_from_params(
+            geojson_path=cfg["geojson_path"],
+            utm_epsg=32614,
+            start_time=cfg['start_time'],
+            end_time=cfg['end_time'],
+            interval_minutes=int(cfg.get("interval_minutes", 6)),
+            output_dir=sim_dir,
+            obs_filename=os.path.join(sim_dir, "sfincs.obs"),
+            out_filename=cfg.get("out_filename", "noaa.out"),
+            station_types=cfg['station_types'],
+        )
+
+    except Exception as e:
+        print(f"Error downloading from NOAA : {str(e)}")
+        traceback.print_exc()
+
+    '''
+
+    print("\nDownloading NOAA output")
+
+    try:
+        run_download_noaa_obv_wl_from_params(
+            output_dir=noaa_output_dir,
+            start_time=cfg['start_time'],
+            end_time=cfg['end_time'],
+            station_list=station_list, #[8772985,8773146,8773259,8773701,8773767],
+            auto_find_if_empty=True,
+            station_discovery_type=cfg.get("station_discovery_type", "water_level"),
+            station_discovery_base_url="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations.json",
+            station_discovery_extra_params=None,
+            api_datagetter_base="https://api.tidesandcurrents.noaa.gov/api/prod/datagetter",
+            api_datums_base_template="https://api.tidesandcurrents.noaa.gov/mdapi/prod/webapi/stations/{station}/datums.json?units=metric",
+            application=cfg.get('application', "NOS.COOPS.TAC.WL"),
+            datum=cfg.get('datum', 'MLLW'),
+            units=cfg.get('units', 'metric'),
+            time_zone=cfg.get('time_zone', 'GMT'),
+            response_format=cfg.get('resplonse_format', 'json'),
+            product_hourly=cfg.get('product_hourly', "hourly_height"),
+            product_sixmin=cfg.get("product_sixmin", "water_level"),
+            use_sixmin=True,
+            extra_query_params=cfg.get('extra_query_params', {"interval": "6"})
+        )
+
+    except Exception as e:
+        print(f"Error downloading from NOAA : {str(e)}")
+        traceback.print_exc()
+
+    print("\nCompairing SFINCS output with NOAA output")
+    stations=list(map(str, station_list))
+    print(stations)
+
+    try:
+        compare_sfincs_his_vs_noaa(
+            sfincs_his_nc=his_nc_path,
+            noaa_dir=noaa_output_dir,
+            stations=stations,
+            outdir=noaa_output_dir,
+            datum_shift=0.0,
+            resample_to="model",
+            fig_dpi=140,
+            verbose=True,
+        )
+    except Exception as e:
+        print(f"Compairing SFINCS output with NOAA output : {str(e)}")
+        traceback.print_exc()
+
 
 if __name__ == "__main__":
     main()

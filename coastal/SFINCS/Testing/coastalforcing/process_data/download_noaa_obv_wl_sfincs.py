@@ -10,6 +10,10 @@ import datetime
 import urllib.request
 import urllib.parse
 from typing import List, Dict, Any, Optional
+import re
+import numpy as np
+import xarray as xr
+
 
 try:
     import yaml  # PyYAML
@@ -20,8 +24,67 @@ except Exception as e:
 # ---------------------------
 # Helper: station discovery
 # ---------------------------
+import re
+from typing import List
 
-def find_waterlevel_stations(
+def get_waterlevel_station_ids_from_obs(obs_path: str) -> List[int]:
+    """
+    Extract numeric station IDs (digits inside parentheses) from a sfincs.obs file.
+    Example line:
+      830344.95 3187383.41 "Sargent (8772985)"
+    Only keeps IDs that are purely digits (skips alphanumeric like mg0101).
+    """
+    ids = []
+    with open(obs_path, "r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            # Look for "(digits)" inside quotes
+            match = re.search(r"\((\d+)\)", line)
+            if match:
+                ids.append(int(match.group(1)))
+    return ids
+
+
+def get_waterlevel_station_ids_from_nc(nc_path: str, var_candidates=("station_name", "station_names", "name", "names")) -> List[int]:
+    """
+    Extract numeric station IDs (digits inside parentheses) from a NetCDF file.
+    Only keeps IDs that are purely digits (e.g., (8772985)), skips alphanumeric like (mg0101).
+    """
+    def _clean(s: str) -> str:
+        return s.replace("\x00", " ").strip()
+
+    with xr.open_dataset(nc_path, decode_cf=True) as ds:
+        var = next((v for v in var_candidates if v in ds.variables), None)
+        if var is None:
+            raise KeyError(f"No station-name variable found. Tried: {var_candidates}")
+
+        da = ds[var]
+
+        if da.ndim == 1 and (da.dtype.kind in {"U", "S"} or da.dtype == object):
+            raw = da.values
+            names = [str(x) for x in raw.tolist()]
+        elif da.ndim == 2:
+            arr = da.values  # (stations, name_len)
+            if arr.dtype.kind == "S":  # bytes
+                arr = np.char.decode(arr, "utf-8", errors="ignore")
+            names = ["".join(row.tolist()) for row in arr]
+        else:
+            raise TypeError(f"Unsupported station-name array shape/dtype: shape={da.shape}, dtype={da.dtype}")
+
+    # Extract numeric IDs inside parentheses
+    ids = []
+    for s in names:
+        s = _clean(s)
+        match = re.search(r"\((\d+)\)", s)
+        if match:
+            ids.append(int(match.group(1)))
+
+    return ids
+
+
+def find_all_waterlevel_station_ids(
     site_noL: List[str],
     *,
     station_type: str = "historicwl",
@@ -114,13 +177,27 @@ def run_download_noaa_obv_wl_from_params(
     # Stations
     sites: List[str] = list(station_list or [])
     if not sites and auto_find_if_empty:
+        '''
+        nc_path = os.path.join(output_dir, "sfincs_his.nc")
+    
+        if not os.path.exists(nc_path):
+            raise RuntimeError(f"{nc_path} not found.")
+        sites = get_waterlevel_station_ids()
+        '''
+        obs_path = os.path.join(output_dir, "sfincs.obs")
+
+        if not os.path.exists(obs_path):
+            raise RuntimeError(f"{obs_path} not found.")
+
+        sites = get_waterlevel_station_ids_from_obs(obs_path)
+        '''
         sites = find_waterlevel_stations(
             [],
             station_type=station_discovery_type,
             base_url=station_discovery_base_url,
             extra_params=station_discovery_extra_params,
         )
-
+        '''
     if not sites:
         raise RuntimeError("No stations provided (station_list empty and auto discovery disabled/failed).")
 

@@ -217,7 +217,6 @@ def _prepend_tpxo_header(output_abs: Path,
 
 
 # ---------- step 3: convert TPXO output → sfincs.bzs ----------
-
 def _tpxo_out_to_sfincs_bzs(
     tpxo_out_abs: Union[str, Path],
     latlon_time_abs: Union[str, Path],
@@ -328,11 +327,20 @@ def _tpxo_out_to_sfincs_bzs(
 
     # seconds since start
     sec_since_start = np.array([(t - start_dt).total_seconds() for t in time_list], dtype=int)
-
+  
     with open(out_bzs_abs, "w", encoding="utf-8") as f:
         for i in range(n_time):
             vals = " ".join(f"{v:.4f}" for v in arr[i, :])
             f.write(f"{int(sec_since_start[i])} {vals}\n")
+    '''
+
+    with open(out_bzs_abs, "w", encoding="utf-8") as f:
+        for i in range(n_time):
+            row = arr[i, :] + 1.0  # <-- add offset to values only (time unchanged)
+            print(f"{arr[i, :]} : {row}")
+            vals = " ".join(f"{v:.4f}" for v in row)
+            f.write(f"{int(sec_since_start[i])} {vals}\n")
+    '''
 
     if verbose:
         print(f"[tpxo→bzs] wrote {out_bzs_abs} ({n_time} rows × {n_stn} stations + time)")
