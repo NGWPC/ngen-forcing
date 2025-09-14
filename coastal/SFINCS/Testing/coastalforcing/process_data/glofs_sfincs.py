@@ -369,12 +369,24 @@ def extract_glofs_timeseries(
     vals = vals[keep, :]
 
     # ---- WRITE RAW HOURLY ----
+
+    # ---- WRITE RAW HOURLY ----
+    base, ext = os.path.splitext(os.path.abspath(bzs_outfile))
+    raw_path = base + "_raw.bzs"
+    with open(raw_path, "w", encoding="utf-8") as f:
+        for tsec, row in zip(times, vals):
+            row = row + 0.25  # <-- add offset to values only
+            f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "nan" for v in row) + "\n")
+    print(f"[GLOFS] wrote raw hourly: {raw_path} ({vals.shape[0]} rows, {vals.shape[1]} points)")
+
+    '''
     base, ext = os.path.splitext(os.path.abspath(bzs_outfile))
     raw_path = base + "_raw.bzs"
     with open(raw_path, "w", encoding="utf-8") as f:
         for tsec, row in zip(times, vals):
             f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "nan" for v in row) + "\n")
     print(f"[GLOFS] wrote raw hourly: {raw_path} ({vals.shape[0]} rows, {vals.shape[1]} points)")
+    '''
 
     # ---- RESAMPLE TO 10-MIN (600s), like STOFS ----
     if times.size < 2:
@@ -401,12 +413,21 @@ def extract_glofs_timeseries(
             final_vals[:, j] = f(final_times)
 
     # ---- WRITE FINAL 10-MIN FILE ----
+
+        # ---- WRITE FINAL 10-MIN FILE ----
+    _ensure_dir(os.path.dirname(os.path.abspath(bzs_outfile)))
+    with open(bzs_outfile, "w", encoding="utf-8") as f:
+        for tsec, row in zip(final_times, final_vals):
+            row = row + 0.25  # <-- add offset to values only
+            f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row) + "\n")
+    print(f"[GLOFS] wrote 10-min: {bzs_outfile} ({final_vals.shape[0]} rows @600s)")
+    '''
     _ensure_dir(os.path.dirname(os.path.abspath(bzs_outfile)))
     with open(bzs_outfile, "w", encoding="utf-8") as f:
         for tsec, row in zip(final_times, final_vals):
             f.write(f"{int(tsec)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row) + "\n")
     print(f"[GLOFS] wrote 10-min: {bzs_outfile} ({final_vals.shape[0]} rows @600s)")
-
+    '''
 
 # -----------------------------------------------------------------------------
 # Wrapper for pipeline
