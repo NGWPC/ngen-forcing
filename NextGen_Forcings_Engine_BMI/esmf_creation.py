@@ -1,4 +1,5 @@
 import os
+import argparse
 from ESMF_Mesh_Domain_Configuration_Production.NextGen_hyfab_to_ESMF_Mesh import convert_hyfab_to_esmf
 
 
@@ -25,3 +26,15 @@ def create_mesh(hyfab_name: str):
         )
     else:
         print(f"ESMF mesh file already exists at {mesh_outPath}, skipping conversion.")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Create ESMF mesh from hydrofabric geopackage")
+    parser.add_argument("hyfab_name", help="Path to hydrofabric geopackage file")
+    args = parser.parse_args()
+
+    create_mesh(args.hyfab_name)
+
+
+if __name__ == "__main__":
+    main()
