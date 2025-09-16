@@ -1,8 +1,9 @@
-import os
+import argparse
 import importlib.util
+import yaml
 from datetime import datetime, timedelta
 from pathlib import Path
-from Forecing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
+from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
 
 
 def retrieve_forcing(cfg: dict):
@@ -11,6 +12,10 @@ def retrieve_forcing(cfg: dict):
 
     :param cfg: dictionary of forcing engine config parameters
     """
+    # # TESTING
+    fp = '/ngwpc/run_ngen/default/noah_topmodel/01123000/Input/forcing_config/short_range_config.yml'
+    with open(fp) as cfg_file:
+        cfg = yaml.safe_load(cfg_file)
 
     # Get parameters from the forcing engine config file
     refcstbdate = datetime.strptime(cfg['RefcstBDateProc'], "%Y%m%d%H%M")
@@ -96,3 +101,15 @@ def retrieve_forcing(cfg: dict):
 
         # Run the download
         downloader.run()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Download forecast forcing data")
+    parser.add_argument("cfg", help="Dictionary containing contents of forcing configuration yaml file")
+    args = parser.parse_args()
+
+    retrieve_forcing(args.cfg)
+
+
+if __name__ == "__main__":
+    main()
