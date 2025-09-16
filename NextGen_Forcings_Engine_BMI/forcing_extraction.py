@@ -1,6 +1,5 @@
 import argparse
 import importlib.util
-import yaml
 from datetime import datetime, timedelta
 from pathlib import Path
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
@@ -12,10 +11,11 @@ def retrieve_forcing(cfg: dict):
 
     :param cfg: dictionary of forcing engine config parameters
     """
-    # # TESTING
-    fp = '/ngwpc/run_ngen/default/noah_topmodel/01123000/Input/forcing_config/short_range_config.yml'
-    with open(fp) as cfg_file:
-        cfg = yaml.safe_load(cfg_file)
+    # # # TESTING
+    # import yaml
+    # fp = '/ngwpc/run_ngen/default/noah_topmodel/01123000/Input/forcing_config/short_range_config.yml'
+    # with open(fp) as cfg_file:
+    #     cfg = yaml.safe_load(cfg_file)
 
     # Get parameters from the forcing engine config file
     refcstbdate = datetime.strptime(cfg['RefcstBDateProc'], "%Y%m%d%H%M")
@@ -68,10 +68,10 @@ def retrieve_forcing(cfg: dict):
         if ana_flag == 0:
             look_back_hours = 1
             forcing_script = forcing_src.get(input_forcings[i])
-            forcing_start_time = (refcstbdate + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+            forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
             look_back_hours = int(look_back / 60) + 3
-            forcing_start_time = (refcstbdate + timedelta(hours=2)).strftime("%Y-%m-%d %H:%M:%S")
+            forcing_start_time = refcstbdate + timedelta(hours=2)
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
@@ -87,7 +87,7 @@ def retrieve_forcing(cfg: dict):
         base_classes = (ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader)
         downloader_class = next(
             obj for name, obj in vars(module).items()
-            if isinstance(obj, type) and issubclass(obj, base_classes) and obj is not base_classes
+            if isinstance(obj, type) and issubclass(obj, base_classes) and obj not in base_classes
         )
 
         # Format forcing extraction command
@@ -95,6 +95,7 @@ def retrieve_forcing(cfg: dict):
             out_dir=extract_outPath,
             start_time=forcing_start_time,
             lookback_hours=look_back_hours,
+            cleanback_hours=0,
             lagback_hours=0,
             ens_number=int(ens_number) if ens_number != "" else None
         )
