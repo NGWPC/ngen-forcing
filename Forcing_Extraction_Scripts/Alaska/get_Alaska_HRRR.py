@@ -16,7 +16,6 @@ class AlaskaHRRRDownloader(ForecastDownloader):
     default_cleanback = 240
     default_lagback = 1
 
-
     @property
     def base_url(self):
         return "https://noaa-hrrr-bdp-pds.s3.amazonaws.com"
