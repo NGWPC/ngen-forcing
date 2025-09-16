@@ -1,9 +1,8 @@
 import os
-import subprocess
 from ESMF_Mesh_Domain_Configuration_Production.NextGen_hyfab_to_ESMF_Mesh import convert_hyfab_to_esmf
-# import /NextGen_hyfab_to_ESMF_Mesh.py
 
-def create_mesh(cfg: dict, hyfab_name: str):
+
+def create_mesh(hyfab_name: str):
     """
     Create ESMF Mesh from geopackage file provided by the forcing engine config
 
