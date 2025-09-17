@@ -18,18 +18,12 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
     #     cfg = yaml.safe_load(cfg_file)
 
     # Get parameters from the forcing engine config file
-    print(f"cfg_dir: {dir(cfg)}")
     refcstbdate = cfg.b_date_proc
-    print(f"refcstbdate: {refcstbdate}")
-    print(f"cfg.input_forcings: {cfg.input_forcings}")
-    print(f"cfg.supp_precip_forcings: {cfg.supp_precip_forcings}")
     input_forcings = cfg.input_forcings + [f"supp{val}" for val in cfg.supp_precip_forcings]
-    print(f"input_forcings: {input_forcings}")
     if cfg.supp_precip_dirs is not None:
         input_forcing_dirs = cfg.input_force_dirs + cfg.supp_precip_dirs
     else:
         input_forcing_dirs = cfg.input_force_dirs
-    print(f"input_forcing_dirs: {input_forcing_dirs}")
     input_horizons = cfg.fcst_input_horizons
     input_horizons = input_horizons + [input_horizons[0]] * len(cfg.supp_precip_forcings)
     ens_number = cfg.cfsv2EnsMember
@@ -83,12 +77,10 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_start_time = refcstbdate + timedelta(hours=2)
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
-        print(f"forcing_script: {forcing_script}")
         # Set path to extraction script
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
 
         # Dynamically import extraction module
-        mod_name = f"forcing_{Path(extract_scriptPath).stem}"
         spec = importlib.util.spec_from_file_location(mod_name, extract_scriptPath)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -115,6 +107,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
 
 
 def main():
+    #TODO: fix for direct execution
     parser = argparse.ArgumentParser(description="Download forecast forcing data")
     parser.add_argument("cfg", help="Dictionary containing contents of forcing configuration yaml file")
     args = parser.parse_args()
