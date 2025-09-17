@@ -17,7 +17,7 @@ class NAMNestAlaskaDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/nam/prod/"
+        return "https://noaa-nam-pds.s3.amazonaws.com"
 
     def get_download_targets(self, d_start):
         # Only valid at 00z, 06z, 12z, 18z — skip other hours

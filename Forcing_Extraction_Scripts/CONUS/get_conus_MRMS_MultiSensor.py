@@ -20,7 +20,7 @@ class MRMSMultiSensorConusDownloader(FixedFileDownloader, ABC):
     @property
     def base_url(self):
         # Root URL is pass-agnostic; we append /Pass1 or /Pass2 per file.
-        return "https://noaa-mrms-pds.s3.amazonaws.com/"
+        return "https://noaa-mrms-pds.s3.amazonaws.com/CONUS"
 
     def build_output_dir(self, _, __):
         return self.out_dir
@@ -28,7 +28,7 @@ class MRMSMultiSensorConusDownloader(FixedFileDownloader, ABC):
     def get_file_specs(self, d_start):
         specs = []
         for pass_num in ["Pass1", "Pass2"]:
-            subdir = f"CONUS/MultiSensor_QPE_01H_{pass_num}_00.00/{d_start.strftime('%Y%m%d')}"
+            subdir = f"MultiSensor_QPE_01H_{pass_num}_00.00/{d_start.strftime('%Y%m%d')}"
             filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_start.strftime('%Y%m%d')}-{d_start.strftime('%H')}0000.grib2.gz"
             specs.append((subdir, filename))
         return specs

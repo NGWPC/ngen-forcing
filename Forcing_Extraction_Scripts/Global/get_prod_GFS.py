@@ -18,7 +18,7 @@ class GFSDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod"
+        return "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 
     def should_process_hour(self, d_start):
         return d_start.hour in [0, 6, 12, 18]
