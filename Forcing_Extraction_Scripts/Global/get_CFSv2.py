@@ -20,7 +20,7 @@ class CFSv2Downloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
+        return "https://noaa-cfs-pds.s3.amazonaws.com"
 
     def get_download_targets(self, d_start):
         return range(0, 721, 6) if d_start.hour in [0, 6, 12, 18] else []

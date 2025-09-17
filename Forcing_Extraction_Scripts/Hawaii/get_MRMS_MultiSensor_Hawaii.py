@@ -13,7 +13,7 @@ class MRMSMultiSensorHawaiiDownloader(FixedFileDownloader, ABC):
 
     @property
     def base_url(self):
-        return "https://mrms.ncep.noaa.gov/2D/HAWAII"
+        return "https://noaa-mrms-pds.s3.amazonaws.com/HAWAII"
 
     def build_output_dir(self, _, __):
         # Output is stored under separate Pass1/Pass2 folders by date
@@ -22,11 +22,8 @@ class MRMSMultiSensorHawaiiDownloader(FixedFileDownloader, ABC):
     def get_file_specs(self, d_start):
         specs = []
         for pass_num in ["Pass1", "Pass2"]:
-            subdir = f"MultiSensor_QPE_01H_{pass_num}/{d_start.strftime('%Y%m%d')}"
-            filename = (
-                f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_"
-                f"{d_start.strftime('%Y%m%d')}-{d_start.strftime('%H')}0000.grib2.gz"
-            )
+            subdir = f"MultiSensor_QPE_01H_{pass_num}_00.00/{d_start.strftime('%Y%m%d')}"
+            filename = f"MRMS_MultiSensor_QPE_01H_{pass_num}_00.00_{d_start.strftime('%Y%m%d')}-{d_start.strftime('%H')}0000.grib2.gz"
             specs.append((subdir, filename))
         return specs
 
