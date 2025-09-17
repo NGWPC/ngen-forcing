@@ -5,7 +5,7 @@ from pathlib import Path
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
 
 
-def retrieve_forcing(cfg: dict):
+def retrieve_forcing(cfg: 'ConfigOptions'):
     """
     Download forecast forcing data based on requested sources in the forcing engine configuration file
 
@@ -18,14 +18,23 @@ def retrieve_forcing(cfg: dict):
     #     cfg = yaml.safe_load(cfg_file)
 
     # Get parameters from the forcing engine config file
-    refcstbdate = datetime.strptime(cfg['RefcstBDateProc'], "%Y%m%d%H%M")
-    input_forcings = cfg['InputForcings'] + [f"supp{val}" for val in cfg['SuppPcp']]
-    input_forcing_dirs = cfg['InputForcingDirectories'] + cfg['SuppPcpDirectories']
-    input_horizons = cfg['ForecastInputHorizons']
-    input_horizons = input_horizons + [input_horizons[0]] * len(cfg['SuppPcp'])
-    ens_number = cfg['cfsEnsNumber']
-    ana_flag = cfg['AnAFlag']
-    look_back = cfg['LookBack']
+    print(f"cfg_dir: {dir(cfg)}")
+    refcstbdate = cfg.b_date_proc
+    print(f"refcstbdate: {refcstbdate}")
+    print(f"cfg.input_forcings: {cfg.input_forcings}")
+    print(f"cfg.supp_precip_forcings: {cfg.supp_precip_forcings}")
+    input_forcings = cfg.input_forcings + [f"supp{val}" for val in cfg.supp_precip_forcings]
+    print(f"input_forcings: {input_forcings}")
+    if cfg.supp_precip_dirs is not None:
+        input_forcing_dirs = cfg.input_force_dirs + cfg.supp_precip_dirs
+    else:
+        input_forcing_dirs = cfg.input_force_dirs
+    print(f"input_forcing_dirs: {input_forcing_dirs}")
+    input_horizons = cfg.fcst_input_horizons
+    input_horizons = input_horizons + [input_horizons[0]] * len(cfg.supp_precip_forcings)
+    ens_number = cfg.cfsv2EnsMember
+    ana_flag = cfg.ana_flag
+    look_back = cfg.look_back
     extraction_scriptPath = "/ngen-app/ngen-forcing/Forcing_Extraction_Scripts"
 
     # Set mapping between InputForcings codes and forcing extraction scripts
@@ -74,6 +83,7 @@ def retrieve_forcing(cfg: dict):
             forcing_start_time = refcstbdate + timedelta(hours=2)
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
+        print(f"forcing_script: {forcing_script}")
         # Set path to extraction script
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
 
@@ -97,7 +107,7 @@ def retrieve_forcing(cfg: dict):
             lookback_hours=look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
-            ens_number=int(ens_number) if ens_number != "" else None
+            ens_number=int(ens_number) if ens_number is not None else None
         )
 
         # Run the download

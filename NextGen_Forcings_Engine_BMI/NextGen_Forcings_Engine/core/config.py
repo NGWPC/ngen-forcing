@@ -134,6 +134,7 @@ class ConfigOptions:
         self.nwm_domain = None
         self.nwm_geogrid = None
         self.geogrid = geogrid_arg
+        self.geopackage = None
 
     def read_config(self, cfg_bmi):
         """
@@ -148,6 +149,15 @@ class ConfigOptions:
                     err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.')
             except KeyError as e:
                 err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.', e)
+
+        # Ensure geopackage is set; if not, read from the configuration file
+        if self.geopackage is None:
+            try:
+                self.geopackage = cfg_bmi.get('Geopackage', None)  # Default to None if not found
+                if self.geopackage is None:
+                    err_handler.err_out_screen('Unable to locate Geopackage in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate Geopackage in the configuration file.', e)
 
         # Ensure geogrid is set; if not, read from the configuration file
         if self.geogrid is None:
