@@ -21,8 +21,8 @@ class HRRRAnAConusDownloader(ForecastDownloader):
         return "https://noaa-hrrr-bdp-pds.s3.amazonaws.com"
 
     def get_download_targets(self, _):
-        # Only download forecast hours 01 and 02
-        return [1, 2]
+        # Only download forecast hour 01
+        return [1]
 
     def build_output_dir(self, d_start, _):
         # Output directory format: <out_dir>/hrrr.YYYYMMDD/conus
