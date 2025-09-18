@@ -31,7 +31,7 @@ def execute(forcing_config_input: str, config_input: str = None, output_path: st
     It handles mesh conversion, forcing extraction, and finally the execution of the
     BMI engine using the specified parameters.
 
-    :param forcing_config: Path to forcing engine configuration file for forecast run
+    :param forcing_config_input: Path to forcing engine configuration file for forecast run
     :param config_input: Optional path to the wrapper config file.
     :param output_path: Optional full path to specify forcing engine output location.
     :param csv_path: Optional path for CSV output, if desired.
@@ -53,14 +53,26 @@ def execute(forcing_config_input: str, config_input: str = None, output_path: st
     with open(forcing_config_input, 'r') as forcing_config_file:
         forcing_config = yaml.safe_load(forcing_config_file)
 
-    # Wrap config dict into simplenamespace to match ConfigOptions format
-    cfg = SimpleNamespace(**forcing_config)
+    # Wrap config dict into simplenamespace to match esmf creation ConfigOptions format
+    esmf_cfg = SimpleNamespace(geopackage=forcing_config['Geopackage'],
+                               geogrid=forcing_config['GeogridIn'])
+
+    # Wrap config dict into simplenamespace to match forcing extraction ConfigOptions format
+    extract_cfg = SimpleNamespace(b_date_proc=datetime.strptime(forcing_config['RefcstBDateProc'], "%Y%m%d%H%M"),
+                                  input_forcings=forcing_config['InputForcings'],
+                                  supp_precip_forcings=forcing_config['SuppPcp'],
+                                  input_force_dirs=forcing_config['InputForcingDirectories'],
+                                  supp_precip_dirs=forcing_config['SuppPcpDirectories'],
+                                  fcst_input_horizons=forcing_config['ForecastInputHorizons'],
+                                  cfsv2EnsMember=forcing_config['cfsEnsNumber'],
+                                  ana_flag=forcing_config['AnAFlag'],
+                                  look_back=forcing_config['LookBack'])
 
     # Create mesh file
-    esmf_creation.create_mesh(cfg)
+    esmf_creation.create_mesh(esmf_cfg)
 
     # Extract forcing
-    forcing_extraction.retrieve_forcing(cfg)
+    forcing_extraction.retrieve_forcing(extract_cfg)
 
     # Set the mesh file name based on the hydrofabric file
     base_geo_name = os.path.splitext(os.path.basename(forcing_config['Geopackage']))[0]
@@ -106,7 +118,7 @@ def execute(forcing_config_input: str, config_input: str = None, output_path: st
 
     # Main Python call
     command += [
-        "python", bmi_scriptPath,
+        "python3", bmi_scriptPath,
         f"-config_path={forcing_config_input}",
         f"-b_date={b_date}",
         f"-geogrid={mesh_outPath}",
@@ -129,7 +141,7 @@ def execute(forcing_config_input: str, config_input: str = None, output_path: st
         post_process_script = os.path.join(module_dir, "post_process", "netcdf_to_csv.py")
 
         subprocess.run(
-            ["python", post_process_script, f"{output_path}", f"{csv_path}"],
+            ["python3", post_process_script, f"{output_path}", f"{csv_path}"],
             check=True
         )
 

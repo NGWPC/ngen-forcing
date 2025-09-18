@@ -9,8 +9,9 @@ def create_mesh(cfg: 'ConfigOptions'):
     """
     Create ESMF Mesh from geopackage file provided by the forcing engine config
 
-    :param cfg: dictionary of forcing engine config parameters
-    :param hyfab_name: path to hydrofabric geopackage file (we might move this to the config file)
+    :param cfg: Object with attributes:
+                - geopackage: path to hydrofabric geopackage file
+                - geogridL path to desired ESMF mesh output file
     """
 
     # Set the mesh file name based on the hydrofabric file
@@ -38,17 +39,13 @@ def main():
     args = parser.parse_args()
 
     # Load Yaml into dict
-    with open(args.config, "r") as f:
+    with open(args.cfg, "r") as f:
         cfg_dict = yaml.safe_load(f)
-
-    # Read hydrofabric name and mesh output file
-    geopackage = cfg_dict['Geopackage']
-    geogrid = cfg_dict['Geogrid_In']
 
     # Wrap config dict into simplenamespace to match ConfigOptions format
     cfg = SimpleNamespace(
-        geopackage=geopackage,
-        geogrid=geogrid)
+        geopackage=cfg_dict['Geopackage'],
+        geogrid=cfg_dict['GeogridIn'])
 
     # Run mesh creation
     create_mesh(cfg)
