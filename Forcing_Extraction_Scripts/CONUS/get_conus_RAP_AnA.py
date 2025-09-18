@@ -16,8 +16,8 @@ class RAPAnADownloader(ForecastDownloader):
         return "https://noaa-rap-pds.s3.amazonaws.com"
 
     def get_download_targets(self, _):
-        # Download only forecast hours 01 and 02
-        return [1, 2]
+        # Download only forecast hour 01
+        return [1]
 
     def build_output_dir(self, d_start, _):
         # Example: output/rap.20250415/

@@ -10,29 +10,20 @@ ENV PATH="/usr/local/bin:$PATH"
 # https://github.com/docker-library/python/pull/570
 ENV LANG="C.UTF-8"
 
-
 ## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
-
-# Add conda repo
-RUN <<EOF cat > /etc/yum.repos.d/conda.repo
-[conda]
-name=Conda
-baseurl=https://repo.anaconda.com/pkgs/misc/rpmrepo/conda
-enabled=1
-gpgcheck=1
-gpgkey=https://repo.anaconda.com/pkgs/misc/gpgkeys/anaconda.asc
-EOF
 
 # runtime dependencies
 RUN set -eux; \
     dnf install -y dnf-plugins-core; \
+    dnf install -y epel-release; \
     dnf config-manager --set-enabled powertools; \
     dnf install -y \
+        proj proj-devel \
+        sqlite sqlite-devel \        
         autoconf \
         automake \
         bzip2 bzip2-devel \
         cmake \
-        conda \
         curl curl-devel \
         file \
         findutils \
@@ -49,28 +40,26 @@ RUN set -eux; \
         libpng libpng-devel \
         m4 \
 ## FIXME: replace openmpi with Intel MPI libraries ##
-#       openmpi openmpi-devel \
+        openmpi openmpi-devel \
         openssl openssl-devel \
         python3.11 \
+        python3.11-devel \
+        python3.11-pip \
         python3.11-pyyaml \
         rsync \
         uuid uuid-devel \
         which \
         zlib zlib-devel \
+        hdf5-devel \
+        netcdf-devel \
+        netcdf-fortran-devel \
     ; \
     dnf clean all
-
-# add conda to the PATH
-ENV PATH=${PATH}:/opt/conda/bin
 
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
 ## FIXME: replace openmpi with Intel MPI libraries ##
-#ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
-
-# Fix OpenMPI support within container
-#ENV PSM3_HAL=loopback
-#ENV PSM3_DEVICES=self
+ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
 
 RUN set -eux; \
     curl --location --output wgrib2.tgz "https://ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz" ; \
@@ -93,55 +82,63 @@ RUN set -eux; \
     chmod +x /usr/local/bin/wgrib2 ; \
     rm --recursive --force /usr/src/wgrib2
 
-ENV CONDA_ENVS_PATH=/ngen-app/conda/envs/
-
-ARG CONDA_ENV_NAME=ngen_forcing_extraction
-COPY ./Forcing_Extraction_Scripts/environment.yml environment.yaml
+# Build and install ESMF 8.8.0
 RUN set -eux; \
-    \
-    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
-    rm --force environment.yaml
+    curl --location --output esmf-8.8.0.tar.gz "https://github.com/esmf-org/esmf/archive/refs/tags/v8.8.0.tar.gz"; \
+    tar --extract --gzip --file esmf-8.8.0.tar.gz; \
+    rm esmf-8.8.0.tar.gz; \
+    cd esmf-8.8.0; \
+    export ESMF_DIR=/esmf-8.8.0; \
+    export ESMF_INSTALL_PREFIX=/usr/local/esmf; \
+    export ESMF_COMPILER=gfortran; \
+    export ESMF_COMM=openmpi; \
+    export ESMF_NETCDF="nc-config"; \
+    export ESMF_F90COMPILEPATHS="-I/usr/lib64/gfortran/modules"; \
+    export ESMF_BOPT=O; \
+    make all; \
+    make install; \
+    cd ..; \
+    rm -rf esmf-8.8.0
 
-ARG CONDA_ENV_NAME=ngen_streamflow
-COPY ./Streamflow_Scripts/environment.yml environment.yaml
+# Install ESMPy
+ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
 RUN set -eux; \
-    \
-    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
-    rm --force environment.yaml
+    pip3.11 install setuptools-git-versioning; \
+    git clone --depth 1 --branch v8.8.0 https://github.com/esmf-org/esmf.git; \
+    cd esmf/src/addon/esmpy; \
+    python3.11 -m pip install .; \
+    cd /; \
+    rm -rf esmf
 
-ARG CONDA_ENV_NAME=ngen_esmf_mesh_domain
-COPY ./ESMF_Mesh_Domain_Configuration_Production/environment.yml environment.yaml
-RUN set -eux; \
-    \
-    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
-    conda run -n ${CONDA_ENV_NAME} pip install --upgrade geopandas ; \
-    rm --force environment.yaml
+# Build GDAL from source
+RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
+    set -eux && \
+    curl --location --output gdal.tar.gz https://github.com/OSGeo/gdal/releases/download/v3.7.3/gdal-3.7.3.tar.gz && \
+    mkdir --parents /usr/src/gdal && \
+    tar --extract --directory /usr/src/gdal --strip-components=1 --file gdal.tar.gz && \
+    cd /usr/src/gdal && \
+    cmake -B build -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/usr/local && \
+    cmake --build build --parallel "$(nproc)" && \
+    cmake --build build --target install && \
+    ldconfig && \
+    rm --recursive --force /usr/src/gdal gdal.tar.gz
 
-ARG CONDA_ENV_NAME=coastal_forcing
-COPY ./coastal/environment.yml environment.yaml
-RUN set -eux; \
-    \
-    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
-    rm --force environment.yaml
+ENV PATH="/usr/local/bin:${PATH}"
 
-# This section and the next section, the section to set
-# WGRIB2 env variable, should not be separated because
-# the CONDA_ENVS_PATH in the ngen_forcings_engine_bmi
-# is needed by WGRIB2
-# 
-ARG CONDA_ENV_NAME=ngen_forcings_engine_bmi
-COPY ./NextGen_Forcings_Engine_BMI/environment.yml environment.yaml
+RUN pip3.11 cache purge; \
+    pip3.11 install --no-binary=mpi4py mpi4py
+
+# Install Python packages globally
 RUN set -eux; \
-    \
-    conda env create --name ${CONDA_ENV_NAME} --file=environment.yaml ; \
-    conda clean --all ; \
-    rm --force environment.yaml
+    pip3.11 install --upgrade pip
 
 ENV WGRIB2=/usr/local/bin/wgrib2
+
+# Fix OpenMPI transport for containers
+ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
+ENV OMPI_MCA_btl=^openib,ofi
+ENV OMPI_MCA_pml=ob1
+ENV OMPI_MCA_btl_base_warn_component_unused=0
 
 ################################################
 
@@ -154,9 +151,13 @@ RUN set -eux; \
     chmod +x /ngen-app/bin/run-ngen-forcing.sh
 
 COPY . /ngen-app/ngen-forcing/
-ENV PYTHONPATH="/ngen-app/ngen-forcing"
 
+# Install ngen-forcing as a Python package
+WORKDIR /ngen-app/ngen-forcing
+RUN set -eux; \
+    pip3.11 install .
 
+# Remove PYTHONPATH since package is installed globally
 WORKDIR /ngen-app/ngen-forcing
 
 ARG CI_COMMIT_REF_NAME
@@ -181,7 +182,6 @@ RUN set -eux; \
       --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
       "{\"ngen-bmi-forcing\": {commit_hash: \$commit_hash, branch: \$branch, tags: \$tags, author: \$author, commit_date: \$commit_date, message: \$message, build_date: \$build_date}}" \
       > $GIT_INFO_PATH
-
 
 WORKDIR /
 
