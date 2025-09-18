@@ -1,6 +1,8 @@
 import argparse
 import importlib.util
+import yaml
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from pathlib import Path
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
 
@@ -11,12 +13,6 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
 
     :param cfg: dictionary of forcing engine config parameters
     """
-    # # # TESTING
-    # import yaml
-    # fp = '/ngwpc/run_ngen/default/noah_topmodel/01123000/Input/forcing_config/short_range_config.yml'
-    # with open(fp) as cfg_file:
-    #     cfg = yaml.safe_load(cfg_file)
-
     # Get parameters from the forcing engine config file
     refcstbdate = cfg.b_date_proc
     input_forcings = cfg.input_forcings + [f"supp{val}" for val in cfg.supp_precip_forcings]
@@ -100,7 +96,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             lookback_hours=look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
-            ens_number=int(ens_number) if ens_number is not None else None
+            ens_number=int(ens_number) if ens_number != '' else None
         )
 
         # Run the download
@@ -108,12 +104,27 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
 
 
 def main():
-    #TODO: fix for direct execution
     parser = argparse.ArgumentParser(description="Download forecast forcing data")
-    parser.add_argument("cfg", help="Dictionary containing contents of forcing configuration yaml file")
+    parser.add_argument("cfg", help="Path to YAML config file")
     args = parser.parse_args()
 
-    retrieve_forcing(args.cfg)
+    # Load Yaml into dict
+    with open(args.cfg, "r") as f:
+        cfg_dict = yaml.safe_load(f)
+
+    # Wrap config dict into simplenamespace to match ConfigOptions format
+    cfg = SimpleNamespace(b_date_proc=datetime.strptime(cfg_dict['RefcstBDateProc'], "%Y-%m-%d %H:%M:%S"),
+                          input_forcings=cfg_dict['InputForcings'],
+                          supp_precip_forcings=cfg_dict['SuppPcp'],
+                          input_force_dirs=cfg_dict['InputForcingDirectories'],
+                          supp_precip_dirs=cfg_dict['SuppPcpDirectories'],
+                          fcst_input_horizons=cfg_dict['ForecastInputHorizons'],
+                          cfsv2EnsMember=cfg_dict['cfsEnsNumber'],
+                          ana_flag=cfg_dict['AnAFlag'],
+                          look_back=cfg_dict['LookBack'])
+
+    # Extract forcing data
+    retrieve_forcing(cfg)
 
 
 if __name__ == "__main__":
