@@ -81,6 +81,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
 
         # Dynamically import extraction module
+        mod_name = f"forcing_{Path(extract_scriptPath).stem}"
         spec = importlib.util.spec_from_file_location(mod_name, extract_scriptPath)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
