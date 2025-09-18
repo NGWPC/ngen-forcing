@@ -1,6 +1,8 @@
 import argparse
 import importlib.util
+import yaml
 from datetime import datetime, timedelta
+from types import SimpleNamespace
 from pathlib import Path
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
 
@@ -108,12 +110,19 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
 
 
 def main():
-    #TODO: fix for direct execution
     parser = argparse.ArgumentParser(description="Download forecast forcing data")
-    parser.add_argument("cfg", help="Dictionary containing contents of forcing configuration yaml file")
+    parser.add_argument("cfg", help="Path to Yaml forcing configuration file")
     args = parser.parse_args()
 
-    retrieve_forcing(args.cfg)
+    # Load Yaml into dict
+    with open(args.cfg, "r") as f:
+        cfg_dict = yaml.safe_load(f)
+
+    # Wrap config dict into simplenamespace to match ConfigOptions format
+    cfg = SimpleNamespace(**cfg_dict)
+
+    # Extract forcing data
+    retrieve_forcing(cfg)
 
 
 if __name__ == "__main__":
