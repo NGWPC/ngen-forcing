@@ -41,8 +41,14 @@ def main():
     with open(args.config, "r") as f:
         cfg_dict = yaml.safe_load(f)
 
+    # Read hydrofabric name and mesh output file
+    geopackage = cfg_dict['Geopackage']
+    geogrid = cfg_dict['Geogrid_In']
+
     # Wrap config dict into simplenamespace to match ConfigOptions format
-    cfg = SimpleNamespace(**cfg_dict)
+    cfg = SimpleNamespace(
+        geopackage=geopackage,
+        geogrid=geogrid)
 
     # Run mesh creation
     create_mesh(cfg)

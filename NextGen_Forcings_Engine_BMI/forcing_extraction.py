@@ -1,7 +1,7 @@
 import argparse
 import importlib.util
 import yaml
-from datetime import datetime, timedelta
+from datetime import timedelta
 from types import SimpleNamespace
 from pathlib import Path
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader
@@ -13,12 +13,6 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
 
     :param cfg: dictionary of forcing engine config parameters
     """
-    # # # TESTING
-    # import yaml
-    # fp = '/ngwpc/run_ngen/default/noah_topmodel/01123000/Input/forcing_config/short_range_config.yml'
-    # with open(fp) as cfg_file:
-    #     cfg = yaml.safe_load(cfg_file)
-
     # Get parameters from the forcing engine config file
     refcstbdate = cfg.b_date_proc
     input_forcings = cfg.input_forcings + [f"supp{val}" for val in cfg.supp_precip_forcings]
