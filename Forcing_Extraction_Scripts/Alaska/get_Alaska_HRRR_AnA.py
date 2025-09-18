@@ -23,9 +23,9 @@ class AlaskaHRRRDownloader(ForecastDownloader):
     def should_process_hour(self, d_start):
         return d_start.hour % 3 == 0
 
-    def get_download_targets(self, d_start):
-        # Only download forecast hours 01 and 02
-        return [1, 2]
+    def get_download_targets(self, _):
+        # Only download forecast hours 01-04
+        return [1, 2, 3, 4]
 
     def build_output_dir(self, d_start, _):
         return os.path.join(self.out_dir, "hrrr." + d_start.strftime('%Y%m%d'), "alaska")
