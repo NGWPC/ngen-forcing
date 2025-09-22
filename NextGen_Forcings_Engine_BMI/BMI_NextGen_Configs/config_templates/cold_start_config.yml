@@ -1,7 +1,7 @@
 time_step_seconds: 3600
 initial_time: 0
 NWM_VERSION: 4.0
-NWM_CONFIG: "cold_start_conus"
+NWM_CONFIG: "cold_start"
 InputForcings: [5,6] 
 InputForcingDirectories: ["/ngen-app/data/raw_input/HRRR_ANA","/ngen-app/data/raw_input/RAP_ANA"]
 InputForcingTypes: ["GRIB2","GRIB2"]
