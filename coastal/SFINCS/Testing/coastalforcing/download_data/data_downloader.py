@@ -338,11 +338,8 @@ class DataDownloader:
             print("\n[coastal:stofs]")
             self._download_stofs()
         elif self.coastal == "tpxo":
-            if self.coastal_model == "sfincs" : 
-              print("\n[coastal:tpxo]")
-              self._download_tpxo()
-            else:
-              pass
+            print("\n[coastal:tpxo]")
+            self._download_tpxo()
         elif self.coastal == "glofs":
             print("[coastal:glofs]")
             # self._download_glofs()
