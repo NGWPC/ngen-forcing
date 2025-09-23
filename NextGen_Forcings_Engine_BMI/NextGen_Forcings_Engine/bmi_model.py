@@ -18,8 +18,8 @@ from .bmi_grid import GridType, Grid
 from .core import err_handler, geoMod, suppPrecipMod, ioMod, config, parallel, forcingInputMod
 from .model import NWMv3_Forcing_Engine_model
 
-import esmf_creation
-import forcing_extraction
+from NextGen_Forcings_Engine_BMI import esmf_creation
+from NextGen_Forcings_Engine_BMI import forcing_extraction
 
 # Import BMI grid functions to advertise grid features
 # Here is the model we want to run
