@@ -179,6 +179,41 @@ def prepare_sfincs_base_simulation_folder(cfg, domain_info):
     else:
         print(f"WARNING: sfincs.inp not found in {sim_dir}")
 
+def prepare_schism_base_simulation_folder(cfg, domain_info):
+    # Normalize & ensure dirs
+    sim_root = _normpath(cfg['sim_dir'])
+    start_iso = _parse_utc(cfg['start_time'])
+    run_folder_name = f"{cfg['coastal_model']}_{start_iso}"
+    sim_dir = _normpath(sim_root, run_folder_name)
+    Path(sim_dir).mkdir(parents=True, exist_ok=True)
+
+    dts = datetime.strptime(_parse_utc(cfg['start_time']), "%Y-%m-%dT%H-%M-%SZ")
+    dte = datetime.strptime(_parse_utc(cfg['end_time']), "%Y-%m-%dT%H-%M-%SZ")
+
+    startpdy = dts.strftime( "%Y%m%d")
+    startcyc = dts.strftime("%H")
+
+    forecastlength_in_hrs = int( (dte - dts).total_seconds()/3600 )
+
+    here = Path(__file__).resolve().parent
+    raw_download_dir=_normpath(here, cfg['raw_download_dir'])
+
+    with open( f"{sim_dir}/schism_calib.cfg", "w") as schcfg:
+      schcfg.write(f"export STARTPDY={startpdy}\n")
+      schcfg.write(f"export STARTCYC={startcyc}\n")
+      schcfg.write(f"export FCST_LENGTH_HRS={forecastlength_in_hrs}\n")
+      schcfg.write("export HOT_START_FILE=\'\'\n")
+      if cfg['coastal_water_level_source'] == 'tpxo':
+        schcfg.write('export USE_TPXO="YES"\n')
+      else:
+        schcfg.write('export USE_TPXO="NO"\n')
+      schcfg.write(f"export COASTAL_DOMAIN={cfg['domain_file']}\n")
+      schcfg.write(f"export METEO_SOURCE={cfg['meteo_source'].upper()}\n")
+      schcfg.write(f"export COASTAL_WORK_DIR={sim_dir}\n")
+      schcfg.write(f"export RAW_DOWNLOAD_DIR={raw_download_dir}\n")
+      schcfg.write("SIF_PATH=/contrib/Zhengtao.Cui/home/ngwpc/singularity/ngen_coastal_sing.sif\n")
+
+
 # ---- Main ----
 
 def main():
@@ -200,6 +235,9 @@ def main():
         cfg = yaml.safe_load(f)
 
     validate_config(cfg)
+
+    nwm_domain = cfg['domain_file'] if cfg['domain_file'] == 'hawaii' or cfg['domain_file'] == 'prvi' else \
+                 'conus' 
 
     # Load domain info and normalize base path relative to the domain YAML
     domain_file = f"domain_lists/{cfg['coastal_model']}/{cfg['domain_file']}.yaml"
@@ -226,12 +264,14 @@ def main():
 
     # Download data
     downloader = DataDownloader(
+        coastal_model=cfg['coastal_model'],
         start_time=_parse_utc(cfg['start_time']),
         end_time=_parse_utc(cfg['end_time']),
         meteo_source=cfg['meteo_source'],
         hydrology_source=cfg['hydrology_source'],
         coastal_water_level_source=cfg['coastal_water_level_source'],
         raw_download_dir=_normpath(here, cfg['raw_download_dir']),
+        nwm_domain=nwm_domain,
         domain_info=domain_info
     )
     downloader.download_all()
@@ -240,21 +280,22 @@ def main():
     if cfg["coastal_model"].lower() == "sfincs":
         prepare_sfincs_base_simulation_folder(cfg, domain_info)
     elif cfg["coastal_model"].lower() == "schism":
-        print("SCHISM simulation preparation not yet implemented.")
+        prepare_schism_base_simulation_folder(cfg, domain_info)
     else:
         print(f"WARNING: No preparation routine defined for model '{cfg['coastal_model']}'.")
 
     # Process data
     sim_dir = _normpath(here, cfg['sim_dir'], f"{cfg['coastal_model']}_{_parse_utc(cfg['start_time'])}")
 
-    tpxo_env = None
-    ld_library_path = cfg.get('ld_library_path', None)
-    if ld_library_path:
+    if  cfg["coastal_model"].lower() == "sfincs": 
+      tpxo_env = None
+      ld_library_path = cfg.get('ld_library_path', None)
+      if ld_library_path:
         tpxo_env={
             "LD_LIBRARY_PATH": ld_library_path
         }
 
-    processor = DataProcessor(
+      processor = DataProcessor(
         coastal_model=cfg['coastal_model'],
         domain_info=domain_info,
         sim_dir=sim_dir,
@@ -267,8 +308,8 @@ def main():
         tpxo_relative_path=cfg.get('tpxo_relative_path', None),
         tpxo_model_control=cfg.get('tpxo_model_control', None),
         tpxo_env=tpxo_env
-    )
-    processor.process_all()
+      )
+      processor.process_all()
 
     print("Forcing file generation COMPLETE")
 
