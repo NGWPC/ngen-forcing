@@ -81,14 +81,14 @@ export LD_LIBRARY_PATH=/opt/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
 #export NWM_FORCING_DIR=/efs/schism_use_case/hi_nwm_ana_forcing_20240913/
-export NWM_FORCING_DIR=$COASTAL_WORK_DIR/meteo/${METEO_SOURCE,,} #to lower case
+export NWM_FORCING_DIR=$RAW_DOWNLOAD_DIR/meteo/${METEO_SOURCE,,} #to lower case
 #
 # location of the NWM retrospective or archieved streamflow files
 # note that the time span of the files must cover the whole simulation period
 if [[ ${METEO_SOURCE} == "NWM_RETRO" ]]; then
-   export NWM_CHROUT_DIR=$COASTAL_WORK_DIR/streamflow/nwm_retro
+   export NWM_CHROUT_DIR=$RAW_DOWNLOAD_DIR/streamflow/nwm_retro
 elif [[ ${METEO_SOURCE} == "NWM_ANA" ]]; then
-   export NWM_CHROUT_DIR=$COASTAL_WORK_DIR/hydro/nwm
+   export NWM_CHROUT_DIR=$RAW_DOWNLOAD_DIR/hydro/nwm
 else
    echo "Unknown METEO_SOURCE type: $METEO_SOURCE!"
    exit 1
@@ -140,32 +140,32 @@ if [[ $USE_TPXO == "YES" ]]; then
     export COASTAL_SOURCE=''
 fi
 
-singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
-	/bin/bash -c \
- 	 '__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"; \
-         if [ $? -eq 0 ]; then \
-                eval "$__conda_setup"; \
-         else \
-                if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then \
-                     . "/opt/conda/etc/profile.d/conda.sh" ; \
-                else \
-                      export PATH="/opt/conda/bin:$PATH" ;\
-                fi;                                              \
-          fi;                                               \
-         conda run -n $CONDA_ENV_NAME python \
-	../forcing_downloader/main.py \
-	"$COASTAL_WORK_DIR" \
-	"${coastal_domain_to_nwm_domain[$COASTAL_DOMAIN]}"
-	"$start_dt" \
-	"$end_dt" \
-	"$METEO_SOURCE" "nwm" "$COASTAL_SOURCE"'
+#singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
+#	/bin/bash -c \
+# 	 '__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"; \
+#         if [ $? -eq 0 ]; then \
+#                eval "$__conda_setup"; \
+#         else \
+#                if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then \
+#                     . "/opt/conda/etc/profile.d/conda.sh" ; \
+#                else \
+#                      export PATH="/opt/conda/bin:$PATH" ;\
+#                fi;                                              \
+#          fi;                                               \
+#         conda run -n $CONDA_ENV_NAME python \
+#	../forcing_downloader/main.py \
+#	"$COASTAL_WORK_DIR" \
+#	"${coastal_domain_to_nwm_domain[$COASTAL_DOMAIN]}"
+#	"$start_dt" \
+#	"$end_dt" \
+#	"$METEO_SOURCE" "nwm" "$COASTAL_SOURCE"'
 
 #
 # location of the archived STOFS file if STOFS data is 
 # going to be used for the boundary nodes
 export STOFS_FILE=''
 if [[ $USE_TPXO == "NO" ]]; then
-  export STOFS_FILE=$(ls -1 $COASTAL_WORK_DIR/coastal/stofs/* | head -n 1)
+  export STOFS_FILE=$(ls -1 $RAW_DOWNLOAD_DIR/coastal/stofs/* | head -n 1)
 fi
 
 singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
