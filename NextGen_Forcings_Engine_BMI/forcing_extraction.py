@@ -96,7 +96,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             lookback_hours=look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
-            ens_number=int(ens_number) if ens_number != '' else None
+            ens_number=int(ens_number) if ens_number not in ('',None) else None
         )
 
         # Run the download
