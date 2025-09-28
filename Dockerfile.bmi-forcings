@@ -19,7 +19,7 @@ RUN set -eux; \
     dnf config-manager --set-enabled powertools; \
     dnf install -y \
         proj proj-devel \
-        sqlite sqlite-devel \        
+        sqlite sqlite-devel \
         autoconf \
         automake \
         bzip2 bzip2-devel \
@@ -125,13 +125,6 @@ RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
 
 ENV PATH="/usr/local/bin:${PATH}"
 
-RUN pip3.11 cache purge; \
-    pip3.11 install --no-binary=mpi4py mpi4py
-
-# Install Python packages globally
-RUN set -eux; \
-    pip3.11 install --upgrade pip
-
 ENV WGRIB2=/usr/local/bin/wgrib2
 
 # Fix OpenMPI transport for containers
@@ -152,13 +145,19 @@ RUN set -eux; \
 
 COPY . /ngen-app/ngen-forcing/
 
+# -------------------------------
+# Create a self-contained venv for ngen-forcing
+# -------------------------------
+ENV VIRTUAL_ENV="/ngen-app/ngen-python"
+RUN python3.11 -m venv ${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
+    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages"
+
 # Install ngen-forcing as a Python package
 WORKDIR /ngen-app/ngen-forcing
 RUN set -eux; \
-    pip3.11 install .
-
-# Remove PYTHONPATH since package is installed globally
-WORKDIR /ngen-app/ngen-forcing
+    pip install --upgrade pip setuptools wheel; \
+    pip install --no-cache-dir mpi4py .
 
 ARG CI_COMMIT_REF_NAME
 
