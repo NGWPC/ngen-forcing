@@ -3,7 +3,7 @@
 #SBATCH -N 2                     #number of nodes to use
 #SBATCH --partition=compute      #the patition
 #SBATCH --ntasks-per-node=18     #numebr of cores per node
-#SBATCH --exclusive 
+#SBATCH --exclusive
 
 export NODES=2          #this must match the number of nodes defined above by slurm
 export NCORES=18        #this must match the number of cores per node defined above by slurm
@@ -23,7 +23,7 @@ export FCST_TIMESTEP_LENGTH_SECS=3600
 #
 # location of the OTPSnc program and TPXO10_atlas model data
 # the OTPSnc program can be downloaded from https://www.tpxo.net/otps
-# the TPXO10_atlas data is available on the AWS s3 bucket 
+# the TPXO10_atlas data is available on the AWS s3 bucket
 # s3://ngwpc-data/Coastal_and_atmospheric_forcing_for_calibration/TPXO_atlas/TPXO10_atlas_v2_nc.zip
 # The zip file must be unpacked and extracted folders are put inside the OTPSnc directory
 export OTPSDIR=$NGEN_APP_DIR/OTPSnc
@@ -161,7 +161,7 @@ fi
 #	"$METEO_SOURCE" "nwm" "$COASTAL_SOURCE"'
 
 #
-# location of the archived STOFS file if STOFS data is 
+# location of the archived STOFS file if STOFS data is
 # going to be used for the boundary nodes
 export STOFS_FILE=''
 if [[ $USE_TPXO == "NO" ]]; then
@@ -188,7 +188,7 @@ ${MPICOMMAND3} singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
-         $USHnwm/wrf_hydro_workflow_dev/forcings/WrfHydroFECPP/workflow_driver.py 
+         $USHnwm/wrf_hydro_workflow_dev/forcings/WrfHydroFECPP/workflow_driver.py
 
 singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
@@ -221,7 +221,7 @@ else
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
-         $USHnwm/wrf_hydro_workflow_dev/coastal/regrid_estofs.py $ESTOFS_INPUT_FILE $OPEN_BNDS_HGRID_FILE $SCHISM_OUTPUT_FILE 
+         $USHnwm/wrf_hydro_workflow_dev/coastal/regrid_estofs.py $ESTOFS_INPUT_FILE $OPEN_BNDS_HGRID_FILE $SCHISM_OUTPUT_FILE
 
    singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \

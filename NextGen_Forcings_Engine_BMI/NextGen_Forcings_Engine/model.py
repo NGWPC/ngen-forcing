@@ -20,7 +20,6 @@ from .core import err_handler
 from .core import layeringMod
 from . import nwm_proc
 
-
 class NWMv3_Forcing_Engine_model:
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
     # def __init__(self):
@@ -205,25 +204,23 @@ class NWMv3_Forcing_Engine_model:
             ConfigOptions.currentCustomForceNum = 0
             print(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
             # Loop over each of the input forcings specified.
-            print(f"\nModel.py looping over {len(ConfigOptions.input_forcings)} input forcings")
+            print(f"\n[INFO] Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
+
             for forceKey in ConfigOptions.input_forcings:
                 print('forceKey', forceKey)
                 print(f"ConfigOptions.aws: {ConfigOptions.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
-                if forceKey == 23 and [12, 21] in ConfigOptions.input_forcings:
-                    # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
-                    AORC_mask = input_forcings.regridded_mask_AORC
-                    AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
-
+                if forceKey == 23 and 12 in ConfigOptions.input_forcings and 21 in ConfigOptions.input_forcings:
                     input_forcings = inputForcingMod[forceKey]
 
-                    input_forcings.regridded_mask_AORC = AORC_mask
-                    input_forcings.regridded_mask_elem_AORC = AORC_elem_mask
+                    # These are not used
+                    # AORC_mask = input_forcings.regridded_mask_AORC
+                    # AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
                 else:
                     input_forcings = inputForcingMod[forceKey]
                     input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
-                    # Flag to indicate whether or not AORC/NWM Forcings AWS option is initialized
+
                 if forceKey in [12, 21, 27] and ConfigOptions.aws is None:
                     # Calculate the previous and next input cycle files from the inputs.
                     input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
@@ -305,7 +302,7 @@ class NWMv3_Forcing_Engine_model:
                 if forceKey == 10:
                     ConfigOptions.currentCustomForceNum += 1
 
-                print(f'End of loop for forceKey {forceKey}')
+                print(f'End of loop for forceKey {forceKey}\n')
 
             # Process supplemental precipitation if we specified in the configuration file.
             if ConfigOptions.number_supp_pcp > 0:
@@ -400,6 +397,7 @@ class NWMv3_Forcing_Engine_model:
         # the I/O module to update opened netcdf file with forcing fields
         if ConfigOptions.forcing_output == 1:
             OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+            print(f"[INFO] Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):

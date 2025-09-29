@@ -647,7 +647,7 @@ def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
     # Initialize an empty dictionary
     InputDict = {}
 
-    if ConfigOptions.precip_only_flag == True:
+    if ConfigOptions.precip_only_flag:
         return InputDict
 
     # Loop through and initialize the empty class for each product.
@@ -694,19 +694,19 @@ def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
         # If we have specified specific humidity downscaling, establish arrays to hold
         # temporary temperature arrays that are un-downscaled.
         if InputDict[force_key].q2dDownscaleOpt > 0:
-            if (ConfigOptions.grid_type == 'gridded'):
+            if ConfigOptions.grid_type == 'gridded':
                 InputDict[force_key].t2dTmp = np.empty([GeoMetaWrfHydro.ny_local,
                                                         GeoMetaWrfHydro.nx_local],
                                                        np.float32)
                 InputDict[force_key].psfcTmp = np.empty([GeoMetaWrfHydro.ny_local,
                                                          GeoMetaWrfHydro.nx_local],
                                                         np.float32)
-            elif (ConfigOptions.grid_type == 'unstructured'):
+            elif ConfigOptions.grid_type == 'unstructured':
                 InputDict[force_key].t2dTmp = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
                 InputDict[force_key].psfcTmp = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
                 InputDict[force_key].t2dTmp_elem = np.empty([GeoMetaWrfHydro.ny_local_elem], np.float32)
                 InputDict[force_key].psfcTmp_elem = np.empty([GeoMetaWrfHydro.ny_local_elem], np.float32)
-            elif (ConfigOptions.grid_type == 'hydrofabric'):
+            elif ConfigOptions.grid_type == 'hydrofabric':
                 InputDict[force_key].t2dTmp = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
                 InputDict[force_key].psfcTmp = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
         # Initialize the local final grid of values. This is represntative
@@ -718,7 +718,7 @@ def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
             # TODO: this assumes that LQFRAC (8) is always the last grib var
             InputDict[force_key].grib_vars = InputDict[force_key].grib_vars[:-1]
 
-        if (ConfigOptions.grid_type == 'gridded'):
+        if ConfigOptions.grid_type == 'gridded':
             InputDict[force_key].final_forcings = np.empty([force_count, GeoMetaWrfHydro.ny_local,
                                                             GeoMetaWrfHydro.nx_local],
                                                            np.float64)
@@ -728,7 +728,7 @@ def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                                                             GeoMetaWrfHydro.nx_local], np.float32)
             InputDict[force_key].regridded_mask_AORC = np.empty([GeoMetaWrfHydro.ny_local,
                                                                  GeoMetaWrfHydro.nx_local], np.float32)
-        elif (ConfigOptions.grid_type == 'unstructured'):
+        elif ConfigOptions.grid_type == 'unstructured':
             InputDict[force_key].final_forcings = np.empty([force_count, GeoMetaWrfHydro.ny_local], np.float64)
             InputDict[force_key].height = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
             InputDict[force_key].regridded_mask = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
@@ -737,7 +737,7 @@ def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
             InputDict[force_key].height_elem = np.empty([GeoMetaWrfHydro.ny_local_elem], np.float32)
             InputDict[force_key].regridded_mask_elem = np.empty([GeoMetaWrfHydro.ny_local_elem], np.float32)
             InputDict[force_key].regridded_mask_elem_AORC = np.empty([GeoMetaWrfHydro.ny_local_elem], np.float32)
-        elif (ConfigOptions.grid_type == 'hydrofabric'):
+        elif ConfigOptions.grid_type == 'hydrofabric':
             InputDict[force_key].final_forcings = np.empty([force_count, GeoMetaWrfHydro.ny_local], np.float64)
             InputDict[force_key].height = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
             InputDict[force_key].regridded_mask = np.empty([GeoMetaWrfHydro.ny_local], np.float32)
