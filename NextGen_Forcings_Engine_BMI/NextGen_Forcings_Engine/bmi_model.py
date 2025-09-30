@@ -14,10 +14,12 @@ from bmipy import Bmi
 # Import MPI Python module
 from mpi4py import MPI
 
-# Import BMI grid functions to advertise grid features
-from .bmi_grid import Grid, GridType
-# Here is the model we want to run
+from .bmi_grid import GridType, Grid
+from .core import err_handler, geoMod, suppPrecipMod, ioMod, config, parallel, forcingInputMod
 from .model import NWMv3_Forcing_Engine_model
+
+# Import BMI grid functions to advertise grid features
+# Here is the model we want to run
 
 ###### NWMv3.0 Forcings Engine modules ######
 try:
@@ -25,13 +27,6 @@ try:
 except ImportError:
     import ESMF
 
-from .core import config
-from .core import err_handler
-from .core import forcingInputMod
-from .core import geoMod
-from .core import ioMod
-from .core import parallel
-from .core import suppPrecipMod
 
 from typing import Any
 from numpy.typing import NDArray
@@ -86,6 +81,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._comm = None
         self.var_array_lengths = 1
 
+        # Track output configuration status
+        self._output_configured = False
+
         # Initialize attributes in __init__ to avoid PyCharm errors
         self.cfg_bmi = None
         self._job_meta = None
@@ -137,20 +135,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # -------------------------------------------------------------------
     def initialize(self, config_file: str) -> None:
         """
-        **DO NOT CALL THIS FUNCTION DIRECTLY**.
-
         This function is part of the BMI (Basic Model Interface) specification and is automatically
-        invoked by the BMI system. For our application, users should always call `initialize_with_params()`
-        instead, which internally calls this function for core initialization.
+        invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
+        which sets additional parameters such as `b_date`, `geogrid`, and `output_path`.
 
         This function is responsible for:
         - Setting up core model attributes, grids, and MPI communication.
-        - Reading the BMI configuration file, and initializing the basic model components.
-        - It does not handle additional parameters like `b_date` and `geogrid` which are handled in `initialize_with_params()`.
+        - Reading the BMI configuration file and initializing basic model components.
 
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+
+        print('---------------------------')
+        print("BMI Forcing Engine initialized with", config_file)
+
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
             raise RuntimeError("No BMI initialize configuration provided, nothing to do...")
@@ -159,21 +158,27 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         if not bmi_cfg_file.is_file():
             raise RuntimeError(f"Config file {bmi_cfg_file} not found, nothing to do...")
 
-        print(f"Reading {bmi_cfg_file}")
+        print(f"Reading config file: {bmi_cfg_file}")
         with bmi_cfg_file.open('r') as fp:
             cfg = yaml.safe_load(fp)
 
         self.cfg_bmi = self._parse_config(cfg)
 
+        # If _job_meta was not set by initialize_with_params(), create a default one
+        if self._job_meta is None:
+            self._job_meta = config.ConfigOptions(self.cfg_bmi)
+
         # Parse the configuration options
         try:
             self._job_meta.read_config(self.cfg_bmi)
-        except KeyboardInterrupt:
-            err_handler.err_out_screen('User keyboard interrupt')
-        except ImportError:
-            err_handler.err_out_screen('Missing Python packages')
-        except InterruptedError:
-            err_handler.err_out_screen('External kill signal detected')
+        except KeyboardInterrupt as e:
+            err_handler.err_out_screen('User keyboard interrupt', e)
+        except ImportError as e:
+            err_handler.err_out_screen('Missing Python packages', e)
+        except InterruptedError as e:
+            err_handler.err_out_screen('External kill signal detected', e)
+        except Exception as e:
+            err_handler.err_out_screen('Unhandled exception', e)
 
         # Set NWM version and config, if provided in the config
         if self.cfg_bmi.get('NWM_VERSION') is not None:
@@ -184,13 +189,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         if self.cfg_bmi.get('NWM_CONFIG') is not None:
             self._job_meta.nwmConfig = self.cfg_bmi['NWM_CONFIG']
 
-        # Initialize our MPI communication
+        # Initialize MPI communication
         self._mpi_meta = parallel.MpiConfig()
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
-        except Exception:
-            err_handler.err_out_screen(self._job_meta.errMsg)
+        except Exception as e:
+            err_handler.err_out_screen(self._job_meta.errMsg, e)
 
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
@@ -205,12 +210,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         elif self._job_meta.grid_type == 'hydrofabric':
             self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(self._job_meta, self._mpi_meta)
         else:
-            self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured) within the config.yml file."
+            self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured, hydrofabric) in the config."
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
 
         # Assign grid type to BMI class for grid information
         self._grid_type = self._job_meta.grid_type.lower()
 
+        # Set output var names based on grid type
         if self._grid_type == "gridded":
             # ---------------------------------------------
             # Output variable names (CSDMS standard names)
@@ -476,7 +482,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         if self._job_meta.spatial_meta is not None:
             try:
                 self._WrfHydroGeoMeta.initialize_geospatial_metadata(self._job_meta, self._mpi_meta)
-            except Exception:
+            except Exception as e:
                 err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
@@ -491,7 +497,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Initialize our output object, which includes local slabs from the output grid.
         try:
             self._OutputObj = ioMod.OutputObj(self._job_meta, self._WrfHydroGeoMeta)
-        except Exception:
+        except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
@@ -502,7 +508,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # downscaling and regridding purposes.
         try:
             self._inputForcingMod = forcingInputMod.initDict(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
-        except Exception:
+        except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
@@ -548,19 +554,19 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # for model_input in self.get_input_var_names():
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
 
-        # ------------- Set time to initial value -----------------------#
+        # Set initial time and step
         self._values['current_model_time'] = self.cfg_bmi['initial_time']
-        # ------------- Set time step size -----------------------#
         self._values['time_step_size'] = self.cfg_bmi['time_step_seconds']
 
-        # ------------- Initialize a model ------------------------------#
-        # self._model = ngen_model(self._values.keys())
+        # Initialize the Forcings Engine model
         self._model = NWMv3_Forcing_Engine_model()
 
-        # Now set the catchment ids to the BMI output field
-        # so they're initialized for the model engine to reference
+        # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
             self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids
+
+
+        self._configure_output_path()
 
     def initialize_with_params(self, config_file: str, b_date: str = None, geogrid: str = None, output_path: str = None) -> None:
         """
@@ -586,30 +592,44 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Set the job metadata parameters (b_date, geogrid) using ConfigOptions
         self._job_meta = config.ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
 
-        # Now that _job_meta is set, call initialize to set up the core model
+        # Now that _job_meta is set, call initialize() to set up the core model
         self.initialize(config_file)
 
-        # Determine the 'ext' based on the grid type, as done in the original initialize()
-        if self._job_meta.grid_type == 'gridded':
-            ext = 'GRIDDED'
-        elif self._job_meta.grid_type == 'hydrofabric':
-            ext = 'HYDROFABRIC'
-        elif self._job_meta.grid_type == 'unstructured':
-            ext = 'MESH'
-        else:
-            raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
+        self._configure_output_path(output_path)
 
-        # Check if forcing_output is enabled (forcing_output == 1)
+
+    def _configure_output_path(self, output_path: str | None = None) -> None:
+        """
+        Sets the output path and initializes the output NetCDF file if forcing output is enabled.
+        This is safe to call once after model initialization.
+
+        :param output_path: Optional override path.
+        """
+        if self._output_configured or self._OutputObj is None:
+            return  # Already configured or no output object to configure
+
         if self._job_meta.forcing_output == 1:
-            # Set output path, either from the argument or default to scratch directory
+            ext = {
+                'gridded': 'GRIDDED',
+                'hydrofabric': 'HYDROFABRIC',
+                'unstructured': 'MESH',
+            }.get(self._job_meta.grid_type)
+
+            if ext is None:
+                raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
+
             if output_path:
                 self._OutputObj.outPath = output_path
             else:
-                filename = "NextGen_Forcings_Engine_" + ext + "_output_" + pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') + ".nc"
+                filename = (
+                        f"NextGen_Forcings_Engine_{ext}_output_" +
+                        pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') +
+                        ".nc"
+                )
                 self._OutputObj.outPath = os.path.join(self._job_meta.scratch_dir, filename)
 
-            # Initialize the output file with forcing information
             self._OutputObj.init_forcing_file(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
+            self._output_configured = True
 
     # ------------------------------------------------------------
     def update(self):
@@ -784,12 +804,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param dest: The numpy array to store the values of the variable.
         :return: The destination array containing the variable values.
         """
+        print(f"[BMI get_value] Called with var_name: '{var_name}'")
+        print(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
+
         if var_name == "grid:count":
+            print(f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type != 'unstructured':
                 dest[...] = 1
             else:
                 dest[...] = 2
         elif var_name == "grid:ids":
+            print(f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type == 'gridded':
                 dest[:] = [self.grid_1.id]
             elif self._job_meta.grid_type == 'unstructured':
@@ -797,6 +822,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             elif self._job_meta.grid_type == 'hydrofabric':
                 dest[:] = [self.grid_4.id]
         elif var_name == "grid:ranks":
+            print(f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type == 'gridded':
                 dest[:] = [self.grid_1.rank]
             elif self._job_meta.grid_type == 'unstructured':
@@ -804,7 +830,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             elif self._job_meta.grid_type == 'hydrofabric':
                 dest[:] = [self.grid_4.rank]
         else:
-            dest[:] = self.get_value_ptr(var_name)
+            src = self.get_value_ptr(var_name)
+            print(f"[BMI get_value] Source array shape: {src.shape}, dtype: {src.dtype}")
+            if dest.shape != src.shape:
+                print(f"[BMI WARNING] Shape mismatch! dest.shape = {dest.shape}, src.shape = {src.shape}")
+            if dest.dtype != src.dtype:
+                print(f"[BMI WARNING] Dtype mismatch! dest.dtype = {dest.dtype}, src.dtype = {src.dtype}")
+            dest[:] = src
+
+        print(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
         return dest
 
     # -------------------------------------------------------------------
@@ -818,6 +852,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param var_name: The name of the variable whose values are to be retrieved.
         :return: A flattened array containing the values of the variable.
         """
+        # print(f"[BMI get_value_ptr] Called with var_name: '{var_name}'")
+
         # Make sure to return a flattened array
         if var_name == "grid_1_shape":  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
             return self.grid_1.shape
@@ -852,19 +888,45 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         if var_name == "grid_4_units":
             return self.grid_4.units
 
-        if var_name not in self._values.keys():
-            raise (UnknownBMIVariable(f"No known variable in BMI model: {var_name}"))
+        # if var_name not in self._values.keys():
+        #     raise (UnknownBMIVariable(f"No known variable in BMI model: {var_name}"))
+        if var_name not in self._values:
+            print("\n[ BMI Diagnostic ]")
+            print(f"Requested variable: '{var_name}'")
+            print("Available variables:")
+            for key in self._values:
+                print(f" - {key}")
+            print("Output variable names:")
+            for var in self._output_var_names:
+                print(f" - {var}")
+            print("Grid type:", self._grid_type)
+            raise UnknownBMIVariable(f"No known variable in BMI model: '{var_name}'")
 
-        shape = self._values[var_name].shape
+        arr = self._values[var_name]
+        # print(f"[BMI get_value_ptr] Found variable '{var_name}' with shape {arr.shape} and dtype {arr.dtype}")
+
+        # Ensure array is C-contiguous
+        if not arr.flags['C_CONTIGUOUS']:
+            print(f"[BMI WARNING] Array for '{var_name}' is not C-contiguous; making a copy.")
+            arr = np.ascontiguousarray(arr)
+
+        # Ensure dtype is float64 (C double)
+        if arr.dtype != np.float64:
+            print(f"[BMI WARNING] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
+            arr = arr.astype(np.float64)
+
+        # Confirm raveling is safe
+        shape = arr.shape
         try:
-            # see if raveling is possible without a copy
-            self._values[var_name].shape = (-1,)
+            # See if raveling is possible without a copy
+            arr.shape = (-1,)
             # reset original shape
-            self._values[var_name].shape = shape
+            arr.shape = shape
         except ValueError as e:
             raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
 
-        return self._values[var_name].ravel()
+        # print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
+        return arr.ravel()
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
@@ -1588,7 +1650,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
         :return: The updated configuration dictionary with appropriately parsed values.
         """
+        print(f"[DEBUG] Entering _parse_config with cfg type: {type(cfg)}")
+        if isinstance(cfg, str):
+            print(f"[ERROR] Received string data instead of dictionary: {cfg[:200]}...")
+            raise TypeError("Expected dictionary in _parse_config, but got a raw CSV string.")
+
+        # if not isinstance(cfg, dict):
+        #     raise TypeError(f"[ERROR] Expected dictionary in _parse_config, got {type(cfg)} with contents: {cfg}")
+
         for key, val in cfg.items():
+            # print(f"[DEBUG] Processing key: {key}, value type: {type(val)}, value: {val}")
             # Convert all path strings to PosixPath objects
             if any([key.endswith(x) for x in ['_dir', '_path', '_file', '_files']]):
                 if (val is not None) and (val != "None"):

@@ -1,7 +1,5 @@
 name: bmi_test
 channels:
-  - defaults
-  - anaconda
   - conda-forge
 dependencies:
   - bmipy

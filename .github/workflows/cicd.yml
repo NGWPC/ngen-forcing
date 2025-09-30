@@ -1,10 +1,10 @@
 name: CI/CD Pipeline
 
 on:
-  pull_request:
-    branches: [main, nwm-main, development, release-candidate]
   push:
-    branches: [main, nwm-main, development, release-candidate]
+    branches: [master, nwm-master, development, release-candidate]
+  pull_request:
+    branches: [main, nwm-master, development, release-candidate]
   release:
     types: [published]
 
@@ -205,24 +205,6 @@ jobs:
     steps:
       - run: echo "Running Coastal Unit Tests..."
 
-  sonarqube-internal:
-    if: (github.event_name == 'pull_request' || github.event_name == 'push') && github.repository_owner == 'NGWPC'
-    runs-on: self-hosted
-    needs: [setup, build-bmi, build-lumped, build-coastal]
-    continue-on-error: true
-    container:
-      image: sonarsource/sonar-scanner-cli
-      options: --entrypoint="" --user 0
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: SonarQube Scan
-        env:
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: sonar-scanner -X -Dsonar.verbose=true
-
   codeql-scan:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
@@ -258,7 +240,6 @@ jobs:
           - { name: bmi,     ref: '${{ needs.setup.outputs.image_bmi }}' }
           - { name: lumped,  ref: '${{ needs.setup.outputs.image_lumped }}' }
           - { name: coastal, ref: '${{ needs.setup.outputs.image_coastal }}' }
-
     steps:
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -297,73 +278,112 @@ jobs:
     name: deploy-latest-on-development
     if: github.event_name == 'push' && github.ref_name == 'development'
     runs-on: ubuntu-latest
-    needs: [setup, build-bmi, build-lumped, build-coastal, unit-test-bmi, unit-test-lumped, unit-test-coastal, sonarqube-internal, codeql-scan, container-scanning]
+    needs: [setup, build-bmi, build-lumped, build-coastal, unit-test-bmi, unit-test-lumped, unit-test-coastal, codeql-scan, container-scanning]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: BMI Forcing
+            IMAGE_BASE: ${{ needs.setup.outputs.image_bmi }}
+          - label: Lumped Forcing
+            IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
+          - label: Coastal
+            IMAGE_BASE: ${{ needs.setup.outputs.image_coastal }}
+
     steps:
-      - name: Log in to GHCR
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Tag & push latest (BMI Forcing)
+      - name: install skopeo
+        shell: bash
         run: |
-          docker pull ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.commit_sha_short }}
-          docker tag  ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.commit_sha_short }} ${{ needs.setup.outputs.image_bmi }}:latest
-          docker push ${{ needs.setup.outputs.image_bmi }}:latest
+          set -euo pipefail
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
 
-      - name: Tag & push latest (Lumped Forcing)
+      - name: tag image with 'latest'
+        shell: bash
         run: |
-          docker pull ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.commit_sha_short }}
-          docker tag  ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.commit_sha_short }} ${{ needs.setup.outputs.image_lumped }}:latest
-          docker push ${{ needs.setup.outputs.image_lumped }}:latest
+          set -euo pipefail
+          IMAGE_BASE="${{ matrix.IMAGE_BASE }}"
+          SHORT_SHA="${{ needs.setup.outputs.commit_sha_short }}"
 
-      - name: Tag & push latest (Coastal)
-        run: |
-          docker pull ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.commit_sha_short }}
-          docker tag  ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.commit_sha_short }} ${{ needs.setup.outputs.image_coastal }}:latest
-          docker push ${{ needs.setup.outputs.image_coastal }}:latest
+          skopeo copy \
+            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --all \
+            "docker://${IMAGE_BASE}:${SHORT_SHA}" "docker://${IMAGE_BASE}:latest"
 
   release:
     name: release
     if: github.event_name == 'release' && github.event.action == 'published'
     runs-on: ubuntu-latest
     needs: setup
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: BMI Forcing
+            IMAGE_BASE: ${{ needs.setup.outputs.image_bmi }}
+          - label: Lumped Forcing
+            IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
+          - label: Coastal
+            IMAGE_BASE: ${{ needs.setup.outputs.image_coastal }}
+
     steps:
-      - name: Log in to registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Check out the release tag
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.release.tag_name }}
-          fetch-depth: 0
-
-      - name: Resolve commit sha for the tag
+      - name: Get commit sha for the tag
         id: rev
         shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          SHORT_SHA="$(git rev-parse --short=12 HEAD)"
+          set -euo pipefail
+          TAG="${{ github.event.release.tag_name }}"
+          REPO="${{ github.repository }}"
+
+          # ensure jq is available
+          if ! command -v jq >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends jq
+          fi
+
+          # ensure gh cli is available
+          if ! command -v gh >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends gh
+          fi
+
+          REF_JSON="$(gh api "repos/${REPO}/git/refs/tags/${TAG}")"
+          OBJ_SHA="$(jq -r '.object.sha' <<<"$REF_JSON")"
+          OBJ_TYPE="$(jq -r '.object.type' <<<"$REF_JSON")"
+
+          if [ "$OBJ_TYPE" = "tag" ]; then
+            TAG_OBJ="$(gh api "repos/${REPO}/git/tags/${OBJ_SHA}")"
+            COMMIT_SHA="$(jq -r '.object.sha' <<<"$TAG_OBJ")"
+          else
+            COMMIT_SHA="$OBJ_SHA"
+          fi
+
+          SHORT_SHA="${COMMIT_SHA:0:12}"
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      - name: Tag image with release tag (BMI Forcing)
+      - name: Tag image with release tag
+        shell: bash
         run: |
-          docker pull ${{ needs.setup.outputs.image_bmi }}:${{ steps.rev.outputs.short_sha }}
-          docker tag  ${{ needs.setup.outputs.image_bmi }}:${{ steps.rev.outputs.short_sha }} ${{ needs.setup.outputs.image_bmi }}:${{ github.event.release.tag_name }}
-          docker push ${{ needs.setup.outputs.image_bmi }}:${{ github.event.release.tag_name }}
+          set -euo pipefail
+          IMAGE_BASE="${{ matrix.IMAGE_BASE }}"
+          SHORT_SHA="${{ steps.rev.outputs.short_sha }}"
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
 
-      - name: Tag image with release tag (Lumped Forcing)
-        run: |
-          docker pull ${{ needs.setup.outputs.image_lumped }}:${{ steps.rev.outputs.short_sha }}
-          docker tag  ${{ needs.setup.outputs.image_lumped }}:${{ steps.rev.outputs.short_sha }} ${{ needs.setup.outputs.image_lumped }}:${{ github.event.release.tag_name }}
-          docker push ${{ needs.setup.outputs.image_lumped }}:${{ github.event.release.tag_name }}
+          # ensure skopeo is available
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
 
-      - name: Tag image with release tag (Coastal)
-        run: |
-          docker pull ${{ needs.setup.outputs.image_coastal }}:${{ steps.rev.outputs.short_sha }}
-          docker tag  ${{ needs.setup.outputs.image_coastal }}:${{ steps.rev.outputs.short_sha }} ${{ needs.setup.outputs.image_coastal }}:${{ github.event.release.tag_name }}
-          docker push ${{ needs.setup.outputs.image_coastal }}:${{ github.event.release.tag_name }}
+          skopeo copy \
+            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --all \
+            "docker://${IMAGE_BASE}:${SHORT_SHA}" "docker://${IMAGE_BASE}:${RELEASE_TAG}"

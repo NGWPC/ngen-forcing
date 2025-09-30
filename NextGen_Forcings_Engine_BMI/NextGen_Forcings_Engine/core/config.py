@@ -146,8 +146,8 @@ class ConfigOptions:
                 self.b_date_proc = cfg_bmi.get('RefcstBDateProc', None)  # Default to None if not found
                 if self.b_date_proc is None:
                     err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.')
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.', e)
 
         # Ensure geogrid is set; if not, read from the configuration file
         if self.geogrid is None:
@@ -155,18 +155,18 @@ class ConfigOptions:
                 self.geogrid = cfg_bmi.get('GeogridIn', None)  # Default to None if not found
                 if self.geogrid is None:
                     err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.', e)
 
         # Read in the base input forcing options as an array of values to map.
         try:
             self.supp_precip_forcings = cfg_bmi['SuppPcp']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.')
-        except json.decoder.JSONDecodeError:
-            err_handler.err_out_screen('Improper SuppPcp option specified in configuration file')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.', e)
+        except json.decoder.JSONDecodeError as e:
+            err_handler.err_out_screen('Improper SuppPcp option specified in configuration file', e)
 
         self.number_supp_pcp = len(self.supp_precip_forcings)
 
@@ -178,12 +178,12 @@ class ConfigOptions:
             # Read in the base input forcing options as an array of values to map.
             try:
                 self.input_forcings = cfg_bmi['InputForcings']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate InputForcings under Input section in configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate InputForcings under Input section in configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper InputForcings option specified in configuration file')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate InputForcings under Input section in configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate InputForcings under Input section in configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper InputForcings option specified in configuration file', e)
             if len(self.input_forcings) == 0:
                 err_handler.err_out_screen('Please choose at least one InputForcings dataset to process')
             self.number_inputs = len(self.input_forcings)
@@ -202,14 +202,14 @@ class ConfigOptions:
                 if forceOpt == 27:
                     try:
                         self.nwm_geogrid = cfg_bmi['NWM_Geogrid']
-                    except KeyError:
+                    except KeyError as e:
                         err_handler.err_out_screen(
-                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
-                    except configparser.NoOptionError:
+                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.', e)
+                    except configparser.NoOptionError as e:
                         err_handler.err_out_screen(
-                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.')
-                    except json.decoder.JSONDecodeError:
-                        err_handler.err_out_screen('Improper NWM Geogrid file option specified in configuration file')
+                            'Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.', e)
+                    except json.decoder.JSONDecodeError as e:
+                        err_handler.err_out_screen('Improper NWM Geogrid file option specified in configuration file', e)
                     if self.nwm_geogrid.split('/')[-1].split('_')[-1].split('.')[0] == 'CONUS':
                         self.nwm_domain = 'CONUS'
                         self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
@@ -230,12 +230,10 @@ class ConfigOptions:
                 self.input_force_types = cfg_bmi['InputForcingTypes']
                 if self.input_force_types == ['']:
                     self.input_force_types = []
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate InputForcingTypes in Input section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate InputForcingTypes in Input section '
-                                           'in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate InputForcingTypes in Input section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate InputForcingTypes in Input section in the configuration file.', e)
             if len(self.input_force_types) != self.number_inputs:
                 err_handler.err_out_screen('Number of InputForcingTypes must match the number '
                                            'of InputForcings in the configuration file.')
@@ -247,12 +245,10 @@ class ConfigOptions:
             # Read in the input directories for each forcing option.
             try:
                 self.input_force_dirs = cfg_bmi['InputForcingDirectories']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate InputForcingDirectories in Input section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate InputForcingDirectories in Input section '
-                                           'in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate InputForcingDirectories in Input section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate InputForcingDirectories in Input section in the configuration file.', e)
             if len(self.input_force_dirs) != self.number_inputs:
                 err_handler.err_out_screen('Number of InputForcingDirectories must match the number '
                                            'of InputForcings in the configuration file.')
@@ -274,12 +270,12 @@ class ConfigOptions:
             # Read in the mandatory enforcement options for input forcings.
             try:
                 self.input_force_mandatory = cfg_bmi['InputMandatory']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate InputMandatory under Input section in configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate InputMandatory under Input section in configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper InputMandatory option specified in configuration file')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate InputMandatory under Input section in configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate InputMandatory under Input section in configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper InputMandatory option specified in configuration file', e)
 
             if len(self.input_force_mandatory) != self.number_inputs:
                 err_handler.err_out_screen('Please specify InputMandatory values for each corresponding input '
@@ -293,11 +289,11 @@ class ConfigOptions:
         # Read in the output frequency
         try:
             self.output_freq = cfg_bmi['OutputFrequency']
-        except ValueError:
+        except ValueError as e:
             err_handler.err_out_screen('Improper OutputFrequency value specified  in the configuration file.')
-        except KeyError:
+        except KeyError as e:
             err_handler.err_out_screen('Unable to locate OutputFrequency in the configuration file.')
-        except configparser.NoOptionError:
+        except configparser.NoOptionError as e:
             err_handler.err_out_screen('Unable to locate OutputFrequency in the configuration file.')
         if self.output_freq <= 0:
             err_handler.err_out_screen('Please specify an OutputFrequency that is greater than zero minutes.')
@@ -306,24 +302,24 @@ class ConfigOptions:
             # Read in the custom supp output frequency
             try:
                 self.customSuppPcpFreq = int(cfg_bmi['customSuppPcpFreq'])
-            except ValueError:
-                err_handler.err_out_screen('Improper customSuppPcpFreq value specified  in the configuration file.')
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate customSuppPcpFreq in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate customSuppPcpFreq in the configuration file.')
+            except ValueError as e:
+                err_handler.err_out_screen('Improper customSuppPcpFreq value specified  in the configuration file.', e)
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate customSuppPcpFreq in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate customSuppPcpFreq in the configuration file.', e)
             if self.output_freq <= 0:
                 err_handler.err_out_screen('Please specify an customSuppPcpFreq that is greater than zero minutes.')
 
         # Read in the sub output hour
         try:
             self.sub_output_hour = int(cfg_bmi['SubOutputHour'])
-        except ValueError:
-            err_handler.err_out_screen('Improper SubOutputHour value specified  in the configuration file.')
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SubOutputHour in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate SubOutputHour in the configuration file.')
+        except ValueError as e:
+            err_handler.err_out_screen('Improper SubOutputHour value specified  in the configuration file.', e)
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SubOutputHour in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate SubOutputHour in the configuration file.', e)
         if self.sub_output_hour < 0:
             err_handler.err_out_screen('Please specify an SubOutputHour that is greater than zero minutes.')
         if self.sub_output_hour == 0:
@@ -331,12 +327,12 @@ class ConfigOptions:
         # Read in the output frequency
         try:
             self.sub_output_freq = int(cfg_bmi['SubOutFreq'])
-        except ValueError:
-            err_handler.err_out_screen('Improper SubOutFreq value specified  in the configuration file.')
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SubOutFreq in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate SubOutFreq in the configuration file.')
+        except ValueError as e:
+            err_handler.err_out_screen('Improper SubOutFreq value specified  in the configuration file.', e)
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SubOutFreq in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate SubOutFreq in the configuration file.', e)
         if self.sub_output_freq < 0:
             err_handler.err_out_screen('Please specify an SubOutFreq that is greater than zero minutes.')
         if self.sub_output_freq == 0:
@@ -346,37 +342,37 @@ class ConfigOptions:
         # Read in the scratch temporary directory, which also may contain output forcing file if requested.
         try:
             self.scratch_dir = cfg_bmi['ScratchDir']
-        except ValueError:
-            err_handler.err_out_screen('Improper ScratchDir specified in the configuration file.')
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.')
+        except ValueError as e:
+            err_handler.err_out_screen('Improper ScratchDir specified in the configuration file.', e)
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.', e)
         os.makedirs(self.scratch_dir, exist_ok=True)
         print(f'Scratch dir: {self.scratch_dir}')
 
         # Read in compression option
         try:
             self.useCompression = cfg_bmi['compressOutput']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate compressOut in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate compressOut in the configuration file.')
-        except ValueError:
-            err_handler.err_out_screen('Improper compressOut value.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate compressOut in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate compressOut in the configuration file.', e)
+        except ValueError as e:
+            err_handler.err_out_screen('Improper compressOut value.', e)
         if self.useCompression < 0 or self.useCompression > 1:
             err_handler.err_out_screen('Please choose a compressOut value of 0 or 1.')
 
         # Read in floating-point option
         try:
             self.useFloats = cfg_bmi['floatOutput']
-        except KeyError:
-            # err_handler.err_out_screen('Unable to locate floatOutput in the configuration file.')
+        except KeyError as e:
+            # err_handler.err_out_screen('Unable to locate floatOutput in the configuration file.', e)
             self.useFloats = 0
-        except configparser.NoOptionError:
-            # err_handler.err_out_screen('Unable to locate floatOutput in the configuration file.')
+        except configparser.NoOptionError as e:
+            # err_handler.err_out_screen('Unable to locate floatOutput in the configuration file.', e)
             self.useFloats = 0
-        except ValueError:
+        except ValueError as e:
             err_handler.err_out_screen('Improper floatOutput value: {}'.format(cfg_bmi['includeLQFraq']))
         if self.useFloats < 0 or self.useFloats > 1:
             err_handler.err_out_screen('Please choose a floatOutput value of 0 or 1.')
@@ -384,26 +380,26 @@ class ConfigOptions:
         # Read in lqfrac option
         try:
             self.include_lqfrac = cfg_bmi['includeLQFrac']
-        except KeyError:
-            # err_handler.err_out_screen('Unable to locate includeLQFraq in the configuration file.')
+        except KeyError as e:
+            # err_handler.err_out_screen('Unable to locate includeLQFraq in the configuration file.', e)
             self.include_lqfrac = 0
-        except configparser.NoOptionError:
-            # err_handler.err_out_screen('Unable to locate includeLQFraq in the configuration file.')
+        except configparser.NoOptionError as e:
+            # err_handler.err_out_screen('Unable to locate includeLQFraq in the configuration file.', e)
             self.useFinclude_lqfracloats = 0
-        except ValueError:
-            err_handler.err_out_screen('Improper includeLQFrac value: {}'.format(cfg_bmi['includeLQFraq']))
+        except ValueError as e:
+            err_handler.err_out_screen('Improper includeLQFrac value: {}'.format(cfg_bmi['includeLQFraq']), e)
         if self.include_lqfrac < 0 or self.include_lqfrac > 1:
             err_handler.err_out_screen('Please choose an includeLQFrac value of 0 or 1.')
 
         # Read in Forcing output option
         try:
             self.forcing_output = cfg_bmi['Output']
-        except KeyError:
+        except KeyError as e:
             self.forcing_output = 0
-        except configparser.NoOptionError:
+        except configparser.NoOptionError as e:
             self.forcing_output = 0
-        except ValueError:
-            err_handler.err_out_screen('Improper Forcing Output value: {}'.format(cfg_bmi['Output']))
+        except ValueError as e:
+            err_handler.err_out_screen('Improper Forcing Output value: {}'.format(cfg_bmi['Output']), e)
         if self.forcing_output < 0 or self.forcing_output > 1:
             err_handler.err_out_screen('Please choose a Forcing Output value of 0 (No output) or 1 (output).')
 
@@ -411,12 +407,12 @@ class ConfigOptions:
         try:
             # check both the Forecast section and if it's not there, the old BiasCorrection location
             self.ana_flag = int(cfg_bmi['AnAFlag'])
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate AnAFlag in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate AnAFlag in the configuration file.')
-        except ValueError:
-            err_handler.err_out_screen('Improper AnAFlag value ')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate AnAFlag in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate AnAFlag in the configuration file.', e)
+        except ValueError as e:
+            err_handler.err_out_screen('Improper AnAFlag value ', e)
         if self.ana_flag < 0 or self.ana_flag > 1:
             err_handler.err_out_screen('Please choose a AnAFlag value of 0 or 1.')
 
@@ -425,15 +421,12 @@ class ConfigOptions:
             self.look_back = cfg_bmi['LookBack']
             if self.look_back <= 0 and self.look_back != -9999:
                 err_handler.err_out_screen('Please specify a positive LookBack or -9999 for realtime.')
-        except ValueError:
-            err_handler.err_out_screen('Improper LookBack value entered into the '
-                                       'configuration file. Please check your entry.')
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate LookBack in the configuration '
-                                       'file. Please verify entries exist.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate LookBack in the configuration '
-                                       'file. Please verify entries exist.')
+        except ValueError as e:
+            err_handler.err_out_screen('Improper LookBack value entered into the configuration file. Please check your entry.', e)
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate LookBack in the configuration file. Please verify entries exist.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate LookBack in the configuration file. Please verify entries exist.', e)
 
         # Process the beginning date of reforecast forcings to process
 
@@ -442,24 +435,20 @@ class ConfigOptions:
         else:
             try:
                 beg_date_tmp = cfg_bmi['RefcstBDateProc']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
-                                           'configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.', e)
                 beg_date_tmp = None
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in '
-                                           'configuration file.')
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.', e)
                 beg_date_tmp = None
 
         if beg_date_tmp != -9999:
             if isinstance(beg_date_tmp, str) and len(beg_date_tmp) != 12:
-                err_handler.err_out_screen('Improper RefcstBDateProc length entered into the '
-                                           'configuration file. Please check your entry.')
+                err_handler.err_out_screen('Improper RefcstBDateProc length entered into the configuration file. Please check your entry.', e)
             try:
                 self.b_date_proc = datetime.strptime(beg_date_tmp, '%Y%m%d%H%M')
-            except ValueError:
-                err_handler.err_out_screen('Improper RefcstBDateProc value entered into the '
-                                           'configuration file. Please check your entry.')
+            except ValueError as e:
+                err_handler.err_out_screen('Improper RefcstBDateProc value entered into the configuration file. Please check your entry.', e)
         else:
             self.b_date_proc = -9999
 
@@ -487,41 +476,32 @@ class ConfigOptions:
         # Read in the ForecastFrequency option.
         try:
             self.fcst_freq = cfg_bmi['ForecastFrequency']
-        except ValueError:
-            err_handler.err_out_screen('Improper ForecastFrequency value entered into '
-                                       'the configuration file. Please check your entry.')
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration '
-                                       'file. Please verify entries exist.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration '
-                                       'file. Please verify entries exist.')
+        except ValueError as e:
+            err_handler.err_out_screen('Improper ForecastFrequency value entered into the configuration file. Please check your entry.', e)
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration file. Please verify entries exist.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate ForecastFrequency in the configuration file. Please verify entries exist.', e)
         if self.fcst_freq <= 0:
-            err_handler.err_out_screen('Please specify a ForecastFrequency in the configuration '
-                                       'file greater than zero.')
+            err_handler.err_out_screen('Please specify a ForecastFrequency in the configuration file greater than zero.')
         # Currently, we only support daily or sub-daily forecasts. Any other iterations should
         # be done using custom config files for each forecast cycle.
         if self.fcst_freq > 1440:
-            err_handler.err_out_screen('Only forecast cycles of daily or sub-daily are supported '
-                                       'at this time')
+            err_handler.err_out_screen('Only forecast cycles of daily or sub-daily are supported at this time')
 
         # Read in the ForecastShift option. This is ONLY done for the realtime instance as
         # it's used to calculate the beginning of the processing window.
         if True:  # was: self.realtime_flag:
             try:
                 self.fcst_shift = cfg_bmi['ForecastShift']
-            except ValueError:
-                err_handler.err_out_screen('Improper ForecastShift value entered into the '
-                                           'configuration file. Please check your entry.')
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ForecastShift in the configuration '
-                                           'file. Please verify entries exist.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ForecastShift in the configuration '
-                                           'file. Please verify entries exist.')
+            except ValueError as e:
+                err_handler.err_out_screen('Improper ForecastShift value entered into the configuration file. Please check your entry.', e)
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ForecastShift in the configuration file. Please verify entries exist.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ForecastShift in the configuration file. Please verify entries exist.', e)
             if self.fcst_shift < 0:
-                err_handler.err_out_screen('Please specify a ForecastShift in the configuration '
-                                           'file greater than or equal to zero.')
+                err_handler.err_out_screen('Please specify a ForecastShift in the configuration file greater than or equal to zero.')
 
             # Calculate the beginning/ending processing dates if we are running realtime
             if self.realtime_flag:
@@ -549,18 +529,14 @@ class ConfigOptions:
             # Read in the ForecastInputHorizons options.
             try:
                 self.fcst_input_horizons = cfg_bmi['ForecastInputHorizons']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                           'configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                           'configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper ForecastInputHorizons option specified in '
-                                           'configuration file')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper ForecastInputHorizons option specified in configuration file', e)
             if len(self.fcst_input_horizons) != self.number_inputs:
-                err_handler.err_out_screen('Please specify ForecastInputHorizon values for '
-                                           'each corresponding input forcings for forecasts.')
+                err_handler.err_out_screen('Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts.')
 
             # Check to make sure the horizons options make sense. There will be additional
             # checking later when input choices are mapped to input products.
@@ -572,42 +548,33 @@ class ConfigOptions:
             # Read in the ForecastInputHorizons options.
             try:
                 self.fcst_input_horizons = cfg_bmi['ForecastInputHorizons']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                           'configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in '
-                                           'configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper ForecastInputHorizons option specified in '
-                                           'configuration file')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputHorizons under Forecast section in configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper ForecastInputHorizons option specified in configuration file', e)
                 if len(self.fcst_input_horizons) != 1:
-                    err_handler.err_out_screen('Please specify ForecastInputHorizon values for '
-                                               'each corresponding input forcings for forecasts.')
+                    err_handler.err_out_screen('Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts.')
 
         if not self.precip_only_flag:
 
             # Read in the ForecastInputOffsets options.
             try:
                 self.fcst_input_offsets = cfg_bmi['ForecastInputOffsets']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast '
-                                           'section in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast '
-                                           'section in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper ForecastInputOffsets option specified in '
-                                           'the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ForecastInputOffsets under Forecast section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper ForecastInputOffsets option specified in the configuration file.', e)
             if len(self.fcst_input_offsets) != self.number_inputs:
-                err_handler.err_out_screen('Please specify ForecastInputOffset values for each '
-                                           'corresponding input forcings for forecasts.')
+                err_handler.err_out_screen('Please specify ForecastInputOffset values for each corresponding input forcings for forecasts.')
             # Check to make sure the input offset options make sense. There will be additional
             # checking later when input choices are mapped to input products.
             for inputOffset in self.fcst_input_offsets:
                 if inputOffset < 0:
-                    err_handler.err_out_screen(
-                        'Please specify ForecastInputOffset values greater than or equal to zero.')
+                    err_handler.err_out_screen('Please specify ForecastInputOffset values greater than or equal to zero.')
 
         # Calculate the length of the forecast cycle, based on the maximum
         # length of the input forcing length chosen by the user.
@@ -616,8 +583,7 @@ class ConfigOptions:
         # Ensure the number maximum cycle length is an equal divider of the output
         # time step specified by the user.
         if self.cycle_length_minutes % self.output_freq != 0:
-            err_handler.err_out_screen('Please specify an output time step that is an equal divider of the '
-                                       'maximum of the forecast time horizons specified.')
+            err_handler.err_out_screen('Please specify an output time step that is an equal divider of the maximum of the forecast time horizons specified.')
 
         if self.sub_output_hour is None:
             # Calculate the number of output time steps per forecast cycle.
@@ -642,10 +608,10 @@ class ConfigOptions:
         # Process the grid type
         try:
             self.grid_type = cfg_bmi['GRID_TYPE']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate GRID_TYPE in the configuration file.', e)
         if self.grid_type.lower() != "gridded" and self.grid_type.lower() != "unstructured" and self.grid_type.lower() != "hydrofabric":
             err_handler.err_out_screen('GRID_TYPE in the configuration file only accepts "unstructured", "gridded", or "hydrofabric" as options.')
 
@@ -653,76 +619,76 @@ class ConfigOptions:
             # Process the geogrid variable information
             try:
                 self.lon_var = cfg_bmi['LONVAR']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate LONVAR in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate LONVAR in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate LONVAR in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate LONVAR in the configuration file.', e)
             try:
                 self.lat_var = cfg_bmi['LATVAR']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate LATVAR in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate LATVAR in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate LATVAR in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate LATVAR in the configuration file.', e)
 
         elif self.grid_type.lower() == "unstructured":
             # Process the geogrid variable information
             try:
                 self.nodecoords_var = cfg_bmi['NodeCoords']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.', e)
             try:
                 self.elemcoords_var = cfg_bmi['ElemCoords']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.', e)
             try:
                 self.elemconn_var = cfg_bmi['ElemConn']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.', e)
             try:
                 self.numelemconn_var = cfg_bmi['NumElemConn']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.', e)
 
         elif self.grid_type.lower() == "hydrofabric":
             # Process the geogrid variable information
             try:
                 self.nodecoords_var = cfg_bmi['NodeCoords']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate NodeCoords for unstructured mesh in the configuration file.', e)
             try:
                 self.elemcoords_var = cfg_bmi['ElemCoords']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ElemCoords for unstructured mesh in the configuration file.', e)
             try:
                 self.element_id_var = cfg_bmi['ElemID']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ElemID for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ElemID for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ElemID for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ElemID for unstructured mesh in the configuration file.', e)
             try:
                 self.elemconn_var = cfg_bmi['ElemConn']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ElemConn for unstructured mesh in the configuration file.', e)
             try:
                 self.numelemconn_var = cfg_bmi['NumElemConn']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate NumElemConn for unstructured mesh in the configuration file.', e)
 
         # Process geospatial information
 
@@ -731,23 +697,22 @@ class ConfigOptions:
         else:
             try:
                 self.geogrid = cfg_bmi['GeogridIn']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.', e)
 
         # Check for the optional geospatial land metadata file.
         try:
             self.spatial_meta = cfg_bmi['SpatialMetaIn']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SpatialMetaIn in the configuration file.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SpatialMetaIn in the configuration file.', e)
         if len(self.spatial_meta) == 0:
             # No spatial metadata file found.
             self.spatial_meta = None
         else:
             if not os.path.isfile(self.spatial_meta):
-                err_handler.err_out_screen('Unable to locate optional spatial metadata file: ' +
-                                           self.spatial_meta)
+                err_handler.err_out_screen('Unable to locate optional spatial metadata file: ' + self.spatial_meta)
 
         if not self.precip_only_flag:
             # Check for the IgnoredBorderWidths
@@ -756,9 +721,9 @@ class ConfigOptions:
             except (KeyError, configparser.NoOptionError):
                 # if didn't specify, no worries, just set to 0
                 self.ignored_border_widths = [0.0] * self.number_inputs
-            except json.decoder.JSONDecodeError:
+            except json.decoder.JSONDecodeError as e:
                 err_handler.err_out_screen('Improper IgnoredBorderWidths option specified in the configuration file.'
-                                           '({} was supplied'.format(cfg_bmi['Geospatial']['IgnoredBorderWidths']))
+                                           '({} was supplied'.format(cfg_bmi['Geospatial']['IgnoredBorderWidths']), e)
             if len(self.ignored_border_widths) != self.number_inputs:
                 err_handler.err_out_screen('Please specify IgnoredBorderWidths values for each '
                                            'corresponding input forcings for SuppForcing.'
@@ -771,17 +736,14 @@ class ConfigOptions:
             # Process regridding options.
             try:
                 self.regrid_opt = cfg_bmi['RegridOpt']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate RegridOpt under the Regridding section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate RegridOpt under the Regridding section '
-                                           'in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper RegridOpt options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate RegridOpt under the Regridding section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate RegridOpt under the Regridding section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper RegridOpt options specified in the configuration file.', e)
             if len(self.regrid_opt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify RegridOpt values for each corresponding input '
-                                           'forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify RegridOpt values for each corresponding input forcings in the configuration file.', e)
             # Check to make sure regridding options makes sense.
             for regridOpt in self.regrid_opt:
                 if regridOpt < 1 or regridOpt > 3:
@@ -796,7 +758,7 @@ class ConfigOptions:
             if self.weightsDir:
                 # if we do have one specified, make sure it exists
                 if not os.path.exists(self.weightsDir):
-                    err_handler.err_out_screen('ESMF Weights file directory specifed ({}) but does not exist').format(
+                    err_handler.err_out_screen('ESMF Weights file directory specified ({}) but does not exist').format(
                         self.weightsDir)
 
         # Calculate the beginning/ending processing dates if we are running realtime
@@ -810,18 +772,14 @@ class ConfigOptions:
             # Read in temporal interpolation options.
             try:
                 self.forceTemoralInterp = cfg_bmi['ForcingTemporalInterpolation']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ForcingTemporalInterpolation under the Interpolation '
-                                           'section in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ForcingTemporalInterpolation under the Interpolation '
-                                           'section in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper ForcingTemporalInterpolation options specified in the '
-                                           'configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ForcingTemporalInterpolation under the Interpolation section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ForcingTemporalInterpolation under the Interpolation section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper ForcingTemporalInterpolation options specified in the configuration file.', e)
             if len(self.forceTemoralInterp) != self.number_inputs:
-                err_handler.err_out_screen('Please specify ForcingTemporalInterpolation values for each '
-                                           'corresponding input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify ForcingTemporalInterpolation values for each corresponding input forcings in the configuration file.')
             # Ensure the forcingTemporalInterpolation values make sense.
             for temporalInterpOpt in self.forceTemoralInterp:
                 if temporalInterpOpt < 0 or temporalInterpOpt > 2:
@@ -831,23 +789,19 @@ class ConfigOptions:
             # Read in the temperature downscaling options.
             try:
                 self.t2dDownscaleOpt = cfg_bmi['TemperatureDownscaling']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate TemperatureDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate TemperatureDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper TemperatureDownscaling options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate TemperatureDownscaling under the Downscaling section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate TemperatureDownscaling under the Downscaling section of the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper TemperatureDownscaling options specified in the configuration file.', e)
             if len(self.t2dDownscaleOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify TemperatureDownscaling values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify TemperatureDownscaling values for each corresponding input forcings in the configuration file.')
             # Ensure the downscaling options chosen make sense.
             count_tmp = 0
             for optTmp in self.t2dDownscaleOpt:
                 if optTmp < 0 or optTmp > 2:
-                    err_handler.err_out_screen('Invalid TemperatureDownscaling options specified in '
-                                               'the configuration file.')
+                    err_handler.err_out_screen('Invalid TemperatureDownscaling options specified in the configuration file.')
                 if optTmp == 2:
                     param_flag[count_tmp] = 1
                 count_tmp = count_tmp + 1
@@ -855,17 +809,14 @@ class ConfigOptions:
             # Read in the pressure downscaling options.
             try:
                 self.psfcDownscaleOpt = cfg_bmi['PressureDownscaling']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate PressureDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate PressureDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except json.decoder.JSONDecodeError:
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate PressureDownscaling under the Downscaling section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate PressureDownscaling under the Downscaling section of the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
                 err_handler.err_out_screen('Improper PressureDownscaling options specified in the configuration file.')
             if len(self.psfcDownscaleOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify PressureDownscaling values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify PressureDownscaling values for each corresponding input forcings in the configuration file.')
             # Ensure the downscaling options chosen make sense.
             for optTmp in self.psfcDownscaleOpt:
                 if optTmp < 0 or optTmp > 1:
@@ -874,17 +825,14 @@ class ConfigOptions:
             # Read in the shortwave downscaling options
             try:
                 self.swDownscaleOpt = cfg_bmi['ShortwaveDownscaling']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate ShortwaveDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate ShortwaveDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper ShortwaveDownscaling options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate ShortwaveDownscaling under the Downscaling section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate ShortwaveDownscaling under the Downscaling section of the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper ShortwaveDownscaling options specified in the configuration file.', e)
             if len(self.swDownscaleOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify ShortwaveDownscaling values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify ShortwaveDownscaling values for each corresponding input forcings in the configuration file.')
             # Ensure the downscaling options chosen make sense.
             for optTmp in self.swDownscaleOpt:
                 if optTmp < 0 or optTmp > 1:
@@ -893,14 +841,12 @@ class ConfigOptions:
             # Read in humidity downscaling options.
             try:
                 self.q2dDownscaleOpt = cfg_bmi['HumidityDownscaling']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate HumidityDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate HumidityDownscaling under the Downscaling '
-                                           'section of the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper HumidityDownscaling options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate HumidityDownscaling under the Downscaling section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate HumidityDownscaling under the Downscaling section of the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper HumidityDownscaling options specified in the configuration file.', e)
             if len(self.q2dDownscaleOpt) != self.number_inputs:
                 err_handler.err_out_screen('Please specify HumidityDownscaling values for each corresponding '
                                            'input forcings in the configuration file.')
@@ -912,14 +858,12 @@ class ConfigOptions:
         # Read in the precipitation downscaling options
         try:
             self.precipDownscaleOpt = cfg_bmi['PrecipDownscaling']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate PrecipDownscaling under the Downscaling '
-                                       'section of the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate PrecipDownscaling under the Downscaling '
-                                       'section of the configuration file.')
-        except json.decoder.JSONDecodeError:
-            err_handler.err_out_screen('Improper PrecipDownscaling options specified in the configuration file.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate PrecipDownscaling under the Downscaling section of the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate PrecipDownscaling under the Downscaling section of the configuration file.', e)
+        except json.decoder.JSONDecodeError as e:
+            err_handler.err_out_screen('Improper PrecipDownscaling options specified in the configuration file.', e)
         if not self.precip_only_flag:
             if len(self.precipDownscaleOpt) != self.number_inputs:
                 err_handler.err_out_screen('Please specify PrecipDownscaling values for each corresponding '
@@ -936,10 +880,10 @@ class ConfigOptions:
         # Read in the downscaling parameter directory.
         try:
             self.dScaleParamDirs = cfg_bmi['DownscalingParamDirs']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate DownscalingParamDirs in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate DownscalingParamDirs in the configuration file.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate DownscalingParamDirs in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate DownscalingParamDirs in the configuration file.', e)
         if len(self.dScaleParamDirs) != len(self.input_forcings):
             err_handler.err_out_screen('Please specify a downscaling parameter directory for each '
                                        'corresponding downscaling option that requires one.')
@@ -961,20 +905,20 @@ class ConfigOptions:
             if self.grid_type.lower() == "hydrofabric":
                 try:
                     self.slope_var = cfg_bmi['SLOPE']
-                except KeyError:
+                except KeyError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
-                except configparser.NoOptionError:
+                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.', e)
+                except configparser.NoOptionError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                        'Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.', e)
                 try:
                     self.slope_azimuth_var = cfg_bmi['SLOPE_AZIMUTH']
-                except KeyError:
+                except KeyError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
-                except configparser.NoOptionError:
+                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.', e)
+                except configparser.NoOptionError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.')
+                        'Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.', e)
             else:
                 try:
                     self.slope_var = cfg_bmi['SLOPE']
@@ -997,64 +941,55 @@ class ConfigOptions:
             if self.grid_type.lower() == "unstructured":
                 try:
                     self.hgt_elem_var = cfg_bmi['HGTVAR_ELEM']
-                except KeyError:
+                except KeyError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
-                except configparser.NoOptionError:
+                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.', e)
+                except configparser.NoOptionError as e:
                     err_handler.err_out_screen(
-                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.')
+                        'Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.', e)
 
             try:
                 self.hgt_var = cfg_bmi['HGTVAR']
-            except KeyError:
+            except KeyError as e:
                 err_handler.err_out_screen(
-                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
-            except configparser.NoOptionError:
+                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.', e)
+            except configparser.NoOptionError as e:
                 err_handler.err_out_screen(
-                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.')
+                    'Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.', e)
 
         #   * Bias Correction Options *
         if not self.precip_only_flag:
             # Read in temperature bias correction options
             try:
                 self.t2BiasCorrectOpt = cfg_bmi['TemperatureBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate TemperatureBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate TemperatureBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper TemperatureBiasCorrection options specified in '
-                                           'the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate TemperatureBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate TemperatureBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper TemperatureBiasCorrection options specified in the configuration file.', e)
             if len(self.t2BiasCorrectOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify TemperatureBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify TemperatureBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.t2BiasCorrectOpt:
                 if optTmp < 0 or optTmp > 4:
-                    err_handler.err_out_screen('Invalid TemperatureBiasCorrection options specified in the '
-                                               'configuration file.')
+                    err_handler.err_out_screen('Invalid TemperatureBiasCorrection options specified in the configuration file.')
 
             # Read in surface pressure bias correction options.
             try:
                 self.psfcBiasCorrectOpt = cfg_bmi['PressureBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate PressureBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate PressureBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper PressureBiasCorrection options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate PressureBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate PressureBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper PressureBiasCorrection options specified in the configuration file.', e)
             if len(self.psfcDownscaleOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify PressureBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify PressureBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.psfcBiasCorrectOpt:
                 if optTmp < 0 or optTmp > 1:
-                    err_handler.err_out_screen('Invalid PressureBiasCorrection options specified in the '
-                                               'configuration file.')
+                    err_handler.err_out_screen('Invalid PressureBiasCorrection options specified in the configuration file.')
                 if optTmp == 1:
                     # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
                     self.runCfsNldasBiasCorrect = True
@@ -1062,22 +997,18 @@ class ConfigOptions:
             # Read in humidity bias correction options.
             try:
                 self.q2BiasCorrectOpt = cfg_bmi['HumidityBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate HumidityBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate HumidityBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper HumdityBiasCorrection options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate HumidityBiasCorrection under the  BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate HumidityBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper HumdityBiasCorrection options specified in the configuration file.', e)
             if len(self.q2BiasCorrectOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify HumidityBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify HumidityBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.q2BiasCorrectOpt:
                 if optTmp < 0 or optTmp > 2:
-                    err_handler.err_out_screen('Invalid HumidityBiasCorrection options specified in the '
-                                               'configuration file.')
+                    err_handler.err_out_screen('Invalid HumidityBiasCorrection options specified in the configuration file.')
                 if optTmp == 1:
                     # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
                     self.runCfsNldasBiasCorrect = True
@@ -1085,17 +1016,14 @@ class ConfigOptions:
             # Read in wind bias correction options.
             try:
                 self.windBiasCorrect = cfg_bmi['WindBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate WindBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate WindBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper WindBiasCorrection options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate WindBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate WindBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper WindBiasCorrection options specified in the configuration file.', e)
             if len(self.windBiasCorrect) != self.number_inputs:
-                err_handler.err_out_screen('Please specify WindBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify WindBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.windBiasCorrect:
                 if optTmp < 0 or optTmp > 4:
@@ -1107,17 +1035,14 @@ class ConfigOptions:
             # Read in shortwave radiation bias correction options.
             try:
                 self.swBiasCorrectOpt = cfg_bmi['SwBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SwBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SwBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper SwBiasCorrection options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SwBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SwBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper SwBiasCorrection options specified in the configuration file.', e)
             if len(self.swBiasCorrectOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify SwBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify SwBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.swBiasCorrectOpt:
                 if optTmp < 0 or optTmp > 2:
@@ -1129,18 +1054,14 @@ class ConfigOptions:
             # Read in longwave radiation bias correction options.
             try:
                 self.lwBiasCorrectOpt = cfg_bmi['LwBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate LwBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate LwBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper LwBiasCorrection options specified in '
-                                           'the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate LwBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate LwBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper LwBiasCorrection options specified in the configuration file.', e)
             if len(self.lwBiasCorrectOpt) != self.number_inputs:
-                err_handler.err_out_screen('Please specify LwBiasCorrection values for each corresponding '
-                                           'input forcings in the configuration file.')
+                err_handler.err_out_screen('Please specify LwBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.lwBiasCorrectOpt:
                 if optTmp < 0 or optTmp > 4:
@@ -1152,18 +1073,15 @@ class ConfigOptions:
             # Read in precipitation bias correction options.
             try:
                 self.precipBiasCorrectOpt = cfg_bmi['PrecipBiasCorrection']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate PrecipBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate PrecipBiasCorrection under the '
-                                           'BiasCorrection section of the configuration file.')
-            except json.JSONDecodeError:
-                err_handler.err_out_screen('Improper PrecipBiasCorrection options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate PrecipBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate PrecipBiasCorrection under the BiasCorrection section of the configuration file.', e)
+            except json.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper PrecipBiasCorrection options specified in the configuration file.', e)
             if not self.precip_only_flag:
                 if len(self.precipBiasCorrectOpt) != self.number_inputs:
-                    err_handler.err_out_screen('Please specify PrecipBiasCorrection values for each corresponding '
-                                               'input forcings in the configuration file.')
+                    err_handler.err_out_screen('Please specify PrecipBiasCorrection values for each corresponding input forcings in the configuration file.')
             # Ensure the bias correction options chosen make sense.
             for optTmp in self.precipBiasCorrectOpt:
                 if optTmp < 0 or optTmp > 1:
@@ -1176,41 +1094,33 @@ class ConfigOptions:
             # for ALL variables.
             if self.runCfsNldasBiasCorrect:
                 if min(self.precipBiasCorrectOpt) != 1 and max(self.precipBiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'Precipitation under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for Precipitation under this configuration.')
                 if min(self.lwBiasCorrectOpt) != 1 and max(self.lwBiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'long-wave radiation under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for long-wave radiation under this configuration.')
                 if min(self.swBiasCorrectOpt) != 1 and max(self.swBiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'short-wave radiation under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for short-wave radiation under this configuration.')
                 if min(self.t2BiasCorrectOpt) != 1 and max(self.t2BiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'surface temperature under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for surface temperature under this configuration.')
                 if min(self.windBiasCorrect) != 1 and max(self.windBiasCorrect) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'wind forcings under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for wind forcings under this configuration.')
                 if min(self.q2BiasCorrectOpt) != 1 and max(self.q2BiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'specific humidity under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for specific humidity under this configuration.')
                 if min(self.psfcBiasCorrectOpt) != 1 and max(self.psfcBiasCorrectOpt) != 1:
-                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for '
-                                               'surface pressure under this configuration.')
+                    err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction must be activated for surface pressure under this configuration.')
                 # Make sure we don't have any other forcings activated. This can only be ran for CFSv2.
                 for optTmp in self.input_forcings:
                     if optTmp != 7:
-                        err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction can only be used in '
-                                                   'CFSv2-only configurations')
+                        err_handler.err_out_screen('CFSv2-NLDAS NWM bias correction can only be used in CFSv2-only configurations')
 
         # Read in supplemental precipitation options as an array of values to map.
         try:
             self.supp_precip_forcings = cfg_bmi['SuppPcp']
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.')
-        except json.decoder.JSONDecodeError:
-            err_handler.err_out_screen('Improper SuppPcp option specified in configuration file')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcp under SuppForcing section in configuration file.', e)
+        except json.decoder.JSONDecodeError as e:
+            err_handler.err_out_screen('Improper SuppPcp option specified in configuration file', e)
         self.number_supp_pcp = len(self.supp_precip_forcings)
 
         # Read in the supp pcp types (GRIB[1|2], NETCDF)
@@ -1219,12 +1129,10 @@ class ConfigOptions:
             self.supp_precip_file_types = [stype.strip() for stype in self.supp_precip_file_types]
             if self.supp_precip_file_types == ['']:
                 self.supp_precip_file_types = []
-        except KeyError:
-            err_handler.err_out_screen('Unable to locate SuppPcpForcingTypes in SuppForcing section '
-                                       'in the configuration file.')
-        except configparser.NoOptionError:
-            err_handler.err_out_screen('Unable to locate SuppPcpForcingTypes in SuppForcing section '
-                                       'in the configuration file.')
+        except KeyError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcpForcingTypes in SuppForcing section in the configuration file.', e)
+        except configparser.NoOptionError as e:
+            err_handler.err_out_screen('Unable to locate SuppPcpForcingTypes in SuppForcing section in the configuration file.', e)
         if len(self.supp_precip_file_types) != self.number_supp_pcp:
             err_handler.err_out_screen('Number of SuppPcpForcingTypes ({}) must match the number '
                                        'of SuppPcp inputs ({}) in the configuration file.'.format(len(self.supp_precip_file_types),
@@ -1244,14 +1152,12 @@ class ConfigOptions:
                 if suppOpt in (1, 2, 7, 10, 11, 12):
                     try:
                         self.rqiMethod = cfg_bmi['RqiMethod']
-                    except KeyError:
-                        err_handler.err_out_screen('Unable to locate RqiMethod under SuppForcing '
-                                                   'section in the configuration file.')
-                    except configparser.NoOptionError:
-                        err_handler.err_out_screen('Unable to locate RqiMethod under SuppForcing '
-                                                   'section in the configuration file.')
-                    except json.decoder.JSONDecodeError:
-                        err_handler.err_out_screen('Improper RqiMethod option in the configuration file.')
+                    except KeyError as e:
+                        err_handler.err_out_screen('Unable to locate RqiMethod under SuppForcing section in the configuration file.', e)
+                    except configparser.NoOptionError as e:
+                        err_handler.err_out_screen('Unable to locate RqiMethod under SuppForcing section in the configuration file.', e)
+                    except json.decoder.JSONDecodeError as e:
+                        err_handler.err_out_screen('Improper RqiMethod option in the configuration file.', e)
 
                     # Check that if we have more than one RqiMethod, it's the correct number
                     if type(self.rqiMethod) is list:
@@ -1270,14 +1176,12 @@ class ConfigOptions:
 
                     try:
                         self.rqiThresh = cfg_bmi['RqiThreshold']
-                    except KeyError:
-                        err_handler.err_out_screen('Unable to locate RqiThreshold under '
-                                                   'SuppForcing section in the configuration file.')
-                    except configparser.NoOptionError:
-                        err_handler.err_out_screen('Unable to locate RqiThreshold under '
-                                                   'SuppForcing section in the configuration file.')
-                    except json.decoder.JSONDecodeError:
-                        err_handler.err_out_screen('Improper RqiThreshold option in the configuration file.')
+                    except KeyError as e:
+                        err_handler.err_out_screen('Unable to locate RqiThreshold under SuppForcing section in the configuration file.', e)
+                    except configparser.NoOptionError as e:
+                        err_handler.err_out_screen('Unable to locate RqiThreshold under SuppForcing section in the configuration file.', e)
+                    except json.decoder.JSONDecodeError as e:
+                        err_handler.err_out_screen('Improper RqiThreshold option in the configuration file.', e)
 
                     # Check that if we have more than one RqiThreshold, it's the correct number
                     if type(self.rqiThresh) is list:
@@ -1297,12 +1201,10 @@ class ConfigOptions:
             # Read in the input directories for each supplemental precipitation product.
             try:
                 self.supp_precip_dirs = cfg_bmi['SuppPcpDirectories']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SuppPcpDirectories in SuppForcing section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SuppPcpDirectories in SuppForcing section '
-                                           'in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpDirectories in SuppForcing section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpDirectories in SuppForcing section in the configuration file.', e)
 
             # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
             # or new line characters.
@@ -1318,20 +1220,17 @@ class ConfigOptions:
                 self.supp_precip_dirs = [",".join(self.supp_precip_dirs)]
 
             if len(self.supp_precip_dirs) != self.number_supp_pcp:
-                err_handler.err_out_screen('Number of SuppPcpDirectories must match the number '
-                                           'of SuppForcing in the configuration file.')
+                err_handler.err_out_screen('Number of SuppPcpDirectories must match the number of SuppForcing in the configuration file.')
 
             # Process supplemental precipitation enforcement options
             try:
                 self.supp_precip_mandatory = cfg_bmi['SuppPcpMandatory']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SuppPcpMandatory under the SuppForcing section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SuppPcpMandatory under the SuppForcing section '
-                                           'in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper SuppPcpMandatory options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpMandatory under the SuppForcing section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpMandatory under the SuppForcing section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper SuppPcpMandatory options specified in the configuration file.', e)
             if len(self.supp_precip_mandatory) != self.number_supp_pcp:
                 err_handler.err_out_screen('Please specify SuppPcpMandatory values for each corresponding '
                                            'supplemental precipitation options in the configuration file.')
@@ -1345,14 +1244,12 @@ class ConfigOptions:
             # Read in the regridding options.
             try:
                 self.regrid_opt_supp_pcp = cfg_bmi['RegridOptSuppPcp']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate RegridOptSuppPcp under the SuppForcing section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate RegridOptSuppPcp under the SuppForcing section '
-                                           'in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper RegridOptSuppPcp options specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate RegridOptSuppPcp under the SuppForcing section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate RegridOptSuppPcp under the SuppForcing section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper RegridOptSuppPcp options specified in the configuration file.', e)
             if len(self.regrid_opt_supp_pcp) != self.number_supp_pcp:
                 err_handler.err_out_screen('Please specify RegridOptSuppPcp values for each corresponding supplemental '
                                            'precipitation product in the configuration file.')
@@ -1366,15 +1263,12 @@ class ConfigOptions:
             # Read in temporal interpolation options.
             try:
                 self.suppTemporalInterp = cfg_bmi['SuppPcpTemporalInterpolation']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SuppPcpTemporalInterpolation under the SuppForcing '
-                                           'section in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SuppPcpTemporalInterpolation under the SuppForcing '
-                                           'section in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper SuppPcpTemporalInterpolation options specified in the '
-                                           'configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpTemporalInterpolation under the SuppForcing section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpTemporalInterpolation under the SuppForcing section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper SuppPcpTemporalInterpolation options specified in the configuration file.', e)
             if len(self.suppTemporalInterp) != self.number_supp_pcp:
                 err_handler.err_out_screen('Please specify SuppPcpTemporalInterpolation values for each '
                                            'corresponding supplemental precip products in the configuration file.')
@@ -1390,9 +1284,8 @@ class ConfigOptions:
             except (KeyError, configparser.NoOptionError):
                 self.supp_pcp_max_hours = None  # if missing, don't care, just assume all time
 
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper SuppPcpMaxHours options specified in the '
-                                           'configuration file.')
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper SuppPcpMaxHours options specified in the configuration file.', e)
 
             if type(self.supp_pcp_max_hours) is list:
                 if len(self.supp_pcp_max_hours) != self.number_supp_pcp:
@@ -1406,15 +1299,12 @@ class ConfigOptions:
             # Read in the SuppPcpInputOffsets options.
             try:
                 self.supp_input_offsets = cfg_bmi['SuppPcpInputOffsets']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SuppPcpInputOffsets under SuppForcing '
-                                           'section in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SuppPcpInputOffsets under SuppForcing '
-                                           'section in the configuration file.')
-            except json.decoder.JSONDecodeError:
-                err_handler.err_out_screen('Improper SuppPcpInputOffsets option specified in '
-                                           'the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpInputOffsets under SuppForcing section in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpInputOffsets under SuppForcing section in the configuration file.', e)
+            except json.decoder.JSONDecodeError as e:
+                err_handler.err_out_screen('Improper SuppPcpInputOffsets option specified in the configuration file.', e)
             if len(self.supp_input_offsets) != self.number_supp_pcp:
                 err_handler.err_out_screen('Please specify SuppPcpInputOffsets values for each '
                                            'corresponding input forcings for SuppForcing.')
@@ -1422,20 +1312,17 @@ class ConfigOptions:
             # checking later when input choices are mapped to input products.
             for inputOffset in self.supp_input_offsets:
                 if inputOffset < 0:
-                    err_handler.err_out_screen(
-                        'Please specify SuppPcpInputOffsets values greater than or equal to zero.')
+                    err_handler.err_out_screen('Please specify SuppPcpInputOffsets values greater than or equal to zero.')
 
             # Read in the optional parameter directory for supplemental precipitation.
             try:
                 self.supp_precip_param_dir = cfg_bmi['SuppPcpParamDir']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate SuppPcpParamDir under the SuppForcing section '
-                                           'in the configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate SuppPcpParamDir under the SuppForcing section '
-                                           'in the configuration file.')
-            except ValueError:
-                err_handler.err_out_screen('Improper SuppPcpParamDir option specified in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpParamDir under the SuppForcing section  in the configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate SuppPcpParamDir under the SuppForcing section in the configuration file.', e)
+            except ValueError as e:
+                err_handler.err_out_screen('Improper SuppPcpParamDir option specified in the configuration file.', e)
             if not os.path.isdir(self.supp_precip_param_dir):
                 err_handler.err_out_screen('Unable to locate SuppPcpParamDir: ' + self.supp_precip_param_dir)
 
@@ -1449,14 +1336,12 @@ class ConfigOptions:
                         self.cfsv2EnsMember = cfg_bmi['cfsEnsNumber']
                         print(f"ens mem: {self.cfsv2EnsMember}")
                         print(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
-                    except KeyError:
-                        err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles '
-                                                   'section of the configuration file')
-                    except configparser.NoOptionError:
-                        err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles '
-                                                   'section of the configuration file')
-                    except json.JSONDecodeError:
-                        err_handler.err_out_screen('Improper cfsEnsNumber options specified in the configuration file')
+                    except KeyError as e:
+                        err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles section of the configuration file', e)
+                    except configparser.NoOptionError as e:
+                        err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles section of the configuration file', e)
+                    except json.JSONDecodeError as e:
+                        err_handler.err_out_screen('Improper cfsEnsNumber options specified in the configuration file', e)
                     if int(self.cfsv2EnsMember) < 1 or int(self.cfsv2EnsMember) > 4:
                         err_handler.err_out_screen('Please chose an cfsEnsNumber value of 1,2,3 or 4.')
 
@@ -1464,15 +1349,12 @@ class ConfigOptions:
             # Read in the ForecastInputHorizons options.
             try:
                 self.customFcstFreq = cfg_bmi['custom_input_fcst_freq']
-            except KeyError:
-                err_handler.err_out_screen('Unable to locate custom_input_fcst_freq under Custom section in '
-                                           'configuration file.')
-            except configparser.NoOptionError:
-                err_handler.err_out_screen('Unable to locate custom_input_fcst_freq under Custom section in '
-                                           'configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate custom_input_fcst_freq under Custom section in configuration file.', e)
+            except configparser.NoOptionError as e:
+                err_handler.err_out_screen('Unable to locate custom_input_fcst_freq under Custom section in configuration file.', e)
             except json.decoder.JSONDecodeError as je:
-                err_handler.err_out_screen('Improper custom_input_fcst_freq  option specified in '
-                                           'configuration file: ' + str(je))
+                err_handler.err_out_screen('Improper custom_input_fcst_freq  option specified in configuration file: ' + str(je))
             if len(self.customFcstFreq) != self.number_custom_inputs:
                 err_handler.err_out_screen(f'Improper custom_input fcst_freq specified. '
                                            f'This number ({len(self.customFcstFreq)}) must '
