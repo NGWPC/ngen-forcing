@@ -23,18 +23,19 @@ For each of the nowcast or forecast product, there are three type of output file
 # Script Usage
 the script has a help option (-h) for printing usage information.
 
-Usage: ./download_fvcom.bash [-d <utcdate>(yyyymmdd)] [-n <domain> (one of leofs, lmhofs, loofs, or lsofs)] [-o <output path>]
+Usage: ./download_fvcom.bash [-s <start_utcdate>(yyyymmdd)]  [-e <end_utcdate>(yyyymmdd)] [-n <domain> (one of leofs, lmhofs, loofs, or lsofs)] [-o <output path>]
         defaults: 
-                <utcdate>: current utc day
+                <start_utcdate>: current utc day
+                <end_utcdate>: current utc day + 1 day
                 <domain>: all 4 domains
                 <output path>: $ROOT_SHARE/data)
 
-   where <utcdate>  is the UTC date such as 20241218, default is the current date
+   where <start_utcdate>  is the UTC date such as 20241218, default is the current date
          <domain> is one of the Great Lakes' domains, one of leofs, lmhofs, loofs, or lsofs, default is to download all domains
          <output path> the output directory where the downloaded files will be saved. The default value is $ROOT_SHARE/data. ROOT_SHARE is an environmental variable. If the <output path> is not given and the ROOT_SHARE environmental variable is not defined, the script will exit with an error message.
 
 #### Examples ####
 
-   ./download_fvcom.bash -d 20241218 -o ./fvcom_data
+   ./download_fvcom.bash -s 20241218 -e 20241220 -o ./fvcom_data
    ROOT_SHARE=./fvcom_data ./download_fvcom.bash
-   ./download_fvcom.bash -d 20241218 -n loofs -o ./fvcom_data
+   ./download_fvcom.bash -s 20241218 -e 20241220 -n loofs -o ./fvcom_data

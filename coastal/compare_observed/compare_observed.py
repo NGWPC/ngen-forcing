@@ -59,6 +59,7 @@ def main():
        elev_date = []
        elev_value = []
        for o in schismout:
+          print( o.source )
           elev_date.append( o.valid_time )
           elev_value.append( o.elev[ idx[0] ] )
 
