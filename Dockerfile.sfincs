@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1.7-labs
+
+##############################
+# image used only to save sfincs binary + its runtime libs
+##############################
+ARG SFINCS_CPU_IMAGE_TAG=latest
+FROM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS sfincs-cpu-image
+
+# save sfincs binary path, copy binary, and collect/compress runtime libs
+RUN set -eux; \
+  SFINCS_BIN="$(command -v sfincs)"; \
+  echo "sfincs binary path: ${SFINCS_BIN}"; \
+  install -m 0755 -D "${SFINCS_BIN}" /tmp/sfincs.bin; \
+  ldd "${SFINCS_BIN}" \
+    | awk '/=> \//{print $3}  /^[[:space:]]*\\//{print $1}' \
+    | sort -u > /tmp/sfincs.ldd; \
+  # archive those libs from the upstream filesystem
+  tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd
+
+##############################
+# final runtime image (Rocky 8 + Python)
+##############################
+FROM rockylinux:8 AS runtime
+
+ARG PYTHON_VERSION=3.11
+ARG MINIFORGE_VERSION=25.3.0-3
+ARG SFINCS_BIN_TARGET=/usr/local/bin/sfincs
+
+# install base os utilities and clean up cache
+RUN set -eux; \
+  dnf -y install --setopt=install_weak_deps=False --setopt=deltarpm=false \
+      ca-certificates curl bash bzip2 unzip tar shadow-utils findutils glibc-langpack-en \
+  && dnf clean all && rm -rf /var/cache/dnf
+
+# set locale and python runtime environment variables
+ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
+    PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1
+
+# install Miniforge (Conda)
+ENV CONDA_DIR=/opt/conda PATH=${CONDA_DIR}/bin:$PATH
+RUN set -eux; \
+  curl -fsSL -o /tmp/miniforge.sh \
+    "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-x86_64.sh"; \
+  bash /tmp/miniforge.sh -b -p ${CONDA_DIR}; rm /tmp/miniforge.sh; \
+  conda config --system --set always_yes yes --set changeps1 no; \
+  conda update -n base -c defaults conda; \
+  conda install python=${PYTHON_VERSION} pip; \
+  conda clean --all --yes
+
+# set VENV_DIR and prepend it to $PATH
+ENV VENV_DIR=/opt/venv
+ENV PATH=${VENV_DIR}/bin:$PATH
+
+# create python venv
+RUN set -eux; python -m venv ${VENV_DIR}; \
+  ${VENV_DIR}/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
+
+# install python packages and clean up
+COPY coastal/SFINCS/requirements.txt /tmp/requirements.sfincs.txt
+RUN --mount=type=cache,target=/root/.cache/pip,id=sfincs-pip \
+  set -eux; pip install --no-cache-dir -r /tmp/requirements.sfincs.txt; rm /tmp/requirements.sfincs.txt
+
+# copy sfincs shared libs and extract them
+COPY --from=sfincs-cpu-image /tmp/sfincs-libs.tgz /tmp/sfincs-libs.tgz
+RUN set -eux; \
+  tar -C / -xzf /tmp/sfincs-libs.tgz; rm -f /tmp/sfincs-libs.tgz; \
+  ldconfig || true
+
+# copy sfincs binary
+COPY --from=sfincs-cpu-image /tmp/sfincs.bin ${SFINCS_BIN_TARGET}
+
+# make sfincs binary executable
+RUN set -eux; chmod +x ${SFINCS_BIN_TARGET}
+
+# TODO: ask Mohammed where he wants WORKDIR set and if we need /data
+RUN set -eux; mkdir -p /workspace /data
+WORKDIR /
+
+# define /data as a mount point for external data persistence
+VOLUME ["/data"]
+
+# start container with bash login shell by default
+ENTRYPOINT ["/bin/bash"]
+CMD ["-l"]
