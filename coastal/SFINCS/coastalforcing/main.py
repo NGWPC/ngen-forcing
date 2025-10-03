@@ -221,7 +221,6 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
       schcfg.write(f"export METEO_SOURCE={cfg['meteo_source'].upper()}\n")
       schcfg.write(f"export COASTAL_WORK_DIR={sim_dir}\n")
       schcfg.write(f"export RAW_DOWNLOAD_DIR={raw_download_dir}\n")
-      schcfg.write("SIF_PATH=/contrib/Zhengtao.Cui/home/ngwpc/singularity/ngen_coastal_sing.sif\n")
 
 
 # ---- Main ----
