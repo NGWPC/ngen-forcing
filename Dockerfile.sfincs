@@ -18,7 +18,7 @@ RUN set -eux; \
   tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd
 
 ##############################
-# final runtime image (Rocky 8 + Python)
+# final runtime image
 ##############################
 FROM rockylinux:8 AS runtime
 
