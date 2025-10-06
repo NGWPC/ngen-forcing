@@ -14,9 +14,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
     :param cfg: dictionary of forcing engine config parameters
     """
     # Get parameters from the forcing engine config file
-    print(f"cfg.b_date_proc (forcing_extraction): {cfg.b_date_proc}")
     refcstbdate = cfg.b_date_proc
-    print(f"refcstbdate (forcing_extraction): {refcstbdate}")
     input_forcings = cfg.input_forcings + [f"supp{val}" for val in cfg.supp_precip_forcings]
     if cfg.supp_precip_dirs is not None:
         input_forcing_dirs = cfg.input_force_dirs + cfg.supp_precip_dirs
@@ -27,7 +25,6 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
     ens_number = cfg.cfsv2EnsMember
     ana_flag = cfg.ana_flag
     look_back = cfg.look_back
-    print(f"look_back: {look_back}")
     extraction_scriptPath = "/ngen-app/ngen-forcing/Forcing_Extraction_Scripts"
 
     # Set mapping between InputForcings codes and forcing extraction scripts
@@ -72,11 +69,8 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
-            look_back_hours = int(look_back / 60)
-            print(f"look_back_hours: {look_back_hours}")
-            forcing_start_time = refcstbdate + timedelta(hours=look_back_hours)
-            print(f"refcstbdate: {refcstbdate}")
-            print(f"forcing_start_time: {forcing_start_time}")
+            look_back_hours = int(look_back / 60) + 1
+            forcing_start_time = refcstbdate + timedelta(hours=look_back_hours) - 1
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
@@ -117,8 +111,6 @@ def main():
     # Load Yaml into dict
     with open(args.cfg, "r") as f:
         cfg_dict = yaml.safe_load(f)
-    
-    print(f"cfg_dict['RefcstBDateProc']: {cfg_dict['RefcstBDateProc']}")
 
     # Wrap config dict into simplenamespace to match ConfigOptions format
     cfg = SimpleNamespace(b_date_proc=datetime.strptime(cfg_dict['RefcstBDateProc'], "%Y-%m-%d %H:%M:%S"),
