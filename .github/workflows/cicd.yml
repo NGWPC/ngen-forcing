@@ -42,7 +42,7 @@ jobs:
           echo "image_bmi=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
           echo "image_lumped=${IMAGE_BASE}/ngen-lumped-forcing" >> "$GITHUB_OUTPUT"
           echo "image_coastal=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
-          echo "image_sfincs=${IMAGE_BASE}/ngen-sfincs" >> "$GITHUB_OUTPUT"
+          echo "image_sfincs=${IMAGE_BASE}/ngen-sfincs-forcing" >> "$GITHUB_OUTPUT"
 
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             PR_NUM="${{ github.event.pull_request.number }}"
