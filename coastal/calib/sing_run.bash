@@ -14,7 +14,7 @@ set -x
 #load the configuration file
 . ./schism_calib.cfg
 
-export NGWPC_COASTAL_PARM_DIR=/efs/ngwpc-coastal
+export NGWPC_COASTAL_PARM_DIR=/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #
@@ -72,6 +72,8 @@ export PATH=/opt/conda/bin:${PATH}
 export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
+
+SIF_PATH=/ngencerf-app/singularity/ngen-coastal.sif
 
 conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
