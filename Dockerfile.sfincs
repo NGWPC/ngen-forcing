@@ -42,7 +42,7 @@ ENV PATH="${CONDA_DIR}/bin:${CONDA_DIR}/condabin:${PATH}"
 
 RUN set -eux; \
   curl -fsSL -o /tmp/miniforge.sh \
-    "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-x86_64.sh"; \
+    "https://github.com/conda-forge/miniforge/releases/${MINIFORGE_VERSION}/download/Miniforge3-Linux-x86_64.sh"; \
   bash /tmp/miniforge.sh -b -p "${CONDA_DIR}"; \
   rm /tmp/miniforge.sh; \
   "${CONDA_DIR}/bin/conda" config --system --set always_yes yes --set changeps1 no; \
