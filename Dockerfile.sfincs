@@ -10,13 +10,10 @@ FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS s
 
 RUN set -eux; \
   SFINCS_BIN="$(command -v sfincs)"; \
-  echo "sfincs binary path: ${SFINCS_BIN}"; \
   install -m 0755 -D "${SFINCS_BIN}" /tmp/sfincs.bin; \
   ldd "${SFINCS_BIN}" \
-    | awk '/=> \//{print $3}  /^[[:space:]]*\\//{print $1}' \
-    | sort -u \
-    > /tmp/sfincs.ldd; \
-  # exclude system dynamic loader and core glibc from vendoring
+    | awk '{if ($3 ~ /^\//) print $3; else if ($1 ~ /^\//) print $1}' \
+    | sort -u > /tmp/sfincs.ldd; \
   grep -Ev '/ld-linux|/libc\.so|/libm\.so|/libpthread\.so|/librt\.so|/libdl\.so|/libgcc_s\.so' /tmp/sfincs.ldd \
     > /tmp/sfincs.ldd.filtered || true; \
   tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd.filtered
