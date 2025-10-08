@@ -70,7 +70,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
             look_back_hours = int(look_back / 60) + 1
-            forcing_start_time = refcstbdate + timedelta(hours=look_back_hours) - 1
+            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
