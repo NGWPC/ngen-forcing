@@ -3,13 +3,13 @@ initial_time: 0
 NWM_VERSION: 4.0
 NWM_CONFIG: "long_range_mem1"
 InputForcings: [7] 
-InputForcingDirectories: ["{root_dir}/data/raw_input/CFS"]
+InputForcingDirectories: ["{root_dir}/raw_input/CFS"]
 InputForcingTypes: ["GRIB2"]
 InputMandatory: [1]
 OutputFrequency: 360
 SubOutputHour: 0
 SubOutFreq: 0
-ScratchDir: "{root_dir}/data/scratch/long_range/"
+ScratchDir: "{root_dir}/scratch/long_range/"
 Output: 1
 compressOutput: 0
 floatOutput: 0
@@ -20,8 +20,8 @@ ForecastFrequency: 360
 ForecastShift: 0
 ForecastInputHorizons: [43200]
 ForecastInputOffsets: [0]
-Geopackage: "{root_dir}/data/gpkg/conus/{gage}.gpkg"
-GeogridIn: "{root_dir}/data/esmf_mesh/{gage}_ESMF_Mesh.nc"
+Geopackage: "{root_dir}/gpkg/conus/{gage}.gpkg"
+GeogridIn: "{root_dir}/esmf_mesh/{gage}_ESMF_Mesh.nc"
 SpatialMetaIn: ""
 GRID_TYPE: "hydrofabric"
 NodeCoords: 'nodeCoords'
