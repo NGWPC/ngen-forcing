@@ -6,16 +6,18 @@
 ARG SFINCS_CPU_IMAGE_TAG=latest
 FROM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS sfincs-cpu-image
 
-# save sfincs binary path, copy binary, and collect/compress runtime libs
 RUN set -eux; \
   SFINCS_BIN="$(command -v sfincs)"; \
   echo "sfincs binary path: ${SFINCS_BIN}"; \
   install -m 0755 -D "${SFINCS_BIN}" /tmp/sfincs.bin; \
   ldd "${SFINCS_BIN}" \
     | awk '/=> \//{print $3}  /^[[:space:]]*\\//{print $1}' \
-    | sort -u > /tmp/sfincs.ldd; \
-  # archive those libs from the upstream filesystem
-  tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd
+    | sort -u \
+    > /tmp/sfincs.ldd; \
+  # exclude system dynamic loader and core glibc from vendoring
+  grep -Ev '/ld-linux|/libc\.so|/libm\.so|/libpthread\.so|/librt\.so|/libdl\.so|/libgcc_s\.so' /tmp/sfincs.ldd \
+    > /tmp/sfincs.ldd.filtered || true; \
+  tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd.filtered
 
 ##############################
 # final runtime image
@@ -64,17 +66,18 @@ COPY coastal/SFINCS/requirements.txt /tmp/requirements.sfincs.txt
 RUN --mount=type=cache,target=/root/.cache/pip,id=sfincs-pip \
   set -eux; pip install --no-cache-dir -r /tmp/requirements.sfincs.txt; rm /tmp/requirements.sfincs.txt
 
-# copy sfincs shared libs and extract them
+# place sfincs libs in a private dir (DON'T extract to /)
 COPY --from=sfincs-cpu-image /tmp/sfincs-libs.tgz /tmp/sfincs-libs.tgz
 RUN set -eux; \
-  tar -C / -xzf /tmp/sfincs-libs.tgz; rm -f /tmp/sfincs-libs.tgz; \
-  ldconfig || true
+  mkdir -p /opt/sfincs/lib; \
+  tar -C /opt/sfincs/lib -xzf /tmp/sfincs-libs.tgz; \
+  rm -f /tmp/sfincs-libs.tgz; \
+  echo "/opt/sfincs/lib" > /etc/ld.so.conf.d/sfincs.conf; \
+  ldconfig
 
-# copy sfincs binary
+# copy the binary last
 COPY --from=sfincs-cpu-image /tmp/sfincs.bin ${SFINCS_BIN_TARGET}
-
-# make sfincs binary executable
-RUN set -eux; chmod +x ${SFINCS_BIN_TARGET}
+RUN chmod +x ${SFINCS_BIN_TARGET}
 
 # TODO: ask Mohammed where he wants WORKDIR set and if we need /data
 RUN set -eux; mkdir -p /workspace /data
