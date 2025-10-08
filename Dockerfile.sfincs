@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7-labs
 
-ENV TARGETPLATFORM=linux/amd64
+ARG TARGETPLATFORM=linux/amd64
 ARG SFINCS_CPU_IMAGE_TAG=latest
 
 FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG}
