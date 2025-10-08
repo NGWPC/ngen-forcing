@@ -2,89 +2,57 @@
 
 ARG TARGETPLATFORM=linux/amd64
 
-##############################
-# image used only to save sfincs binary + its runtime libs
-##############################
 ARG SFINCS_CPU_IMAGE_TAG=latest
-FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS sfincs-cpu-image
-
-RUN set -eux; \
-  SFINCS_BIN="$(command -v sfincs)"; \
-  install -m 0755 -D "${SFINCS_BIN}" /tmp/sfincs.bin; \
-  ldd "${SFINCS_BIN}" \
-    | awk '{if ($3 ~ /^\//) print $3; else if ($1 ~ /^\//) print $1}' \
-    | sort -u > /tmp/sfincs.ldd; \
-  grep -Ev '/ld-linux|/libc\.so|/libm\.so|/libpthread\.so|/librt\.so|/libdl\.so|/libgcc_s\.so' /tmp/sfincs.ldd \
-    > /tmp/sfincs.ldd.filtered || true; \
-  tar -C / -czf /tmp/sfincs-libs.tgz -T /tmp/sfincs.ldd.filtered
-
-##############################
-# final runtime image
-##############################
-FROM --platform=$TARGETPLATFORM rockylinux:8 AS runtime
-
 ARG PYTHON_VERSION=3.11
 ARG MINIFORGE_VERSION=latest
-ARG SFINCS_BIN_TARGET=/usr/local/bin/sfincs
 
-# install base os utilities and clean up cache
+# one-stage image based directly on deltares/sfincs-cpu
+FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG}
+
+# basic tools (works whether the base is apt or dnf)
 RUN set -eux; \
-  dnf -y install --setopt=install_weak_deps=False --setopt=deltarpm=false \
-      ca-certificates curl bash bzip2 unzip tar shadow-utils findutils glibc-langpack-en \
-  && dnf clean all && rm -rf /var/cache/dnf
+  if command -v apt-get >/dev/null 2>&1; then \
+    apt-get update; \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      ca-certificates curl bash bzip2 unzip tar findutils; \
+    rm -rf /var/lib/apt/lists/*; \
+  elif command -v dnf >/dev/null 2>&1; then \
+    dnf -y install --setopt=install_weak_deps=False --setopt=deltarpm=false \
+      ca-certificates curl bash bzip2 unzip tar findutils; \
+    dnf clean all && rm -rf /var/cache/dnf; \
+  fi
 
-# set locale and python runtime environment variables
+# locale & python env
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1
 
-# install Miniforge (Conda)
+# Miniforge (Conda)
 ENV CONDA_DIR=/opt/conda
 ENV PATH="${CONDA_DIR}/bin:${CONDA_DIR}/condabin:${PATH}"
-
 RUN set -eux; \
   curl -fsSL -o /tmp/miniforge.sh \
-    "https://github.com/conda-forge/miniforge/releases/${MINIFORGE_VERSION}/download/Miniforge3-Linux-x86_64.sh"; \
+    https://github.com/conda-forge/miniforge/releases/MINIFORGE_VERSION/download/Miniforge3-Linux-x86_64.sh; \
   bash /tmp/miniforge.sh -b -p "${CONDA_DIR}"; \
   rm /tmp/miniforge.sh; \
   "${CONDA_DIR}/bin/conda" config --system --set always_yes yes --set changeps1 no; \
-  "${CONDA_DIR}/bin/conda" update -n base -c defaults conda; \
   "${CONDA_DIR}/bin/conda" install "python=${PYTHON_VERSION}" pip; \
   "${CONDA_DIR}/bin/conda" clean --all --yes
 
-
-# set VENV_DIR and prepend it to $PATH
+# venv
 ENV VENV_DIR=/opt/venv
 ENV PATH=${VENV_DIR}/bin:$PATH
+RUN set -eux; python -m venv "${VENV_DIR}"; \
+  "${VENV_DIR}/bin/pip" install --no-cache-dir --upgrade pip setuptools wheel
 
-# create python venv
-RUN set -eux; python -m venv ${VENV_DIR}; \
-  ${VENV_DIR}/bin/pip install --no-cache-dir --upgrade pip setuptools wheel
-
-# install python packages and clean up
+# python deps
 COPY coastal/SFINCS/requirements.txt /tmp/requirements.sfincs.txt
 RUN --mount=type=cache,target=/root/.cache/pip,id=sfincs-pip \
   set -eux; pip install --no-cache-dir -r /tmp/requirements.sfincs.txt; rm /tmp/requirements.sfincs.txt
 
-# place sfincs libs in a private dir (DON'T extract to /)
-COPY --from=sfincs-cpu-image /tmp/sfincs-libs.tgz /tmp/sfincs-libs.tgz
-RUN set -eux; \
-  mkdir -p /opt/sfincs/lib; \
-  tar -C /opt/sfincs/lib -xzf /tmp/sfincs-libs.tgz; \
-  rm -f /tmp/sfincs-libs.tgz; \
-  echo "/opt/sfincs/lib" > /etc/ld.so.conf.d/sfincs.conf; \
-  ldconfig
-
-# copy the binary last
-COPY --from=sfincs-cpu-image /tmp/sfincs.bin ${SFINCS_BIN_TARGET}
-RUN chmod +x ${SFINCS_BIN_TARGET}
-
-# TODO: ask Mohammed where he wants WORKDIR set and if we need /data
+# workspace & default shell
 RUN set -eux; mkdir -p /workspace /data
 WORKDIR /
-
-# define /data as a mount point for external data persistence
 VOLUME ["/data"]
 
-# start container with bash login shell by default
-ENTRYPOINT ["/bin/bash"]
-CMD ["-l"]
+# keep it simple so overrides behave
+CMD ["/bin/bash","-l"]
