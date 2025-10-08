@@ -1,10 +1,12 @@
 # syntax=docker/dockerfile:1.7-labs
 
+ARG TARGETPLATFORM=linux/amd64
+
 ##############################
 # image used only to save sfincs binary + its runtime libs
 ##############################
 ARG SFINCS_CPU_IMAGE_TAG=latest
-FROM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS sfincs-cpu-image
+FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG} AS sfincs-cpu-image
 
 RUN set -eux; \
   SFINCS_BIN="$(command -v sfincs)"; \
@@ -22,7 +24,7 @@ RUN set -eux; \
 ##############################
 # final runtime image
 ##############################
-FROM rockylinux:8 AS runtime
+FROM --platform=$TARGETPLATFORM rockylinux:8 AS runtime
 
 ARG PYTHON_VERSION=3.11
 ARG MINIFORGE_VERSION=latest
