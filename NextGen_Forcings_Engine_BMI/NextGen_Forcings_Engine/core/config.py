@@ -1225,7 +1225,11 @@ class ConfigOptions:
             for dirTmp in range(0, len(self.supp_precip_dirs)):
                 self.supp_precip_dirs[dirTmp] = self.supp_precip_dirs[dirTmp].strip()
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
-                    err_handler.err_out_screen('Unable to locate supp pcp directory: ' + self.supp_precip_dirs[dirTmp])
+                    try:
+                        os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
+                        err_handler.err_out_screen(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
+                    except OSError as e:
+                        err_handler.err_out_screen(f'Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}')
 
             # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
             if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
@@ -1338,7 +1342,11 @@ class ConfigOptions:
             except ValueError as e:
                 err_handler.err_out_screen('Improper SuppPcpParamDir option specified in the configuration file.', e)
             if not os.path.isdir(self.supp_precip_param_dir):
-                err_handler.err_out_screen('Unable to locate SuppPcpParamDir: ' + self.supp_precip_param_dir)
+                try:
+                    os.makedirs(self.supp_precip_param_dir, exist_ok=True)
+                    err_handler.err_out_screen(f'Created missing SuppPcpParamDir: {self.supp_precip_param_dir}' )
+                except OSError as e:
+                    err_handler.err_out_screen(f'Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}' )
 
         if not self.precip_only_flag:
             # Read in Ensemble information
