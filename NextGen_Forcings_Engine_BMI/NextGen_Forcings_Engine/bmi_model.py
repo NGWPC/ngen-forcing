@@ -21,6 +21,10 @@ from .model import NWMv3_Forcing_Engine_model
 from NextGen_Forcings_Engine_BMI import esmf_creation
 from NextGen_Forcings_Engine_BMI import forcing_extraction
 
+# time debugging
+import time
+from collections import defaultdict
+
 # Import BMI grid functions to advertise grid features
 # Here is the model we want to run
 
@@ -104,6 +108,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._suppPcpMod = None
         self._model_parameters_list = []
 
+        # Diagnostic timing setup
+
+        self._call_counts = defaultdict(int)
+        self._call_times = defaultdict(float)
+        self._total_start = None
+
     # ----------------------------------------------
     # Required, static attributes of the model
     # ----------------------------------------------
@@ -149,6 +159,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+
+        #time debugging
+        self._total_start = time.time()
 
         print('---------------------------')
         print("BMI Forcing Engine initialized with", config_file)
@@ -667,6 +680,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param future_time: The target time to update the model to.
         :return: None
         """
+        #time debugging
+        start = time.time()
+        
         # Flag to check if future_time is different from the current model time.
         # If future_time is not equal to the current model time, we perform an
         # iterative update, advancing time in steps until we reach future_time.
@@ -685,6 +701,26 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
                             self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
 
+        #time debugging
+        elapsed = time.time() - start
+        # Track stats
+        if 'update_until' not in self._call_counts:
+            self._call_counts['update_until'] = 0
+            self._call_times['update_until'] = 0.0
+        
+        self._call_counts['update_until'] += 1
+        self._call_times['update_until'] += elapsed
+        
+        # Log periodically (every 1000 calls)
+        if self._call_counts['update_until'] % 1000 == 0:
+            avg_ms = (self._call_times['update_until'] / self._call_counts['update_until']) * 1000
+            self.ConfigOptions.statusMsg = (
+                f"update_until: {self._call_counts['update_until']} calls, "
+                f"{self._call_times['update_until']:.1f}s total, "
+                f"{avg_ms:.1f}ms avg"
+            )
+            err_handler.log_msg(self.ConfigOptions, self.MpiConfig)
+        # End time debugging
     # ------------------------------------------------------------
     def finalize(self):
         """
@@ -697,6 +733,28 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :return: None
         """
+
+        #time debugging
+        if self._total_start:
+            total_time = time.time() - self._total_start
+            
+            self.ConfigOptions.statusMsg = "=== FORCING ENGINE TIMING SUMMARY ==="
+            err_handler.log_msg(self.ConfigOptions, self.MpiConfig)
+            
+            for method, count in self._call_counts.items():
+                avg_ms = (self._call_times[method] / count) * 1000
+                pct = (self._call_times[method] / total_time) * 100
+                
+                self.ConfigOptions.statusMsg = (
+                    f"{method}: {count} calls, {self._call_times[method]:.1f}s total, "
+                    f"{avg_ms:.1f}ms avg, {pct:.1f}% of runtime"
+                )
+                err_handler.log_msg(self.ConfigOptions, self.MpiConfig)
+            
+            self.ConfigOptions.statusMsg = f"Total runtime: {total_time:.1f}s"
+            err_handler.log_msg(self.ConfigOptions, self.MpiConfig)
+        # End time debugging
+
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
                 file_path = os.path.join(self._job_meta.scratch_dir, filename)
@@ -813,6 +871,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param dest: The numpy array to store the values of the variable.
         :return: The destination array containing the variable values.
         """
+        #time debugging
+        start = time.time()
+        # end time debugging
+
         print(f"[BMI get_value] Called with var_name: '{var_name}'")
         print(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
 
@@ -848,6 +910,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             dest[:] = src
 
         print(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
+
+        #time debugging
+        elapsed = time.time() - start
+        self._call_counts['get_value'] += 1
+        self._call_times['get_value'] += elapsed
+        # end time debugging
+
         return dest
 
     # -------------------------------------------------------------------
@@ -861,7 +930,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param var_name: The name of the variable whose values are to be retrieved.
         :return: A flattened array containing the values of the variable.
         """
-        # print(f"[BMI get_value_ptr] Called with var_name: '{var_name}'")
+        #time debugging
+        start = time.time()
+        print(f"[BMI get_value_ptr] Called with var_name: '{var_name}'")
 
         # Make sure to return a flattened array
         if var_name == "grid_1_shape":  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
@@ -934,7 +1005,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except ValueError as e:
             raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
 
-        # print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
+        #time debugging
+        elapsed = time.time() - start
+        self._call_counts['get_value_ptr'] += 1
+        self._call_times['get_value_ptr'] += elapsed
+        # end time debugging
+        print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
         return arr.ravel()
 
     # -------------------------------------------------------------------

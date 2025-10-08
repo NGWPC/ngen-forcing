@@ -275,7 +275,11 @@ class ConfigOptions:
                     if is_aws_forcing:
                         self.aws = True
                     else:
-                        err_handler.err_out_screen(f'Unable to locate forcing directory: {dir_path}')
+                        try:
+                            os.makedirs(dir_path, exist_ok=True)
+                            print(f'Created missing forcing directory: {dir_path}')
+                        except OSError as e: 
+                            err_handler.err_out_screen(f'Unable to create forcing directory: {dir_path}. Error: {e}')
 
             # Read in the mandatory enforcement options for input forcings.
             try:
