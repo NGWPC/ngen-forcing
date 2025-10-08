@@ -23,7 +23,7 @@ RUN set -eux; \
 FROM rockylinux:8 AS runtime
 
 ARG PYTHON_VERSION=3.11
-ARG MINIFORGE_VERSION=25.3.0-3
+ARG MINIFORGE_VERSION=latest
 ARG SFINCS_BIN_TARGET=/usr/local/bin/sfincs
 
 # install base os utilities and clean up cache
@@ -37,15 +37,19 @@ ENV LANG=C.UTF-8 LC_ALL=C.UTF-8 \
     PYTHONUNBUFFERED=1 PIP_NO_CACHE_DIR=1 PYTHONDONTWRITEBYTECODE=1
 
 # install Miniforge (Conda)
-ENV CONDA_DIR=/opt/conda PATH=${CONDA_DIR}/bin:$PATH
+ENV CONDA_DIR=/opt/conda
+ENV PATH="${CONDA_DIR}/bin:${CONDA_DIR}/condabin:${PATH}"
+
 RUN set -eux; \
   curl -fsSL -o /tmp/miniforge.sh \
     "https://github.com/conda-forge/miniforge/releases/download/${MINIFORGE_VERSION}/Miniforge3-Linux-x86_64.sh"; \
-  bash /tmp/miniforge.sh -b -p ${CONDA_DIR}; rm /tmp/miniforge.sh; \
-  conda config --system --set always_yes yes --set changeps1 no; \
-  conda update -n base -c defaults conda; \
-  conda install python=${PYTHON_VERSION} pip; \
-  conda clean --all --yes
+  bash /tmp/miniforge.sh -b -p "${CONDA_DIR}"; \
+  rm /tmp/miniforge.sh; \
+  "${CONDA_DIR}/bin/conda" config --system --set always_yes yes --set changeps1 no; \
+  "${CONDA_DIR}/bin/conda" update -n base -c defaults conda; \
+  "${CONDA_DIR}/bin/conda" install "python=${PYTHON_VERSION}" pip; \
+  "${CONDA_DIR}/bin/conda" clean --all --yes
+
 
 # set VENV_DIR and prepend it to $PATH
 ENV VENV_DIR=/opt/venv
