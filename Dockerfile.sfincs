@@ -4,11 +4,12 @@ ARG TARGETPLATFORM=linux/amd64
 
 ARG SFINCS_CPU_IMAGE_TAG=latest
 ARG PYTHON_VERSION=3.11
-ENV MINICONDA_VERSION="latest"
-ENV MINICONDA_INSTALLER_URL="https://github.com/conda-forge/miniforge/releases/${MINICONDA_VERSION}/download/Miniforge3-Linux-x86_64.sh"
 
 # one-stage image based directly on deltares/sfincs-cpu
 FROM --platform=$TARGETPLATFORM deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG}
+
+ENV MINICONDA_VERSION="latest"
+ENV MINICONDA_INSTALLER_URL="https://github.com/conda-forge/miniforge/releases/${MINICONDA_VERSION}/download/Miniforge3-Linux-x86_64.sh"
 
 # basic tools (works whether the base is apt or dnf)
 RUN set -eux; \
