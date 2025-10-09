@@ -167,6 +167,14 @@ class ConfigOptions:
                     err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
             except KeyError as e:
                 err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.', e)
+            # Create directory for esmf_mesh file
+            geogrid_dir = os.path.dirname(self.geogrid)
+            if not os.path.isdir(geogrid_dir):
+                try:
+                    os.makedirs(geogrid_dir, exist_ok=True)
+                    print(f"Created esmf mesh directory: {geogrid_dir}")
+                except OSError as e:
+                    err_handler.err_out_screen(f'Unable to create esmf_mesh directory: {geogrid_dir}. Error: {e}')
 
         # Read in the base input forcing options as an array of values to map.
         try:
