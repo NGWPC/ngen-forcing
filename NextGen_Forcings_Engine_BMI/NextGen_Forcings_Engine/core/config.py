@@ -1227,7 +1227,7 @@ class ConfigOptions:
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
                     try:
                         os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
-                        err_handler.err_out_screen(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
+                        print(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
                     except OSError as e:
                         err_handler.err_out_screen(f'Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}')
 
@@ -1344,7 +1344,7 @@ class ConfigOptions:
             if not os.path.isdir(self.supp_precip_param_dir):
                 try:
                     os.makedirs(self.supp_precip_param_dir, exist_ok=True)
-                    err_handler.err_out_screen(f'Created missing SuppPcpParamDir: {self.supp_precip_param_dir}' )
+                    print(f'Created missing SuppPcpParamDir: {self.supp_precip_param_dir}' )
                 except OSError as e:
                     err_handler.err_out_screen(f'Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}' )
 
