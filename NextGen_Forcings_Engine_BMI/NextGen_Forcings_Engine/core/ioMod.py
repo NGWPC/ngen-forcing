@@ -143,6 +143,18 @@ class OutputObj:
                         ConfigOptions.errMsg = f"Unable to create element id dimension in: {self.outPath} - {e}"
                         err_handler.log_critical(ConfigOptions, MpiConfig)
                         break
+                    try:
+                        self.idOut.createDimension("nodeCount", geoMetaWrfHydro.ny_global)  # Node ID dimension for unstructured grid
+                    except Exception as e:
+                        ConfigOptions.errMsg = f"Unable to create nodeCount dimension in: {self.outPath} - {e}"
+                        err_handler.log_critical(ConfigOptions, MpiConfig)
+                        break
+                    try:
+                        self.idOut.createDimension("coordDim", 2)  # Node ID dimension for unstructured grid
+                    except Exception as e:
+                        ConfigOptions.errMsg = f"Unable to create coordDim dimension in: {self.outPath} - {e}"
+                        err_handler.log_critical(ConfigOptions, MpiConfig)
+                        break
 
                 # Set global attributes for the output file (model initialization time, version, etc.)
                 try:
@@ -236,6 +248,8 @@ class OutputObj:
                 elif ConfigOptions.grid_type == "unstructured":
                     dim_x = "element-id"
                     dim_y = "element-id"
+                    dim_node = "nodeCount"
+                    dim_coord = "coordDim"
                 else:
                     raise ValueError(f'Invalid grid_type: {ConfigOptions.grid_type}')
 
@@ -386,6 +400,36 @@ class OutputObj:
                             err_handler.log_critical(ConfigOptions, MpiConfig)
                             break
 
+                    # added node dimension and coordinates for 'unstructured', necessary for schism
+                    # the SCHISM BMI uses elements for RAINTATE but nodes for all other variables
+                    if ConfigOptions.grid_type == "unstructured":
+                      try:
+                        if ConfigOptions.useCompression == 1:
+                            self.idOut.createVariable('nodeCoords', 'f8', (dim_node,dim_coord), zlib=True, complevel=2)
+                        else:
+                            self.idOut.createVariable('nodeCoords', 'f8', ( dim_node, dim_coord) )
+                      except Exception as e:
+                        ConfigOptions.errMsg = f"Unable to create node variable in: {self.outPath} - {e}"
+                        err_handler.log_critical(ConfigOptions, MpiConfig)
+                        break
+
+                      try:
+                        self.idOut.variables['nodeCoords'].setncattr("standard_name", "Longitude/Latitude")
+                        self.idOut.variables['nodeCoords'].setncattr("long_name", "Longitude and latitude coordinate of projection")
+                        self.idOut.variables['nodeCoords'].setncattr("units", units)
+                      except Exception as e:
+                        ConfigOptions.errMsg = f"Unable to establish node coordinate attributes in: {self.outPath} - {e}"
+                        err_handler.log_critical(ConfigOptions, MpiConfig)
+                        break
+
+                      try:
+                        self.idOut.variables['nodeCoords'][:,:] = idTmp.variables[ConfigOptions.nodecoords_var][:,:]
+                      except Exception as e:
+                        ConfigOptions.errMsg = f"Unable to place node coordinate values into output variable for output file: {self.outPath} - {e}"
+                        err_handler.log_critical(ConfigOptions, MpiConfig)
+                        break
+
+
                     if ConfigOptions.grid_type == "hydrofabric":
                         try:
                             self.idOut.createVariable('ids', 'str', dim_y)
@@ -456,6 +500,25 @@ class OutputObj:
                                 complevel=complevel,
                                 least_significant_digit=least_significant_digit
                             )
+                        elif ConfigOptions.grid_type == "unstructured":
+                            if  varTmp == 'RAINRATE': 
+                              # use elements for RAINATE only
+                              self.idOut.createVariable(
+                                varTmp, dtype, ('time', dim_y),
+                                fill_value=fill_value,
+                                zlib=zlib,
+                                complevel=complevel,
+                                least_significant_digit=least_significant_digit
+                              )
+                            else:
+                              # use nodes for other variables
+                              self.idOut.createVariable(
+                                varTmp, dtype, ('time', dim_node),
+                                fill_value=fill_value,
+                                zlib=zlib,
+                                complevel=complevel,
+                                least_significant_digit=least_significant_digit
+                              )
                         else:
                             self.idOut.createVariable(
                                 varTmp, dtype, ('time', dim_y),
@@ -612,7 +675,10 @@ class OutputObj:
                 elif ConfigOptions.grid_type == "hydrofabric":
                     dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
                 elif ConfigOptions.grid_type == "unstructured":
-                    dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local_elem[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
+                    if varTmp == "RAINRATE":
+                      dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local_elem[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
+                    else:
+                      dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
                 else:
                     raise ValueError(f'Invalid grid_type: {ConfigOptions.grid_type}')
             except Exception as e:

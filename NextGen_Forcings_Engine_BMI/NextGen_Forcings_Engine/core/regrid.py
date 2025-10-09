@@ -6232,6 +6232,8 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
 
         # Remove all four scratch files on every rank
         for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
+          #only do this on the first rank to avoid "Unable remove scratch file" error
+          if mpi_config.rank == 0:
             if os.path.isfile(f):
                 try:
                     os.remove(f)
