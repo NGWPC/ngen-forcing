@@ -100,16 +100,6 @@ RUN set -eux; \
     cd ..; \
     rm -rf esmf-8.8.0
 
-# Install ESMPy
-ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
-RUN set -eux; \
-    pip3.11 install setuptools-git-versioning; \
-    git clone --depth 1 --branch v8.8.0 https://github.com/esmf-org/esmf.git; \
-    cd esmf/src/addon/esmpy; \
-    python3.11 -m pip install .; \
-    cd /; \
-    rm -rf esmf
-
 # Build GDAL from source
 RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
     set -eux && \
@@ -122,6 +112,25 @@ RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
     cmake --build build --target install && \
     ldconfig && \
     rm --recursive --force /usr/src/gdal gdal.tar.gz
+
+# -------------------------------
+# Create a self-contained venv for ngen-forcing
+# -------------------------------
+ENV VIRTUAL_ENV="/ngen-app/ngen-python"
+RUN python3.11 -m venv ${VIRTUAL_ENV}
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
+    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages"
+
+# Install ESMPy
+ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
+RUN set -eux; \
+    pip3.11 install setuptools-git-versioning; \
+    git clone --depth 1 --branch v8.8.0 https://github.com/esmf-org/esmf.git; \
+    cd esmf/src/addon/esmpy; \
+    python3.11 -m pip install .; \
+    cd /; \
+    rm -rf esmf
+
 
 ENV PATH="/usr/local/bin:${PATH}"
 
@@ -144,14 +153,6 @@ RUN set -eux; \
     chmod +x /ngen-app/bin/run-ngen-forcing.sh
 
 COPY . /ngen-app/ngen-forcing/
-
-# -------------------------------
-# Create a self-contained venv for ngen-forcing
-# -------------------------------
-ENV VIRTUAL_ENV="/ngen-app/ngen-python"
-RUN python3.11 -m venv ${VIRTUAL_ENV}
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
-    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages"
 
 # Install ngen-forcing as a Python package
 WORKDIR /ngen-app/ngen-forcing
@@ -183,5 +184,7 @@ RUN set -eux; \
       > $GIT_INFO_PATH
 
 WORKDIR /
+
+ENV LD_LIBRARY_PATH="/usr/lib64/openmpi/lib/"
 
 ENTRYPOINT [ "/bin/bash" ]

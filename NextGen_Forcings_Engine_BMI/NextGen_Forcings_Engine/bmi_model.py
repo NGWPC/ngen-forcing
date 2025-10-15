@@ -215,7 +215,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         #Call ESMF mesh creation process
         esmf_creation.create_mesh(self._job_meta)
         #Call forcing_extraction process
-        forcing_extraction.retrieve_forcing(self._job_meta)
+        if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
+            forcing_extraction.retrieve_forcing(self._job_meta)
 
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
