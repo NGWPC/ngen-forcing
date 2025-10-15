@@ -337,7 +337,7 @@ class ForecastDownloader(ABC):
             attempt += 1
             time.sleep(interval)
 
-        print(f"❌ Failed to download after {max_attempts} attempts: {url}")
+        print(f"Failed to download after {max_attempts} attempts: {url}")
 
 
 class FixedFileDownloader(ForecastDownloader, ABC):
