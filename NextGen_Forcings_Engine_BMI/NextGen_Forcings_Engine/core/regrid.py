@@ -6235,6 +6235,9 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
             if os.path.isfile(f):
                 try:
                     os.remove(f)
+                #need this to avoid "Unable remove scratch file" error
+                except FileNotFoundError:
+                    pass
                 except OSError:
                     config_options.errMsg = f"Unable to remove scratch file: {f}"
                     err_handler.log_critical(config_options, mpi_config)
