@@ -134,6 +134,7 @@ class ConfigOptions:
         self.nwm_domain = None
         self.nwm_geogrid = None
         self.geogrid = geogrid_arg
+        self.geopackage = None
 
     def read_config(self, cfg_bmi):
         """
@@ -149,6 +150,15 @@ class ConfigOptions:
             except KeyError as e:
                 err_handler.err_out_screen('Unable to locate RefcstBDateProc under Logistics section in configuration file.', e)
 
+        # Ensure geopackage is set; if not, read from the configuration file
+        if self.geopackage is None:
+            try:
+                self.geopackage = cfg_bmi.get('Geopackage', None)  # Default to None if not found
+                if self.geopackage is None:
+                    err_handler.err_out_screen('Unable to locate Geopackage in the configuration file.')
+            except KeyError as e:
+                err_handler.err_out_screen('Unable to locate Geopackage in the configuration file.', e)
+
         # Ensure geogrid is set; if not, read from the configuration file
         if self.geogrid is None:
             try:
@@ -157,6 +167,14 @@ class ConfigOptions:
                     err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.')
             except KeyError as e:
                 err_handler.err_out_screen('Unable to locate GeogridIn in the configuration file.', e)
+            # Create directory for esmf_mesh file
+            geogrid_dir = os.path.dirname(self.geogrid)
+            if not os.path.isdir(geogrid_dir):
+                try:
+                    os.makedirs(geogrid_dir, exist_ok=True)
+                    print(f"Created esmf mesh directory: {geogrid_dir}")
+                except OSError as e:
+                    err_handler.err_out_screen(f'Unable to create esmf_mesh directory: {geogrid_dir}. Error: {e}')
 
         # Read in the base input forcing options as an array of values to map.
         try:
@@ -265,7 +283,11 @@ class ConfigOptions:
                     if is_aws_forcing:
                         self.aws = True
                     else:
-                        err_handler.err_out_screen(f'Unable to locate forcing directory: {dir_path}')
+                        try:
+                            os.makedirs(dir_path, exist_ok=True)
+                            print(f'Created missing forcing directory: {dir_path}')
+                        except OSError as e: 
+                            err_handler.err_out_screen(f'Unable to create forcing directory: {dir_path}. Error: {e}')
 
             # Read in the mandatory enforcement options for input forcings.
             try:
@@ -1211,7 +1233,11 @@ class ConfigOptions:
             for dirTmp in range(0, len(self.supp_precip_dirs)):
                 self.supp_precip_dirs[dirTmp] = self.supp_precip_dirs[dirTmp].strip()
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
-                    err_handler.err_out_screen('Unable to locate supp pcp directory: ' + self.supp_precip_dirs[dirTmp])
+                    try:
+                        os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
+                        print(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
+                    except OSError as e:
+                        err_handler.err_out_screen(f'Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}')
 
             # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
             if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
@@ -1324,7 +1350,11 @@ class ConfigOptions:
             except ValueError as e:
                 err_handler.err_out_screen('Improper SuppPcpParamDir option specified in the configuration file.', e)
             if not os.path.isdir(self.supp_precip_param_dir):
-                err_handler.err_out_screen('Unable to locate SuppPcpParamDir: ' + self.supp_precip_param_dir)
+                try:
+                    os.makedirs(self.supp_precip_param_dir, exist_ok=True)
+                    print(f'Created missing SuppPcpParamDir: {self.supp_precip_param_dir}' )
+                except OSError as e:
+                    err_handler.err_out_screen(f'Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}' )
 
         if not self.precip_only_flag:
             # Read in Ensemble information

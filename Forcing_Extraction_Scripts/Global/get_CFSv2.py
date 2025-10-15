@@ -20,33 +20,33 @@ class CFSv2Downloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/cfs/prod"
+        return "https://noaa-cfs-pds.s3.amazonaws.com"
 
-    def get_download_targets(self, d_current):
-        return range(0, 61, 6) if d_current.hour in [0, 6, 12, 18] else []
+    def get_download_targets(self, d_start):
+        return range(0, 721, 6) if d_start.hour in [0, 6, 12, 18] else []
 
-    def should_process_hour(self, d_current):
-        return d_current.hour in [0, 6, 12, 18]
+    def should_process_hour(self, d_start):
+        return d_start.hour in [0, 6, 12, 18]
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start, ens_number):
         return os.path.join(
             self.out_dir,
-            f"cfs.{d_current.strftime('%Y%m%d')}",
-            d_current.strftime('%H'),
-            "6hrly_grib_01"
+            f"cfs.{d_start.strftime('%Y%m%d')}",
+            d_start.strftime('%H'),
+            f"6hrly_grib_{ens_number}"
         )
 
-    def build_file_url_and_name(self, d_current, fhr):
+    def build_file_url_and_name(self, d_start, fhr, ens_number):
         # Target file has valid_time (forecast) and init_time (cycle) in name
-        valid_time = d_current + timedelta(hours=fhr)
-        init_time = d_current.strftime('%Y%m%d%H')
+        valid_time = d_start + timedelta(hours=fhr)
+        init_time = d_start.strftime('%Y%m%d%H')
         valid_time_str = valid_time.strftime('%Y%m%d%H')
-        filename = f"flxf{valid_time_str}.01.{init_time}.grb2"
+        filename = f"flxf{valid_time_str}.{ens_number}.{init_time}.grb2"
         url = os.path.join(
             self.base_url,
-            f"cfs.{d_current.strftime('%Y%m%d')}",
-            d_current.strftime('%H'),
-            "6hrly_grib_01",
+            f"cfs.{d_start.strftime('%Y%m%d')}",
+            d_start.strftime('%H'),
+            f"6hrly_grib_{ens_number}",
             filename
         )
         return url, filename

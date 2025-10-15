@@ -18,6 +18,13 @@ from .bmi_grid import GridType, Grid
 from .core import err_handler, geoMod, suppPrecipMod, ioMod, config, parallel, forcingInputMod
 from .model import NWMv3_Forcing_Engine_model
 
+from NextGen_Forcings_Engine_BMI import esmf_creation
+from NextGen_Forcings_Engine_BMI import forcing_extraction
+
+# time debugging
+import time
+from collections import defaultdict
+
 # Import BMI grid functions to advertise grid features
 # Here is the model we want to run
 
@@ -101,6 +108,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._suppPcpMod = None
         self._model_parameters_list = []
 
+        # Diagnostic timing setup
+
+        self._call_counts = defaultdict(int)
+        self._call_times = defaultdict(float)
+        self._total_start = None
+
     # ----------------------------------------------
     # Required, static attributes of the model
     # ----------------------------------------------
@@ -146,6 +159,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+
 
         print('---------------------------')
         print("BMI Forcing Engine initialized with", config_file)
@@ -196,6 +210,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
+
+        #print(f"self._job_meta type: {type(self._job_meta)}")
+        #Call ESMF mesh creation process
+        esmf_creation.create_mesh(self._job_meta)
+        #Call forcing_extraction process
+        if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
+            forcing_extraction.retrieve_forcing(self._job_meta)
 
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
@@ -658,6 +679,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param future_time: The target time to update the model to.
         :return: None
         """
+        
         # Flag to check if future_time is different from the current model time.
         # If future_time is not equal to the current model time, we perform an
         # iterative update, advancing time in steps until we reach future_time.
@@ -688,6 +710,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :return: None
         """
+
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
                 file_path = os.path.join(self._job_meta.scratch_dir, filename)
@@ -804,8 +827,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param dest: The numpy array to store the values of the variable.
         :return: The destination array containing the variable values.
         """
-        print(f"[BMI get_value] Called with var_name: '{var_name}'")
-        print(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
+
+        #print(f"[BMI get_value] Called with var_name: '{var_name}'")
+        #print(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
 
         if var_name == "grid:count":
             print(f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}")
@@ -839,6 +863,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             dest[:] = src
 
         print(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
+
         return dest
 
     # -------------------------------------------------------------------
@@ -852,7 +877,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param var_name: The name of the variable whose values are to be retrieved.
         :return: A flattened array containing the values of the variable.
         """
-        # print(f"[BMI get_value_ptr] Called with var_name: '{var_name}'")
 
         # Make sure to return a flattened array
         if var_name == "grid_1_shape":  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
@@ -925,7 +949,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except ValueError as e:
             raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
 
-        # print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
+        #print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
         return arr.ravel()
 
     # -------------------------------------------------------------------
@@ -1650,7 +1674,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
         :return: The updated configuration dictionary with appropriately parsed values.
         """
-        print(f"[DEBUG] Entering _parse_config with cfg type: {type(cfg)}")
+        #print(f"[DEBUG] Entering _parse_config with cfg type: {type(cfg)}")
         if isinstance(cfg, str):
             print(f"[ERROR] Received string data instead of dictionary: {cfg[:200]}...")
             raise TypeError("Expected dictionary in _parse_config, but got a raw CSV string.")

@@ -22,21 +22,21 @@ class StageIVDownloader(ForecastDownloader, ABC):
     def base_url(self):
         return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/pcpanl/v4.1"
 
-    def should_process_hour(self, d_current):
+    def should_process_hour(self, _):
         # Process every hour (hourly product)
         return True
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, _):
         # Stage IV has a single file per hour — just return a placeholder
         return [None]
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, _, __):
         # Store all files directly in the output directory (flat structure)
         return self.out_dir
 
-    def build_file_url_and_name(self, d_current, _):
-        subdir = f"pcpanl.{d_current.strftime('%Y%m%d')}"
-        filename = f"st4_conus.{d_current.strftime('%Y%m%d%H')}.01h.grb2"
+    def build_file_url_and_name(self, d_start, _, __):
+        subdir = f"pcpanl.{d_start.strftime('%Y%m%d')}"
+        filename = f"st4_conus.{d_start.strftime('%Y%m%d%H')}.01h.grb2"
         url = os.path.join(self.base_url, subdir, filename)
         return url, filename
 

@@ -16,17 +16,17 @@ class RAPDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://nomads.ncep.noaa.gov/pub/data/nccf/com/rap/prod"
+        return "https://noaa-rap-pds.s3.amazonaws.com"
 
-    def get_download_targets(self, d_current):
-        # RAP cycles at 03, 09, 15, 21 UTC produce 39-hour forecasts; others produce 21-hour forecasts
-        return range(0, 40) if d_current.hour in [3, 9, 15, 21] else range(0, 22)
+    def get_download_targets(self, d_start):
+        # RAP cycles at 03, 09, 15, 21 UTC produce 51-hour forecasts; others produce 21-hour forecasts
+        return range(0, 52) if d_start.hour in [3, 9, 15, 21] else range(0, 22)
 
-    def build_output_dir(self, d_current):
+    def build_output_dir(self, d_start, _):
         # Output directory format: <out_dir>/rap.YYYYMMDD/
-        return os.path.join(self.out_dir, f"rap.{d_current.strftime('%Y%m%d')}")
+        return os.path.join(self.out_dir, f"rap.{d_start.strftime('%Y%m%d')}")
 
-    def build_file_url_and_name(self, d_current, forecast_hour):
+    def build_file_url_and_name(self, d_start, forecast_hour, _):
         """
         Construct the download URL and filename for a given forecast hour.
 
@@ -34,8 +34,8 @@ class RAPDownloader(ForecastDownloader):
         URL format: https://.../rap.YYYYMMDD/rap.tHHz.awp130bgrbfXX.grib2
         """
         fhr_str = str(forecast_hour).zfill(2)
-        filename = f"rap.t{d_current.strftime('%H')}z.awp130bgrbf{fhr_str}.grib2"
-        url = os.path.join(self.base_url, f"rap.{d_current.strftime('%Y%m%d')}", filename)
+        filename = f"rap.t{d_start.strftime('%H')}z.awp130bgrbf{fhr_str}.grib2"
+        url = os.path.join(self.base_url, f"rap.{d_start.strftime('%Y%m%d')}", filename)
         return url, filename
 
 

@@ -17,24 +17,24 @@ class NAMNestAlaskaDownloader(ForecastDownloader):
 
     @property
     def base_url(self):
-        return "https://ftp.ncep.noaa.gov/data/nccf/com/nam/prod"
+        return "https://noaa-nam-pds.s3.amazonaws.com"
 
-    def get_download_targets(self, d_current):
+    def get_download_targets(self, d_start):
         # Only valid at 00z, 06z, 12z, 18z — skip other hours
-        return range(1, 61) if d_current.hour in [0, 6, 12, 18] else []
+        return range(1, 61) if d_start.hour in [0, 6, 12, 18] else []
 
-    def build_output_dir(self, d_current):
-        return os.path.join(self.out_dir, f"nam.{d_current.strftime('%Y%m%d')}")
+    def build_output_dir(self, d_start, _):
+        return os.path.join(self.out_dir, f"nam.{d_start.strftime('%Y%m%d')}")
 
-    def build_file_url_and_name(self, d_current, fhr):
+    def build_file_url_and_name(self, d_start, fhr, _):
         """
         Build the download URL and filename for a specific forecast hour.
         Format:
             nam.t{HH}z.alaskanest.hiresf{fhr}.tm00.grib2
         """
         fhr_str = str(fhr).zfill(2)
-        filename = f"nam.t{d_current.strftime('%H')}z.alaskanest.hiresf{fhr_str}.tm00.grib2"
-        url = os.path.join(self.base_url, f"nam.{d_current.strftime('%Y%m%d')}", filename)
+        filename = f"nam.t{d_start.strftime('%H')}z.alaskanest.hiresf{fhr_str}.tm00.grib2"
+        url = os.path.join(self.base_url, f"nam.{d_start.strftime('%Y%m%d')}", filename)
         return url, filename
 
 
