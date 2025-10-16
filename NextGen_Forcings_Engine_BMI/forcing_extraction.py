@@ -60,6 +60,8 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
     # Extract forcing data from appropriate sources
     for i in range(len(input_forcings)):
 
+        #print(f"i: {i}, input_forcings[i]: {input_forcings[i]}, input_horizons[i]: {input_horizons[i]}, ")
+
         # Format extraction path
         extract_outPath = input_forcing_dirs[i]
 
@@ -69,9 +71,14 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
-            look_back_hours = int(look_back / 60) + 1
-            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
-            forcing_script = forcing_ana_src.get(input_forcings[i])
+            if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
+                look_back_hours = int(look_back / 60) + 1
+                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
+                forcing_script = forcing_ana_src.get(input_forcings[i])
+            else:
+                look_back_hours = int(look_back / 60) + 1
+                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
+                forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
