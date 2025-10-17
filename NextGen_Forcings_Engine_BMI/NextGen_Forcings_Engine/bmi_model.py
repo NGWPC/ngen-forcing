@@ -663,8 +663,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :return: None
         """
-        self._values['current_model_time'] += self._values['time_step_size']
-        self.update_until(self._values['current_model_time'])
+        # Run the model to the next timestep
+        self.update_until(self._values['current_model_time'] + self._values["time_step_size"])
 
     # ------------------------------------------------------------
     def update_until(self, future_time: float):
@@ -679,11 +679,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param future_time: The target time to update the model to.
         :return: None
         """
-        
-        # Flag to check if future_time is different from the current model time.
-        # If future_time is not equal to the current model time, we perform an
-        # iterative update, advancing time in steps until we reach future_time.
-        if future_time != self._values['current_model_time']:
+
+        # Method for running the model on the initial time if the model has not been run,
+        # and the future time is the same as the initial time.
+        if self._values["current_model_time"] == future_time == self.cfg_bmi["initial_time"]:
+            self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
+                            self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
+        else:
             # Start a while loop to iterate the model time step by step until the
             # current model time reaches or exceeds the future_time.
             while self._values['current_model_time'] < future_time:
@@ -692,11 +694,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # Run the model for the new current time and update the state.
                 self._model.run(self._values, self._values['current_model_time'], self._job_meta, self._WrfHydroGeoMeta,
                                 self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
-        else:
-            # If future_time is the same as current_model_time, just run the model
-            # for a single time step without entering a loop.
-            self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
-                            self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
 
     # ------------------------------------------------------------
     def finalize(self):
