@@ -20,6 +20,9 @@ from .core import err_handler
 from .core import layeringMod
 from . import nwm_proc
 
+import logging
+LOG = logging.getLogger("")
+
 class NWMv3_Forcing_Engine_model:
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
     # def __init__(self):
@@ -97,9 +100,9 @@ class NWMv3_Forcing_Engine_model:
             ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc
             ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.to_timedelta(future_time, unit='s')
 
-        print("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
-        print(f"Model.py current time: {ConfigOptions.current_time}")
-        print(f"Model.py current fcst cycle: {ConfigOptions.current_fcst_cycle}")
+        LOG.debug("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
+        LOG.debug(f"Model.py current time: {ConfigOptions.current_time}")
+        LOG.debug(f"Model.py current fcst cycle: {ConfigOptions.current_fcst_cycle}")
 
         if ConfigOptions.first_fcst_cycle is None:
             ConfigOptions.first_fcst_cycle = ConfigOptions.current_fcst_cycle
@@ -202,13 +205,13 @@ class NWMv3_Forcing_Engine_model:
 
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
-            print(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
+            LOG.debug(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
             # Loop over each of the input forcings specified.
-            print(f"\n[INFO] Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
+            LOG.debug(f"Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
 
             for forceKey in ConfigOptions.input_forcings:
-                print('forceKey', forceKey)
-                print(f"ConfigOptions.aws: {ConfigOptions.aws}")
+                LOG.debug('forceKey', forceKey)
+                LOG.debug(f"ConfigOptions.aws: {ConfigOptions.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
                 if forceKey == 23 and 12 in ConfigOptions.input_forcings and 21 in ConfigOptions.input_forcings:
@@ -249,7 +252,7 @@ class NWMv3_Forcing_Engine_model:
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
-                    print(f"Breaking loop for forceKey {forceKey}")
+                    LOG.debug(f"Breaking loop for forceKey {forceKey}")
                     break
                 # Regrid forcings.
                 input_forcings.regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
@@ -302,7 +305,7 @@ class NWMv3_Forcing_Engine_model:
                 if forceKey == 10:
                     ConfigOptions.currentCustomForceNum += 1
 
-                print(f'End of loop for forceKey {forceKey}\n')
+                LOG.debug(f'End of loop for forceKey {forceKey}')
 
             # Process supplemental precipitation if we specified in the configuration file.
             if ConfigOptions.number_supp_pcp > 0:
@@ -397,7 +400,7 @@ class NWMv3_Forcing_Engine_model:
         # the I/O module to update opened netcdf file with forcing fields
         if ConfigOptions.forcing_output == 1:
             OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-            print(f"[INFO] Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
+            LOG.info(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):
