@@ -20,8 +20,10 @@ from .core import err_handler
 from .core import layeringMod
 from . import nwm_proc
 
+from .log_level_set import MODULE_NAME
+
 import logging
-LOG = logging.getLogger("")
+LOG = logging.getLogger(MODULE_NAME)
 
 class NWMv3_Forcing_Engine_model:
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.

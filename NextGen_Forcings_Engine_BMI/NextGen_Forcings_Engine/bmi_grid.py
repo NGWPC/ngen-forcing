@@ -14,8 +14,10 @@ import numpy as np
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
+from .log_level_set import MODULE_NAME
+
 import logging
-LOG = logging.getLogger("")
+LOG = logging.getLogger(MODULE_NAME)
 
 _error_on_grid_type: bool = False
 

@@ -9,8 +9,10 @@ from mpi4py.futures import MPICommExecutor
 import dask.config
 import dask.array as da
 
+from .log_level_set import MODULE_NAME
+
 import logging
-LOG = logging.getLogger("")
+LOG = logging.getLogger(MODULE_NAME)
 
 #TODO expand for other domains
 

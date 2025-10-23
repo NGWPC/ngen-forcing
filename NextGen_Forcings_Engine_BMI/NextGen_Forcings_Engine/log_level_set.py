@@ -27,6 +27,21 @@ class CustomFormatter(logging.Formatter):
         logging.CRITICAL: "FATAL"
     }
  
+    # Apply custom formatter (UTC timestamps applied only to this formatter)
+    def converter(self, timestamp):
+        """Override time converter to return UTC time tuple"""
+        return time.gmtime(timestamp)
+
+    def formatTime(self, record, datefmt=None):
+        """Use our UTC converter"""
+        ct = self.converter(record.created)
+        if datefmt:
+            s = time.strftime(datefmt, ct)
+        else:
+            t = time.strftime("%Y-%m-%d %H:%M:%S", ct)
+            s = f"{t},{int(record.msecs):03d}"
+        return s
+
     def format(self, record):
         original_levelname = record.levelname
         record.levelname = self.LEVEL_NAME_MAP.get(record.levelno, original_levelname)
@@ -73,12 +88,12 @@ def get_log_file_path():
                 # Set full log path
                 username = getpass.getuser()
                 if username:
-                    logFieDir = logFieDir + DS + username
+                    logFileDir = logFileDir + DS + username
                 else:
                     logFileDir = logFileDir + DS + create_timestamp(True)
                 # Create directory
-                with os.makedirs(logFileDir, exist_ok=True):
-                    logFilePath = logFileDir + DS + MODULE_NAME + "_" + create_timestamp() + "." + LOG_FILE_EXT
+                os.makedirs(logFileDir, exist_ok=True)
+                logFilePath = logFileDir + DS + MODULE_NAME + "_" + create_timestamp() + "." + LOG_FILE_EXT
             except Exception as e:
                 logFilePath = ""
  
@@ -176,24 +191,24 @@ def log_level_set():
         )
         handler.setFormatter(formatter)
  
+        # Get or create your named logger
+        logger = logging.getLogger(MODULE_NAME)
+
         # Setup root logger
-        logging.getLogger().handlers.clear()  # Clear any default handlers
-        logging.getLogger().setLevel(translate_ngwpc_log_level(log_level))
-        logging.getLogger().addHandler(handler)
- 
-        # Ensure UTC timestamps
-        logging.Formatter.converter = time.gmtime
+        logger.handlers.clear()  # Clear any default handlers
+        logger.setLevel(translate_ngwpc_log_level(log_level))
+        logger.addHandler(handler)
  
         # Save the current log level
-        current_level = logging.getLogger().getEffectiveLevel()
+        current_level = logger.getEffectiveLevel()
  
         try:
             # Temporarily set log level to INFO
-            logging.getLogger().setLevel(logging.INFO)
+            logger.setLevel(logging.INFO)
              
             # Log the message at INFO level
-            logging.info(f"Log level set to {log_level}")
+            logger.info(f"Log level set to {log_level}")
             print(f"Module {MODULE_NAME} Log Level set to {log_level}")
         finally:
             # Restore the original log level
-            logging.getLogger().setLevel(current_level)
+            logger.setLevel(current_level)
