@@ -71,14 +71,19 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
-            if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
-                look_back_hours = int(look_back / 60) + 1
-                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
-                forcing_script = forcing_ana_src.get(input_forcings[i])
-            else:
-                look_back_hours = int(look_back / 60) + 1
-                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
-                forcing_script = forcing_ana_src.get(input_forcings[i])
+            #if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
+            #    look_back_hours = int(look_back / 60)
+            #    forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
+            #    forcing_script = forcing_ana_src.get(input_forcings[i])
+            #else:
+            #    look_back_hours = int(look_back / 60) + 1
+            #    forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
+            #    forcing_script = forcing_ana_src.get(input_forcings[i])
+            look_back_hours = int(look_back / 60) -1
+            print(f"look_back_hours: {look_back_hours}")
+            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
+            print(f"forcing_start_time: {forcing_start_time}")
+            forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
@@ -100,7 +105,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         downloader = downloader_class(
             out_dir=extract_outPath,
             start_time=forcing_start_time,
-            lookback_hours=look_back_hours,
+            lookback_hours=look_back_hours if not ana_flag else (look_back_hours + 1),
             cleanback_hours=0,
             lagback_hours=0,
             ens_number=int(ens_number) if ens_number not in ('',None) else None
