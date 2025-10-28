@@ -83,7 +83,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             print(f"look_back_hours: {look_back_hours}")
             forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
             if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
-                forcing_start_time += timedelta(hours=1)
+                supp_forcing_hours = 1
             print(f"forcing_start_time: {forcing_start_time}")
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
@@ -106,7 +106,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         # Format forcing extraction command
         downloader = downloader_class(
             out_dir=extract_outPath,
-            start_time=forcing_start_time,
+            start_time=forcing_start_time + timedelta(hours=supp_forcing_hours) if supp_forcing_hours is not None else forcing_start_time,
             lookback_hours=look_back_hours if not ana_flag else (look_back_hours + 1),
             cleanback_hours=0,
             lagback_hours=0,
