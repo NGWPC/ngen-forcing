@@ -65,6 +65,9 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         # Format extraction path
         extract_outPath = input_forcing_dirs[i]
 
+        # Set supp forcing hours timehandling placeholder
+        supp_forcing_hours = None
+
         # Set lookback hours and extraction scripts
         if ana_flag == 0:
             look_back_hours = 1
@@ -106,7 +109,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         # Format forcing extraction command
         downloader = downloader_class(
             out_dir=extract_outPath,
-            start_time=forcing_start_time + timedelta(hours=supp_forcing_hours) if supp_forcing_hours is not None else forcing_start_time,
+            start_time=forcing_start_time + timedelta(hours=supp_forcing_hours or 0),
             lookback_hours=look_back_hours if not ana_flag else (look_back_hours + 1),
             cleanback_hours=0,
             lagback_hours=0,
