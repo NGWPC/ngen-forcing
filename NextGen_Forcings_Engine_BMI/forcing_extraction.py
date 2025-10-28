@@ -79,9 +79,11 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             #    look_back_hours = int(look_back / 60) + 1
             #    forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
             #    forcing_script = forcing_ana_src.get(input_forcings[i])
-            look_back_hours = int(look_back / 60) -1
+            look_back_hours = int(look_back / 60) - 1
             print(f"look_back_hours: {look_back_hours}")
             forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
+            if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
+                forcing_start_time += timedelta(hours=1)
             print(f"forcing_start_time: {forcing_start_time}")
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
