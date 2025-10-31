@@ -74,20 +74,12 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
-            #if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
-            #    look_back_hours = int(look_back / 60)
-            #    forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
-            #    forcing_script = forcing_ana_src.get(input_forcings[i])
-            #else:
-            #    look_back_hours = int(look_back / 60) + 1
-            #    forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
-            #    forcing_script = forcing_ana_src.get(input_forcings[i])
-            look_back_hours = int(look_back / 60) - 1
-            print(f"look_back_hours: {look_back_hours}")
-            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
+            look_back_hours = int(look_back / 60)
+            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours -1))
             if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
                 supp_forcing_hours = 1
-            print(f"forcing_start_time: {forcing_start_time}")
+            else:
+                supp_forcing_hours = 0
             forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
@@ -106,11 +98,19 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             if isinstance(obj, type) and issubclass(obj, base_classes) and obj not in base_classes
         )
 
+        time_delt = None
+        
+        if ana_flag == 1:
+            time_delt = timedelta(hours=1)
+
+        if supp_forcing_hours is not None:
+            time_delt += timedelta(hours=supp_forcing_hours)
+
         # Format forcing extraction command
         downloader = downloader_class(
             out_dir=extract_outPath,
-            start_time=forcing_start_time + timedelta(hours=supp_forcing_hours or 0),
-            lookback_hours=look_back_hours if not ana_flag else (look_back_hours + 1),
+            start_time=forcing_start_time + time_delt if time_delt else forcing_start_time,
+            lookback_hours=look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
             ens_number=int(ens_number) if ens_number not in ('',None) else None

@@ -3406,7 +3406,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # d_current = d_current + datetime.timedelta(seconds=input_forcings.currentFcstOffset * 60.0 * 60.0)
     # Calculate the current forecast hour within this Input cycle.
     dt_tmp = d_current - current_input_cycle
-    current_input_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
+    #current_input_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
     current_input_min = int(dt_tmp.seconds / 60.0)
     # Calculate the previous file to process.
     min_since_last_output = current_input_min % input_forcings.cycleFreq
@@ -3480,6 +3480,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
 
         files1 = glob.glob(pattern1) + glob.glob(pattern2)
+
         tmp_file1 = files1[0]
         if mpi_config.rank == 0:
             config_options.statusMsg = "Previous input file being used: " + tmp_file1
