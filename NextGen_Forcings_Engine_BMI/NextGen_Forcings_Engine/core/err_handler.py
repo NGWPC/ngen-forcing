@@ -8,6 +8,9 @@ from mpi4py import MPI
 from scipy import spatial
 from logging import FileHandler
 
+import logging
+from ..log_level_set import MODULE_NAME
+log_name = MODULE_NAME
 
 def err_out_screen(err_msg: str, exc: BaseException | None = None):
     """
@@ -96,6 +99,22 @@ def init_log(ConfigOptions, MpiConfig):
     if MpiConfig.rank != 0:
         return
 
+    global log_name
+
+    # Check for ngen Error and Warning Trapping System named logger
+    logger = logging.getLogger(MODULE_NAME) 
+
+    # checking whether the logger object has an attribute named _initialized, 
+    # and if it does, whether its value is True. If the attribute doesn't exist,
+    # it defaults to False.
+    if getattr(logger, "_initialized", False):
+        for handler in logger.handlers:
+            if isinstance(handler, logging.FileHandler):
+                ConfigOptions.logFile = handler.baseFilename
+                break
+        log_name = MODULE_NAME
+        return  # logger already initialized, nothing else to do
+
     log_name = 'logForcing'
     filename = ConfigOptions.logFile
 
@@ -130,17 +149,18 @@ def err_out(ConfigOptions):
     :return:
     """
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         ConfigOptions.errMsg = "Unable to obtain a logger object for: " + \
                                ConfigOptions.logFile
         raise Exception()
-    try:
-        logObj.setLevel(logging.ERROR)
-    except Exception:
-        ConfigOptions.errMsg = "Unable to set ERROR logger level for: " + \
-                               ConfigOptions.logFile
-        raise Exception()
+    if log_name != MODULE_NAME:
+        try:
+            logObj.setLevel(logging.ERROR)
+        except Exception:
+            ConfigOptions.errMsg = "Unable to set ERROR logger level for: " + \
+                                ConfigOptions.logFile
+            raise Exception()
     try:
         logObj.error(ConfigOptions.errMsg)
     except Exception:
@@ -159,15 +179,16 @@ def log_error(ConfigOptions, MpiConfig):
     :return:
     """
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
-    try:
-        logObj.setLevel(logging.ERROR)
-    except Exception:
-        err_out_screen_para(('Unable to set ERROR logger level on RANK: ' + str(MpiConfig.rank) +
-                             ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+    if log_name != MODULE_NAME:
+        try:
+            logObj.setLevel(logging.ERROR)
+        except Exception:
+            err_out_screen_para(('Unable to set ERROR logger level on RANK: ' + str(MpiConfig.rank) +
+                                ' for log file: ' + ConfigOptions.logFile), MpiConfig)
     try:
         logObj.error("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
     except Exception:
@@ -184,15 +205,16 @@ def log_critical(ConfigOptions, MpiConfig):
     :return:
     """
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
-    try:
-        logObj.setLevel(logging.CRITICAL)
-    except Exception:
-        err_out_screen_para(('Unable to set CRITICAL logger level on RANK: ' + str(MpiConfig.rank) +
-                             ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+    if log_name != MODULE_NAME:
+        try:
+            logObj.setLevel(logging.CRITICAL)
+        except Exception:
+            err_out_screen_para(('Unable to set CRITICAL logger level on RANK: ' + str(MpiConfig.rank) +
+                                ' for log file: ' + ConfigOptions.logFile), MpiConfig)
     try:
         logObj.critical("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
     except Exception:
@@ -212,15 +234,16 @@ def log_warning(ConfigOptions, MpiConfig):
     :return:
     """
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
-    try:
-        logObj.setLevel(logging.WARNING)
-    except Exception:
-        err_out_screen_para(('Unable to set WARNING logger level on RANK: ' + str(MpiConfig.rank) +
-                             ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+    if log_name != MODULE_NAME:
+        try:
+            logObj.setLevel(logging.WARNING)
+        except Exception:
+            err_out_screen_para(('Unable to set WARNING logger level on RANK: ' + str(MpiConfig.rank) +
+                                ' for log file: ' + ConfigOptions.logFile), MpiConfig)
     try:
         logObj.warning("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
     except Exception:
@@ -235,15 +258,16 @@ def log_msg(ConfigOptions, MpiConfig):
     :return:
     """
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
-    try:
-        logObj.setLevel(logging.INFO)
-    except Exception:
-        err_out_screen_para(('Unable to set INFO logger level on RANK: ' + str(MpiConfig.rank) +
-                             ' for log file: ' + ConfigOptions.logFile), MpiConfig)
+    if log_name != MODULE_NAME:
+        try:
+            logObj.setLevel(logging.INFO)
+        except Exception:
+            err_out_screen_para(('Unable to set INFO logger level on RANK: ' + str(MpiConfig.rank) +
+                                ' for log file: ' + ConfigOptions.logFile), MpiConfig)
     try:
         logObj.info("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
     except Exception:
@@ -261,8 +285,11 @@ def close_log(ConfigOptions, MpiConfig):
     if getattr(ConfigOptions, "logHandle", None) is None:
         return
 
+    if log_name == MODULE_NAME:
+        return
+    
     try:
-        logObj = logging.getLogger('logForcing')
+        logObj = logging.getLogger(log_name)
     except Exception:
         err_out_screen_para(('Unable to obtain logger object on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
