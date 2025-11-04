@@ -682,6 +682,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Method for running the model on the initial time if the model has not been run,
         # and the future time is the same as the initial time.
+
         if self._values["current_model_time"] == future_time == self.cfg_bmi["initial_time"]:
             self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
                             self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
@@ -1078,6 +1079,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :return: The end time of the model.
         """
+
         return self._end_time
 
         # -------------------------------------------------------------------

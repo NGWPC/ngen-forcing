@@ -65,20 +65,22 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
         # Format extraction path
         extract_outPath = input_forcing_dirs[i]
 
+        # Set supp forcing hours timehandling placeholder
+        supp_forcing_hours = None
+
         # Set lookback hours and extraction scripts
         if ana_flag == 0:
             look_back_hours = 1
             forcing_script = forcing_src.get(input_forcings[i])
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
+            look_back_hours = int(look_back / 60)
+            forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours -1))
             if input_forcings[i] in ("supp1", "supp2", "supp6", "supp10", "supp11", "supp12"):
-                look_back_hours = int(look_back / 60) + 1
-                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours))
-                forcing_script = forcing_ana_src.get(input_forcings[i])
+                supp_forcing_hours = 1
             else:
-                look_back_hours = int(look_back / 60) + 1
-                forcing_start_time = refcstbdate + timedelta(hours=(look_back_hours-1))
-                forcing_script = forcing_ana_src.get(input_forcings[i])
+                supp_forcing_hours = 0
+            forcing_script = forcing_ana_src.get(input_forcings[i])
 
         # Set path to extraction script
         extract_scriptPath = Path(extraction_scriptPath) / forcing_script
@@ -96,11 +98,23 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
             if isinstance(obj, type) and issubclass(obj, base_classes) and obj not in base_classes
         )
 
+        start_delt = None
+        lag_delt = None
+        
+        if ana_flag == 1:
+            start_delt = timedelta(hours=1)
+
+        if supp_forcing_hours is not None:
+            start_delt += timedelta(hours=supp_forcing_hours)
+
+        if ana_flag == 1:
+            lag_delt = 1
+
         # Format forcing extraction command
         downloader = downloader_class(
             out_dir=extract_outPath,
-            start_time=forcing_start_time,
-            lookback_hours=look_back_hours,
+            start_time=forcing_start_time + start_delt if start_delt else forcing_start_time,
+            lookback_hours=look_back_hours + lag_delt if lag_delt else look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
             ens_number=int(ens_number) if ens_number not in ('',None) else None
