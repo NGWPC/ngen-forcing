@@ -6,18 +6,20 @@ import time
 import getpass
  
  
-MODULE_NAME           = "Forcing";
-LOG_DIR_NGENCERF      = "/ngencerf/data";       # ngenCERF log directory string if environement var empty.
-LOG_DIR_DEFAULT       = "run-logs";             # Default parent log directory string if env var empty  & ngencerf dosn't exist
-LOG_FILE_EXT          = "log";                  # Log file name extension
-DS                    = "/";                    # Directory separator
-LOG_MODULE_NAME_LEN   = 8;                      # Width of module name for log entries
+MODULE_NAME           = "Forcing"
+LOG_DIR_NGENCERF      = "/ngencerf/data"       # ngenCERF log directory string if environement var empty.
+LOG_DIR_DEFAULT       = "run-logs"             # Default parent log directory string if env var empty  & ngencerf dosn't exist
+LOG_FILE_EXT          = "log"                  # Log file name extension
+DS                    = "/"                    # Directory separator
+LOG_MODULE_NAME_LEN   = 8                      # Width of module name for log entries
  
-EV_EWTS_LOGGING       = "NGEN_EWTS_LOGGING";    # Enable/disable of Error Warning and Trapping System 
-EV_NGEN_LOGFILEPATH   = "NGEN_LOG_FILE_PATH";   # ngen log file
-EV_MODULE_LOGLEVEL    = "FORCING_LOGLEVEL";     # This modules log level
-EV_MODULE_LOGFILEPATH = "FORCING_LOGFILEPATH";  # This modules log full log filename
- 
+EV_EWTS_LOGGING       = "NGEN_EWTS_LOGGING"    # Enable/disable of Error Warning and Trapping System 
+EV_NGEN_LOGFILEPATH   = "NGEN_LOG_FILE_PATH"   # ngen log file
+EV_MODULE_LOGLEVEL    = "FORCING_LOGLEVEL"     # This modules log level
+EV_MODULE_LOGFILEPATH = "FORCING_LOGFILEPATH"  # This modules log full log filename
+
+ewts_logFileDir = ""
+
 class CustomFormatter(logging.Formatter):
     LEVEL_NAME_MAP = {
         logging.DEBUG: "DEBUG",
@@ -156,6 +158,11 @@ def log_level_set():
     See also https://docs.python.org/3/library/logging.html
      
     '''
+
+    logger = logging.getLogger(MODULE_NAME)
+    if getattr(logger, "_initialized", False):
+        return  # logger already initialized, nothing else to do
+
     loggingEnabled = True
     moduleEnvVar = os.getenv(EV_EWTS_LOGGING, "")
     if moduleEnvVar:
@@ -191,9 +198,6 @@ def log_level_set():
         )
         handler.setFormatter(formatter)
  
-        # Get or create your named logger
-        logger = logging.getLogger(MODULE_NAME)
-
         # Setup root logger
         logger.handlers.clear()  # Clear any default handlers
         logger.setLevel(translate_ngwpc_log_level(log_level))
@@ -212,3 +216,5 @@ def log_level_set():
         finally:
             # Restore the original log level
             logger.setLevel(current_level)
+
+        logger._initialized = True
