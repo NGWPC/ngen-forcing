@@ -212,7 +212,7 @@ class NWMv3_Forcing_Engine_model:
             LOG.debug(f"Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
 
             for forceKey in ConfigOptions.input_forcings:
-                LOG.debug('forceKey', forceKey)
+                LOG.debug(f"forceKey: {forceKey}")
                 LOG.debug(f"ConfigOptions.aws: {ConfigOptions.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
@@ -307,7 +307,7 @@ class NWMv3_Forcing_Engine_model:
                 if forceKey == 10:
                     ConfigOptions.currentCustomForceNum += 1
 
-                LOG.debug(f'End of loop for forceKey {forceKey}')
+                LOG.debug(f"End of loop for forceKey {forceKey}")
 
             # Process supplemental precipitation if we specified in the configuration file.
             if ConfigOptions.number_supp_pcp > 0:
