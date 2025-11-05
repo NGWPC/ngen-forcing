@@ -11,6 +11,10 @@ import pandas as pd
 from . import err_handler
 from .forcingInputMod import input_forcings
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 NETCDF = input_forcings.NETCDF
 
 
@@ -721,7 +725,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     tmp_file2 = input_forcings.inDir + '/hrrr.' + current_hrrr_cycle.strftime(
         '%Y%m%d') + "/hrrr.t" + current_hrrr_cycle.strftime('%H') + 'z.wrfsfcf' \
                 + str(next_hrrr_forecast_hour).zfill(2) + input_forcings.file_ext
-    print(f"temp_file_names", tmp_file1, tmp_file2)
+    LOG.info(f"temp_file_names {tmp_file1}, {tmp_file2}")
     # Check to see if we need to change pathway extension for HRRR data
     # to HPSS tape storage naming conventions
     if (os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False):
@@ -1446,8 +1450,8 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     err_handler.check_program_status(config_options, mpi_config)
 
     # debug - ksl
-    print(f"file_in1: {input_forcings.file_in1}")
-    print(f"file_in2: {input_forcings.file_in2}")
+    LOG.info(f"file_in1: {input_forcings.file_in1}")
+    LOG.info(f"file_in2: {input_forcings.file_in2}")
 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
@@ -3129,8 +3133,8 @@ def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mp
 
         supplemental_precip.file_in1 = tmp_file1
         supplemental_precip.file_in2 = tmp_file2
-        print(f"tmp_file1: {tmp_file1}")
-        print(f"tmp_file2: {tmp_file2}")
+        LOG.info(f"tmp_file1: {tmp_file1}")
+        LOG.info(f"tmp_file2: {tmp_file2}")
         supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
@@ -3281,7 +3285,7 @@ def find_hourly_mrms_precip_flag(supplemental_precip, config_options, d_current,
     """
 
     # debug - ksl
-    print(f"Starting find_hourly_mrms_precip_flag method.")
+    LOG.info(f"Starting find_hourly_mrms_precip_flag method.")
 
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.

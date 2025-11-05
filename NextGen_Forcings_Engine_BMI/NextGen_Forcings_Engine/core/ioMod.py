@@ -18,6 +18,10 @@ from netCDF4 import Dataset
 
 from . import err_handler
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
     import pywgrib2_s
@@ -764,8 +768,7 @@ def open_grib2(GribFileIn, NetCdfFileOut, Wgrib2Cmd, ConfigOptions, MpiConfig,
         try:
             # WCOSS fix for WGRIB2 crashing when called on the same file twice in python
             if not os.environ.get('MFE_SILENT') and not special_case:
-                print(f"Wgrib2 command: {Wgrib2Cmd}")
-                print()
+                LOG.info(f"Wgrib2 command: {Wgrib2Cmd}")
 
             # set up GRIB2TABLE if needed:
             if not os.environ.get('GRIB2TABLE'):
@@ -781,7 +784,7 @@ def open_grib2(GribFileIn, NetCdfFileOut, Wgrib2Cmd, ConfigOptions, MpiConfig,
             if WGRIB2_env:
                 result = subprocess.run(Wgrib2Cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
                 exitcode = result.returncode
-                print(f"wgrib2 output:\n{result.stdout}")
+                LOG.info(f"wgrib2 output:\n{result.stdout}")
 
                 if exitcode != 0:
                     ConfigOptions.errMsg = f"wgrib2 failed with exit code {exitcode}. Output:\n{result.stdout}"
