@@ -30,6 +30,10 @@ import dask
 import dask.delayed
 import time
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
 else:
@@ -208,7 +212,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Processing input AK AnA variable: {nc_var} from {input_forcings.file_in2}"
                 err_handler.log_msg(config_options, mpi_config)
-                print(config_options.statusMsg, flush=True)
+                LOG.info(f"{config_options.statusMsg}")
                 if config_options.grid_type == "gridded":
                     try:
                         var_tmp = ds.variables[nc_var][0, :, :]
@@ -2001,7 +2005,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # print(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp", flush=True)
+                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :, :] = (1 - frz_fract).filled(1.0)
@@ -2073,7 +2077,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # print(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp", flush=True)
+                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2144,7 +2148,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2_elem[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out_elem.data, config_options.globalNdv)
-                    # print(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp", flush=True)
+                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2_elem[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2216,7 +2220,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # print(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp", flush=True)
+                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2607,7 +2611,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                                                 input_forcings.netcdf_var_names[force_count] + \
                                                 " into local numpy array. (" + str(err) + ")"
                     # except TypeError:
-                    #    print("DEBUG: ", input_forcings.coarse_input_forcings2, input_forcings.input_map_output, force_count)
+                    #    LOG.error(f"{input_forcings.coarse_input_forcings2}, {input_forcings.input_map_output}, {force_count}")
 
                     if config_options.current_output_step == 1:
                         input_forcings.coarse_input_forcings1[input_forcings.input_map_output[force_count], :, :] = \
@@ -2714,7 +2718,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                                                 input_forcings.netcdf_var_names[force_count] + \
                                                 " into local numpy array. (" + str(err) + ")"
                     # except TypeError:
-                    #    print("DEBUG: ", input_forcings.coarse_input_forcings2, input_forcings.input_map_output, force_count)
+                    #    LOG.error(f"{input_forcings.coarse_input_forcings2}, {input_forcings.input_map_output}, {force_count}")
 
                     if config_options.current_output_step == 1:
                         input_forcings.coarse_input_forcings1[input_forcings.input_map_output[force_count], :, :] = \
@@ -2820,7 +2824,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                                                 input_forcings.netcdf_var_names[force_count] + \
                                                 " into local numpy array. (" + str(err) + ")"
                     # except TypeError:
-                    #    print("DEBUG: ", input_forcings.coarse_input_forcings2, input_forcings.input_map_output, force_count)
+                    #    LOG.error(f"{input_forcings.coarse_input_forcings2}, {input_forcings.input_map_output}, {force_count})
 
                     if config_options.current_output_step == 1:
                         input_forcings.coarse_input_forcings1_elem[input_forcings.input_map_output[force_count], :, :] = \
@@ -2927,7 +2931,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                                                 input_forcings.netcdf_var_names[force_count] + \
                                                 " into local numpy array. (" + str(err) + ")"
                     # except TypeError:
-                    #    print("DEBUG: ", input_forcings.coarse_input_forcings2, input_forcings.input_map_output, force_count)
+                    #    LOG.error(f"{input_forcings.coarse_input_forcings2}, {input_forcings.input_map_output}, {force_count}")
 
                     if config_options.current_output_step == 1:
                         input_forcings.coarse_input_forcings1[input_forcings.input_map_output[force_count], :, :] = \
@@ -4093,7 +4097,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
             # Read in the ERA5-Interim height field, which is used for downscaling purposes.
             if 'Geopotential' in id_tmp.variables.keys():
-                print('Found geopotential height in ERA5-Interim data')
+                LOG.info('Found geopotential height in ERA5-Interim data')
             # To Do, see if NCAR downscaling methods are applicable
             # for reanalysis datasets with coarser resolution
             else:
@@ -4805,7 +4809,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
             if grib_var == 'CPOFP':
                 if mpi_config.rank == 0:
-                    # print(f"DEBUG: CPOFP stats, min={var_tmp[var_tmp > 0].min()} mean={var_tmp[var_tmp > 0].mean()} max={var_tmp[var_tmp > 0].max()}", flush=True)
+                    # LOG.debug(f"CPOFP stats, min={var_tmp[var_tmp > 0].min()} mean={var_tmp[var_tmp > 0].mean()} max={var_tmp[var_tmp > 0].max()}")
                     var_tmp[var_tmp >= 0] = (100 - var_tmp[var_tmp >= 0]) / 100  # convert frozen fraction to liquid fraction
                     var_tmp[var_tmp < 0] = 1.0  # assume all liquid if not specifically given
                     if config_options.grid_type == "unstructured":
@@ -8227,7 +8231,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     hour = input_forcings.fcst_hour2
     current_cycle = config_options.current_fcst_cycle
     forecast_time = config_options.current_time
-    # DEBUG if mpi_config.rank == 0: print(f"NEXT FILE: {hour=}, {current_cycle=}, {forecast_time=}", flush=True)
+    # DEBUG if mpi_config.rank == 0: LOG.debug(f"NEXT FILE: {hour=}, {current_cycle=}, {forecast_time=}")
 
     ndfd_files = ('tmp', 'wdir', 'wspd', 'qpf')
     fill_values = {'tmp': 288.0, 'wdir': 45.0, 'wspd': 0.71, 'qpf': 0}
@@ -8355,7 +8359,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 elif config_options.grid_type == "unstructured":
                     input_forcings.esmf_field_in.data[:] = var_sub_tmp
                     input_forcings.esmf_field_in_elem.data[:] = var_sub_tmp_elem
-                # DEBUG if mpi_config.rank == 1: print(f"esmf_file_in has type: {type(input_forcings.esmf_field_in.data)}, var_sub_tmp has type: {type(var_sub_tmp)}")
+                # DEBUG if mpi_config.rank == 1: LOG.debug(f"esmf_file_in has type: {type(input_forcings.esmf_field_in.data)}, var_sub_tmp has type: {type(var_sub_tmp)}")
             except (ValueError, KeyError, AttributeError) as err:
                 config_options.errMsg = "Unable to place local array into local ESMF field: " + str(err)
                 err_handler.log_critical(config_options, mpi_config)
@@ -9167,7 +9171,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             mask[:, :] = mpi_config.scatter_array(input_forcings, gmask, config_options)
             err_handler.check_program_status(config_options, mpi_config)
         except Exception as e:
-            print(e, flush=True)
+            LOG.error(f"{e}")
 
     lat_tmp = None
     lon_tmp = None

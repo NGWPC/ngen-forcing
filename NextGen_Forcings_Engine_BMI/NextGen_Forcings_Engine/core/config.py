@@ -8,6 +8,10 @@ import numpy as np
 from . import err_handler
 from . import time_handling
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 FORCE_COUNT = 27
 
 
@@ -172,7 +176,7 @@ class ConfigOptions:
             if not os.path.isdir(geogrid_dir):
                 try:
                     os.makedirs(geogrid_dir, exist_ok=True)
-                    print(f"Created esmf mesh directory: {geogrid_dir}")
+                    LOG.info(f"Created esmf mesh directory: {geogrid_dir}")
                 except OSError as e:
                     err_handler.err_out_screen(f'Unable to create esmf_mesh directory: {geogrid_dir}. Error: {e}')
 
@@ -285,7 +289,7 @@ class ConfigOptions:
                     else:
                         try:
                             os.makedirs(dir_path, exist_ok=True)
-                            print(f'Created missing forcing directory: {dir_path}')
+                            LOG.info(f"Created missing forcing directory: {dir_path}")
                         except OSError as e: 
                             err_handler.err_out_screen(f'Unable to create forcing directory: {dir_path}. Error: {e}')
 
@@ -371,7 +375,7 @@ class ConfigOptions:
         except configparser.NoOptionError as e:
             err_handler.err_out_screen('Unable to locate ScratchDir in the configuration file.', e)
         os.makedirs(self.scratch_dir, exist_ok=True)
-        print(f'Scratch dir: {self.scratch_dir}')
+        LOG.debug(f"Scratch dir: {self.scratch_dir}")
 
         # Read in compression option
         try:
@@ -474,7 +478,7 @@ class ConfigOptions:
         else:
             self.b_date_proc = -9999
 
-        print('Begin date:', beg_date_tmp)
+        LOG.info(f"Begin date: {beg_date_tmp}")
 
         # If the Retro flag is off, and lookback is off, then we assume we are
         # running a reforecast.
@@ -715,7 +719,7 @@ class ConfigOptions:
         # Process geospatial information
 
         if self.geogrid:
-            print(f"Geogrid: {self.geogrid}")
+            LOG.info(f"Geogrid: {self.geogrid}")
         else:
             try:
                 self.geogrid = cfg_bmi['GeogridIn']
@@ -1235,7 +1239,7 @@ class ConfigOptions:
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
                     try:
                         os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
-                        print(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
+                        LOG.info(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
                     except OSError as e:
                         err_handler.err_out_screen(f'Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}')
 
@@ -1352,7 +1356,7 @@ class ConfigOptions:
             if not os.path.isdir(self.supp_precip_param_dir):
                 try:
                     os.makedirs(self.supp_precip_param_dir, exist_ok=True)
-                    print(f'Created missing SuppPcpParamDir: {self.supp_precip_param_dir}' )
+                    LOG.info(f"Created missing SuppPcpParamDir: {self.supp_precip_param_dir}")
                 except OSError as e:
                     err_handler.err_out_screen(f'Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}' )
 
@@ -1364,8 +1368,8 @@ class ConfigOptions:
                 if optTmp == 7:
                     try:
                         self.cfsv2EnsMember = cfg_bmi['cfsEnsNumber']
-                        print(f"ens mem: {self.cfsv2EnsMember}")
-                        print(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
+                        LOG.info(f"ens mem: {self.cfsv2EnsMember}")
+                        LOG.info(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
                     except KeyError as e:
                         err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles section of the configuration file', e)
                     except configparser.NoOptionError as e:
