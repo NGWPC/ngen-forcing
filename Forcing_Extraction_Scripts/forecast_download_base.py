@@ -11,6 +11,13 @@ from urllib import request, error
 import requests
 from bs4 import BeautifulSoup
 
+import logging
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+if not LOG.handlers:
+    # No handlers attached — fallback to default root logger
+    logging.basicConfig()
+    LOG = logging.getLogger()
 
 class ForecastDownloader(ABC):
     """
@@ -214,7 +221,7 @@ class ForecastDownloader(ABC):
         if os.path.isfile(self.lockfile):
             with open(self.lockfile, 'r') as f:
                 pid = f.readline().strip()
-            print(f"ERROR: Lock file {self.lockfile} exists. PID: {pid}")
+            LOG.critical(f"Lock file {self.lockfile} exists. PID: {pid}")
             sys.exit(1)
 
         with open(self.lockfile, 'w') as f:
@@ -231,7 +238,7 @@ class ForecastDownloader(ABC):
             try:
                 os.remove(self.lockfile)
             except Exception as e:
-                print(f"Warning: Failed to remove lockfile: {e}")
+                LOG.warning(f"Failed to remove lockfile: {e}")
 
     def _cleanup_old_data(self):
         """
@@ -252,7 +259,7 @@ class ForecastDownloader(ABC):
                 # Default behavior: remove build_output_dir if it exists
                 dir_path = self.build_output_dir(d_start, self.ens_number)
                 if os.path.isdir(dir_path):
-                    print(f"Removing old data: {dir_path}")
+                    LOG.debug(f"Removing old data: {dir_path}")
                     shutil.rmtree(dir_path)
 
     @staticmethod
@@ -264,14 +271,14 @@ class ForecastDownloader(ABC):
         :param levels: Max number of parent levels to prune if empty.
         """
         if os.path.isdir(path):
-            print(f"Removing directory: {path}")
+            LOG.debug(f"Removing directory: {path}")
             shutil.rmtree(path)
 
             # Prune up to `levels` empty parent directories
             for _ in range(levels):
                 path = os.path.dirname(path)
                 if os.path.isdir(path) and not os.listdir(path):
-                    print(f"Removing empty parent directory: {path}")
+                    LOG.debug(f"Removing empty parent directory: {path}")
                     os.rmdir(path)
                 else:
                     break
@@ -281,13 +288,14 @@ class ForecastDownloader(ABC):
         Download forecast files by iterating over the desired time range and download targets.
         Each timestamp may have one or more targets to process.
         """
+        LOG.info(f"ForecastDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 
             if self.should_process_hour(d_start):
-                print(f"Processing hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Processing hour offset: {hour}, timestamp: {d_start}")
             else:
-                print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
             output_dir = self.build_output_dir(d_start, self.ens_number)
@@ -301,7 +309,7 @@ class ForecastDownloader(ABC):
                 out_path = os.path.join(output_dir, filename)
 
                 if os.path.isfile(out_path):
-                    print(f"Skipping existing: {out_path}")
+                    LOG.debug(f"Skipping existing: {out_path}")
                     continue
 
                 self._download_file(url, out_path)
@@ -320,24 +328,24 @@ class ForecastDownloader(ABC):
 
         while attempt < max_attempts:
             try:
-                print(f"Attempt {attempt + 1}: Downloading {url}")
+                LOG.debug(f"Attempt {attempt + 1}: Downloading {url}")
                 request.urlretrieve(url, out_path)
-                print(f"Download complete: {out_path}")
+                LOG.debug(f"Download complete: {out_path}")
                 return
             except error.HTTPError as e:
                 if e.code == 404:
-                    print(f"File not found (404): {url} - Stopping retries")
+                    LOG.error(f"File not found (404): {url} - Stopping retries")
                     return False
-                print(f"HTTPError {e.code} while downloading {url}: {e.reason}")
+                LOG.error(f"HTTPError {e.code} while downloading {url}: {e.reason}")
             except error.URLError as e:
-                print(f"URLError while downloading {url}: {e.reason}")
+                LOG.error(f"URLError while downloading {url}: {e.reason}")
             except Exception as e:
-                print(f"Unexpected error while downloading {url}: {e}")
+                LOG.error(f"Unexpected error while downloading {url}: {e}")
 
             attempt += 1
             time.sleep(interval)
 
-        print(f"Failed to download after {max_attempts} attempts: {url}")
+        LOG.error(f"Failed to download after {max_attempts} attempts: {url}")
 
 
 class FixedFileDownloader(ForecastDownloader, ABC):
@@ -366,13 +374,14 @@ class FixedFileDownloader(ForecastDownloader, ABC):
         pass
 
     def _download_data(self):
+        LOG.info(f"FixedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 
             if self.should_process_hour(d_start):
-                print(f"Processing hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Processing hour offset: {hour}, timestamp: {d_start}")
             else:
-                print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
             for subdir, filename in self.get_file_specs(d_start):
@@ -382,7 +391,7 @@ class FixedFileDownloader(ForecastDownloader, ABC):
                 out_path = os.path.join(full_dir, filename)
 
                 if os.path.isfile(out_path):
-                    print(f"Skipping existing: {out_path}")
+                    LOG.debug(f"Skipping existing: {out_path}")
                     continue
 
                 self._download_file(url, out_path)
@@ -416,17 +425,18 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
         raise NotImplementedError("ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name().")
 
     def _download_data(self):
+        LOG.info(f"ScrapedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 
             if self.should_process_hour(d_start):
-                print(f"Processing hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Processing hour offset: {hour}, timestamp: {d_start}")
             else:
-                print(f"Skipping hour offset: {hour}, timestamp: {d_start}")
+                LOG.debug(f"Skipping hour offset: {hour}, timestamp: {d_start}")
                 continue
 
             url = self.get_scrape_url(d_start)
-            print(f"Scraping: {url}")
+            LOG.info(f"Scraping: {url}")
             output_dir = self.build_output_dir(d_start)
             os.makedirs(output_dir, exist_ok=True)
 
@@ -439,7 +449,7 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
                     out_path = os.path.join(output_dir, os.path.basename(full_url))
 
                     if os.path.isfile(out_path):
-                        print(f"Skipping existing: {out_path}")
+                        LOG.debug(f"Skipping existing: {out_path}")
                         continue
 
                     self._download_file(full_url, out_path)

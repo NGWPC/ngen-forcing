@@ -158,7 +158,9 @@ def log_level_set():
     See also https://docs.python.org/3/library/logging.html
      
     '''
-
+    # Use a named logger because Forcing is handled differently
+    # than other BMI modules in ngen. This ensures the entries
+    # are identified as FORCING and not NGEN in the log.
     logger = logging.getLogger(MODULE_NAME)
     if getattr(logger, "_initialized", False):
         return  # logger already initialized, nothing else to do
@@ -198,7 +200,7 @@ def log_level_set():
         )
         handler.setFormatter(formatter)
  
-        # Setup root logger
+        # Setup logger
         logger.handlers.clear()  # Clear any default handlers
         logger.setLevel(translate_ngwpc_log_level(log_level))
         logger.addHandler(handler)

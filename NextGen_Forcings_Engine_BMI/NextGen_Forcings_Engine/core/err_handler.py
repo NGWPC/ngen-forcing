@@ -231,7 +231,7 @@ def log_warning(ConfigOptions, MpiConfig):
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
 
 
-def log_msg(ConfigOptions, MpiConfig):
+def log_msg(ConfigOptions, MpiConfig, debug: bool = False):
     """
     Function to log INFO messages to a specified log file.
     :param ConfigOptions:
@@ -243,9 +243,12 @@ def log_msg(ConfigOptions, MpiConfig):
         raise Exception()
 
     try:
-        LOG.info("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
+        if debug:
+            LOG.debug("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
+        else:
+            LOG.info("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
     except Exception:
-        err_out_screen_para(('Unable to write INFO message on RANK: ' + str(MpiConfig.rank) +
+        err_out_screen_para(('Unable to write log_msg message on RANK: ' + str(MpiConfig.rank) +
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
 
 
