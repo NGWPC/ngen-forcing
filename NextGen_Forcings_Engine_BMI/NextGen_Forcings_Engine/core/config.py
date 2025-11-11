@@ -176,7 +176,7 @@ class ConfigOptions:
             if not os.path.isdir(geogrid_dir):
                 try:
                     os.makedirs(geogrid_dir, exist_ok=True)
-                    LOG.info(f"Created esmf mesh directory: {geogrid_dir}")
+                    LOG.debug(f"Created esmf mesh directory: {geogrid_dir}")
                 except OSError as e:
                     err_handler.err_out_screen(f'Unable to create esmf_mesh directory: {geogrid_dir}. Error: {e}')
 
@@ -289,7 +289,7 @@ class ConfigOptions:
                     else:
                         try:
                             os.makedirs(dir_path, exist_ok=True)
-                            LOG.info(f"Created missing forcing directory: {dir_path}")
+                            LOG.debug(f"Created missing forcing directory: {dir_path}")
                         except OSError as e: 
                             err_handler.err_out_screen(f'Unable to create forcing directory: {dir_path}. Error: {e}')
 
@@ -719,7 +719,7 @@ class ConfigOptions:
         # Process geospatial information
 
         if self.geogrid:
-            LOG.info(f"Geogrid: {self.geogrid}")
+            LOG.debug(f"Geogrid: {self.geogrid}")
         else:
             try:
                 self.geogrid = cfg_bmi['GeogridIn']
@@ -1239,7 +1239,7 @@ class ConfigOptions:
                 if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
                     try:
                         os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
-                        LOG.info(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
+                        LOG.debug(f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}")
                     except OSError as e:
                         err_handler.err_out_screen(f'Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}')
 
@@ -1356,7 +1356,7 @@ class ConfigOptions:
             if not os.path.isdir(self.supp_precip_param_dir):
                 try:
                     os.makedirs(self.supp_precip_param_dir, exist_ok=True)
-                    LOG.info(f"Created missing SuppPcpParamDir: {self.supp_precip_param_dir}")
+                    LOG.debug(f"Created missing SuppPcpParamDir: {self.supp_precip_param_dir}")
                 except OSError as e:
                     err_handler.err_out_screen(f'Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}' )
 
@@ -1368,8 +1368,8 @@ class ConfigOptions:
                 if optTmp == 7:
                     try:
                         self.cfsv2EnsMember = cfg_bmi['cfsEnsNumber']
-                        LOG.info(f"ens mem: {self.cfsv2EnsMember}")
-                        LOG.info(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
+                        LOG.debug(f"ens mem: {self.cfsv2EnsMember}")
+                        LOG.debug(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
                     except KeyError as e:
                         err_handler.err_out_screen('Unable to locate cfsEnsNumber under the Ensembles section of the configuration file', e)
                     except configparser.NoOptionError as e:

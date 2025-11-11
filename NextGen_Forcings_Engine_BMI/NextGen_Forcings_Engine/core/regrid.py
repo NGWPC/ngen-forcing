@@ -64,7 +64,7 @@ def create_link(name, input_file, tmpFile, config_options, mpi_config):
     if mpi_config.rank == 0:
         try:
             config_options.statusMsg = name + " file being used: " + input_file
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             os.symlink(input_file, tmpFile)
         except:
@@ -95,8 +95,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         if not os.path.isfile(input_forcings.file_in2):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "No AK AnA in_2 file found for this timestep."
-                err_handler.log_msg(config_options, mpi_config)
-            err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             return
 
         # Check to see if the regrid complete flag for this
@@ -105,8 +104,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         if input_forcings.regridComplete:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "No AK AnA regridding required for this timestep."
-                err_handler.log_msg(config_options, mpi_config)
-            err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             return
 
         # Only rank‐0 opens the file
@@ -211,8 +209,8 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Processing input AK AnA variable: {nc_var} from {input_forcings.file_in2}"
-                err_handler.log_msg(config_options, mpi_config)
-                LOG.info(f"{config_options.statusMsg}")
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+                LOG.debug(f"{config_options.statusMsg}")
                 if config_options.grid_type == "gridded":
                     try:
                         var_tmp = ds.variables[nc_var][0, :, :]
@@ -315,7 +313,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
     if supplemental_precip.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No StageIV regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF files that will
@@ -349,7 +347,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
 
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"WGRIB2 command: {cmd}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             id_tmp = ioMod.open_grib2(supplemental_precip.file_in2, stage4_tmp_nc, cmd,
                                       config_options, mpi_config, inputVar=None, special_case=False)
             err_handler.check_program_status(config_options, mpi_config)
@@ -365,7 +363,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
         if calc_regrid_flag:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Calculating STAGE IV regridding weights."
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             calculate_supp_pcp_weights(supplemental_precip, id_tmp, stage4_tmp_nc, config_options, mpi_config, lat_var, lon_var)
             err_handler.check_program_status(config_options, mpi_config)
 
@@ -375,7 +373,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -393,7 +391,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -411,7 +409,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -430,7 +428,7 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -681,7 +679,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
     if supplemental_precip.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No StageIV regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF files that will
@@ -715,7 +713,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
 
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"WGRIB2 command: {cmd}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             id_tmp = ioMod.open_grib2(supplemental_precip.file_in2, stage4_tmp_nc, cmd,
                                       config_options, mpi_config, inputVar=None, special_case=False)
             err_handler.check_program_status(config_options, mpi_config)
@@ -731,7 +729,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
         if calc_regrid_flag:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Calculating STAGE IV regridding weights."
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             calculate_supp_pcp_weights(supplemental_precip, id_tmp, stage4_tmp_nc, config_options, mpi_config, lat_var, lon_var)
             err_handler.check_program_status(config_options, mpi_config)
 
@@ -741,7 +739,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -759,7 +757,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :].data
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -777,7 +775,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :].data
                     var_tmp_elem = np.where(var_tmp_elem == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp_elem)
@@ -796,7 +794,7 @@ def _regrid_conus_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Regridding STAGE IV '{supplemental_precip.netcdf_var_names[-1]}' Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[-1]][0, :, :]
                     var_tmp = np.where(var_tmp == id_tmp[supplemental_precip.netcdf_var_names[0]]._FillValue, 0.0, var_tmp)
@@ -1043,8 +1041,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     if not os.path.isfile(input_forcings.file_in2):
         if mpi_config.rank == 0:
             config_options.statusMsg = "No HRRR in_2 file found for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
-        err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Check to see if the regrid complete flag for this
@@ -1053,8 +1050,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No HRRR regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
-        err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -1062,6 +1058,9 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regrid CONUS HRRR"
+        err_handler.log_msg(config_options, mpi_config)
+
         if input_forcings.fileType != NETCDF:
 
             # This file shouldn't exist.... but if it does (previously failed
@@ -1081,7 +1080,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Converting HRRR Variable: {grib_var}"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 if 0 < input_forcings.cycleFreq < 60:
                     time_str = f"{input_forcings.fcst_min1}-{input_forcings.fcst_min2} min acc fcst" if grib_var == 'APCP' else f"{input_forcings.fcst_min2} min fcst"
                     sub_rem = int(input_forcings.fcst_min1) % 60
@@ -1108,7 +1107,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing HRRR Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -1117,14 +1116,14 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating HRRR regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
                 # # Read in the HRRR height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #     config_options.statusMsg = "Reading in HRRR elevation data."
-                #     err_handler.log_msg(config_options, mpi_config)
+                #     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #       "\":(HGT):(surface):\" " + \
                 #       " -netcdf " + input_forcings.tmpFileHeight
@@ -1159,7 +1158,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding HRRR surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1211,7 +1210,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding HRRR surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1259,7 +1258,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding HRRR surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                            input_forcings.esmf_field_out_elem)
@@ -1311,7 +1310,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding HRRR surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1357,7 +1356,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Processing input HRRR variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         if 0 < input_forcings.cycleFreq < 60:
                             var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][sub_id, :, :]
@@ -1386,7 +1385,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input HRRR Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -1425,7 +1424,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Processing input HRRR variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         if 0 < input_forcings.cycleFreq < 60:
                             var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][sub_id, :, :]
@@ -1454,7 +1453,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input HRRR Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -1492,7 +1491,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Processing input HRRR variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         if 0 < input_forcings.cycleFreq < 60:
                             var_tmp_elem = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][sub_id, :, :]
@@ -1522,7 +1521,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input HRRR Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                        input_forcings.esmf_field_out_elem)
@@ -1561,7 +1560,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Processing input HRRR variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         if 0 < input_forcings.cycleFreq < 60:
                             var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][sub_id, :, :]
@@ -1590,7 +1589,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input HRRR Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -1659,7 +1658,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No RAP regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -1668,6 +1667,8 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regrid CONUS RAP"
+        err_handler.log_msg(config_options, mpi_config)
         if input_forcings.fileType != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -1687,7 +1688,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Converting CONUS RAP Variable: " + grib_var
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 time_str = "{}-{} hour acc fcst".format(input_forcings.fcst_hour1, input_forcings.fcst_hour2) \
                     if grib_var in ("APCP", "FROZR") else str(input_forcings.fcst_hour2) + " hour fcst"
                 fields.append(':' + grib_var + ':' +
@@ -1712,7 +1713,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing Conus RAP Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -1721,14 +1722,14 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating RAP regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
                 # Read in the RAP height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #     config_options.statusMsg = "Reading in RAP elevation data."
-                #     err_handler.log_msg(config_options, mpi_config)
+                #     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #       "\":(HGT):(surface):\" " + \
                 #       " -netcdf " + input_forcings.tmpFileHeight
@@ -1759,7 +1760,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding RAP surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1808,7 +1809,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding RAP surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1856,7 +1857,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding RAP surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                            input_forcings.esmf_field_out_elem)
@@ -1905,7 +1906,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding RAP surface elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -1972,7 +1973,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input RAP Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -2005,7 +2006,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
+                    # LOG.debug(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :, :] = (1 - frz_fract).filled(1.0)
@@ -2044,7 +2045,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input RAP Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -2077,7 +2078,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
+                    # LOG.debug(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2115,7 +2116,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input RAP Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                        input_forcings.esmf_field_out_elem)
@@ -2148,7 +2149,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2_elem[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out_elem.data, config_options.globalNdv)
-                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
+                    # LOG.debug(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2_elem[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2187,7 +2188,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input RAP Field: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                              input_forcings.esmf_field_out)
@@ -2220,7 +2221,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     RAINRATE = 3  # TODO: determine this programmatically
                     total_pcp = np.ma.masked_values(input_forcings.regridded_forcings2[RAINRATE], config_options.globalNdv)
                     frozn_pcp = np.ma.masked_values(input_forcings.esmf_field_out.data, config_options.globalNdv)
-                    # LOG.info(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
+                    # LOG.debug(f"rank {mpi_config.rank} has {(frozn_pcp > total_pcp).sum()} instances of frozn_pcp > total_pcp")
                     frz_fract = frozn_pcp / total_pcp
                     frz_fract[frz_fract > 1] = 1
                     input_forcings.regridded_forcings2[input_forcings.input_map_output[force_count], :] = (1 - frz_fract).filled(1.0)
@@ -2271,7 +2272,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
         # need to regrid bias-corrected data every hour.
         if mpi_config.rank == 0:
             config_options.statusMsg = "No need to read in new CFSv2 data at this time."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -2280,6 +2281,8 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regrid CFSv2"
+        err_handler.log_msg(config_options, mpi_config)
         if input_forcings.fileType != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -2299,7 +2302,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Converting CFSv2 Variable: " + grib_var
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 fields.append(':' + grib_var + ':' +
                               input_forcings.grib_levels[force_count] + ':'
                               + str(input_forcings.fcst_hour2) + " hour fcst:")
@@ -2322,7 +2325,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing CFSv2 Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -2331,7 +2334,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculate CFSv2 regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
@@ -2339,7 +2342,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                 # Read in the RAP height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #     config_options.statusMsg = "Reading in CFSv2 elevation data."
-                #     err_handler.log_msg(config_options, mpi_config)
+                #     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 #
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #       "\":(HGT):(surface):\" " + \
@@ -2372,7 +2375,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding CFSv2 elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -2422,7 +2425,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding CFSv2 elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -2471,7 +2474,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding CFSv2 elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
@@ -2521,7 +2524,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding CFSv2 elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -2571,7 +2574,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     if not config_options.runCfsNldasBiasCorrect:
                         config_options.statusMsg = "Regridding CFSv2 variable: " + \
                                                    input_forcings.netcdf_var_names[force_count]
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -2678,7 +2681,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     if not config_options.runCfsNldasBiasCorrect:
                         config_options.statusMsg = "Regridding CFSv2 variable: " + \
                                                    input_forcings.netcdf_var_names[force_count]
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -2784,7 +2787,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     if not config_options.runCfsNldasBiasCorrect:
                         config_options.statusMsg = "Regridding CFSv2 variable: " + \
                                                    input_forcings.netcdf_var_names[force_count]
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp_elem = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -2891,7 +2894,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     if not config_options.runCfsNldasBiasCorrect:
                         config_options.statusMsg = "Regridding CFSv2 variable: " + \
                                                    input_forcings.netcdf_var_names[force_count]
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -3033,16 +3036,19 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No NWM NetCDF regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Open the input NetCDF file containing necessary data.
     id_tmp = ioMod.open_netcdf_forcing(input_forcings.file_in2, config_options, mpi_config, open_on_all_procs=True)
 
+    config_options.statusMsg = "Regrid NWM Custom NetCDF Forcing Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing Custom NetCDF Forcing Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                config_options, wrf_hydro_geo_meta, mpi_config)
 
@@ -3053,14 +3059,14 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         if mpi_config.rank == 0:
             config_options.statusMsg = f"Unable to locate HGT_surface in: {input_forcings.file_in2}. " \
                                        f"Downscaling will not be available."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
         if config_options.grid_type == "gridded":
             # Regrid the input variables.
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][:][0, :, :]
                 except Exception as err:
@@ -3107,7 +3113,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][:][0, :, :]
                 except Exception as err:
@@ -3153,7 +3159,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp.variables[nc_var][:][0, :, :]
                 except Exception as err:
@@ -3200,7 +3206,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][:][0, :, :]
                 except Exception as err:
@@ -3265,7 +3271,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No NWM NetCDF regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
     mpi_config.comm.barrier()
     with MPICommExecutor(comm=mpi_config.comm, root=0) as executor:
@@ -3288,10 +3294,13 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             
             id_tmp = id_tmp.assign_coords(longitude=(['y', 'x'], lon_coords), latitude=(['y', 'x'], lat_coords))
 
+    config_options.statusMsg = "Regrid NWM Custom zarr Forcing Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing Custom zarr Forcing Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                config_options, wrf_hydro_geo_meta, mpi_config)
         if calc_regrid_flag:
@@ -3308,7 +3317,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom zarr input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp[nc_var].to_masked_array()
                 except Exception as err:
@@ -3355,7 +3364,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom zarr input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp[nc_var].to_masked_array()
                 except Exception as err:
@@ -3401,7 +3410,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom zarr input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp[nc_var].to_masked_array()
                 except Exception as err:
@@ -3448,7 +3457,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom zarr input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp[nc_var].to_masked_array()
                 except Exception as err:
@@ -3528,7 +3537,7 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No Custom Hourly NetCDF regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Open the input NetCDF file containing necessary data.
@@ -3537,10 +3546,13 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
     fill_values = {'TMP': 288.0, 'SPFH': 0.005, 'PRES': 101300.0, 'APCP': 0,
                    'UGRD': 1.0, 'VGRD': 1.0, 'DSWRF': 80.0, 'DLWRF': 310.0}
 
+    config_options.statusMsg = "Regrid Custom Hourly NetCDF Forcing Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing Custom NetCDF Forcing Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                config_options, wrf_hydro_geo_meta, mpi_config)
 
@@ -3576,7 +3588,7 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -3624,7 +3636,7 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -3671,7 +3683,7 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                            input_forcings.esmf_field_out_elem)
@@ -3719,7 +3731,7 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -3763,10 +3775,10 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -3835,10 +3847,10 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -3905,10 +3917,10 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp_elem = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -3976,10 +3988,10 @@ def regrid_custom_hourly_netcdf(input_forcings, config_options, wrf_hydro_geo_me
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -4073,7 +4085,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No ERA5-Interim regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Open the input NetCDF file containing necessary data.
@@ -4086,10 +4098,13 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     seconds_index = np.abs((pd.to_datetime(time) - pd.to_datetime(config_options.current_time)).total_seconds())
     ind = np.where(seconds_index == np.min(seconds_index))[0][0]
 
+    config_options.statusMsg = "Regrid Custom Hourly NetCDF Forcing Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing ERA-5 Interim Forcing Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                config_options, wrf_hydro_geo_meta, mpi_config)
         if calc_regrid_flag:
@@ -4117,10 +4132,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding ERA5-Interim input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using -9999. to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(-9999.)[ind, :, :]
                     # Since ERA5-Interim only supplies dew points
                     # we will need to calculate the specific humidity
@@ -4196,10 +4211,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding ERA5-Interim input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using -9999. to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(-9999.)[ind, :, :]
                     # Since ERA5-Interim only supplies dew points
                     # we will need to calculate the specific humidity
@@ -4274,10 +4289,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding ERA5-Interim input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using -9999. to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_confi, True)  # log at debug level
                     var_tmp_elem = id_tmp.variables[nc_var][:].filled(-9999.)[ind, :, :]
                     # Since ERA5-Interim only supplies dew points
                     # we will need to calculate the specific humidity
@@ -4354,10 +4369,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding ERA5-Interim input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using -9999. to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp.variables[nc_var][:].filled(-9999.)[ind, :, :]
                     # Since ERA5-Interim only supplies dew points
                     # we will need to calculate the specific humidity
@@ -4459,7 +4474,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No 13km GFS regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -4493,10 +4508,13 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regridding 13km GFS Variables."
+        err_handler.log_msg(config_options, mpi_config)
+
         if reuse_prev_file:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Reusing previous input file: " + input_forcings.file_in2
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             id_tmp = ioMod.open_netcdf_forcing(input_forcings.tmpFile, config_options, mpi_config)
             err_handler.check_program_status(config_options, mpi_config)
         else:
@@ -4505,7 +4523,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 for force_count, grib_var in enumerate(input_forcings.grib_vars):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Converting 13km GFS Variable: " + grib_var
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     # Create a temporary NetCDF file from the GRIB2 file.
                     if grib_var == "PRATE":
                         # By far the most complicated of output variables. We need to calculate
@@ -4545,7 +4563,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing 13km GFS Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -4554,14 +4572,14 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating 13km GFS regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
                 # Read in the GFS height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #    config_options.statusMsg = "Reading in 13km GFS elevation data."
-                #    err_handler.log_msg(config_options, mpi_config)
+                #    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #    "\":(HGT):(surface):\" " + \
                 #    " -netcdf " + input_forcings.tmpFileHeight
@@ -4631,7 +4649,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding 13km GFS surface elevation data to the WRF-Hydro domain."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 if config_options.grid_type == "gridded":
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in, input_forcings.esmf_field_out)
@@ -4864,7 +4882,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input 13km GFS Field: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     begin = time.monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -4872,7 +4890,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     end = time.monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding took {} seconds".format(end - begin)
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid GFS variable: " + input_forcings.netcdf_var_names[force_count] + " (" + str(ve) + ")"
                     err_handler.log_critical(config_options, mpi_config)
@@ -4903,7 +4921,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             elif config_options.grid_type == "unstructured":
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input 13km GFS Field for Mesh nodes: " + input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     begin = time.monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -4911,7 +4929,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     end = time.monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Node Regridding took {} seconds".format(end - begin)
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid GFS variable for Mesh Nodes: " + input_forcings.netcdf_var_names[force_count] \
                                             + " (" + str(ve) + ")"
@@ -4943,7 +4961,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input 13km GFS Field for Mesh elements: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     begin = time.monotonic()
                     input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
@@ -4951,7 +4969,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     end = time.monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Element Regridding took {} seconds".format(end - begin)
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid GFS variable for Mesh Elements: " + input_forcings.netcdf_var_names[force_count] \
                                             + " (" + str(ve) + ")"
@@ -4985,7 +5003,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding Input 13km GFS Field for Mesh Elements: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     begin = time.monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
@@ -4993,7 +5011,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     end = time.monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Element Regridding took {} seconds".format(end - begin)
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid GFS variable for Mesh Element: " + input_forcings.netcdf_var_names[force_count] \
                                             + " (" + str(ve) + ")"
@@ -5062,7 +5080,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     # inputs have already been regridded and we can move on.
     if input_forcings.regridComplete:
         config_options.statusMsg = "No regridding of NAM nest data necessary for this timestep - already completed."
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -5071,6 +5089,8 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regridding NAM nest data"
+        err_handler.log_msg(config_options, mpi_config)
         if input_forcings.fileType != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -5089,7 +5109,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Converting NAM-Nest Variable: " + grib_var
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 fields.append(':' + grib_var + ':' +
                               input_forcings.grib_levels[force_count] + ':'
                               + str(input_forcings.fcst_hour2) + " hour fcst:")
@@ -5115,7 +5135,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing NAM Nest Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -5124,14 +5144,14 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating NAM nest regridding weights...."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
                 # Read in the RAP height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #     config_options.statusMsg = "Reading in NAM nest elevation data from GRIB2."
-                #     err_handler.log_msg(config_options, mpi_config)
+                #     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #       "\":(HGT):(surface):\" " + \
                 #       " -netcdf " + input_forcings.tmpFileHeight
@@ -5159,7 +5179,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding NAM nest elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -5207,7 +5227,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding NAM nest elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -5254,7 +5274,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding NAM nest elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                            input_forcings.esmf_field_out_elem)
@@ -5302,7 +5322,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding NAM nest elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -5352,7 +5372,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding NAM nest input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -5409,7 +5429,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding NAM nest input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -5465,7 +5485,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding NAM nest input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp_elem = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -5522,7 +5542,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding NAM nest input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -5622,7 +5642,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
     if supplemental_precip.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No MRMS regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
     # MRMS data originally is stored as .gz files. We need to compose a series
     # of temporary paths.
@@ -5668,6 +5688,9 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
     id_mrms = None
     id_mrms_rqi = None
     try:
+        config_options.statusMsg = "Rrgrid MRMS"
+        err_handler.log_msg(config_options, mpi_config)
+
         if supplemental_precip.fileType != NETCDF:
             # Unzip MRMS files to temporary locations.
             ioMod.unzip_file(supplemental_precip.file_in2, mrms_tmp_grib2, config_options, mpi_config)
@@ -5716,7 +5739,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
         if calc_regrid_flag:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Calculating MRMS regridding weights."
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             calculate_supp_pcp_weights(supplemental_precip, id_mrms, mrms_tmp_nc, config_options, mpi_config)
             err_handler.check_program_status(config_options, mpi_config)
 
@@ -5745,7 +5768,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding MRMS RQI Field."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     supplemental_precip.esmf_field_out = supplemental_precip.regridObj(supplemental_precip.esmf_field_in,
                                                                                        supplemental_precip.esmf_field_out)
@@ -5760,7 +5783,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if n_masked > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"{n_masked} masked cells in RQI field, will remove"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     supplemental_precip.esmf_field_out.data[np.where(supplemental_precip.regridded_mask == 0)] = \
                         config_options.globalNdv
@@ -5792,7 +5815,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding MRMS RQI Field."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     supplemental_precip.esmf_field_out = supplemental_precip.regridObj(supplemental_precip.esmf_field_in,
                                                                                        supplemental_precip.esmf_field_out)
@@ -5807,7 +5830,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if n_masked > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"{n_masked} masked cells in RQI field, will remove"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     supplemental_precip.esmf_field_out.data[np.where(supplemental_precip.regridded_mask == 0)] = \
                         config_options.globalNdv
@@ -5838,7 +5861,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding MRMS RQI Field."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     supplemental_precip.esmf_field_out_elem = supplemental_precip.regridObj_elem(supplemental_precip.esmf_field_in_elem,
                                                                                                  supplemental_precip.esmf_field_out_elem)
@@ -5853,7 +5876,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if n_masked > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"{n_masked} masked cells in RQI field, will remove"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
                     supplemental_precip.esmf_field_out_elem.data[np.where(supplemental_precip.regridded_mask_elem == 0)] = \
                         config_options.globalNdv
@@ -5874,7 +5897,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
 
             if mpi_config.rank == 0:
                 config_options.statusMsg = "MRMS Will not be filtered using RQI values."
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
         elif supplemental_precip.rqiMethod == 2:
             # Read in the RQI field from monthly climatological files.
@@ -5896,7 +5919,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding: " + supplemental_precip.netcdf_var_names[0]
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_mrms.variables[supplemental_precip.netcdf_var_names[0]][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -5945,7 +5968,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if len(ind_filter) > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"Removing {len(ind_filter)} MRMS cells below RQI threshold of {supplemental_precip.rqiThresh}"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     supplemental_precip.regridded_precip2[ind_filter] = config_options.globalNdv
                     del ind_filter
                 except (ValueError, AttributeError, KeyError, ArithmeticError) as npe:
@@ -5978,7 +6001,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding: " + supplemental_precip.netcdf_var_names[0]
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_mrms.variables[supplemental_precip.netcdf_var_names[0]][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -6027,7 +6050,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if len(ind_filter) > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"Removing {len(ind_filter)} MRMS cells below RQI threshold of {supplemental_precip.rqiThresh}"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     supplemental_precip.regridded_precip2[ind_filter] = config_options.globalNdv
                     del ind_filter
                 except (ValueError, AttributeError, KeyError, ArithmeticError) as npe:
@@ -6059,7 +6082,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding: " + supplemental_precip.netcdf_var_names[0]
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_mrms.variables[supplemental_precip.netcdf_var_names[0]][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -6109,7 +6132,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if len(ind_filter_elem) > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"Removing {len(ind_filter)} MRMS cells below RQI threshold of {supplemental_precip.rqiThresh}"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     supplemental_precip.regridded_precip2_elem[ind_filter_elem] = config_options.globalNdv
                     del ind_filter_elem
                 except (ValueError, AttributeError, KeyError, ArithmeticError) as npe:
@@ -6141,7 +6164,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding: " + supplemental_precip.netcdf_var_names[0]
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_mrms.variables[supplemental_precip.netcdf_var_names[0]][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -6190,7 +6213,7 @@ def regrid_mrms_hourly(supplemental_precip, config_options, wrf_hydro_geo_meta, 
                     if len(ind_filter) > 0:
                         if mpi_config.rank == 0:
                             config_options.statusMsg = f"Removing {len(ind_filter)} MRMS cells below RQI threshold of {supplemental_precip.rqiThresh}"
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     supplemental_precip.regridded_precip2[ind_filter] = config_options.globalNdv
                     del ind_filter
                 except (ValueError, AttributeError, KeyError, ArithmeticError) as npe:
@@ -6445,7 +6468,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
     # inputs have already been regridded and we can move on.
     if input_forcings.regridComplete:
         config_options.statusMsg = "No regridding of WRF-ARW nest data necessary for this timestep - already completed."
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF file
@@ -6454,6 +6477,9 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regrid WRF-ARW nest data"
+        err_handler.log_msg(config_options, mpi_config)
+
         if input_forcings.fileType != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -6472,7 +6498,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Converting WRF-ARW Variable: " + grib_var
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 time_str = "{}-{} hour acc fcst".format(input_forcings.fcst_hour1, input_forcings.fcst_hour2) \
                     if grib_var == 'APCP' else str(input_forcings.fcst_hour2) + " hour fcst"
                 fields.append(':' + grib_var + ':' +
@@ -6500,7 +6526,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing WRF-ARW Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -6509,14 +6535,14 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating WRF-ARW regridding weights...."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
                 # Read in the RAP height field, which is used for downscaling purposes.
                 # if mpi_config.rank == 0:
                 #     config_options.statusMsg = "Reading in WRF-ARW elevation data from GRIB2."
-                #     err_handler.log_msg(config_options, mpi_config)
+                #     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 # cmd = "$WGRIB2 " + input_forcings.file_in2 + " -match " + \
                 #       "\":(HGT):(surface):\" " + \
                 #       " -netcdf " + input_forcings.tmpFileHeight
@@ -6544,7 +6570,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding WRF-ARW elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -6591,7 +6617,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding WRF-ARW elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -6638,7 +6664,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding WRF-ARW elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
                                                                                            input_forcings.esmf_field_out_elem)
@@ -6686,7 +6712,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
 
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding WRF-ARW elevation data to the WRF-Hydro domain."
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
                                                                                  input_forcings.esmf_field_out)
@@ -6736,7 +6762,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF-ARW input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -6804,7 +6830,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF-ARW input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -6871,7 +6897,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF-ARW input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp_elem = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -6939,7 +6965,7 @@ def regrid_hourly_wrf_arw(input_forcings, config_options, wrf_hydro_geo_meta, mp
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF-ARW input variable: " + \
                                                input_forcings.netcdf_var_names[force_count]
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     try:
                         var_tmp = id_tmp.variables[input_forcings.netcdf_var_names[force_count]][0, :, :]
                     except (ValueError, KeyError, AttributeError) as err:
@@ -7038,7 +7064,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
     if supplemental_precip.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No ARW regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
     # Create a path for a temporary NetCDF files that will
@@ -7047,6 +7073,9 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
 
     id_tmp = None
     try:
+        config_options.statusMsg = "Regrid ARW"
+        err_handler.log_msg(config_options, mpi_config)
+
         if supplemental_precip.fileType != NETCDF:
             # These files shouldn't exist. If they do, remove them.
             if mpi_config.rank == 0:
@@ -7094,7 +7123,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
         if calc_regrid_flag:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Calculating WRF ARW regridding weights."
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             calculate_supp_pcp_weights(supplemental_precip, id_tmp, arw_tmp_nc, config_options, mpi_config)
             err_handler.check_program_status(config_options, mpi_config)
 
@@ -7104,7 +7133,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF ARW APCP Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables['APCP_surface'][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -7166,7 +7195,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF ARW APCP Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables['APCP_surface'][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -7227,7 +7256,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF ARW APCP Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp.variables['APCP_surface'][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -7289,7 +7318,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(supplemental_precip, config_options, wrf_hy
             if mpi_config.rank == 0:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Regridding WRF ARW APCP Precipitation."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables['APCP_surface'][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -7391,7 +7420,7 @@ def regrid_sbcv2_liquid_water_fraction(supplemental_forcings, config_options, wr
     if calc_regrid_flag:
         if mpi_config.rank == 0:
             config_options.statusMsg = "Calculating SBCv2 Liquid Water Fraction regridding weights."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calculate_supp_pcp_weights(supplemental_forcings, id_tmp, supplemental_forcings.file_in1,
                                    config_options, mpi_config, lat_var="Lat", lon_var="Lon")
         err_handler.check_program_status(config_options, mpi_config)
@@ -7453,8 +7482,8 @@ def regrid_sbcv2_liquid_water_fraction(supplemental_forcings, config_options, wr
         var_tmp = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction."
-                err_handler.log_msg(config_options, mpi_config)
+                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction - unstructured"
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             try:
                 var_tmp = id_tmp.variables[supplemental_forcings.netcdf_var_names[0]][:]
             except (ValueError, KeyError, AttributeError) as err:
@@ -7504,8 +7533,8 @@ def regrid_sbcv2_liquid_water_fraction(supplemental_forcings, config_options, wr
         var_tmp_elem = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction."
-                err_handler.log_msg(config_options, mpi_config)
+                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction input variable."
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             try:
                 var_tmp_elem = id_tmp.variables[supplemental_forcings.netcdf_var_names[0]][:]
             except (ValueError, KeyError, AttributeError) as err:
@@ -7556,7 +7585,7 @@ def regrid_sbcv2_liquid_water_fraction(supplemental_forcings, config_options, wr
         var_tmp = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction."
+                config_options.statusMsg = "Regridding SBCv2 Liquid Water Fraction - hydrofabric"
                 err_handler.log_msg(config_options, mpi_config)
             try:
                 var_tmp = id_tmp.variables[supplemental_forcings.netcdf_var_names[0]][:]
@@ -7658,7 +7687,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
         for force_count, grib_var in enumerate(forcings_or_precip.grib_vars):
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Converting NBM Variable: " + grib_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             time_str = "{}-{} hour acc fcst".format(forcings_or_precip.fcst_hour1, forcings_or_precip.fcst_hour2) \
                 if grib_var == 'APCP' else str(forcings_or_precip.fcst_hour2) + " hour fcst"
             fields.append(':' + grib_var + ':' +
@@ -7683,10 +7712,13 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
 
     err_handler.check_program_status(config_options, mpi_config)
 
+    config_options.statusMsg = "Processing NBM Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(forcings_or_precip.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing NBM Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
         # Check to see if we need to calculate regridding weights.
         is_supp = forcings_or_precip.grib_vars is None
@@ -7704,13 +7736,13 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
             if is_supp:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Calculating NBM {tag} regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_supp_pcp_weights(forcings_or_precip, id_tmp, forcings_or_precip.file_in1, config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
             else:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Calculating NBM {tag} regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, force_count, forcings_or_precip, config_options, mpi_config, fill=True)
                 err_handler.check_program_status(config_options, mpi_config)
 
@@ -7749,7 +7781,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
 
                         if mpi_config.rank == 0:
                             config_options.statusMsg = "Regridding NBM elevation data to the WRF-Hydro domain."
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(forcings_or_precip.esmf_field_in,
                                                                                              forcings_or_precip.esmf_field_out)
@@ -7798,7 +7830,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
 
                         if mpi_config.rank == 0:
                             config_options.statusMsg = "Regridding NBM elevation data to the WRF-Hydro domain."
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(forcings_or_precip.esmf_field_in,
                                                                                              forcings_or_precip.esmf_field_out)
@@ -7847,7 +7879,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
 
                         if mpi_config.rank == 0:
                             config_options.statusMsg = "Regridding NBM elevation data to the WRF-Hydro domain."
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(forcings_or_precip.esmf_field_in,
                                                                                              forcings_or_precip.esmf_field_out)
@@ -7893,7 +7925,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
 
                         if mpi_config.rank == 0:
                             config_options.statusMsg = "Regridding NBM elevation data to the unstructured domain."
-                            err_handler.log_msg(config_options, mpi_config)
+                            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out_elem = forcings_or_precip.regridObj_elem(forcings_or_precip.esmf_field_in_elem,
                                                                                                        forcings_or_precip.esmf_field_out_elem)
@@ -7928,7 +7960,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Regridding NBM {nc_var}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -7998,7 +8030,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Regridding NBM {nc_var}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -8067,7 +8099,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
             var_tmp = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Regridding NBM {nc_var}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp = id_tmp.variables[nc_var][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -8136,7 +8168,7 @@ def regrid_hourly_nbm(forcings_or_precip, config_options, wrf_hydro_geo_meta, mp
             var_tmp_elem = None
             if mpi_config.rank == 0:
                 config_options.statusMsg = f"Regridding NBM {nc_var}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     var_tmp_elem = id_tmp.variables[nc_var][0, :, :]
                 except (ValueError, KeyError, AttributeError) as err:
@@ -8225,8 +8257,11 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     if input_forcings.regridComplete:
         if mpi_config.rank == 0:
             config_options.statusMsg = "No NDFD regridding required for this timestep."
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
+
+    config_options.statusMsg = "Regrid NDFD"
+    err_handler.log_msg(config_options, mpi_config)
 
     hour = input_forcings.fcst_hour2
     current_cycle = config_options.current_fcst_cycle
@@ -8249,7 +8284,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         if not reuse_prev_file and mpi_config.rank == 0:
             if os.path.isfile(tmp_file):
                 config_options.statusMsg = f"Deleting old temporary file: {tmp_file}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     os.remove(tmp_file)
                 except OSError:
@@ -8262,12 +8297,12 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             if reuse_prev_file:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"Cycle unchanged, reusing temporary file: {tmp_file}"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 id_tmp = ioMod.open_netcdf_forcing(tmp_file, config_options, mpi_config)
             else:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = f"New forecast cycle, creating temporary file from: {grb_file}, cycle hour {current_cycle.hour}"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 if not WGRIB2_env:
                     cmd = [f":d={current_cycle.strftime('%Y%m%d%H')}:"]
                 else:
@@ -8282,26 +8317,26 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 if ndfd_var != "qpf":
                     if forecast_time > times[-1] + timedelta(hours=3):
                         config_options.statusMsg = f"Forecast time beyond NDFD range, skipping"
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         skip_file = 1
                     elif forecast_time in times:
                         time_index = times.index(forecast_time)
                         config_options.statusMsg = f"Found exact time {forecast_time} in NDFD file at index {time_index} for variable {ndfd_var}"
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     else:
                         time_index = min(range(len(times)), key=lambda i: abs(times[i] - forecast_time))
                         config_options.statusMsg = f"Exact time {forecast_time} not found in NDFD file, using closest time at {times[time_index]}"
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 else:
                     # TODO: qpf special handling
                     if forecast_time > times[-1] - timedelta(hours=6):
                         config_options.statusMsg = f"Forecast time beyond NDFD precip range, skipping"
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                         skip_file = 1
                     else:
                         time_index = int(hour // 6)
                         config_options.statusMsg = f"Forecast hour {forecast_time} will use precip from {times[time_index] - timedelta(hours=6)} to {times[time_index]}"
-                        err_handler.log_msg(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             skip_file = mpi_config.broadcast_parameter(skip_file, config_options, param_type=np.ubyte)
             err_handler.check_program_status(config_options, mpi_config)
@@ -8318,7 +8353,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Processing NDFD variable: " + ndfd_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             calc_regrid_flag = check_regrid_status(id_tmp, i, input_forcings,
                                                    config_options, wrf_hydro_geo_meta, mpi_config)
@@ -8327,7 +8362,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             if calc_regrid_flag:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Calculating NDFD regridding weights."
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 calculate_weights(id_tmp, i, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta)
                 err_handler.check_program_status(config_options, mpi_config)
 
@@ -8501,10 +8536,13 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     #    id_tmp = None
     # mpi_config.comm.barrier()
 
+    config_options.statusMsg = "Processing Custom NetCDF Forcing Variables"
+    err_handler.log_msg(config_options, mpi_config)
+
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
             config_options.statusMsg = "Processing Custom NetCDF Forcing Variable: " + nc_var
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         calc_regrid_flag = check_regrid_status(id_tmp, force_count, input_forcings,
                                                config_options, wrf_hydro_geo_meta, mpi_config)
 
@@ -8523,10 +8561,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -8595,10 +8633,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -8665,10 +8703,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp_elem = id_tmp[nc_var].to_masked_array().filled(fill)
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -8736,10 +8774,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             fill = fill_values.get(input_forcings.grib_vars[force_count], config_options.globalNdv)
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Regridding Custom netCDF input variable: " + nc_var
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 try:
                     config_options.statusMsg = f"Using {fill} to replace missing values in input"
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                     var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
                 except Exception as err:
                     config_options.errMsg = "Unable to extract " + nc_var + \
@@ -9079,6 +9117,9 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     :return:
     """
 
+    config_options.statusMsg = "Calculate Weights"
+    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
     if mpi_config.rank == 0:
         if config_options.aws:
             try:
@@ -9160,7 +9201,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                 config_options.statusMsg = "Trimming input forcing `{}` by {} grid cells".format(
                     input_forcings.productName,
                     border)
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             gmask = np.ones([input_forcings.ny_global, input_forcings.nx_global])
             gmask[:+border, :] = 0.  # top edge
@@ -9380,7 +9421,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Loading cached ESMF weight object for " + input_forcings.productName + \
                                                " from " + weight_file
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 err_handler.check_program_status(config_options, mpi_config)
 
                 begin = time.monotonic()
@@ -9392,7 +9433,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Finished loading weight object with ESMF, took {} seconds".format(
                         end - begin)
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
                 config_options.errMsg = "Unable to load cached ESMF weight file: " + str(esmf_error)
@@ -9405,7 +9446,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Loading cached ESMF mesh element weight object for " + input_forcings.productName + \
                                                " from " + weight_file
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 err_handler.check_program_status(config_options, mpi_config)
 
                 begin = time.monotonic()
@@ -9417,7 +9458,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Finished loading mesh element weight object with ESMF, took {} seconds".format(
                         end - begin)
-                    err_handler.log_msg(config_options, mpi_config)
+                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
             except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
                 config_options.errMsg = "Unable to load cached ESMF mesh element weight file: " + str(esmf_error)
@@ -9426,7 +9467,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if input_forcings.regridObj is None:
         if mpi_config.rank == 0:
             config_options.statusMsg = "Creating weight object from ESMF"
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         err_handler.check_program_status(config_options, mpi_config)
         extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
         regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
@@ -9444,7 +9485,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Finished generating weight object with ESMF, took {} seconds".format(
                     end - begin)
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
             config_options.errMsg = "Unable to regrid input data from ESMF: " + str(esmf_error)
             err_handler.log_critical(config_options, mpi_config)
@@ -9475,7 +9516,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if config_options.grid_type == "unstructured" and input_forcings.regridObj_elem is None:
         if mpi_config.rank == 0:
             config_options.statusMsg = "Creating ESMF mesh element weight object from ESMF"
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         err_handler.check_program_status(config_options, mpi_config)
         extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
         regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
@@ -9493,7 +9534,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Finished generating ESMF mesh element weight object with ESMF, took {} seconds".format(
                     end - begin)
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
             config_options.errMsg = "Unable to regrid input data into ESMF mesh element weight object from ESMF: " + str(esmf_error)
             err_handler.log_critical(config_options, mpi_config)
