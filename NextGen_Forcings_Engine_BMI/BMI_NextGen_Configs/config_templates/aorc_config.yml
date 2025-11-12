@@ -9,7 +9,7 @@ InputMandatory: [0]
 OutputFrequency: 60
 SubOutputHour: 0
 SubOutFreq: 0
-ScratchDir: "/ngen-app/data/scratch/AORC/"
+ScratchDir: "{root_dir}/scratch/AORC/"
 Output: 1
 compressOutput: 0
 floatOutput: 0
@@ -20,8 +20,8 @@ ForecastFrequency: 60
 ForecastShift: 0
 ForecastInputHorizons: [2880]
 ForecastInputOffsets: [0]
-Geopackage: "/ngen-app/data/gpkg/conus/gages-01011000.gpkg"
-GeogridIn: "/ngen-app/data/esmf_mesh/gages-01011000_ESMF_Mesh.nc"
+Geopackage: "{root_dir}/gpkg/conus/{gage}.gpkg"
+GeogridIn: "{root_dir}/esmf_mesh/{gage}_ESMF_Mesh.nc"
 SpatialMetaIn: ""
 GRID_TYPE: "hydrofabric"
 NodeCoords: 'nodeCoords'
@@ -47,7 +47,7 @@ ShortwaveDownscaling: [0]
 PressureDownscaling: [0]
 PrecipDownscaling: [0]
 HumidityDownscaling: [0]
-DownscalingParamDirs: ["/ngen-app/data"]
+DownscalingParamDirs: ["{root_dir}"]
 SuppPcp: []
 SuppPcpForcingTypes: []
 SuppPcpDirectories: []
