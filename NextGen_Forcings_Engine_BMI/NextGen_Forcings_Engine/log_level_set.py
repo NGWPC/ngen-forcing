@@ -193,7 +193,6 @@ def log_level_set():
         formatted_module = MODULE_NAME.upper().ljust(LOG_MODULE_NAME_LEN)[:LOG_MODULE_NAME_LEN]
  
         # Apply custom formatter
-        formatted_module = MODULE_NAME.upper().ljust(LOG_MODULE_NAME_LEN)[:LOG_MODULE_NAME_LEN]
         formatter = CustomFormatter(
             fmt=f"%(asctime)s.%(msecs)03d {formatted_module} %(levelname_padded)s %(message)s",
             datefmt="%Y-%m-%dT%H:%M:%S"
