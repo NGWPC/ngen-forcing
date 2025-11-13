@@ -167,7 +167,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
 
         LOG.info('---------------------------')
-        LOG.info("BMI Forcing Engine initialized with %s", config_file)
+        LOG.info("BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
@@ -927,7 +927,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             LOG.error("Output variable names:")
             for var in self._output_var_names:
                 LOG.error(f" - {var}")
-            LOG.error("Grid type:", self._grid_type)
+            LOG.error("Grid type: {self._grid_type}")
             raise UnknownBMIVariable(f"No known variable in BMI model: '{var_name}'")
 
         arr = self._values[var_name]
