@@ -4,6 +4,7 @@ import numpy as np
 from netCDF4 import Dataset
 from scipy import spatial
 
+import shapely  # For shapely 2.x, to avoid obscure segfaults, shapely must be imported before ESMF/esmpy
 try:
     import esmpy as ESMF
 except ImportError:

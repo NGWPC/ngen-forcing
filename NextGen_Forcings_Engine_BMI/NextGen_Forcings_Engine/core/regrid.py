@@ -11,6 +11,7 @@ from mpi4py.futures import MPICommExecutor
 
 # import mpi4py.util.pool as mpi_pool
 
+import shapely  # For shapely 2.x, to avoid obscure segfaults, shapely must be imported before ESMF/esmpy
 try:
     import esmpy as ESMF
 except ImportError:

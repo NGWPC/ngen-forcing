@@ -29,6 +29,7 @@ from collections import defaultdict
 # Here is the model we want to run
 
 ###### NWMv3.0 Forcings Engine modules ######
+import shapely  # For shapely 2.x, to avoid obscure segfaults, shapely must be imported before ESMF/esmpy
 try:
     import esmpy as ESMF
 except ImportError:
