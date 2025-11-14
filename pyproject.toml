@@ -16,11 +16,11 @@ dependencies = [
     "bs4",
     "dask",
     #"gdal == 3.7.3",
-    "fiona>=1.8.0,<1.10.0",  
-    "geopandas>=0.11.0,<0.14.0",  # Pin to avoid Shapely 2.x issues
+    "fiona",  
+    "geopandas",
     "mpi4py>3.1.4",
     "netCDF4",
-    "numpy",
+    "numpy<2",
     "pandas",
     "pyproj>=3.2.0,<4.0.0",  # Pin compatible version
     "PyYaml~=6.0.2",
@@ -28,7 +28,7 @@ dependencies = [
     "ruamel.yaml",
     "s3fs",
     "scipy",
-    "shapely>=1.8.0,<2.0.0",  # Pin to avoid 2.x compatibility issues
+    "shapely~=2.1.1",
     "xarray",
     "zarr"
 ]
