@@ -716,14 +716,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: None
         """
 
-        if self._mpi_meta.rank == 0:
-            for filename in os.listdir(self._job_meta.scratch_dir):
-                file_path = os.path.join(self._job_meta.scratch_dir, filename)
-                if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
-                    os.remove(file_path)
-                elif os.path.isdir(file_path):
-                    os.rmdir(file_path)
-
         # Force destruction of ESMF objects
         try:
             del self._WrfHydroGeoMeta
@@ -741,6 +733,22 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             pass
 
         self._model = None
+
+        # Try moving this after all of the ESMF and model bits have
+        # been disposed of - maybe they were keeping something open.
+        #
+        # Potential workaround if that's not enough: uncomment the
+        # return before the file cleanup block, leak the files during
+        # the job, and let the workflow clean them up after the
+        # process exits
+        #return
+        if self._mpi_meta.rank == 0:
+            for filename in os.listdir(self._job_meta.scratch_dir):
+                file_path = os.path.join(self._job_meta.scratch_dir, filename)
+                if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
+                    os.remove(file_path)
+                elif os.path.isdir(file_path):
+                    os.rmdir(file_path)
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
