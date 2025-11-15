@@ -19,7 +19,7 @@ dependencies = [
     "fiona~=1.10.1",  
     "geopandas~=1.1.1",
     "mpi4py>3.1.4",
-    "netCDF4~=1.7.3",
+    "netCDF4~=1.6.3",
     "numpy~=1.26.4",
     "pandas~=2.3.3",
     "pyproj>=3.2.0,<4.0.0",  # Pin compatible version
