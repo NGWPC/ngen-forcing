@@ -11,6 +11,9 @@ from mpi4py.futures import MPICommExecutor
 
 # import mpi4py.util.pool as mpi_pool
 
+# For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
+# /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
+import shapely
 try:
     import esmpy as ESMF
 except ImportError:
