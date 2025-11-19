@@ -4,7 +4,9 @@ import numpy as np
 from netCDF4 import Dataset
 from scipy import spatial
 
-import shapely  # For shapely 2.x, to avoid obscure segfaults, shapely must be imported before ESMF/esmpy
+# For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
+# /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
+import shapely
 try:
     import esmpy as ESMF
 except ImportError:
