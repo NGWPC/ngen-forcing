@@ -8508,36 +8508,101 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     config_options.errMsg = f"Unable to remove scratch file {tmp_file}: {e}"
                     err_handler.log_critical(config_options, mpi_config)
 
+def proc_aorc_aws(wrf_hydro_geo_meta, MpiConfig, url):
+
+    import cProfile
+    import pstats
+
+    diag_log = '/ngen-app/data/logs/aorc_diagnostics_rte.log'
+
+    with open(diag_log, 'a') as f:
+        f.write("\n\n==================== New AORC AWS Read ====================\n")
+        f.write("in regrid.py proc_aorc_aws function\n")
+        f.write(f"AORC AWS URL: {url}\n")
+
+    if MpiConfig.rank == 0:
+        xmax = np.max(wrf_hydro_geo_meta.lon_bounds)
+        xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
+        ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
+        ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
+        
+        profiler = cProfile.Profile()
+        profiler.enable()
+        with open(diag_log, 'a') as f:
+            f.write(f"AORC AWS bounding box:\n")
+            f.write(f"  xmin: {xmin}, xmax: {xmax}\n")
+            f.write(f"  ymin: {ymin}, ymax: {ymax}\n")
+        
+        try:
+            ds = xr.open_zarr(
+                url,
+                storage_options={'anon': True}
+            )
+        except Exception as e:
+            with open(diag_log, 'a') as f:
+                f.write(f"Error opening AORC AWS data from {url}: {e}\n")
+            raise e
+
+        with open(diag_log, 'a') as f:
+            f.write("AORC AWS data opened\n")
+
+        id_tmp = ds.sel(
+            longitude=slice(xmin, xmax),
+            latitude=slice(ymin, ymax)
+        )
+
+        with open(diag_log, 'a') as f:
+            f.write("AORC AWS data selected\n")
+            f.write("no time-sel\n")
+            f.write(f"Dataset dimensions: {id_tmp.dims}\n")
+            f.write(f"chunks: {id_tmp.chunks}\n")
+
+    else:
+        id_tmp = None
+
+    MpiConfig.comm.barrier()
+
+    with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
+        with dask.config.set(scheduler=executor):
+            dask_graph = len(id_tmp.__dask_graph__())
+            with open(diag_log, 'a') as f:
+                f.write("Starting AORC AWS data compute\n")
+                f.write(f"Number of Dask tasks before compute: {dask_graph}\n")  
+            t0 = time.time()
+            id_tmp = id_tmp.compute()
+            t1 = time.time()
+    if MpiConfig.rank == 0:    
+        with open(diag_log, 'a') as f:
+            f.write(f"AORC AWS data selection and compute time: {t1 - t0} seconds")
+            profiler.disable()
+            stats = pstats.Stats(profiler, stream=f)
+            stats.sort_stats('cumulative')
+            stats.print_stats(20)  # Top 20 functions
+            f.write("AORC AWS data compute complete\n")
+    MpiConfig.comm.barrier()
+
+    return id_tmp
 
 def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     fill_values = {'TMP': 288.0, 'SPFH': 0.005, 'PRES': 101300.0, 'APCP': 0,
                    'UGRD': 1.0, 'VGRD': 1.0, 'DSWRF': 80.0, 'DLWRF': 310.0}
 
-    mpi_config.comm.barrier()
-    with MPICommExecutor(comm=mpi_config.comm, root=0) as executor:
-        with dask.config.set(scheduler=executor):
-            if mpi_config.rank == 0:
-                xmax = np.max(wrf_hydro_geo_meta.lon_bounds)
-                xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
-                ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
-                ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
-                id_tmp = config_options.aws_obj.sel(time=config_options.current_time.strftime('%Y-%m-%d %H:%M:%S'), longitude=slice(xmin, xmax),
-                                                    latitude=slice(ymin, ymax))
-                id_tmp = id_tmp.compute()
-            else:
-                id_tmp = None
-    mpi_config.comm.barrier()
+    diag_log = '/ngen-app/data/logs/aorc_diagnostics_rte.log'
 
-    # if mpi_config.rank == 0:
-    #    xmax = np.max(wrf_hydro_geo_meta.lon_bounds)
-    #    xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
-    #    ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
-    #    ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
-    #    id_tmp = config_options.aws_obj.sel(time=config_options.current_time.strftime('%Y-%m-%d %H:%M:%S'),longitude=slice(xmin, xmax),latitude=slice(ymin, ymax))
-    #    id_tmp = id_tmp.compute()
-    # else:
-    #    id_tmp = None
-    # mpi_config.comm.barrier()
+
+    with open(diag_log, 'a') as f:
+        f.write("in regrid.py regrid_aorc_aws function\n")
+
+    #TODO: Verify this is populated correctly
+    id_tmp = config_options.aws_obj
+
+    with open(diag_log, 'a') as f:
+        f.write("id_tmp set to aws_obj\n")
+        f.write(f"id_tmp variables: {list(id_tmp.data_vars)}\n")
+        f.write(f"id_tmp dims: {id_tmp.dims}\n")
+        f.write(f"id_tmp coords: {list(id_tmp.coords)}\n")
+        f.write(f"id_tmp type: {type(id_tmp)}\n")
+
 
     config_options.statusMsg = "Processing Custom NetCDF Forcing Variables"
     err_handler.log_msg(config_options, mpi_config)
@@ -9119,7 +9184,9 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     :param force_count:
     :return:
     """
-
+    
+    diag_log = '/ngen-app/data/logs/aorc_diagnostics_rte.log'
+    
     config_options.statusMsg = "Calculate Weights"
     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
@@ -9216,7 +9283,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             err_handler.check_program_status(config_options, mpi_config)
         except Exception as e:
             LOG.error(f"{e}")
-
+    
     lat_tmp = None
     lon_tmp = None
     if mpi_config.rank == 0:
@@ -9272,16 +9339,22 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             # Process lat/lon values from the GFS grid.
             if len(id_tmp.variables[lat_var].shape) == 3:
                 # We have 2D grids already in place.
+                with open(diag_log, 'a') as f:
+                    f.write("Detected 3D lat/lon arrays")
                 lat_tmp = id_tmp.variables[lat_var][0, :, :]
                 lon_tmp = id_tmp.variables[lon_var][0, :, :]
             elif len(id_tmp.variables[lon_var].shape) == 2:
                 # We have 2D grids already in place.
+                with open(diag_log, 'a') as f:
+                    f.write("Detected 2D lat/lon arrays")
                 lat_tmp = id_tmp.variables[lat_var][:, :]
                 lon_tmp = id_tmp.variables[lon_var][:, :]
             elif len(id_tmp.variables[lat_var].shape) == 1:
                 # We have 1D lat/lons we need to translate into
                 # 2D grids, one which would come from AORC AWS
                 # s3 bucket data we need to flag here for
+                with open(diag_log, 'a') as f:
+                    f.write("Detected 1D lat/lon arrays")
                 if config_options.aws:
                     lat_tmp = id_tmp.variables[lat_var][:].values
                     lon_tmp = id_tmp.variables[lon_var][:].values
@@ -9289,6 +9362,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                     lat_tmp = id_tmp.variables[lat_var][:]
                     lon_tmp = id_tmp.variables[lon_var][:]
                 lon_tmp, lat_tmp = np.meshgrid(lon_tmp, lat_tmp)
+                with open(diag_log, 'a') as f:
+                    f.write("Converted 1D lat/lon arrays to 2D via meshgrid")
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -9297,6 +9372,13 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
         var_tmp = lat_tmp
     else:
         var_tmp = None
+    
+    with open(diag_log, 'a') as f:
+        f.write(f"Scattering latitudes of shape: {var_tmp.shape if var_tmp is not None else 'None'}\n")
+        f.write(f"Number of processors: {mpi_config.size}\n")
+        f.write(f"Local grid size: {input_forcings.ny_local} x {input_forcings.nx_local}\n")
+        f.write(f"Global grid size: {input_forcings.ny_global} x {input_forcings.nx_global}\n")
+
     var_sub_lat_tmp = mpi_config.scatter_array(input_forcings, var_tmp, config_options)
     err_handler.check_program_status(config_options, mpi_config)
 

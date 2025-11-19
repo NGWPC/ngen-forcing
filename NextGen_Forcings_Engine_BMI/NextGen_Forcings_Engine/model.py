@@ -233,17 +233,30 @@ class NWMv3_Forcing_Engine_model:
                 else:
                     # Flag to indicate the AWS .zarr AORC method
                     if forceKey == 12 or forceKey == 21:
+                        diag_log = '/ngen-app/data/logs/aorc_diagnostics_rte.log'
+
                         if ConfigOptions.aws_time is None or ConfigOptions.current_time.year != ConfigOptions.aws_time.year:
                             ConfigOptions.aws_time = ConfigOptions.current_time
-                            _s3 = s3fs.S3FileSystem(anon=True)
-                            files = [s3fs.S3Map(root=ConfigOptions.aorc_year_url.format(source=ConfigOptions.aorc_source, year=year), s3=_s3,
-                                                check=False, ) for year in [ConfigOptions.aws_time.year]]
-                            with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
-                                with dask.config.set(scheduler=executor):
-                                    if MpiConfig.rank == 0:
-                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
-                                        ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
-                            MpiConfig.comm.barrier()
+                            
+                            with open(diag_log, 'a') as f:
+                                f.write("Inside model.py AWS load block\n")
+
+                            year = ConfigOptions.aws_time.year
+                            url = ConfigOptions.aorc_year_url.format(source=ConfigOptions.aorc_source, year=year)
+
+                            with open(diag_log, 'a') as f:
+                                f.write(f"AORC AWS URL: {url}\n")
+
+                            ConfigOptions.aws_obj=regrid.proc_aorc_aws(wrfHydroGeoMeta, MpiConfig, url)
+
+                            with open(diag_log, 'a') as f:
+                                f.write("AORC AWS object loaded\n")
+
+                            #files = s3fs.S3Map(root=ConfigOptions.aorc_year_url.format(source=ConfigOptions.aorc_source, year=year), s3=_s3,
+                            #                    check=False, )
+                            #if MpiConfig.rank == 0:
+                                # TODO This is using the wrong call for zarr format - should be a single file, not a list
+
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
                     
