@@ -1,6 +1,7 @@
 # Need these for BMI
 # This is needed for get_var_bytes
 import os
+import gc
 from pathlib import Path
 
 import netCDF4 as nc
@@ -741,7 +742,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # return before the file cleanup block, leak the files during
         # the job, and let the workflow clean them up after the
         # process exits
-        #return
+        gc.collect()  # make sure objects are deleted from memory
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
                 file_path = os.path.join(self._job_meta.scratch_dir, filename)
