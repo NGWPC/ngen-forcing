@@ -18,6 +18,10 @@ from netCDF4 import Dataset
 
 from . import err_handler
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
     import pywgrib2_s
@@ -757,15 +761,14 @@ def open_grib2(GribFileIn, NetCdfFileOut, Wgrib2Cmd, ConfigOptions, MpiConfig,
         # Check to see if output file already exists. If so, delete it and
         # override.
         ConfigOptions.statusMsg = "Reading in GRIB2 file: " + GribFileIn
-        err_handler.log_msg(ConfigOptions, MpiConfig)
+        err_handler.log_msg(ConfigOptions, MpiConfig, True)  # log at debug level
         if os.path.isfile(NetCdfFileOut):
             ConfigOptions.statusMsg = "Overwriting temporary NetCDF file: " + NetCdfFileOut
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)  # log at debug level
         try:
             # WCOSS fix for WGRIB2 crashing when called on the same file twice in python
             if not os.environ.get('MFE_SILENT') and not special_case:
-                print(f"Wgrib2 command: {Wgrib2Cmd}")
-                print()
+                LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)  # log at debug level
 
             # set up GRIB2TABLE if needed:
             if not os.environ.get('GRIB2TABLE'):
@@ -780,12 +783,13 @@ def open_grib2(GribFileIn, NetCdfFileOut, Wgrib2Cmd, ConfigOptions, MpiConfig,
                 os.environ['GRIB2TABLE'] = g2path
             if WGRIB2_env:
                 result = subprocess.run(Wgrib2Cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
-                exitcode = result.returncode
-                print(f"wgrib2 output:\n{result.stdout}")
-
-                if exitcode != 0:
+                if (exitcode := result.returncode) != 0:    
                     ConfigOptions.errMsg = f"wgrib2 failed with exit code {exitcode}. Output:\n{result.stdout}"
                     err_handler.log_critical(ConfigOptions, MpiConfig)
+                else:
+                    LOG.debug("wgrib2 output:")
+                    for line in result.stdout.splitlines(): # Log each line separately
+                        LOG.debug(line)
 
             else:
                 sys.stdout.flush()  # Native code uses unbuffered output, so flush our buffer first
@@ -926,7 +930,7 @@ def unzip_file(GzFileIn: str, FileOut: str, ConfigOptions, MpiConfig):
         # Unzip the file in place.
         try:
             ConfigOptions.statusMsg = f"Unzipping file: {GzFileIn}"
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)  # log at debug level
             with gzip.open(GzFileIn, 'rb') as fTmpGz:  # fTmpGz is of type BinaryIO
                 with open(FileOut, 'wb') as fTmp:  # fTmp is also of type BinaryIO
                     # noinspection PyUnresolvedReferences
@@ -979,7 +983,7 @@ def read_rqi_monthly_climo(ConfigOptions, MpiConfig, supplemental_precip, GeoMet
         # Only read the file if the rank is 0 (master processor)
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = f"Reading in RQI Parameter File: {rqiPath}"
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)  # log at debug level
 
             # Ensure the RQI file exists before proceeding
             if not os.path.isfile(rqiPath):
@@ -1038,7 +1042,7 @@ def read_rqi_monthly_climo(ConfigOptions, MpiConfig, supplemental_precip, GeoMet
         # We need to read in a new RQI monthly grid.
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = f"Reading in RQI Parameter File: {rqiPath}"
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)  # log at debug level
 
             # Ensure the RQI file exists
             if not os.path.isfile(rqiPath):

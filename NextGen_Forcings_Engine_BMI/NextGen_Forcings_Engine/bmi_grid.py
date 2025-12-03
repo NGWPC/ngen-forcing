@@ -10,8 +10,14 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+
+from .log_level_set import MODULE_NAME
+
+import logging
+LOG = logging.getLogger(MODULE_NAME)
 
 _error_on_grid_type: bool = False
 
@@ -117,6 +123,7 @@ class Grid:
             NDArray[np.int16]: array of GridUnit enum VALUES denoting the grid unit for each rank.
         """
         if _error_on_grid_type and self.type == GridType.scalar:
+            LOG.error("Scalar has no grid units")
             raise GridTypeAccessError("Scalar has no grid units")
         return self._units
 
@@ -183,6 +190,7 @@ class Grid:
             It is possible for grid values to be associated with the nodes or with the cells.
         """
         if _error_on_grid_type and self.type == GridType.scalar:
+            LOG.error("Scalar has no shape")
             raise GridTypeAccessError("Scalar has no shape")
         return self._shape
 
@@ -207,6 +215,7 @@ class Grid:
             NDArray[np.float64]: Tuple of size rank with the spacing in each of rank dimensions
         """
         if _error_on_grid_type and self.type == GridType.scalar:
+            LOG.error("Scalar has no grid spacing")
             raise GridTypeAccessError("Scalar has no grid spacing")
         return self._spacing
 
@@ -230,6 +239,7 @@ class Grid:
             NDArray[np.float64]: Tuple of size rank with the coordinates of the the grid origin
         """
         if _error_on_grid_type and self.type == GridType.scalar:
+            LOG.error("Scalar has no grid origin")
             raise GridTypeAccessError("Scalar has no grid origin")
         return self._origin
 
@@ -254,6 +264,7 @@ class Grid:
         """
         return self._grid_x
         # if _error_on_grid_type and self.type == GridType.scalar:
+        #    LOG.error("Scalar has no grid x value")
         #    raise GridTypeAccessError("Scalar has no grid x value")
         ##TODO refactor this -- not generic to grid, this works for structured/quads, not for unstructured
         # if (self.type == GridType.rectilinear or self.type == GridType.uniform_rectilinear) and len(self.shape) > 0:
@@ -264,6 +275,7 @@ class Grid:
         #    return np.array( [ self.origin[idx] + self.spacing[idx]*x for x in range(self.shape[idx]) ], dtype=np.float64 )
         # else:
         #    #TODO should this raise an error or return an empty array?
+        #    #LOG.critical(f"Cannot get x coordinates of grid with shape {self.shape}")
         #    #raise RuntimeError(f"Cannot get x coordinates of grid with shape {self.shape}")
         #    return np.array((), dtype=np.float64)
 
@@ -276,6 +288,7 @@ class Grid:
         """
         return self._grid_y
         # if _error_on_grid_type and self.type == GridType.scalar:
+        #    LOG.error("Scalar has no grid y value")
         #    raise GridTypeAccessError("Scalar has no grid y value")
 
         # if (self.type == GridType.rectilinear or self.type == GridType.uniform_rectilinear) and len(self.shape) > 1:
@@ -283,6 +296,7 @@ class Grid:
         #    return np.array( [ self.origin[idx] + self.spacing[idx]*y for y in range(self.shape[idx]) ], dtype=np.float64 )
         # else:
         #    #TODO should this raise an error or return an empty array?
+        #    #LOG.critical(f"Cannot get y coordinates of grid with shape {self.shape}")
         #    #raise RuntimeError(f"Cannot get y coordinates of grid with shape {self.shape}")
         #    return np.array((), dtype=np.float64)
 
@@ -295,6 +309,7 @@ class Grid:
         """
         return self._grid_z
         # if _error_on_grid_type and self.type == GridType.scalar:
+        #    LOG.error("Scalar has no grid z value")
         #    raise GridTypeAccessError("Scalar has no grid z value")
         #
         # if (self.type == GridType.rectilinear or self.type == GridType.uniform_rectilinear) and len(self.shape) > 2:
@@ -302,5 +317,6 @@ class Grid:
         #    return np.array( [ self.origin[idx] + self.spacing[idx]*z for z in range(self.shape[idx]) ], dtype=np.float64 )
         # else:
         #    #TODO should this raise an error or return an empty array?
+        #    #LOG.critical(f"Cannot get z coordinates of grid with shape {self.shape}")
         #    #raise RuntimeError(f"Cannot get z coordinates of grid with shape {self.shape}")
         #    return np.array((), dtype=np.float64)

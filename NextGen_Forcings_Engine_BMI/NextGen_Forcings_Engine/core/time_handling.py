@@ -11,6 +11,10 @@ import pandas as pd
 from . import err_handler
 from .forcingInputMod import input_forcings
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
+
 NETCDF = input_forcings.NETCDF
 
 
@@ -503,7 +507,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     if mpi_config.rank == 0:
         config_options.statusMsg = "Processing Alaska ExtAnA Data. Calculating neighboring " \
                                    "files for this output timestep"
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     # First find the current ExtAnA forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
@@ -651,7 +655,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     if mpi_config.rank == 0:
         config_options.statusMsg = "Processing Conus HRRR Data. Calculating neighboring " \
                                    "files for this output timestep"
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     # Fortunately, HRRR data is straightforward compared to GFS in terms of precip values, etc.
     if d_current >= datetime.datetime(2018, 10, 1):
@@ -721,7 +725,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     tmp_file2 = input_forcings.inDir + '/hrrr.' + current_hrrr_cycle.strftime(
         '%Y%m%d') + "/hrrr.t" + current_hrrr_cycle.strftime('%H') + 'z.wrfsfcf' \
                 + str(next_hrrr_forecast_hour).zfill(2) + input_forcings.file_ext
-    print(f"temp_file_names", tmp_file1, tmp_file2)
+    LOG.debug(f"temp_file_names {tmp_file1}, {tmp_file2}")
     # Check to see if we need to change pathway extension for HRRR data
     # to HPSS tape storage naming conventions
     if (os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False):
@@ -834,7 +838,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
     if mpi_config.rank == 0:
         config_options.statusMsg = "Processing Conus HRRR AK Data. Calculating neighboring " \
                                    "files for this output timestep"
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     default_horizon = 18  # 18-hour forecasts.
     six_hr_horizon = 48  # 48-hour forecasts every six hours.
@@ -1446,8 +1450,8 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     err_handler.check_program_status(config_options, mpi_config)
 
     # debug - ksl
-    print(f"file_in1: {input_forcings.file_in1}")
-    print(f"file_in2: {input_forcings.file_in2}")
+    LOG.debug(f"file_in1: {input_forcings.file_in1}")
+    LOG.debug(f"file_in2: {input_forcings.file_in2}")
 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
@@ -2068,14 +2072,14 @@ def find_hourly_mrms_radar_neighbors(supplemental_precip, config_options, d_curr
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous MRMS supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next MRMS supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         if os.path.isfile(tmp_rqi_file1) and os.path.isfile(tmp_rqi_file2):
             config_options.statusMsg = "Previous MRMS RQI supplemental file: " + tmp_rqi_file1
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             config_options.statusMsg = "Next MRMS RQI supplemental file: " + tmp_rqi_file2
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -2524,9 +2528,9 @@ def _find_ak_ext_ana_precip_stage4(supplemental_precip, config_options, d_curren
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous Stage IV supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next Stage IV supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -2643,9 +2647,9 @@ def _find_conus_ext_ana_precip_stage4(supplemental_precip, config_options, d_cur
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous Stage IV supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next Stage IV supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -2769,9 +2773,9 @@ def _find_ak_ext_ana_precip_mrms(supplemental_precip, config_options, d_current,
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous MRMS supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next MRMS supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -2889,9 +2893,9 @@ def _find_conus_ext_ana_precip_mrms(supplemental_precip, config_options, d_curre
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous MRMS supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next MRMS supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -3113,9 +3117,9 @@ def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mp
 
     if mpi_config.rank == 0:
         # config_options.statusMsg = "Prev NBM supplemental file: " + tmp_file2
-        # err_handler.log_msg(config_options, mpi_config)
+        # err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next NBM supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
@@ -3129,8 +3133,8 @@ def find_hourly_nbm_neighbors(supplemental_precip, config_options, d_current, mp
 
         supplemental_precip.file_in1 = tmp_file1
         supplemental_precip.file_in2 = tmp_file2
-        print(f"tmp_file1: {tmp_file1}")
-        print(f"tmp_file2: {tmp_file2}")
+        LOG.debug(f"tmp_file1: {tmp_file1}")
+        LOG.debug(f"tmp_file2: {tmp_file2}")
         supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
@@ -3281,7 +3285,7 @@ def find_hourly_mrms_precip_flag(supplemental_precip, config_options, d_current,
     """
 
     # debug - ksl
-    print(f"Starting find_hourly_mrms_precip_flag method.")
+    LOG.info(f"Starting find_hourly_mrms_precip_flag method.")
 
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
@@ -3382,7 +3386,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     if mpi_config.rank == 0:
         config_options.statusMsg = "Processing %s Input Data. Calculating neighboring " \
                                    "files for this output timestep" % input_forcings.productName
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     # First find the current input forecast cycle that we are using.
 
@@ -3461,7 +3465,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         tmp_file1 = files1[0]
         if mpi_config.rank == 0:
             config_options.statusMsg = "Previous input file being used: " + tmp_file1
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
         pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
         pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
@@ -3484,7 +3488,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         tmp_file1 = files1[0]
         if mpi_config.rank == 0:
             config_options.statusMsg = "Previous input file being used: " + tmp_file1
-            err_handler.log_msg(config_options, mpi_config)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -3634,13 +3638,13 @@ def find_custom_freq_neighbors(supplemental_precip, config_options, d_current, m
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous Custom supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next Custom supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Previous RQI supplemental file: " + tmp_rqi_file1
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         config_options.statusMsg = "Next RQI supplemental file: " + tmp_rqi_file2
-        err_handler.log_msg(config_options, mpi_config)
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     supplemental_precip.file_in1 = tmp_file1

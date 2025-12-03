@@ -10,6 +10,9 @@ from . import regrid
 from . import timeInterpMod
 from . import time_handling
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
 
 class input_forcings:
     """
@@ -573,7 +576,7 @@ class input_forcings:
             27: time_handling.find_nwm_neighbors
         }
 
-        print(f'keyValue: {self.keyValue}, {find_neighbor_files[self.keyValue].__name__}')
+        LOG.debug(f'keyValue: {self.keyValue}, {find_neighbor_files[self.keyValue].__name__}')
         find_neighbor_files[self.keyValue](self, ConfigOptions, dCurrent, MpiConfig)
 
     def regrid_inputs(self, ConfigOptions, wrfHyroGeoMeta, MpiConfig):
