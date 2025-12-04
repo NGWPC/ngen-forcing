@@ -29,6 +29,9 @@ from collections import defaultdict
 # Here is the model we want to run
 
 ###### NWMv3.0 Forcings Engine modules ######
+# For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
+# /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
+import shapely
 try:
     import esmpy as ESMF
 except ImportError:
@@ -42,6 +45,11 @@ from numpy.typing import NDArray
 if ESMF.version_compare('8.7.0', ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
+from .log_level_set import log_level_set, MODULE_NAME
+log_level_set()
+
+import logging
+LOG = logging.getLogger(MODULE_NAME)
 
 class UnknownBMIVariable(RuntimeError):
     """
@@ -161,18 +169,20 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
 
 
-        print('---------------------------')
-        print("BMI Forcing Engine initialized with", config_file)
+        LOG.info('---------------------------')
+        LOG.info("BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
+            LOG.critical("No BMI initialize configuration provided, nothing to do...")
             raise RuntimeError("No BMI initialize configuration provided, nothing to do...")
 
         bmi_cfg_file = Path(config_file).resolve()
         if not bmi_cfg_file.is_file():
+            LOG.critical(f"Config file {bmi_cfg_file} not found, nothing to do...")
             raise RuntimeError(f"Config file {bmi_cfg_file} not found, nothing to do...")
 
-        print(f"Reading config file: {bmi_cfg_file}")
+        LOG.info(f"Reading config file: {bmi_cfg_file}")
         with bmi_cfg_file.open('r') as fp:
             cfg = yaml.safe_load(fp)
 
@@ -211,7 +221,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
 
-        #print(f"self._job_meta type: {type(self._job_meta)}")
+        #LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         #Call ESMF mesh creation process
         esmf_creation.create_mesh(self._job_meta)
         #Call forcing_extraction process
@@ -754,7 +764,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         try:
             return self._att_map[att_name.lower()]
         except Exception as e:
-            print(f' ERROR: Could not find attribute: {att_name} - {e}')
+            LOG.error(f'Could not find attribute: {att_name} - {e}')
 
     # --------------------------------------------------------
     # Note: These are currently variables needed from other
@@ -826,17 +836,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: The destination array containing the variable values.
         """
 
-        #print(f"[BMI get_value] Called with var_name: '{var_name}'")
-        #print(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
+        #LOG.debug(f"[BMI get_value] Called with var_name: '{var_name}'")
+        #LOG.debug(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
 
         if var_name == "grid:count":
-            print(f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}")
+            LOG.debug(f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type != 'unstructured':
                 dest[...] = 1
             else:
                 dest[...] = 2
         elif var_name == "grid:ids":
-            print(f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}")
+            LOG.debug(f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type == 'gridded':
                 dest[:] = [self.grid_1.id]
             elif self._job_meta.grid_type == 'unstructured':
@@ -844,7 +854,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             elif self._job_meta.grid_type == 'hydrofabric':
                 dest[:] = [self.grid_4.id]
         elif var_name == "grid:ranks":
-            print(f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}")
+            LOG.debug(f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}")
             if self._job_meta.grid_type == 'gridded':
                 dest[:] = [self.grid_1.rank]
             elif self._job_meta.grid_type == 'unstructured':
@@ -853,14 +863,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 dest[:] = [self.grid_4.rank]
         else:
             src = self.get_value_ptr(var_name)
-            print(f"[BMI get_value] Source array shape: {src.shape}, dtype: {src.dtype}")
+            LOG.debug(f"[BMI get_value] Source array shape: {src.shape}, dtype: {src.dtype}")
             if dest.shape != src.shape:
-                print(f"[BMI WARNING] Shape mismatch! dest.shape = {dest.shape}, src.shape = {src.shape}")
+                LOG.warning(f"BMI Shape mismatch! dest.shape = {dest.shape}, src.shape = {src.shape}")
             if dest.dtype != src.dtype:
-                print(f"[BMI WARNING] Dtype mismatch! dest.dtype = {dest.dtype}, src.dtype = {src.dtype}")
+                LOG.warning(f"BMI Dtype mismatch! dest.dtype = {dest.dtype}, src.dtype = {src.dtype}")
             dest[:] = src
 
-        print(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
+        LOG.debug(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
 
         return dest
 
@@ -913,28 +923,27 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # if var_name not in self._values.keys():
         #     raise (UnknownBMIVariable(f"No known variable in BMI model: {var_name}"))
         if var_name not in self._values:
-            print("\n[ BMI Diagnostic ]")
-            print(f"Requested variable: '{var_name}'")
-            print("Available variables:")
+            LOG.error(f"No known variable in BMI model: '{var_name}'")
+            LOG.error("Available variables:")
             for key in self._values:
-                print(f" - {key}")
-            print("Output variable names:")
+                LOG.error(f" - {key}")
+            LOG.error("Output variable names:")
             for var in self._output_var_names:
-                print(f" - {var}")
-            print("Grid type:", self._grid_type)
+                LOG.error(f" - {var}")
+            LOG.error("Grid type: {self._grid_type}")
             raise UnknownBMIVariable(f"No known variable in BMI model: '{var_name}'")
 
         arr = self._values[var_name]
-        # print(f"[BMI get_value_ptr] Found variable '{var_name}' with shape {arr.shape} and dtype {arr.dtype}")
+        # LOG.debug(f"[BMI get_value_ptr] Found variable '{var_name}' with shape {arr.shape} and dtype {arr.dtype}")
 
         # Ensure array is C-contiguous
         if not arr.flags['C_CONTIGUOUS']:
-            print(f"[BMI WARNING] Array for '{var_name}' is not C-contiguous; making a copy.")
+            LOG.warning(f"[BMI] Array for '{var_name}' is not C-contiguous; making a copy.")
             arr = np.ascontiguousarray(arr)
 
         # Ensure dtype is float64 (C double)
         if arr.dtype != np.float64:
-            print(f"[BMI WARNING] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
+            LOG.warning(f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
             arr = arr.astype(np.float64)
 
         # Confirm raveling is safe
@@ -945,9 +954,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # reset original shape
             arr.shape = shape
         except ValueError as e:
+            LOG.critical("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
             raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
 
-        #print(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
+        #LOG.debug(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
         return arr.ravel()
 
     # -------------------------------------------------------------------
@@ -1673,16 +1683,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
         :return: The updated configuration dictionary with appropriately parsed values.
         """
-        #print(f"[DEBUG] Entering _parse_config with cfg type: {type(cfg)}")
+        #LOG.debug(f"Entering _parse_config with cfg type: {type(cfg)}")
         if isinstance(cfg, str):
-            print(f"[ERROR] Received string data instead of dictionary: {cfg[:200]}...")
+            LOG.error(f"Received string data (raw CSV) instead of dictionary: {cfg[:200]}...")
             raise TypeError("Expected dictionary in _parse_config, but got a raw CSV string.")
 
         # if not isinstance(cfg, dict):
         #     raise TypeError(f"[ERROR] Expected dictionary in _parse_config, got {type(cfg)} with contents: {cfg}")
 
         for key, val in cfg.items():
-            # print(f"[DEBUG] Processing key: {key}, value type: {type(val)}, value: {val}")
+            # LOG.debug(f"Processing key: {key}, value type: {type(val)}, value: {val}")
             # Convert all path strings to PosixPath objects
             if any([key.endswith(x) for x in ['_dir', '_path', '_file', '_files']]):
                 if (val is not None) and (val != "None"):

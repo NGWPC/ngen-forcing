@@ -4,11 +4,17 @@ import numpy as np
 from netCDF4 import Dataset
 from scipy import spatial
 
+# For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
+# /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
+import shapely
 try:
     import esmpy as ESMF
 except ImportError:
     import ESMF
 
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
 
 class GeoMetaWrfHydro:
     """
@@ -81,19 +87,19 @@ class GeoMetaWrfHydro:
             self.ny_local = len(self.esmf_grid.coords[0][1])
             self.nx_local_elem = len(self.esmf_grid.coords[1][1])
             self.ny_local_elem = len(self.esmf_grid.coords[1][1])
-            # print("ESMF Mesh nx local node is " + str(self.nx_local))
-            # print("ESMF Mesh nx local elem is " + str(self.nx_local_elem))
+            # LOG.debug("ESMF Mesh nx local node is " + str(self.nx_local))
+            # LOG.debug("ESMF Mesh nx local elem is " + str(self.nx_local_elem))
         elif ConfigOptions.grid_type == 'hydrofabric':
             self.nx_local = len(self.esmf_grid.coords[1][1])
             self.ny_local = len(self.esmf_grid.coords[1][1])
             # self.nx_local_poly = len(self.esmf_poly_coords)
             # self.ny_local_poly = len(self.esmf_poly_coords)
-            # print("ESMF Mesh nx local elem is " + str(self.nx_local))
-            # print("ESMF Mesh nx local poly is " + str(self.nx_local_poly))
-        # print("WRF-HYDRO LOCAL X BOUND 1 = " + str(self.x_lower_bound))
-        # print("WRF-HYDRO LOCAL X BOUND 2 = " + str(self.x_upper_bound))
-        # print("WRF-HYDRO LOCAL Y BOUND 1 = " + str(self.y_lower_bound))
-        # print("WRF-HYDRO LOCAL Y BOUND 2 = " + str(self.y_upper_bound))
+            # LOG.debug("ESMF Mesh nx local elem is " + str(self.nx_local))
+            # LOG.debug("ESMF Mesh nx local poly is " + str(self.nx_local_poly))
+        # LOG.debug("WRF-HYDRO LOCAL X BOUND 1 = " + str(self.x_lower_bound))
+        # LOG.debug("WRF-HYDRO LOCAL X BOUND 2 = " + str(self.x_upper_bound))
+        # LOG.debug("WRF-HYDRO LOCAL Y BOUND 1 = " + str(self.y_lower_bound))
+        # LOG.debug("WRF-HYDRO LOCAL Y BOUND 2 = " + str(self.y_upper_bound))
 
     def initialize_destination_geo_gridded(self, ConfigOptions, MpiConfig):
         """

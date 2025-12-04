@@ -9,6 +9,11 @@ from mpi4py.futures import MPICommExecutor
 import dask.config
 import dask.array as da
 
+from .log_level_set import MODULE_NAME
+
+import logging
+LOG = logging.getLogger(MODULE_NAME)
+
 #TODO expand for other domains
 
 def get_domain_bounds_quick(ConfigOptions):
@@ -26,7 +31,7 @@ def get_domain_bounds_quick(ConfigOptions):
         
         return lat_min, lat_max, lon_min, lon_max
     except Exception as e:
-        print(f"Could not extract bounds: {e}")
+        LOG.critical(f"Could not extract bounds: {e}")
         return None
 
 def check_time(ConfigOptions):
@@ -70,7 +75,7 @@ def get_time_index(zarr_sample, target_time):
     # Verify bounds
     time_length = zarr_sample['time'].shape[0]
     if target_index < 0 or target_index >= time_length:
-        print(f"Warning: Calculated index {target_index} is out of bounds [0, {time_length-1}]")
+        LOG.warning(f"Calculated index {target_index} is out of bounds [0, {time_length-1}]")
         target_index = max(0, min(target_index, time_length-1))
 
     actual_time = reference_time + pd.Timedelta(hours=target_index)
@@ -113,12 +118,12 @@ def get_spatial_bounds(zarr_sample, domain_bounds):
             y_mask = (y_coords >= y_min_proj) & (y_coords <= y_max_proj)
             
         except ImportError:
-            print("pyproj not available, trying simple coordinate matching...")
+            LOG.error("pyproj not available, trying simple coordinate matching...")
             # Fallback without transformation - later steps will likely fail
             x_mask = (x_coords >= lon_min) & (x_coords <= lon_max)
             y_mask = (y_coords >= lat_min) & (y_coords <= lat_max)
         except Exception as e:
-            print(f"Coordinate transformation failed: {e}")
+            LOG.error(f"Coordinate transformation failed: {e}")
             # Fallback without transformation - later steps will likely fail
             x_mask = (x_coords >= lon_min) & (x_coords <= lon_max)
             y_mask = (y_coords >= lat_min) & (y_coords <= lat_max)
@@ -139,7 +144,7 @@ def get_spatial_bounds(zarr_sample, domain_bounds):
             else:
                 raise Exception("One or more indices not > 0")
         except Exception as e:
-            print(f"Error: {e}")
+            LOG.error(f"{e}")
             spatial_bounds = None
         
 
@@ -162,11 +167,11 @@ def read_zarr_data(files, spatial_bounds, target_index, actual_time, x_coords, y
         'u2d': 'U2D',
         'v2d': 'V2D'
     }
-    print("Reading zarr variables individually due to zarr structure.")
+    LOG.debug("Reading zarr variables individually due to zarr structure.")
     # TODO: Investigate performance optimizations.
     # NWM Retrospective zarr data structure: a separate zarr file for each variable
     for i, file_map in enumerate(files):
-        print(f"Reading variable {i+1}/{len(files)}...")
+        LOG.debug(f"Reading variable {i+1}/{len(files)}...")
         
         zarr_group = zarr.open_group(file_map, mode='r')
         
@@ -225,7 +230,7 @@ def read_zarr_data(files, spatial_bounds, target_index, actual_time, x_coords, y
             data_vars[zarr_var_name] = (['time', 'y', 'x'], var_dask, clean_attrs)
             
         else:
-            print(f"  Warning: Variable {zarr_var_name} not found in zarr group")
+            LOG.warning(f"Variable {zarr_var_name} not found in zarr group")
     return data_vars, coords, attrs            
 
 def proc_nwm(ConfigOptions, MpiConfig):    
@@ -250,7 +255,7 @@ def proc_nwm(ConfigOptions, MpiConfig):
                     ds_subset = xr.Dataset(data_vars=data_vars, coords=coords, attrs=attrs)
                     
                 except Exception as e:
-                    print(f"Error with direct zarr access: {e}")
+                    LOG.critical(f"Error with direct zarr access: {e}")
                     import traceback
                     traceback.print_exc()
                     ds_subset = None 
