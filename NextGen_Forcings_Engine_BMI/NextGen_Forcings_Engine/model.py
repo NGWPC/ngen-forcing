@@ -18,7 +18,8 @@ from .core import disaggregateMod
 from .core import downscale
 from .core import err_handler
 from .core import layeringMod
-from . import nwm_proc
+from .models import nwm_proc
+from .models import aorc_proc
 
 from .log_level_set import MODULE_NAME
 
@@ -233,17 +234,7 @@ class NWMv3_Forcing_Engine_model:
                 else:
                     # Flag to indicate the AWS .zarr AORC method
                     if forceKey == 12 or forceKey == 21:
-                        if ConfigOptions.aws_time is None or ConfigOptions.current_time.year != ConfigOptions.aws_time.year:
-                            ConfigOptions.aws_time = ConfigOptions.current_time
-                            _s3 = s3fs.S3FileSystem(anon=True)
-                            files = [s3fs.S3Map(root=ConfigOptions.aorc_year_url.format(source=ConfigOptions.aorc_source, year=year), s3=_s3,
-                                                check=False, ) for year in [ConfigOptions.aws_time.year]]
-                            with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
-                                with dask.config.set(scheduler=executor):
-                                    if MpiConfig.rank == 0:
-                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
-                                        ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
-                            MpiConfig.comm.barrier()
+                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(ConfigOptions, MpiConfig, wrfHydroGeoMeta)
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
                     
