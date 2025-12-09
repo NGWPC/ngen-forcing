@@ -718,21 +718,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
 
         # Force destruction of ESMF objects
-        try:
-            del self._WrfHydroGeoMeta
-        except AttributeError:
-            pass
-
-        try:
-            del self._inputForcingMod
-        except AttributeError:
-            pass
-
-        try:
-            del self._suppPcpMod
-        except AttributeError:
-            pass
-
+        self._WrfHydroGeoMeta = None
+        self._inputForcingMod = None
+        self._suppPcpMod = None
         self._model = None
 
         # Try moving this after all of the ESMF and model bits have
@@ -745,11 +733,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         gc.collect()  # make sure objects are deleted from memory
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
-                file_path = os.path.join(self._job_meta.scratch_dir, filename)
-                if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
-                    os.remove(file_path)
-                elif os.path.isdir(file_path):
-                    os.rmdir(file_path)
+                # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
+                # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
+                # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
+                if not filename.startswith(".nfs"):
+                    file_path = os.path.join(self._job_meta.scratch_dir, filename)
+                    if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
+                        os.remove(file_path)
+                    elif os.path.isdir(file_path):
+                        os.rmdir(file_path)
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
