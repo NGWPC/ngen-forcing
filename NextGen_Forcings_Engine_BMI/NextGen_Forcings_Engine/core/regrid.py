@@ -8521,7 +8521,7 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
                 ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
                 ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
-                id_tmp = config_options.aws_obj.sel(time=config_options.current_time.strftime('%Y-%m-%d %H:%M:%S'), longitude=slice(xmin, xmax),
+                id_tmp = config_options.aws_obj.sel(longitude=slice(xmin, xmax),
                                                     latitude=slice(ymin, ymax))
                 id_tmp = id_tmp.compute()
             else:
