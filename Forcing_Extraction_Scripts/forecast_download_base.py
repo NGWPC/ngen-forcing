@@ -336,7 +336,7 @@ class ForecastDownloader(ABC):
                     # because 'out_path' now points to the same inode.
                     os.remove(temp_path)
 
-                    LOG.info(f"xDownload complete: {out_path}")
+                    LOG.info(f"Download complete: {out_path}")
                     return
 
                 except FileExistsError:
