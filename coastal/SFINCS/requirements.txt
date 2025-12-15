@@ -1,4 +1,4 @@
-pyYaml
+PyYAML
 numpy
 xarray
 pyproj
@@ -7,3 +7,4 @@ matplotlib
 scipy
 netcdf4
 requests
+cfgrib==0.9.15.0
