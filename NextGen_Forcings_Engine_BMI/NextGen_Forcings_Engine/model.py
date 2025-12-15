@@ -141,13 +141,13 @@ class NWMv3_Forcing_Engine_model:
         # Log information about this forecast cycle
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
             ConfigOptions.statusMsg = 'Processing Forecast Cycle: ' + \
                                       ConfigOptions.current_fcst_cycle.strftime('%Y-%m-%d %H:%M')
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
             ConfigOptions.statusMsg = 'Forecast Cycle Length is: ' + \
                                       str(ConfigOptions.cycle_length_minutes) + " minutes"
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
         # MpiConfig.comm.barrier()
 
         # Loop through each output timestep. Perform the following functions:
@@ -393,7 +393,8 @@ class NWMv3_Forcing_Engine_model:
         # the I/O module to update opened netcdf file with forcing fields
         if ConfigOptions.forcing_output == 1:
             OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-            LOG.info(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
+            if MpiConfig.rank == 0:
+                LOG.debug(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):

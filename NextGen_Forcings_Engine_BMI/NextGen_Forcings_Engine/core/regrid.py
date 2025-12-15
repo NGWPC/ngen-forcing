@@ -4,6 +4,7 @@ Regridding module file for regridding input forcing files.
 import os
 import sys
 import traceback
+import hashlib
 from datetime import datetime, timedelta
 
 # from mpi4py.futures import MPIPoolExecutor
@@ -8540,7 +8541,7 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     # mpi_config.comm.barrier()
 
     config_options.statusMsg = "Processing Custom NetCDF Forcing Variables"
-    err_handler.log_msg(config_options, mpi_config)
+    err_handler.log_msg(config_options, mpi_config, True)
 
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
@@ -9409,13 +9410,15 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     weight_file_elem = None
     if config_options.weightsDir is not None:
         grid_key = input_forcings.productName
+        file_key = f"{grid_key}_{config_options.geogrid}"
+        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
         if config_options.grid_type == "gridded":
-            weight_file = os.path.join(config_options.weightsDir, "ESMF_weight_{}_b{}.nc4".format(grid_key, border))
+            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
         elif config_options.grid_type == "unstructured":
-            weight_file = os.path.join(config_options.weightsDir, "ESMF_weight_{}_b{}.nc4".format(grid_key, border))
-            weight_file_elem = os.path.join(config_options.weightsDir, "ESMF_weight_{}_b{}_elem.nc4".format(grid_key, border))
+            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
+            weight_file_elem = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}_elem.nc4")
         elif config_options.grid_type == "hydrofabric":
-            weight_file = os.path.join(config_options.weightsDir, "ESMF_weight_{}_b{}.nc4".format(grid_key, border))
+            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
 
         # check if file exists:
         if os.path.exists(weight_file):
