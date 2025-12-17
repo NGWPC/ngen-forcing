@@ -95,6 +95,7 @@ def write_sfincs_meteo_from_nwm(
     *,
     mode: str,                # "ana" or "retro"
     domain_nc_path: str,      # path to sfincs.nc
+    inp_dict: dict,           # sfincs.inp dict
     raw_root: str,            # root containing meteo/{nwm_ana|nwm_retro}
     out_dir: str,             # where sfincs.amu/.amv/.ampr/.amp go
     target_epsg: str = "32614",
@@ -118,14 +119,25 @@ def write_sfincs_meteo_from_nwm(
     os.makedirs(out_dir, exist_ok=True)
 
     # --- SFINCS domain + buffered, rotated bbox ---
-    sfgrid = xr.open_dataset(domain_nc_path)
-    x0 = float(sfgrid.attrs["x0"])
-    y0 = float(sfgrid.attrs["y0"])
-    nmax = int(sfgrid.attrs["nmax"])
-    mmax = int(sfgrid.attrs["mmax"])
-    dx_sf = float(sfgrid.attrs["dx"])
-    dy_sf = float(sfgrid.attrs["dy"])
-    rotation = float(sfgrid.attrs.get("rotation", 0.0))
+    if "qtrfile" in inp_dict: 
+      sfgrid = xr.open_dataset(domain_nc_path)
+      x0 = float(sfgrid.attrs["x0"])
+      y0 = float(sfgrid.attrs["y0"])
+      nmax = int(sfgrid.attrs["nmax"])
+      mmax = int(sfgrid.attrs["mmax"])
+      dx_sf = float(sfgrid.attrs["dx"])
+      dy_sf = float(sfgrid.attrs["dy"])
+      rotation = float(sfgrid.attrs.get("rotation", 0.0))
+      sfgrid.close()
+    else:
+      x0 = float(inp_dict["x0"])
+      y0 = float(inp_dict["y0"])
+      nmax = int(inp_dict["nmax"])
+      mmax = int(inp_dict["mmax"])
+      dx_sf = float(inp_dict["dx"])
+      dy_sf = float(inp_dict["dy"])
+      rotation = float(inp_dict.get("rotation", 0.0))
+
     width = mmax * dx_sf
     height = nmax * dy_sf
     domain_box = box(x0, y0, x0 + width, y0 + height)
@@ -133,7 +145,6 @@ def write_sfincs_meteo_from_nwm(
     xsf, ysf = rotated_domain.exterior.xy
     xmin, xmax = np.min(xsf) - buffer_m, np.max(xsf) + buffer_m
     ymin, ymax = np.min(ysf) - buffer_m, np.max(ysf) + buffer_m
-    sfgrid.close()
 
     # Writers (lazy)
     u_writer = v_writer = rr_writer = p_writer = None

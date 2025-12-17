@@ -132,24 +132,11 @@ class DataDownloader:
         base = "https://noaa-nwm-retrospective-3-0-pds.s3.amazonaws.com"
         outdir = self._ensure_dir("streamflow", "nwm_retro")
 
-        if self.coastal_model == "sfincs" : 
-          for dt in self._iter_hours():
-            year = dt.strftime("%Y")
-            stamp_ymdhm = dt.strftime("%Y%m%d%H") + "00"  # always minute 00
-            url = f"{base}/CONUS/netcdf/CHRTOUT/{year}/{stamp_ymdhm}.CHRTOUT_DOMAIN1"
-
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            dest = os.path.join(outdir, f"{stamp_ymdhm}.CHRTOUT_DOMAIN1.nc")
-
-            self._safe_download(url, dest)
-
-        else:
-          domain_str= 'CONUS' if self.domain == 'conus' \
+        domain_str= 'CONUS' if self.domain == 'conus' \
                     else 'Hawaii' if self.domain == 'hawaii' else 'PR'    \
                     if self.domain == "prvi"  else 'UNKNOWN'
 
-          for dt in self._iter_hours():
+        for dt in self._iter_hours():
             year = dt.strftime("%Y")
             stamp_ymdhm = dt.strftime("%Y%m%d%H") + "00"  # always minute 00
             url = f"{base}/{domain_str}/netcdf/CHRTOUT/{year}/{stamp_ymdhm}.CHRTOUT_DOMAIN1"
@@ -324,10 +311,10 @@ class DataDownloader:
 
     def _download_hydro(self):
         if self.hydro == "nwm" and self.meteo == "nwm_ana":
-            print("\ndownload_nwm_channel_rt_ana:")
+            print("\ndownload_nwm_channel_rt_ana: nwm_ana")
             self._download_nwm_channel_rt_ana()
         elif self.hydro == "nwm" and self.meteo == "nwm_retro":
-            print("\ndownload_nwm_channel_rt_ana:")
+            print("\ndownload_nwm_channel_rt_ana: retrospective")
             self._download_nwm_channel_rt_retrospective()
         elif self.hydro == "ngen":
             print(f"[hydro:ngen] not available yet")
@@ -360,17 +347,7 @@ class DataDownloader:
         base = "https://storage.googleapis.com/national-water-model"
         outdir = self._ensure_dir("meteo", "nwm_ana")
 
-        if self.coastal_model == "sfincs" : 
-          for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            url = f"{base}/nwm.{date_str}/forcing_analysis_assim/nwm.t{hour_str}z.analysis_assim.forcing.tm00.conus.nc"
-            filename = f"nwm_forcing_{date_str}_{hour_str}.nc"
-            dest = os.path.join(outdir, filename)
-            self._safe_download(url, dest)
-
-        else:
-          for dt in self._iter_hours():
+        for dt in self._iter_hours():
             temp_dt = dt + timedelta(hours = 2)
             date_str = temp_dt.strftime("%Y%m%d")
             hour_str = f"{temp_dt.hour:02d}"
@@ -380,8 +357,11 @@ class DataDownloader:
                     else "puertorico" if self.domain == 'prvi' else f"{self.domain}"
 
             url = f"{base}/nwm.{date_str}/forcing_analysis_assim{domain_str}/nwm.t{hour_str}z.analysis_assim.forcing.tm02.{domain_str2}.nc"
-            #filename = f"nwm_forcing_{date_str}_{hour_str}.nc"
-            filename = f"{date_str}{dt.hour:02d}.LDASIN_DOMAIN1"
+            date_str = dt.strftime("%Y%m%d")
+            if self.coastal_model == "sfincs" : 
+              filename = f"nwm_forcing_{date_str}_{dt.hour:02d}.nc"
+            else:
+              filename = f"{date_str}{dt.hour:02d}.LDASIN_DOMAIN1"
             dest = os.path.join(outdir, filename)
             self._safe_download(url, dest)
 
@@ -393,17 +373,7 @@ class DataDownloader:
         base = "https://storage.googleapis.com/national-water-model"
         outdir = self._ensure_dir("hydro", "nwm")
 
-        if self.coastal_model == "sfincs" : 
-          for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            url = f"{base}/nwm.{date_str}/analysis_assim/nwm.t{hour_str}z.analysis_assim.channel_rt.tm00.conus.nc"
-            filename = f"nwm_channel_rt_{date_str}_{hour_str}.nc"
-            dest = os.path.join(outdir, filename)
-            self._safe_download(url, dest)
-
-        else:
-          for dt in self._iter_hours():
+        for dt in self._iter_hours():
             temp_dt = dt + timedelta(hours = 2)
             date_str = temp_dt.strftime("%Y%m%d")
             hour_str = f"{temp_dt.hour:02d}"
@@ -545,6 +515,8 @@ class DataDownloader:
             # Only try valid STOFS cycles
             if dt.hour not in (0, 6, 12, 18):
                 continue
+
+            region = 'hawaii.cwl' if self.domain == 'hawaii' else 'conus.east.cwl' 
 
             date_str = dt.strftime("%Y%m%d")
             hour = f"{dt.hour:02d}"
@@ -691,42 +663,6 @@ class DataDownloader:
         else:
             print(f"[hydro] Unhandled hydro source '{self.hydro}'")
 
-    # ---------- Concrete downloaders ----------
-    def _download_nwm_meteo_ana(self):
-        """
-        Example URL pattern (provided):
-        https://storage.googleapis.com/national-water-model/nwm.{date}/forcing_analysis_assim/nwm.t{hour:02d}z.analysis_assim.forcing.tm00.conus.nc
-        - date as YYYYMMDD
-        - hour as 00..23
-        """
-        base = "https://storage.googleapis.com/national-water-model"
-        outdir = self._ensure_dir("meteo", "nwm_ana")
-
-        if self.coastal_model == "sfincs" : 
-          for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            url = f"{base}/nwm.{date_str}/forcing_analysis_assim/nwm.t{hour_str}z.analysis_assim.forcing.tm00.conus.nc"
-            filename = f"nwm_forcing_{date_str}_{hour_str}.nc"
-            dest = os.path.join(outdir, filename)
-            self._safe_download(url, dest)
-
-        else:
-          for dt in self._iter_hours():
-            temp_dt = dt + timedelta(hours = 2)
-            date_str = temp_dt.strftime("%Y%m%d")
-            hour_str = f"{temp_dt.hour:02d}"
-            domain_str= '' if self.domain == 'conus' \
-                    else "_puertorico" if self.domain == 'prvi' else f"_{self.domain}"
-            domain_str2= 'conus' if self.domain == 'conus' \
-                    else "puertorico" if self.domain == 'prvi' else f"{self.domain}"
-
-            url = f"{base}/nwm.{date_str}/forcing_analysis_assim{domain_str}/nwm.t{hour_str}z.analysis_assim.forcing.tm02.{domain_str2}.nc"
-            #filename = f"nwm_forcing_{date_str}_{hour_str}.nc"
-            filename = f"{date_str}{dt.hour:02d}.LDASIN_DOMAIN1"
-            dest = os.path.join(outdir, filename)
-            self._safe_download(url, dest)
-
     def _download_nwm_channel_rt_ana(self):
         """
         Example URL pattern (provided):
@@ -735,17 +671,7 @@ class DataDownloader:
         base = "https://storage.googleapis.com/national-water-model"
         outdir = self._ensure_dir("hydro", "nwm")
 
-        if self.coastal_model == "sfincs" : 
-          for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d")
-            hour_str = f"{dt.hour:02d}"
-            url = f"{base}/nwm.{date_str}/analysis_assim/nwm.t{hour_str}z.analysis_assim.channel_rt.tm00.conus.nc"
-            filename = f"nwm_channel_rt_{date_str}_{hour_str}.nc"
-            dest = os.path.join(outdir, filename)
-            self._safe_download(url, dest)
-
-        else:
-          for dt in self._iter_hours():
+        for dt in self._iter_hours():
             temp_dt = dt + timedelta(hours = 2)
             date_str = temp_dt.strftime("%Y%m%d")
             hour_str = f"{temp_dt.hour:02d}"
