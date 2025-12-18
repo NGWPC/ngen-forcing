@@ -225,7 +225,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         #LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         #Call ESMF mesh creation process
-        esmf_creation.create_mesh(self._job_meta)
+        if self._mpi_meta.rank == 0:
+            esmf_creation.create_mesh(self._job_meta)
         #Call forcing_extraction process
         if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
             forcing_extraction.retrieve_forcing(self._job_meta)
@@ -640,7 +641,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         
         gpkg_key = self._job_meta.geopackage
+        time_key = time.time()
         gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
+        time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
        
         if self._output_configured or self._OutputObj is None:
             return  # Already configured or no output object to configure
@@ -659,7 +662,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self._OutputObj.outPath = output_path
             else:
                 filename = (
-                        f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_output_" +
+                        f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_" +
                         pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') +
                         ".nc"
                 )
