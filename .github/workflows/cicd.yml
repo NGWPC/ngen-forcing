@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, nwm-master, development, release-candidate]
+    branches: [ngwpc-candidate, ngwpc-release, master, nwm-master, development, release-candidate]
   pull_request:
-    branches: [main, nwm-master, development, release-candidate]
+    branches: [ngwpc-candidate, ngwpc-release, main, nwm-master, development, release-candidate]
   release:
     types: [published]
 
