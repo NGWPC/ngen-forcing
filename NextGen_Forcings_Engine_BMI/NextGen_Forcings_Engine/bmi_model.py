@@ -641,7 +641,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         
         gpkg_key = self._job_meta.geopackage
-        time_key = time.time()
+        time_key = str(time.time()).replace('.','')
         gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
         time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
        
