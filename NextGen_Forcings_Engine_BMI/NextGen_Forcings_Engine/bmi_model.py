@@ -156,7 +156,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
 
     # -------------------------------------------------------------------
-    def initialize(self, config_file: str) -> None:
+    def initialize(self, config_file: str, output_path: str | None = None) -> None:
         """
         This function is part of the BMI (Basic Model Interface) specification and is automatically
         invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
@@ -600,7 +600,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids
 
 
-        self._configure_output_path()
+        self._configure_output_path(output_path)
 
     def initialize_with_params(self, config_file: str, b_date: str = None, geogrid: str = None, output_path: str = None) -> None:
         """
@@ -627,9 +627,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._job_meta = config.ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
 
         # Now that _job_meta is set, call initialize() to set up the core model
-        self.initialize(config_file)
-
-        self._configure_output_path(output_path)
+        self.initialize(config_file, output_path=output_path)
 
 
     def _configure_output_path(self, output_path: str | None = None) -> None:
