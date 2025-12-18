@@ -258,6 +258,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     center_coords_var[:, 0] = element_x_coord
     center_coords_var[:, 1] = element_y_coord
     elem_id[:] = hyfab.element_id.values
+    nc.sync()
     nc.close()
 
 
