@@ -1,5 +1,6 @@
 # Need these for BMI
 # This is needed for get_var_bytes
+import hashlib
 import os
 import gc
 from pathlib import Path
@@ -637,6 +638,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :param output_path: Optional override path.
         """
+        
+        gpkg_key = self._job_meta.geopackage
+        gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
+       
         if self._output_configured or self._OutputObj is None:
             return  # Already configured or no output object to configure
 
@@ -654,7 +659,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self._OutputObj.outPath = output_path
             else:
                 filename = (
-                        f"NextGen_Forcings_Engine_{ext}_output_" +
+                        f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_output_" +
                         pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') +
                         ".nc"
                 )
