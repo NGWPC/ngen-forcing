@@ -172,7 +172,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
 
         LOG.info('---------------------------')
-        LOG.info("BMI Forcing Engine initialized with {config_file}")
+        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
