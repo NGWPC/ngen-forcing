@@ -10,7 +10,7 @@ OutputFrequency: 60
 SubOutputHour: 120
 SubOutFreq: 180
 ScratchDir: "{root_dir}/scratch/med_range_blend/"
-Output: 1
+Output: 0
 compressOutput: 0
 floatOutput: 0
 AnAFlag: 0
