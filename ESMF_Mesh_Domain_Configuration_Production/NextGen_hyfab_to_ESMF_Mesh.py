@@ -29,11 +29,6 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     :param parquet: Optional parquet file with hydrofabric model attributes
     """
 
-    diag_log = "/ngen-app/data/logs/convert_hyfab_to_esmf.diag.log"
-
-    with open(diag_log, 'a') as f:
-        f.write("in convert_hyfab_to_esmf.py\n")
-
     # Open hydrofabric geopackage file and
     # save copy of original cartesian coordinate system
     # for orientation properties since there are issues
@@ -284,15 +279,10 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
         # Give up the temporary name. The underlying file remains,
         # because 'esmf_mesh_output' now points to the same inode.
         os.remove(temp_path)
-        with open(diag_log, 'a') as f:
-            f.write(f"Copied temp file {temp_path} to {esmf_mesh_output}\n")
 
     except FileExistsError:
         # Another process already published the file.
         os.remove(temp_path)
-
-        with open(diag_log, 'a') as f:
-            f.write(f"Another process created {esmf_mesh_output} already. Removed temp file {temp_path}\n")
 
 
 def get_options():
