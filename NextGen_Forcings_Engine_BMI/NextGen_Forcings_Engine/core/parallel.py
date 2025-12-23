@@ -4,6 +4,7 @@ import numpy as np
 mpi4py.rc.threads = False
 
 from mpi4py import MPI
+
 from . import err_handler
 
 # If MPI was initialized outside of python,
@@ -14,23 +15,22 @@ if MPI.Is_initialized():
 
 
 class MpiConfig:
-    """
+    """MPI config class.
+
     Abstract class for defining the MPI parameters,
     along with initialization of the MPI communication
     handle from mpi4py.
     """
 
     def __init__(self):
-        """
-        Initialize the MPI abstract class that will contain basic
-        information and communication handles.
-        """
+        """Initialize the MPI abstract class that will contain basic information and communication handles."""
         self.comm = None
         self.rank = None
         self.size = None
 
     def initialize_comm(self, config_options, comm=None):
-        """
+        """Initialize MPI communication.
+
         Initial function to initialize MPI.
         :return:
         """
@@ -54,13 +54,13 @@ class MpiConfig:
             raise mpi_exception
 
     def broadcast_parameter(self, value_broadcast, config_options, param_type):
-        """
+        """Broadcast a single parameter value to all processors.
+
         Generic function for sending a parameter value out to the processors.
         :param value_broadcast:
         :param config_options:
         :return:
         """
-
         dtype = np.dtype(param_type)
 
         if self.rank == 0:
@@ -77,7 +77,8 @@ class MpiConfig:
         return param.item(0)
 
     def scatter_array_logan(self, geoMeta, array_broadcast, ConfigOptions):
-        """
+        """Scatter an array based on the input dataset type.
+
         Generic function for calling scatter functons based on
         the input dataset type.
         :param geoMeta:
@@ -96,49 +97,55 @@ class MpiConfig:
 
         # Broadcast the numpy datatype to the other processors.
         if self.rank == 0:
-            tmpDict = {'varTmp': data_type_flag}
+            tmpDict = {"varTmp": data_type_flag}
         else:
             tmpDict = None
         try:
             tmpDict = self.comm.bcast(tmpDict, root=0)
         except Exception:
-            ConfigOptions.errMsg = "Unable to broadcast numpy datatype value from rank 0"
+            ConfigOptions.errMsg = (
+                "Unable to broadcast numpy datatype value from rank 0"
+            )
             err_handler.log_critical(ConfigOptions, self)
             return None
-        data_type_flag = tmpDict['varTmp']
+        data_type_flag = tmpDict["varTmp"]
 
         # Broadcast the global array to the child processors, then
         if self.rank == 0:
             arrayGlobalTmp = array_broadcast
         else:
             if data_type_flag == 1:
-                arrayGlobalTmp = np.empty([geoMeta.ny_global,
-                                           geoMeta.nx_global],
-                                          np.float32)
+                arrayGlobalTmp = np.empty(
+                    [geoMeta.ny_global, geoMeta.nx_global], np.float32
+                )
             else:  # data_type_flag == 2:
-                arrayGlobalTmp = np.empty([geoMeta.ny_global,
-                                           geoMeta.nx_global],
-                                          np.float64)
+                arrayGlobalTmp = np.empty(
+                    [geoMeta.ny_global, geoMeta.nx_global], np.float64
+                )
         try:
             self.comm.Bcast(arrayGlobalTmp, root=0)
         except Exception:
-            ConfigOptions.errMsg = "Unable to broadcast a global numpy array from rank 0"
+            ConfigOptions.errMsg = (
+                "Unable to broadcast a global numpy array from rank 0"
+            )
             err_handler.log_critical(ConfigOptions, self)
             return None
-        arraySub = arrayGlobalTmp[geoMeta.y_lower_bound:geoMeta.y_upper_bound,
-                   geoMeta.x_lower_bound:geoMeta.x_upper_bound]
+        arraySub = arrayGlobalTmp[
+            geoMeta.y_lower_bound : geoMeta.y_upper_bound,
+            geoMeta.x_lower_bound : geoMeta.x_upper_bound,
+        ]
         return arraySub
 
     def scatter_array_scatterv_no_cache(self, geoMeta, src_array, ConfigOptions):
-        """
-            Generic function for calling scatter functons based on
-            the input dataset type.
-            :param geoMeta:
-            :param array_broadcast:
-            :param ConfigOptions:
-            :return:
-        """
+        """Scatter an array based on the input dataset type.
 
+        Generic function for calling scatter functons based on
+        the input dataset type.
+        :param geoMeta:
+        :param array_broadcast:
+        :param ConfigOptions:
+        :return:
+        """
         # Determine which type of input array we have based on the
         # type of numpy array.
         data_type_flag = -1
@@ -159,7 +166,9 @@ class MpiConfig:
         try:
             self.comm.Bcast(data_type_buffer, root=0)
         except:
-            ConfigOptions.errMsg = "Unable to broadcast numpy datatype value from rank 0"
+            ConfigOptions.errMsg = (
+                "Unable to broadcast numpy datatype value from rank 0"
+            )
             err_handler.err_out(ConfigOptions)
             return None
 
@@ -168,26 +177,35 @@ class MpiConfig:
 
         # gather buffer offsets and bounds to rank 0
         bounds = np.array(
-            [np.int32(geoMeta.x_lower_bound), np.int32(geoMeta.y_lower_bound),
-             np.int32(geoMeta.x_upper_bound), np.int32(geoMeta.y_upper_bound)])
+            [
+                np.int32(geoMeta.x_lower_bound),
+                np.int32(geoMeta.y_lower_bound),
+                np.int32(geoMeta.x_upper_bound),
+                np.int32(geoMeta.y_upper_bound),
+            ]
+        )
         global_bounds = np.zeros((self.size * 4), np.int32)
 
         try:
             self.comm.Allgather([bounds, MPI.INTEGER], [global_bounds, MPI.INTEGER])
         except:
-            ConfigOptions.errMsg = "Failed all gathering global bounds at rank" + str(self.rank)
+            ConfigOptions.errMsg = "Failed all gathering global bounds at rank" + str(
+                self.rank
+            )
             err_handler.err_out(ConfigOptions)
             return None
 
         # create slices for x and y bounds arrays
-        x_lower = global_bounds[0:(self.size * 4) + 0:4]
-        y_lower = global_bounds[1:(self.size * 4) + 1:4]
-        x_upper = global_bounds[2:(self.size * 4) + 2:4]
-        y_upper = global_bounds[3:(self.size * 4) + 3:4]
+        x_lower = global_bounds[0 : (self.size * 4) + 0 : 4]
+        y_lower = global_bounds[1 : (self.size * 4) + 1 : 4]
+        x_upper = global_bounds[2 : (self.size * 4) + 2 : 4]
+        y_upper = global_bounds[3 : (self.size * 4) + 3 : 4]
 
         # generate counts
-        counts = [(y_upper[i] - y_lower[i]) * (x_upper[i] - x_lower[i])
-                  for i in range(0, self.size)]
+        counts = [
+            (y_upper[i] - y_lower[i]) * (x_upper[i] - x_lower[i])
+            for i in range(0, self.size)
+        ]
 
         # generate offsets:
         offsets = [0]
@@ -202,8 +220,9 @@ class MpiConfig:
             for i in range(0, self.size):
                 start = offsets[i]
                 stop = offsets[i] + counts[i]
-                sendbuf[start:stop] = src_array[y_lower[i]:y_upper[i],
-                                      x_lower[i]:x_upper[i]].flatten()
+                sendbuf[start:stop] = src_array[
+                    y_lower[i] : y_upper[i], x_lower[i] : x_upper[i]
+                ].flatten()
         else:
             sendbuf = None
 
@@ -226,18 +245,26 @@ class MpiConfig:
             err_handler.error_out(ConfigOptions)
             return None
 
-        subarray = np.reshape(recvbuf, [y_upper[self.rank] - y_lower[self.rank], x_upper[self.rank] - x_lower[self.rank]]).copy()
+        subarray = np.reshape(
+            recvbuf,
+            [
+                y_upper[self.rank] - y_lower[self.rank],
+                x_upper[self.rank] - x_lower[self.rank],
+            ],
+        ).copy()
         return subarray
 
     # use scatterv based scatter_array
     scatter_array = scatter_array_scatterv_no_cache
 
     def merge_slabs_gatherv(self, local_slab, options):
-
+        """Gather slabs from all processors to rank 0."""
         # Filter based on dimensionality of array
-        if (len(local_slab.shape) == 2):
+        if len(local_slab.shape) == 2:
             # gather buffer offsets and bounds to rank 0 for 2d array
-            shapes = np.array([np.int32(local_slab.shape[0]), np.int32(local_slab.shape[1])])
+            shapes = np.array(
+                [np.int32(local_slab.shape[0]), np.int32(local_slab.shape[1])]
+            )
             global_shapes = np.zeros((self.size * 2), np.int32)
         else:
             # gather buffer offsets and bounds to rank 0 for 1d array
@@ -254,14 +281,17 @@ class MpiConfig:
         # options.errMsg = "All gather for global shapes complete"
         # err_handler.log_msg(options,self)
 
-        if (len(local_slab.shape) == 2):
+        if len(local_slab.shape) == 2:
             # check that all slabes are the same width and sum the number of rows
             width = global_shapes[1]
             total_rows = 0
             for i in range(0, self.size):
                 total_rows += global_shapes[2 * i]
                 if global_shapes[(2 * i) + 1] != width:
-                    options.errMsg = "Error: slabs with differing widths detected on slab for rank" + str(i)
+                    options.errMsg = (
+                        "Error: slabs with differing widths detected on slab for rank"
+                        + str(i)
+                    )
                     err_handler.log_critical(options, self)
                     self.comm.abort()
 
@@ -269,8 +299,10 @@ class MpiConfig:
             # err_handler.log_msg(options,self)
 
             # generate counts
-            counts = [global_shapes[i * 2] * global_shapes[(i * 2) + 1]
-                      for i in range(0, self.size)]
+            counts = [
+                global_shapes[i * 2] * global_shapes[(i * 2) + 1]
+                for i in range(0, self.size)
+            ]
 
             # generate offsets:
             offsets = [0]
@@ -314,7 +346,11 @@ class MpiConfig:
 
         # get the data with Gatherv
         try:
-            self.comm.Gatherv(sendbuf=local_slab, recvbuf=[recvbuf, counts, offsets, data_type], root=0)
+            self.comm.Gatherv(
+                sendbuf=local_slab,
+                recvbuf=[recvbuf, counts, offsets, data_type],
+                root=0,
+            )
         except:
             options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
             err_handler.log_critical(options, self)

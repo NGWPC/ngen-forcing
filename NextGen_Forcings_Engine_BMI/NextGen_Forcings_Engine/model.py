@@ -1,30 +1,16 @@
 import datetime
+import logging
 import os
 
-import dask
-import dask.delayed
 import numpy as np
 import pandas as pd
-import s3fs
-import xarray as xr
-import zarr
-import time
-import dask.array as da
-# from mpi4py.futures import MPIPoolExecutor
-from mpi4py.futures import MPICommExecutor
 
-from .core import bias_correction
-from .core import disaggregateMod
-from .core import downscale
-from .core import err_handler
-from .core import layeringMod
-from .models import nwm_proc
-from .models import aorc_proc
-
+from .core import bias_correction, disaggregateMod, downscale, err_handler, layeringMod
 from .log_level_set import MODULE_NAME
+from .models import aorc_proc, nwm_proc
 
-import logging
 LOG = logging.getLogger(MODULE_NAME)
+
 
 class NWMv3_Forcing_Engine_model:
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
@@ -36,9 +22,18 @@ class NWMv3_Forcing_Engine_model:
     # def aws_obj(files):
     #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
-    def run(self, model: dict, future_time: float, ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMod, MpiConfig, OutputObj):
-        """
-        Executes the full forcings engine BMI pipeline for a given future timestep.
+    def run(
+        self,
+        model: dict,
+        future_time: float,
+        ConfigOptions,
+        wrfHydroGeoMeta,
+        inputForcingMod,
+        suppPcpMod,
+        MpiConfig,
+        OutputObj,
+    ):
+        """Execute the full forcings engine BMI pipeline for a given future timestep.
 
         This method updates the `model` state dictionary with atmospheric forcings computed from
         available input datasets. It handles initialization, AWS Zarr loading, regridding, temporal
@@ -76,7 +71,6 @@ class NWMv3_Forcing_Engine_model:
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
-
         # Assign the future time to the configuration
         ConfigOptions.bmi_time = future_time
         disaggregate_fun = disaggregateMod.disaggregate_factory(ConfigOptions)
@@ -87,23 +81,43 @@ class NWMv3_Forcing_Engine_model:
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
             if ConfigOptions.input_forcings[0] in [20, 22]:
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 7200.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 7200.0], dtype=float), 's')[0]
+                ConfigOptions.current_fcst_cycle = (
+                    ConfigOptions.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 7200.0], dtype=float), "s"
+                    )[0]
+                )
+                ConfigOptions.current_time = (
+                    ConfigOptions.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 7200.0], dtype=float), "s"
+                    )[0]
+                )
                 ConfigOptions.future_time = future_time
             else:
                 # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 3600.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 3600.0], dtype=float), 's')[0]
+                ConfigOptions.current_fcst_cycle = (
+                    ConfigOptions.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 3600.0], dtype=float), "s"
+                    )[0]
+                )
+                ConfigOptions.current_time = (
+                    ConfigOptions.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 3600.0], dtype=float), "s"
+                    )[0]
+                )
         else:
             # Forecast-only mode — use BMI timestamp as-is
             ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc
-            ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.to_timedelta(future_time, unit='s')
+            ConfigOptions.current_time = pd.Timestamp(
+                ConfigOptions.b_date_proc
+            ) + pd.to_timedelta(future_time, unit="s")
 
-        LOG.debug("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
+        LOG.debug(
+            "NextGen Forcings Engine processing meteorological forcings for BMI timestamp"
+        )
         LOG.debug(f"Model.py current time: {ConfigOptions.current_time}")
         LOG.debug(f"Model.py current fcst cycle: {ConfigOptions.current_fcst_cycle}")
 
@@ -128,7 +142,9 @@ class NWMv3_Forcing_Engine_model:
                 f"{ConfigOptions.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
                 ".log"
             )
-            ConfigOptions.logFile = os.path.join(ConfigOptions.scratch_dir, log_filename)
+            ConfigOptions.logFile = os.path.join(
+                ConfigOptions.scratch_dir, log_filename
+            )
 
             # Initialize logging
             try:
@@ -140,13 +156,18 @@ class NWMv3_Forcing_Engine_model:
 
         # Log information about this forecast cycle
         if MpiConfig.rank == 0:
-            ConfigOptions.statusMsg = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
+            ConfigOptions.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             err_handler.log_msg(ConfigOptions, MpiConfig, True)
-            ConfigOptions.statusMsg = 'Processing Forecast Cycle: ' + \
-                                      ConfigOptions.current_fcst_cycle.strftime('%Y-%m-%d %H:%M')
+            ConfigOptions.statusMsg = (
+                "Processing Forecast Cycle: "
+                + ConfigOptions.current_fcst_cycle.strftime("%Y-%m-%d %H:%M")
+            )
             err_handler.log_msg(ConfigOptions, MpiConfig, True)
-            ConfigOptions.statusMsg = 'Forecast Cycle Length is: ' + \
-                                      str(ConfigOptions.cycle_length_minutes) + " minutes"
+            ConfigOptions.statusMsg = (
+                "Forecast Cycle Length is: "
+                + str(ConfigOptions.cycle_length_minutes)
+                + " minutes"
+            )
             err_handler.log_msg(ConfigOptions, MpiConfig, True)
         # MpiConfig.comm.barrier()
 
@@ -179,29 +200,45 @@ class NWMv3_Forcing_Engine_model:
             # Optional sub-output timestamp
             if ConfigOptions.sub_output_hour is not None:
                 # TODO This is not used
-                subOutDate = ConfigOptions.first_fcst_cycle + datetime.timedelta(hours=ConfigOptions.sub_output_hour)
+                subOutDate = ConfigOptions.first_fcst_cycle + datetime.timedelta(
+                    hours=ConfigOptions.sub_output_hour
+                )
 
             # Compute the output timestamp for this step
             if ConfigOptions.ana_flag:
-                OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
+                OutputObj.outDate = (
+                    ConfigOptions.current_fcst_cycle
+                    + datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
+                )
             else:
-                OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=future_time)
+                OutputObj.outDate = (
+                    ConfigOptions.current_fcst_cycle
+                    + datetime.timedelta(seconds=future_time)
+                )
 
             ConfigOptions.current_output_date = OutputObj.outDate
 
             # Adjust file_date for AnA if needed
-            file_date = OutputObj.outDate - datetime.timedelta(seconds=ConfigOptions.output_freq * 60) if ConfigOptions.ana_flag else OutputObj.outDate
+            file_date = (
+                OutputObj.outDate
+                - datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
+                if ConfigOptions.ana_flag
+                else OutputObj.outDate
+            )
 
             # Compute previous output date (used for downscaling logic)
             if ConfigOptions.current_output_step == ana_factor:
                 ConfigOptions.prev_output_date = ConfigOptions.current_output_date
             else:
-                ConfigOptions.prev_output_date = ConfigOptions.current_output_date - datetime.timedelta(seconds=future_time)
+                ConfigOptions.prev_output_date = (
+                    ConfigOptions.current_output_date
+                    - datetime.timedelta(seconds=future_time)
+                )
 
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
             if MpiConfig.rank == 0 and show_message:
-                ConfigOptions.statusMsg = '========================================='
+                ConfigOptions.statusMsg = "========================================="
                 err_handler.log_msg(ConfigOptions, MpiConfig)
                 ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
                 err_handler.log_msg(ConfigOptions, MpiConfig)
@@ -210,14 +247,20 @@ class NWMv3_Forcing_Engine_model:
             ConfigOptions.currentCustomForceNum = 0
             LOG.debug(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
             # Loop over each of the input forcings specified.
-            LOG.debug(f"Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
+            LOG.debug(
+                f"Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}"
+            )
 
             for forceKey in ConfigOptions.input_forcings:
                 LOG.debug(f"forceKey: {forceKey}")
                 LOG.debug(f"ConfigOptions.aws: {ConfigOptions.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
-                if forceKey == 23 and 12 in ConfigOptions.input_forcings and 21 in ConfigOptions.input_forcings:
+                if (
+                    forceKey == 23
+                    and 12 in ConfigOptions.input_forcings
+                    and 21 in ConfigOptions.input_forcings
+                ):
                     input_forcings = inputForcingMod[forceKey]
 
                     # These are not used
@@ -225,23 +268,31 @@ class NWMv3_Forcing_Engine_model:
                     # AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
                 else:
                     input_forcings = inputForcingMod[forceKey]
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                    input_forcings.calc_neighbor_files(
+                        ConfigOptions, OutputObj.outDate, MpiConfig
+                    )
 
                 if forceKey in [12, 21, 27] and ConfigOptions.aws is None:
                     # Calculate the previous and next input cycle files from the inputs.
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                    input_forcings.calc_neighbor_files(
+                        ConfigOptions, OutputObj.outDate, MpiConfig
+                    )
                     err_handler.check_program_status(ConfigOptions, MpiConfig)
                 else:
                     # Flag to indicate the AWS .zarr AORC method
                     if forceKey == 12 or forceKey == 21:
-                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(ConfigOptions, MpiConfig, wrfHydroGeoMeta)
+                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(
+                            ConfigOptions, MpiConfig, wrfHydroGeoMeta
+                        )
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
-                    
+
                     # Added separate processing path for CONUS NWM retrospective data
                     # TODO: Expand functionality for oCONUS domains (different zarr structure)
                     elif forceKey == 27:
-                        ConfigOptions.aws_obj = nwm_proc.proc_nwm(ConfigOptions, MpiConfig)
+                        ConfigOptions.aws_obj = nwm_proc.proc_nwm(
+                            ConfigOptions, MpiConfig
+                        )
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
@@ -252,27 +303,44 @@ class NWMv3_Forcing_Engine_model:
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Run check on regridded fields for reasonable values that are not missing values.
-                err_handler.check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig)
+                err_handler.check_forcing_bounds(
+                    ConfigOptions, input_forcings, MpiConfig
+                )
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
                 if input_forcings.rstFlag == 1:
-                    if input_forcings.regridded_forcings1 is not None and input_forcings.regridded_forcings2 is not None:
+                    if (
+                        input_forcings.regridded_forcings1 is not None
+                        and input_forcings.regridded_forcings2 is not None
+                    ):
                         # Set the forcings back to reflect we just regridded the previous set of inputs, not the next.
-                        if ConfigOptions.grid_type == 'gridded':
-                            input_forcings.regridded_forcings1[:, :, :] = input_forcings.regridded_forcings2[:, :, :]
-                        elif ConfigOptions.grid_type == 'unstructured':
-                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
-                            input_forcings.regridded_forcings1_elem[:, :] = input_forcings.regridded_forcings2_elem[:, :]
-                        elif ConfigOptions.grid_type == 'hydrofabric':
-                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
+                        if ConfigOptions.grid_type == "gridded":
+                            input_forcings.regridded_forcings1[:, :, :] = (
+                                input_forcings.regridded_forcings2[:, :, :]
+                            )
+                        elif ConfigOptions.grid_type == "unstructured":
+                            input_forcings.regridded_forcings1[:, :] = (
+                                input_forcings.regridded_forcings2[:, :]
+                            )
+                            input_forcings.regridded_forcings1_elem[:, :] = (
+                                input_forcings.regridded_forcings2_elem[:, :]
+                            )
+                        elif ConfigOptions.grid_type == "hydrofabric":
+                            input_forcings.regridded_forcings1[:, :] = (
+                                input_forcings.regridded_forcings2[:, :]
+                            )
                     # Re-calculate the neighbor files.
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                    input_forcings.calc_neighbor_files(
+                        ConfigOptions, OutputObj.outDate, MpiConfig
+                    )
                     err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                     # Regrid the forcings for the end of the window.
-                    input_forcings.regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+                    input_forcings.regrid_inputs(
+                        ConfigOptions, wrfHydroGeoMeta, MpiConfig
+                    )
                     err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                     input_forcings.rstFlag = 0
@@ -282,15 +350,21 @@ class NWMv3_Forcing_Engine_model:
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Run bias correction.
-                bias_correction.run_bias_correction(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+                bias_correction.run_bias_correction(
+                    input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig
+                )
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Run downscaling on grids for this output timestep.
-                downscale.run_downscaling(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+                downscale.run_downscaling(
+                    input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig
+                )
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 # Layer in forcings from this product.
-                layeringMod.layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig)
+                layeringMod.layer_final_forcings(
+                    OutputObj, input_forcings, ConfigOptions, MpiConfig
+                )
                 err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                 ConfigOptions.currentForceNum += 1
@@ -305,30 +379,52 @@ class NWMv3_Forcing_Engine_model:
                 for suppPcpKey in ConfigOptions.supp_precip_forcings:
                     if suppPcpKey != 13:
                         # Like with input forcings, calculate the neighboring files to use.
-                        suppPcpMod[suppPcpKey].calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                        suppPcpMod[suppPcpKey].calc_neighbor_files(
+                            ConfigOptions, OutputObj.outDate, MpiConfig
+                        )
                         err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                         # Regrid the supplemental precipitation.
-                        suppPcpMod[suppPcpKey].regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+                        suppPcpMod[suppPcpKey].regrid_inputs(
+                            ConfigOptions, wrfHydroGeoMeta, MpiConfig
+                        )
                         err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-                        if suppPcpMod[suppPcpKey].regridded_precip1 is not None \
-                                and suppPcpMod[suppPcpKey].regridded_precip2 is not None:
+                        if (
+                            suppPcpMod[suppPcpKey].regridded_precip1 is not None
+                            and suppPcpMod[suppPcpKey].regridded_precip2 is not None
+                        ):
                             # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(ConfigOptions, suppPcpMod[suppPcpKey], MpiConfig, wrfHydroGeoMeta)
+                            err_handler.check_supp_pcp_bounds(
+                                ConfigOptions,
+                                suppPcpMod[suppPcpKey],
+                                MpiConfig,
+                                wrfHydroGeoMeta,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
-                            disaggregate_fun(input_forcings, suppPcpMod[suppPcpKey], ConfigOptions, MpiConfig)
+                            disaggregate_fun(
+                                input_forcings,
+                                suppPcpMod[suppPcpKey],
+                                ConfigOptions,
+                                MpiConfig,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                             # Run temporal interpolation on the grids.
-                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(ConfigOptions, MpiConfig)
+                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(
+                                ConfigOptions, MpiConfig
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                             # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(OutputObj, suppPcpMod[suppPcpKey],
-                                                                   ConfigOptions, MpiConfig)
+                            layeringMod.layer_supplemental_forcing(
+                                OutputObj,
+                                suppPcpMod[suppPcpKey],
+                                ConfigOptions,
+                                MpiConfig,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
             # Call the output routines
@@ -347,33 +443,55 @@ class NWMv3_Forcing_Engine_model:
                 for suppPcpKey in ConfigOptions.supp_precip_forcings:
                     if suppPcpKey == 14:
                         # Like with input forcings, calculate the neighboring files to use.
-                        suppPcpMod[suppPcpKey].calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                        suppPcpMod[suppPcpKey].calc_neighbor_files(
+                            ConfigOptions, OutputObj.outDate, MpiConfig
+                        )
                         err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                         # Regrid the supplemental precipitation.
-                        suppPcpMod[suppPcpKey].regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+                        suppPcpMod[suppPcpKey].regrid_inputs(
+                            ConfigOptions, wrfHydroGeoMeta, MpiConfig
+                        )
                         err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-                        if suppPcpMod[suppPcpKey].regridded_precip1 is not None \
-                                and suppPcpMod[suppPcpKey].regridded_precip2 is not None:
+                        if (
+                            suppPcpMod[suppPcpKey].regridded_precip1 is not None
+                            and suppPcpMod[suppPcpKey].regridded_precip2 is not None
+                        ):
                             # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(ConfigOptions, suppPcpMod[suppPcpKey], MpiConfig, wrfHydroGeoMeta)
+                            err_handler.check_supp_pcp_bounds(
+                                ConfigOptions,
+                                suppPcpMod[suppPcpKey],
+                                MpiConfig,
+                                wrfHydroGeoMeta,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-                            disaggregate_fun(input_forcings, suppPcpMod[suppPcpKey], ConfigOptions, MpiConfig)
+                            disaggregate_fun(
+                                input_forcings,
+                                suppPcpMod[suppPcpKey],
+                                ConfigOptions,
+                                MpiConfig,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                             # Run temporal interpolation on the grids.
-                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(ConfigOptions, MpiConfig)
+                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(
+                                ConfigOptions, MpiConfig
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
                             # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(OutputObj, suppPcpMod[suppPcpKey],
-                                                                   ConfigOptions, MpiConfig)
+                            layeringMod.layer_supplemental_forcing(
+                                OutputObj,
+                                suppPcpMod[suppPcpKey],
+                                ConfigOptions,
+                                MpiConfig,
+                            )
                             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-        # Now loop through Forcings Engine output object 
-        # and flatten the 2D forcing array and append to 
+        # Now loop through Forcings Engine output object
+        # and flatten the 2D forcing array and append to
         # the BMI object to advertise to BMIinterface
         # 0.) U-Wind (m/s)
         # 1.) V-Wind (m/s)
@@ -385,27 +503,56 @@ class NWMv3_Forcing_Engine_model:
         # 7.) Surface incoming shortwave radiation flux (W/m^2)
         # 8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
         if ConfigOptions.include_lqfrac == 1:
-            variables = ['U2D', 'V2D', 'LWDOWN', 'RAINRATE', 'T2D', 'Q2D', 'PSFC', 'SWDOWN', 'LQFRAC']
+            variables = [
+                "U2D",
+                "V2D",
+                "LWDOWN",
+                "RAINRATE",
+                "T2D",
+                "Q2D",
+                "PSFC",
+                "SWDOWN",
+                "LQFRAC",
+            ]
         else:
-            variables = ['U2D', 'V2D', 'LWDOWN', 'RAINRATE', 'T2D', 'Q2D', 'PSFC', 'SWDOWN']
+            variables = [
+                "U2D",
+                "V2D",
+                "LWDOWN",
+                "RAINRATE",
+                "T2D",
+                "Q2D",
+                "PSFC",
+                "SWDOWN",
+            ]
 
         # If user requests output for given domain, then call
         # the I/O module to update opened netcdf file with forcing fields
         if ConfigOptions.forcing_output == 1:
-            OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
+            OutputObj.update_forcing_file_output(
+                ConfigOptions, wrfHydroGeoMeta, MpiConfig
+            )
             if MpiConfig.rank == 0:
-                LOG.debug(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
+                LOG.debug(
+                    f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}"
+                )
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local[count, :, :].flatten()
+                model[variable + "_ELEMENT"] = OutputObj.output_local[
+                    count, :, :
+                ].flatten()
         elif ConfigOptions.grid_type == "unstructured":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local_elem[count, :].flatten()
-                model[variable + '_NODE'] = OutputObj.output_local[count, :].flatten()
+                model[variable + "_ELEMENT"] = OutputObj.output_local_elem[
+                    count, :
+                ].flatten()
+                model[variable + "_NODE"] = OutputObj.output_local[count, :].flatten()
         elif ConfigOptions.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local[count, :].flatten()
+                model[variable + "_ELEMENT"] = OutputObj.output_local[
+                    count, :
+                ].flatten()
 
         ## Update BMI model time index to next iteration
         ConfigOptions.bmi_time_index += 1
