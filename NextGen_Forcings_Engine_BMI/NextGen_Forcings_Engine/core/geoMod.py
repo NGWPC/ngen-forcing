@@ -25,6 +25,11 @@ LOG = logging.getLogger(MODULE_NAME)
 
 DEBUG_PARTITION_FILE = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/01123000_partition_config.json"
 
+USE_SERIAL_MESH = True
+# USE_SERIAL_MESH = False
+
+WRITE_DEBUG_POLYS = False
+
 
 class GeoMetaWrfHydro:
     """
@@ -977,57 +982,38 @@ class GeoMetaWrfHydro:
 
 
     @staticmethod
-    def get_catchment_element_ids_from_partition_file(MpiConfig, partition_config_file: str) -> list[int]:
-        LOG.info(f"RANK {MpiConfig.rank}: Reading partitions from: {partition_config_file}")
+    def get_rank_per_catchment_element_id_from_partition_file(MpiConfig, partition_config_file: str) -> dict[int, int]:
+        LOG.info(f"RANK {MpiConfig.rank}: Reading ngen partitions from: {partition_config_file}")
+        eid2mpirank: dict[int, int] = {}
+
         with open(partition_config_file) as f:
-            all_parts = json.load(f)["partitions"]
-            for d in all_parts:
-                if d["id"] == MpiConfig.rank:
-                    cat_ids_this_rank = d["cat-ids"]
-                    break
-            else:
-                raise ValueError(f"Did not find id (rank) {MpiConfig.rank} in: {partition_config_file}")
-        element_ids_this_partition: list[int] = []
-        for raw in cat_ids_this_rank:
-            pattern = r"^cat-([0-9]+)$"
-            matches = re.findall(pattern, raw)
-            if matches:
-                assert len(matches) == 1
-                element_ids_this_partition.append(int(matches[0]))
-            elif not raw.startswith("wb-TERMINAL_SENTINEL"):
-                raise ValueError(f"Expected pattern {repr(pattern)} or wb-TERMINAL_SENTINEL-* for cat-ids but got {repr(raw)} in: {partition_config_file}")
+            data = json.load(f)
+        for partition in data["partitions"]:
+            for candidate in partition["cat-ids"]:
+                pattern = r"^cat-([0-9]+)$"
+                matches = re.findall(pattern, candidate)
+                if matches:
+                    assert len(matches) == 1
+                    element_id = int(matches[0])
+                    assert element_id not in eid2mpirank
+                    eid2mpirank[element_id] = partition["id"]
+                elif not candidate.startswith("wb-TERMINAL_SENTINEL"):
+                    raise ValueError(f"Expected pattern {repr(pattern)} or wb-TERMINAL_SENTINEL-* for cat-ids but got {repr(candidate)} in: {partition_config_file}")
 
-        if not element_ids_this_partition:
-            raise ValueError(f"No catchments found for rank {MpiConfig.rank} in: {partition_config_file}")
-
-        return element_ids_this_partition
+        return eid2mpirank
 
 
-    def make_serial_mesh_from_nc_file_mesh(self, ConfigOptions, MpiConfig, write_debug_file: bool = False) -> tuple[xesmf.backend.Mesh, list[int]]:
-        """This is unaffected by ESMF's / esmpy's automatic partitioning
-        This reads partition definitions from the existing ngen partition config json file, and builds a mesh
-        that uses those partitions.
-
-        If write_debug_file is True, a debug FlatGeobuf file will also be written for each partition, next to
-        the existing .nc file and named after the MPI rank."""
-
+    def make_shapely_polygons_from_nc_file_mesh(self, MpiConfig, ConfigOptions) -> tuple[list[Polygon], list[int]]:
+        """Build and return a list of shapely polygons and a corresponding list of element (catchment) IDs, from the nc mesh file."""
         polygons: list[Polygon] = []
+        element_ids: list[int] = []
 
         LOG.info(f"RANK {MpiConfig.rank}: reading: {ConfigOptions.geogrid}")
         with Dataset(ConfigOptions.geogrid, 'r') as nc:
-            elements = nc.variables["element_id"][:]
+            elements = list(map(int, nc.variables["element_id"][:]))
             all_node_coords = nc.variables["nodeCoords"][:]  # 2d, each item is (x,y)
             poly_lengths = nc.variables["numElementConn"][:]
             poly_node_indices = nc.variables["elementConn"][:] - 1  # ESMF is 1-based, Python 0-based
-
-        partition_config_file = DEBUG_PARTITION_FILE
-        if MpiConfig.size > 1:
-            element_ids_this_partition: list[int] = self.get_catchment_element_ids_from_partition_file(MpiConfig, partition_config_file)
-        else:
-            element_ids_this_partition = list(map(int, elements))
-
-        pet_element_inds = []
-        elements_kept = []
 
         cursor = 0  # This slices node indices
         for i, element in enumerate(elements):
@@ -1035,34 +1021,76 @@ class GeoMetaWrfHydro:
             nodes = poly_node_indices[cursor: cursor + length]  # Indexes of the nodes that make up this polygon
             cursor += length  # Increment the cursor before the potential continue
 
-            if int(element) in element_ids_this_partition:
-                pet_element_inds.append(i)
-            # else:
-            #     LOG.info(f"RANK {MpiConfig.rank}: skipping element {element} (not in this partition)")
-            #     continue
-
-            if element in elements_kept:
+            if element in element_ids:
                 raise ValueError(f"Found element multiple times: {element}")
-            elements_kept.append(element)
+            element_ids.append(element)
 
-            LOG.info(f"RANK {MpiConfig.rank}: building polygon for element {element}")
+            LOG.debug(f"RANK {MpiConfig.rank}: building polygon for element {element}")
             coords = all_node_coords[nodes]  # Coordinates (2D) for each of the node indexes that make up this polygon, in the ring order
             shapely_poly = Polygon(coords)
             assert shapely_poly.exterior.is_ccw
+            assert shapely_poly.is_valid
             polygons.append(shapely_poly)
 
-        if write_debug_file:
-            import geopandas as gpd
-            fp = ConfigOptions.geogrid + f".debug.rank{MpiConfig.rank}.polys.fgb"
-            gdf = gpd.GeoDataFrame(geometry=polygons)
-            gdf["element_id"] = elements_kept
-            LOG.info(f"RANK {MpiConfig.rank}: writing debug file for mesh polygons: {fp}")
-            gdf.to_file(fp)
-        
-        LOG.info(f"RANK {MpiConfig.rank}: making mesh")
-        mesh, mesh_shape = xesmf.frontend.polys_to_ESMFmesh(polygons)
-        return mesh, pet_element_inds
+        return polygons, element_ids
 
+
+    def make_serial_mesh_from_nc_file_mesh(self, ConfigOptions, MpiConfig, write_debug_polygons: bool = False) -> tuple[xesmf.backend.Mesh, list[int]]:
+        """This is unaffected by ESMF's / esmpy's automatic partitioning
+        This reads partition definitions from the existing ngen partition config json file, and builds a mesh
+        that uses those partitions.
+
+        If write_debug_polygons is True, a debug FlatGeobuf file will also be written for each partition, next to
+        the existing .nc file and named after the MPI rank. This can only be used for rank 0
+        (rank 0 includes catchment polygon metadata for partitions from all ranks, in the one file it writes)."""
+
+        polygons, element_ids = self.make_shapely_polygons_from_nc_file_mesh(MpiConfig, ConfigOptions)
+
+        if MpiConfig.size > 1:
+            partition_config_file = DEBUG_PARTITION_FILE
+            eid2mpirank = self.get_rank_per_catchment_element_id_from_partition_file(MpiConfig, partition_config_file)
+        else:
+            eid2mpirank = {eid: MpiConfig.rank for eid in element_ids}
+
+        pet_element_inds_this_partition_ngen = [i for i, eid in enumerate(element_ids) if eid2mpirank[eid] == MpiConfig.rank]
+        
+        if write_debug_polygons:
+            import geopandas as gpd
+            if (MpiConfig.rank != 0) or (MpiConfig.size not in (1, 2)):
+                raise ValueError("Reasonable debug polygons can only be written when MPI rank is 0 and MPI size is 1 or 2")
+            fp = ConfigOptions.geogrid + f".debug.partitions.catchment_polys.rank{MpiConfig.rank}.fgb"
+            gdf = gpd.GeoDataFrame(geometry=polygons, crs="EPSG:4326")
+            gdf["element_id"] = element_ids
+            gdf["mpirank_ngen"] = [eid2mpirank[eid] for eid in element_ids]
+            gdf["mpirank_esmf"] = [-9999 for _ in element_ids]  # populate later
+            LOG.debug(f"RANK {MpiConfig.rank}: writing debug file for mesh polygons: {fp}")
+            gdf.to_file(fp)
+
+        LOG.debug(f"RANK {MpiConfig.rank}: making mesh via xesmf from shapely polygons")
+        mesh, mesh_shape = xesmf.frontend.polys_to_ESMFmesh(polygons)
+        return mesh, pet_element_inds_this_partition_ngen
+
+
+    def update_partition_debug_file__catchment_polys__add_esmf_ranks(self, ConfigOptions, MpiConfig):
+        """Update the existing catchment partition polygon debug file to include
+        the automatic ESMF ranks, which can differ from the ngen partitions."""
+        import geopandas as gpd
+        if (MpiConfig.rank != 0) or (MpiConfig.size not in (1, 2)):
+            raise ValueError("Reasonable debug polygons can only be written when MPI rank is 0 and MPI size is 1 or 2")
+        fp = ConfigOptions.geogrid + f".debug.partitions.catchment_polys.rank{MpiConfig.rank}.fgb"
+        LOG.debug(f"RANK {MpiConfig.rank}: updating debug file for mesh polygons to include ESMF ranks: {fp}")
+        gdf = gpd.read_file(fp)
+
+        mpirank_esmf: list[int] = []
+        for eid in gdf["element_id"]:
+            assert eid in self.element_ids_global
+            mpirank_esmf.append(0 if eid in self.element_ids else 1)
+
+        gdf["mpirank_esmf"] = mpirank_esmf
+        gdf.to_file(fp)
+
+    def write_partition_debug_file__grid_extents(self, ConfigOptions, MpiConfig):
+        pass
 
     def initialize_destination_geo_hydrofabric(self, ConfigOptions, MpiConfig):
         """
@@ -1122,10 +1150,16 @@ class GeoMetaWrfHydro:
                 # From ESMF documentation
                 # If you create a mesh from a file (like NetCDF/ESMF-Mesh), coord_sys is ignored. The mesh’s coordinate system should be embedded in the file or inferred.
                 LOG.info(f"RANK {MpiConfig.rank}: reading geogrid: {ConfigOptions.geogrid}")
-                # self.esmf_grid = ESMF.Mesh(filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
-                self.esmf_grid, pet_element_inds = self.make_serial_mesh_from_nc_file_mesh(ConfigOptions, MpiConfig, write_debug_file=True)
+                if USE_SERIAL_MESH:
+                    self.esmf_grid, pet_element_inds = self.make_serial_mesh_from_nc_file_mesh(
+                        ConfigOptions,
+                        MpiConfig,
+                        write_debug_polygons=(True if WRITE_DEBUG_POLYS and MpiConfig.rank == 0 else False),
+                    )
+                else:
+                    self.esmf_grid = ESMF.Mesh(filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to create ESMF Mesh from geogrid file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = f"Unable to create ESMF Mesh from geogrid file with USE_SERIAL_MESH={USE_SERIAL_MESH}: " + ConfigOptions.geogrid
                 tb = traceback.format_exc()
                 raise RuntimeError(f"RANK {MpiConfig.rank}: exception: traceback: \n{tb}") from e
 
@@ -1151,14 +1185,9 @@ class GeoMetaWrfHydro:
             except Exception as e:
                 ConfigOptions.errMsg = "Unable to subset node longitudes from ESMF Mesh object"
 
-            LOG.info(f"RANK {MpiConfig.rank}: mesh has latitude_grid, longitude_grid with shapes = ({self.latitude_grid.shape}, {self.longitude_grid.shape})")
-            print(f"RANK {MpiConfig.rank}: mesh has latitude_grid, longitude_grid with shapes = ({self.latitude_grid.shape}, {self.longitude_grid.shape})")
-
             idTmp = Dataset(ConfigOptions.geogrid, 'r')
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: idTmp.esmf_grid.numElementConn = {idTmp.variables['numElementConn'][:].data}")
 
             # Get lat and lon global variables for pet extraction of indices
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: reading variable elemcoords_var: {repr(ConfigOptions.elemcoords_var)}")
             elementcoords_global = idTmp.variables[ConfigOptions.elemcoords_var][:].data
 
             # Find the corresponding local indices to slice global heights and slope
@@ -1167,11 +1196,8 @@ class GeoMetaWrfHydro:
             pet_elementcoords[:, 0] = self.longitude_grid
             pet_elementcoords[:, 1] = self.latitude_grid
 
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: elementcoords_global={elementcoords_global}")
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: pet_elementcoords={pet_elementcoords}")
-
-            # distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
-            # LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: pet_element_inds initial ={pet_element_inds}")
+            if not USE_SERIAL_MESH:
+                distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
 
             # reset variables to free up memory
             elementcoords_global = None
@@ -1179,26 +1205,25 @@ class GeoMetaWrfHydro:
             distance = None
 
             u, c = np.unique(pet_element_inds, return_counts=True)
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: pet_element_inds final ={pet_element_inds}")
 
             # Read in a scatter the mesh node elevation, which is used for downscaling if available
             if ConfigOptions.hgt_var is not None:
-                LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: reading variable hgt_var: {repr(ConfigOptions.hgt_var)}")
                 self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[pet_element_inds]
 
             if ConfigOptions.slope_var is not None and ConfigOptions.slp_azi_var is not None:
-                LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: reading variable slope_var: {repr(ConfigOptions.slope_var)}")
                 self.slope = idTmp.variables[ConfigOptions.slope_var][:].data[pet_element_inds]
-                LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: reading variable slope_azimuth_var: {repr(ConfigOptions.slope_azimuth_var)}")
                 self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[pet_element_inds]
 
-            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: reading variable element_id_var: {repr(ConfigOptions.element_id_var)}")
             self.element_ids = idTmp.variables[ConfigOptions.element_id_var][:].data[pet_element_inds]
 
             self.element_ids_global = idTmp.variables[ConfigOptions.element_id_var][:].data
 
             LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: self.element_ids_global={self.element_ids_global}")
             LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: self.element_ids={self.element_ids}")
+            LOG.info(f"RANK {MpiConfig.rank}: geoMod.py: pet_element_inds={pet_element_inds}")
+
+            if WRITE_DEBUG_POLYS and (MpiConfig.rank == 0) and (not USE_SERIAL_MESH):
+                self.update_partition_debug_file__catchment_polys__add_esmf_ranks(ConfigOptions, MpiConfig)
 
             # save indices where mesh was partition for future scatter functions
             self.mesh_inds = pet_element_inds
