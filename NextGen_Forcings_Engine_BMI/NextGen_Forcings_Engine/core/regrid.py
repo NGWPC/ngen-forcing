@@ -7,6 +7,8 @@ import traceback
 import hashlib
 from datetime import datetime, timedelta
 
+import debugpy
+
 # from mpi4py.futures import MPIPoolExecutor
 from mpi4py.futures import MPICommExecutor
 
@@ -19,6 +21,8 @@ try:
     import esmpy as ESMF
 except ImportError:
     import ESMF
+import xesmf
+
 
 from pyproj import Transformer
 
@@ -45,6 +49,8 @@ else:
 
 NETCDF = "NETCDF"
 GRIB2 = "GRIB2"
+
+WRITE_DEBUG_POLYS = False
 
 next_file_number = 0
 
@@ -305,7 +311,6 @@ def _regrid_ak_ext_ana_pcp_stage4(supplemental_precip, config_options, wrf_hydro
     :param mpi_config:
     :return:
     """
-
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_precip.file_in1):
@@ -9107,6 +9112,27 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
     return calc_regrid_flag
 
 
+def write_partition_debug_file__esmf_extents(config_options, mpi_config, esmf_lons: np.array, esmf_lats: np.array) -> None:
+    import geopandas as gpd
+    fp = config_options.geogrid + f".debug.partitions.esmf_grid_in_extents.rank{mpi_config.rank}.fgb"
+    LOG.info(f"Writing: {fp}")
+
+    half_pixel_size_x = abs(esmf_lons[0][1] - esmf_lons[0][0]) / 2.0
+    half_pixel_size_y = abs(esmf_lats[1][0] - esmf_lats[0][0]) / 2.0
+
+    LOG.debug(f"half_pixel_size_x = {half_pixel_size_x}")
+    LOG.debug(f"half_pixel_size_y = {half_pixel_size_y}")
+
+    poly = shapely.box(
+        xmin=esmf_lons.amin() - half_pixel_size_x,
+        ymin=esmf_lats.amin() - half_pixel_size_y,
+        xmax=esmf_lons.amax() + half_pixel_size_x,
+        ymax=esmf_lats.amax() + half_pixel_size_y,
+    )
+    gdf = gpd.GeoDataFrame(geometry=[poly], crs="EPSG:4326")
+    gdf.to_file(fp)
+
+
 def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta,
                       lat_var="latitude", lon_var="longitude", fill=False):
     """
@@ -9199,6 +9225,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     # check if we're doing border trimming and set up mask
     border = input_forcings.border  # // 5  # HRRR is a 3 km product
     if border > 0:
+        raise RuntimeError("not testing this yet")
         try:
             mask = input_forcings.esmf_grid_in.add_item(ESMF.GridItem.MASK, ESMF.StaggerLoc.CENTER)
             if mpi_config.rank == 0:
@@ -9222,6 +9249,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     lon_tmp = None
     if mpi_config.rank == 0:
         if input_forcings.productName == 'NWM':
+            raise RuntimeError("not testing this yet")
             nwm_geogrid = nc.Dataset(config_options.nwm_geogrid)
             
             # Get spatial bounds from aws_obj if available
@@ -9329,6 +9357,14 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     del lat_tmp
     del lon_tmp
 
+    if WRITE_DEBUG_POLYS:
+        write_partition_debug_file__esmf_extents(
+            config_options,
+            mpi_config,
+            esmf_lons=input_forcings.esmf_lons,
+            esmf_lats=input_forcings.esmf_lats,
+        )
+
     if config_options.grid_type == "gridded":
 
         # Create a ESMF field to hold the incoming data.
@@ -9369,6 +9405,9 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             config_options.errMsg = "Unable to create ESMF field object: " + str(esmf_error)
             err_handler.log_critical(config_options, mpi_config)
         err_handler.check_program_status(config_options, mpi_config)
+
+    else:
+        raise RuntimeError(f"Unexpected grid_type: {config_options.grid_type}")
 
     # Scatter global grid to processors..
     if mpi_config.rank == 0:
@@ -9411,7 +9450,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if config_options.weightsDir is not None:
         grid_key = input_forcings.productName
         file_key = f"{grid_key}_{config_options.geogrid}"
-        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
+        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8] + f"_mpisize{mpi_config.rank}_mpirank{mpi_config.rank}"
         if config_options.grid_type == "gridded":
             weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
         elif config_options.grid_type == "unstructured":
@@ -9565,6 +9604,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
 
         input_forcings.regridded_mask_elem[:] = np.round(input_forcings.esmf_field_out_elem.data[:])
 
+    config_options.statusMsg = f"RANK {mpi_config.rank}: calculate_weights: done"
+    err_handler.log_msg(config_options, mpi_config, debug=True)
 
 def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_options, mpi_config,
                                lat_var="latitude", lon_var="longitude"):
