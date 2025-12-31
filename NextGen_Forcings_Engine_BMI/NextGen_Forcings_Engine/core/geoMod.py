@@ -1053,6 +1053,7 @@ class GeoMetaWrfHydro:
             eid2mpirank = {eid: MpiConfig.rank for eid in element_ids}
 
         pet_element_inds_this_partition_ngen = [i for i, eid in enumerate(element_ids) if eid2mpirank[eid] == MpiConfig.rank]
+        # pet_element_inds_this_partition_ngen = [i for i, eid in enumerate(element_ids)]
         
         if write_debug_polygons:
             import geopandas as gpd
@@ -1167,7 +1168,7 @@ class GeoMetaWrfHydro:
 
             # Obtain the local boundaries for this processor.
             self.get_processor_bounds(ConfigOptions)
-            LOG.info(f"RANK {MpiConfig.rank}: mesh has nx_local, nx_local = ({self.nx_local}, {self.ny_local})")
+            LOG.info(f"RANK {MpiConfig.rank}: mesh has nx_local, ny_local = ({self.nx_local}, {self.ny_local})")
 
             # Place the local lat/lon grid slices from the parent geogrid file into
             # the ESMF lat/lon grids that have already been seperated by processors.
