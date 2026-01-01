@@ -227,6 +227,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         #Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
             esmf_creation.create_mesh(self._job_meta)
+        self._mpi_meta.comm.Barrier()
+
         #Call forcing_extraction process
         if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
             forcing_extraction.retrieve_forcing(self._job_meta)
