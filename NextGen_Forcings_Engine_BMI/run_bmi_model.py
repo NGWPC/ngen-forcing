@@ -99,6 +99,11 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     print(f'\nNow looping through {num_iterations} timesteps, updating the model, and extracting forcing data\n')
     print(f'rank: {model._mpi_meta.rank}')
     print(f'grid_type: {model._grid_type}')
+
+    import collections
+    catchment2sumrainrate: dict[int, float] = collections.defaultdict(float)
+    rank = model._mpi_meta.rank
+
     for num, timestamp in enumerate(ngen_datetimes):
         print('\n---------------------------------------------------')
         print(f'Iteration #{num} of {num_iterations} for {timestamp}')
@@ -123,6 +128,12 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
             RAINRATE = model.get_value('RAINRATE_ELEMENT', RAINRATE)
             if include_lqfrac:
                 LQFRAC = model.get_value('LQFRAC_ELEMENT', LQFRAC)
+
+            for cat_i, cat in enumerate(CAT_IDS):
+                catchment2sumrainrate[int(cat)] += RAINRATE[cat_i]  # cast to int to avoid int64 problem
+
+            if num >= 15 and num <= 18:
+                print(f"RANK {model._mpi_meta.rank}: RAINRATE: {RAINRATE}")
 
             values_max = [arr.max() for arr in [U2D, V2D, LWDOWN, SWDOWN, T2D, Q2D, PSFC, RAINRATE]]
             values_min = [arr.min() for arr in [U2D, V2D, LWDOWN, SWDOWN, T2D, Q2D, PSFC, RAINRATE]]
@@ -171,6 +182,12 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
 
         print_forcing_summary('max', values_max, include_lqfrac, is_unstructured, model_time)
         print_forcing_summary('min', values_min, include_lqfrac, is_unstructured, model_time)
+
+        import json
+        sumrainrate_file = f"sumrainrate_mpisize{model._mpi_meta.size}_rank{model._mpi_meta.rank}.json"
+        print(f"RANK {model._mpi_meta.rank}: writing sum of rainrates per catchment: {sumrainrate_file}")
+        with open(sumrainrate_file, "w") as f:
+            f.write(json.dumps(catchment2sumrainrate, indent=2))
 
     print('\nFinalizing the BMI model')
     model.finalize()
