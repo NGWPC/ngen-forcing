@@ -25,10 +25,11 @@ LOG = logging.getLogger(MODULE_NAME)
 
 DEBUG_PARTITION_FILE = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/01123000_partition_config.json"
 
-USE_SERIAL_MESH = True
-# USE_SERIAL_MESH = False
+# USE_SERIAL_MESH = True
+USE_SERIAL_MESH = False
 
 WRITE_DEBUG_POLYS = False
+WRITE_DEBUG_POINTS = False
 
 
 class GeoMetaWrfHydro:
@@ -1090,8 +1091,15 @@ class GeoMetaWrfHydro:
         gdf["mpirank_esmf"] = mpirank_esmf
         gdf.to_file(fp)
 
-    def write_partition_debug_file__grid_extents(self, ConfigOptions, MpiConfig):
-        pass
+    def write_partition_debug_file__elementcoords_global(self, ConfigOptions, MpiConfig, elementcoords_global: np.ndarray, element_ids_global: list[int]):
+        import geopandas as gpd
+        import pandas as pd
+        fp = ConfigOptions.geogrid + f".debug.partitions.catchment_coords_global.mpisize{MpiConfig.size}.mpirank{MpiConfig.rank}.fgb"
+        LOG.debug(f"RANK {MpiConfig.rank}: writing debug file for catchment coordinates: {fp}")
+        df = pd.DataFrame(elementcoords_global, columns=["lon", "lat"])
+        gdf = gpd.GeoDataFrame(df, geometry=gpd.points_from_xy(df.lon, df.lat), crs="EPSG:4326")
+        gdf["element_id"] = element_ids_global
+        gdf.to_file(fp)
 
     def initialize_destination_geo_hydrofabric(self, ConfigOptions, MpiConfig):
         """
@@ -1199,6 +1207,14 @@ class GeoMetaWrfHydro:
 
             if not USE_SERIAL_MESH:
                 distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
+
+            if WRITE_DEBUG_POINTS:
+                self.write_partition_debug_file__elementcoords_global(
+                    ConfigOptions,
+                    MpiConfig,
+                    elementcoords_global,
+                    idTmp.variables[ConfigOptions.element_id_var][:].data,
+                )
 
             # reset variables to free up memory
             elementcoords_global = None
