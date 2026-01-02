@@ -9249,7 +9249,6 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     lon_tmp = None
     if mpi_config.rank == 0:
         if input_forcings.productName == 'NWM':
-            raise RuntimeError("not testing this yet")
             nwm_geogrid = nc.Dataset(config_options.nwm_geogrid)
             
             # Get spatial bounds from aws_obj if available
@@ -9450,7 +9449,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if config_options.weightsDir is not None:
         grid_key = input_forcings.productName
         file_key = f"{grid_key}_{config_options.geogrid}"
-        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8] + f"_mpisize{mpi_config.rank}_mpirank{mpi_config.rank}"
+        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8] + f"_mpisize{mpi_config.size}_mpirank{mpi_config.rank}"
         if config_options.grid_type == "gridded":
             weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
         elif config_options.grid_type == "unstructured":
@@ -9488,6 +9487,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
         if config_options.grid_type == "unstructured" and os.path.exists(weight_file_elem):
             # read the data
             try:
+                # if True:
                 if mpi_config.rank == 0:
                     config_options.statusMsg = "Loading cached ESMF mesh element weight object for " + input_forcings.productName + \
                                                " from " + weight_file
@@ -9527,6 +9527,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
                                                    filename=weight_file)
             end = time.monotonic()
 
+            # if True:
             if mpi_config.rank == 0:
                 config_options.statusMsg = "Finished generating weight object with ESMF, took {} seconds".format(
                     end - begin)
