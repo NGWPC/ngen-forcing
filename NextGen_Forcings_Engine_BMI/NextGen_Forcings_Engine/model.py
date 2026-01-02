@@ -169,6 +169,7 @@ class NWMv3_Forcing_Engine_model:
             elif ConfigOptions.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
                 OutputObj.output_local[:, :] = ConfigOptions.globalNdv
+                OutputObj.output_global[:, :] = ConfigOptions.globalNdv
 
             # Increment or initialize output step count
             if ConfigOptions.current_output_step is None:
@@ -391,10 +392,8 @@ class NWMv3_Forcing_Engine_model:
 
         # If user requests output for given domain, then call
         # the I/O module to update opened netcdf file with forcing fields
-        if ConfigOptions.forcing_output == 1:
-            OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-            if MpiConfig.rank == 0:
-                LOG.debug(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
+        if ConfigOptions.forcing_output == 1 or ConfigOptions.grid_type == "hydrofabric":
+            OutputObj.gather_global_outputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):
@@ -405,7 +404,8 @@ class NWMv3_Forcing_Engine_model:
                 model[variable + '_NODE'] = OutputObj.output_local[count, :].flatten()
         elif ConfigOptions.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local[count, :].flatten()
+                model[variable + '_ELEMENT'] = OutputObj.output_global[count, :].flatten()
+                model['CAT-ID'] = wrfHydroGeoMeta.element_ids_global
 
         ## Update BMI model time index to next iteration
         ConfigOptions.bmi_time_index += 1
