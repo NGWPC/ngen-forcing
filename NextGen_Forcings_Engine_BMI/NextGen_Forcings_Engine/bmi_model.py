@@ -599,7 +599,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids
+            self._values["CAT-ID"] = self._WrfHydroGeoMeta.element_ids_global
 
 
         self._configure_output_path(output_path)

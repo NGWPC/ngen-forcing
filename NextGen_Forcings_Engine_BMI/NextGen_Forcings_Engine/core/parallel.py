@@ -52,11 +52,17 @@ class MpiConfig:
         except MPI.Exception as mpi_exception:
             config_options.errMsg = "Unable to retrieve the MPI processor rank."
             raise mpi_exception
-        
-        if True:
-            import debugpy
-            debugpy.listen(('localhost', 5678 + self.rank))
-            debugpy.wait_for_client()
+
+        if False:
+            self.wait_for_debugpy_client()
+
+    def wait_for_debugpy_client(self):
+        """This blocks until the debugpy clients have attached to cppdbg/gdb.
+        This is for debugging concurrent ngen-forcing MPI ranks (processes).
+        See `launch.json`, `devcontainer.json`, and `tasks.json` in the nwm-rte repository for details."""
+        import debugpy
+        debugpy.listen(('localhost', 5678 + self.rank))
+        debugpy.wait_for_client()
 
     def broadcast_parameter(self, value_broadcast, config_options, param_type):
         """
@@ -243,7 +249,11 @@ class MpiConfig:
     # use scatterv based scatter_array
     scatter_array = scatter_array_scatterv_no_cache
 
-    def merge_slabs_gatherv(self, local_slab, options):
+    def merge_slabs_gatherv(self, local_slab, options, allgather: bool = False):
+        """If allgather is True, then Allgatherv will be used instead of Gatherv,
+        which causes all ranks to be distributed to all other ranks. This is necessary
+        for the hydrofabric case, to handle how ngen's hydrologic catchment partitionining
+        differs from ESMF's arbitrary partitioning."""
 
         # Filter based on dimensionality of array
         if (len(local_slab.shape) == 2):
@@ -292,7 +302,7 @@ class MpiConfig:
             # err_handler.log_msg(options,self)
 
             # create the receive buffer
-            if self.rank == 0:
+            if allgather or self.rank == 0:
                 recvbuf = np.empty([total_rows, width], local_slab.dtype)
             else:
                 recvbuf = None
@@ -309,7 +319,7 @@ class MpiConfig:
             # err_handler.log_msg(options,self)
 
             # create the receive buffer
-            if self.rank == 0:
+            if allgather or self.rank == 0:
                 recvbuf = np.empty([sum(global_shapes)], local_slab.dtype)
             else:
                 recvbuf = None
@@ -325,7 +335,10 @@ class MpiConfig:
 
         # get the data with Gatherv
         try:
-            self.comm.Gatherv(sendbuf=local_slab, recvbuf=[recvbuf, counts, offsets, data_type], root=0)
+            if allgather:
+                self.comm.Allgatherv(sendbuf=local_slab, recvbuf=[recvbuf, counts, offsets, data_type])
+            else:
+                self.comm.Gatherv(sendbuf=local_slab, recvbuf=[recvbuf, counts, offsets, data_type], root=0)
         except:
             options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
             err_handler.log_critical(options, self)
