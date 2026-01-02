@@ -52,19 +52,20 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
     # Initialize arrays based on grid type
     # ===============================
     if model._grid_type in {"gridded", "hydrofabric"}:
+        varsize = len(model._WrfHydroGeoMeta.element_ids_global) if model._grid_type == "hydrofabric" else model._varsize
         # Shared initialization
-        U2D = np.zeros(model._varsize, dtype=float)
-        V2D = np.zeros(model._varsize, dtype=float)
-        LWDOWN = np.zeros(model._varsize, dtype=float)
-        SWDOWN = np.zeros(model._varsize, dtype=float)
-        T2D = np.zeros(model._varsize, dtype=float)
-        Q2D = np.zeros(model._varsize, dtype=float)
-        PSFC = np.zeros(model._varsize, dtype=float)
-        RAINRATE = np.zeros(model._varsize, dtype=float)
+        U2D = np.zeros(varsize, dtype=float)
+        V2D = np.zeros(varsize, dtype=float)
+        LWDOWN = np.zeros(varsize, dtype=float)
+        SWDOWN = np.zeros(varsize, dtype=float)
+        T2D = np.zeros(varsize, dtype=float)
+        Q2D = np.zeros(varsize, dtype=float)
+        PSFC = np.zeros(varsize, dtype=float)
+        RAINRATE = np.zeros(varsize, dtype=float)
         if model._job_meta.include_lqfrac == 1:
-            LQFRAC = np.zeros(model._varsize, dtype=float)
+            LQFRAC = np.zeros(varsize, dtype=float)
         if model._grid_type == "hydrofabric":
-            CAT_IDS = np.zeros(model._varsize, dtype=int)
+            CAT_IDS = np.zeros(varsize, dtype=int)
 
     elif model._grid_type == "unstructured":
         # Unstructured grid (element + node)
@@ -183,14 +184,30 @@ def run_bmi(start_time: str, end_time: str, config_path: pathlib.Path = None, b_
         print_forcing_summary('max', values_max, include_lqfrac, is_unstructured, model_time)
         print_forcing_summary('min', values_min, include_lqfrac, is_unstructured, model_time)
 
+    if False:
         import json
         sumrainrate_file = f"sumrainrate_mpisize{model._mpi_meta.size}_rank{model._mpi_meta.rank}.json"
         print(f"RANK {model._mpi_meta.rank}: writing sum of rainrates per catchment: {sumrainrate_file}")
         with open(sumrainrate_file, "w") as f:
             f.write(json.dumps(catchment2sumrainrate, indent=2))
+        if model._mpi_meta.size == 1:
+            update_partition_debug_file__catchment_polys__add_rainrate_sums(model, catchment2sumrainrate)
 
     print('\nFinalizing the BMI model')
     model.finalize()
+
+
+def update_partition_debug_file__catchment_polys__add_rainrate_sums(model, catchment2sumrainrate: dict[str, float]):
+    """Update the existing catchment partition polygon debug file to include the rainrate sums."""
+    import geopandas as gpd
+    assert model._mpi_meta.size == 1
+    # fp = model.cfg_bmi["GeogridIn"] + f".debug.partitions.catchment_polys.mpisize{model._mpi_meta.size}.mpirank{model._mpi_meta.rank}.fgb"
+    fp = model.cfg_bmi["GeogridIn"] + f".debug.partitions.catchment_polys.rank{model._mpi_meta.rank}.fgb"
+    print(f"RANK {model._mpi_meta.rank}: updating debug file for mesh polygons to include rainrate sums: {fp}")
+    dict_map = {int(cat): rr for cat, rr in catchment2sumrainrate.items()}
+    gdf = gpd.read_file(fp)
+    gdf["rainrate_sum"] = gdf["element_id"].map(dict_map)
+    gdf.to_file(fp)
 
 
 def print_forcing_summary(label: str, values: list[float], include_lqfrac: bool, is_unstructured: bool, model_time: datetime.datetime):
