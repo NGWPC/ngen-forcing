@@ -45,11 +45,18 @@ class CustomFormatter(logging.Formatter):
         return s
 
     def format(self, record):
+        # Strip trailing whitespace/newlines from the message
+        if record.msg:
+            record.msg = str(record.msg).rstrip()
+
+        # Map level names
         original_levelname = record.levelname
         record.levelname = self.LEVEL_NAME_MAP.get(record.levelno, original_levelname)
         record.levelname_padded = record.levelname.ljust(7)[:7]  # Exactly 7 chars
         formatted = super().format(record)
-        record.levelname = original_levelname  # Restore original in case it's reused
+
+        # Restore original levelname in case it's reused
+        record.levelname = original_levelname
         return formatted
      
 def create_timestamp(date_only: bool = False, iso: bool = False, append_ms: bool = False) -> str:
