@@ -149,8 +149,6 @@ class MpiConfig:
             :param ConfigOptions:
             :return:
         """
-        ConfigOptions.errMsg = f"RANK {self.rank}: parallel.py: scatter_array_scatterv_no_cache(): "
-        err_handler.log_msg(ConfigOptions, self)
 
         # Determine which type of input array we have based on the
         # type of numpy array.
@@ -232,8 +230,6 @@ class MpiConfig:
             recvbuf = np.empty([counts[self.rank]], np.float64)
 
         # scatter the data
-        ConfigOptions.errMsg = f"RANK {self.rank}: parallel.py: calling Scatterv using {[sendbuf, counts, offsets, data_type], recvbuf}"
-        err_handler.log_msg(ConfigOptions, self)
         try:
             self.comm.Scatterv([sendbuf, counts, offsets, data_type], recvbuf, root=0)
         except:
@@ -242,8 +238,6 @@ class MpiConfig:
             return None
 
         subarray = np.reshape(recvbuf, [y_upper[self.rank] - y_lower[self.rank], x_upper[self.rank] - x_lower[self.rank]]).copy()
-        ConfigOptions.errMsg = f"RANK {self.rank}: parallel.py: subarray = {subarray}"
-        err_handler.log_msg(ConfigOptions, self)
         return subarray
 
     # use scatterv based scatter_array
