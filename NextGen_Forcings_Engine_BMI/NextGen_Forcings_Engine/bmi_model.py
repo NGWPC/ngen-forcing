@@ -950,8 +950,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             LOG.warning(f"[BMI] Array for '{var_name}' is not C-contiguous; making a copy.")
             arr = np.ascontiguousarray(arr)
 
-        # Ensure dtype is float64 (C double)
-        if arr.dtype != np.float64:
+        # Ensure dtype is float64 (C double), except for CAT-ID
+        if var_name == "CAT-ID":
+            if arr.dtype != np.int32:
+                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
+                LOG.critical(msg)
+                raise RuntimeError(msg)
+        elif arr.dtype != np.float64:
             LOG.warning(f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
             arr = arr.astype(np.float64)
 
