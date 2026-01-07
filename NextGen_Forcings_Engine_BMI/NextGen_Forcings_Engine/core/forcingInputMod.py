@@ -819,19 +819,10 @@ class input_forcings:
             27: None,
         }[self.keyValue]
 
-    def calc_neighbor_files(self, ConfigOptions, dCurrent, MpiConfig):
-        """Calculate the last/next expected input forcing file based on the current time step.
-
-        Function that will calculate the last/next expected
-        input forcing file based on the current time step that
-        is being processed.
-        :param ConfigOptions:
-        :param dCurrent:
-        :return:
-        """
-        # First calculate the current input cycle date this
-        # WRF-Hydro output timestep corresponds to.
-        find_neighbor_files = {
+    @property
+    def find_neighbor_files_map(self):
+        """Map the forcing key value to the neighbor file finding function."""
+        return {
             1: time_handling.find_nldas_neighbors,
             3: time_handling.find_gfs_neighbors,
             5: time_handling.find_input_neighbors,
@@ -859,25 +850,32 @@ class input_forcings:
             27: time_handling.find_nwm_neighbors,
         }
 
-        LOG.debug(
-            f"keyValue: {self.keyValue}, {find_neighbor_files[self.keyValue].__name__}"
-        )
-        find_neighbor_files[self.keyValue](self, ConfigOptions, dCurrent, MpiConfig)
+    def calc_neighbor_files(
+        self, config_options: ConfigOptions, dcurrent, mpi_config: MpiConfig
+    ):
+        """Calculate the last/next expected input forcing file based on the current time step.
 
-    def regrid_inputs(self, ConfigOptions, wrfHyroGeoMeta, MpiConfig):
-        """Regrid input forcings to the final output grids for this timestep.
-
-        Polymorphic function that will regrid input forcings to the
-        final output grids for this particular timestep. For
-        timesteps that require interpolation, two sets of input
-        forcing grids will be regridded IF we have come across new
-        files and the process flag has been reset.
-        :param ConfigOptions:
+        Function that will calculate the last/next expected
+        input forcing file based on the current time step that
+        is being processed.
+        :param config_options:
+        :param dCurrent:
         :return:
         """
-        # Establish a mapping dictionary that will point the
-        # code to the functions to that will regrid the data.
-        regrid_inputs = {
+        # First calculate the current input cycle date this
+        # WRF-Hydro output timestep corresponds to.
+
+        LOG.debug(
+            f"keyValue: {self.keyValue}, {self.find_neighbor_files_map[self.keyValue].__name__}"
+        )
+        self.find_neighbor_files_map[self.keyValue](
+            self, config_options, dcurrent, mpi_config
+        )
+
+    @property
+    def regrid_map(self):
+        """Map the forcing key value to the regridding function."""
+        return {
             1: regrid.regrid_conus_rap,
             3: regrid.regrid_gfs,
             5: regrid.regrid_conus_hrrr,
@@ -904,9 +902,41 @@ class input_forcings:
             26: regrid.regrid_conus_hrrr,
             27: regrid.regrid_nwm,
         }
-        regrid_inputs[self.keyValue](self, ConfigOptions, wrfHyroGeoMeta, MpiConfig)
 
-    def temporal_interpolate_inputs(self, ConfigOptions, MpiConfig):
+    def regrid_inputs(
+        self,
+        config_options: ConfigOptions,
+        wrf_hyro_geo_meta: GeoMetaWrfHydro,
+        mpi_config: MpiConfig,
+    ):
+        """Regrid input forcings to the final output grids for this timestep.
+
+        Polymorphic function that will regrid input forcings to the
+        final output grids for this particular timestep. For
+        timesteps that require interpolation, two sets of input
+        forcing grids will be regridded IF we have come across new
+        files and the process flag has been reset.
+        :param config_options:
+        :return:
+        """
+        # Establish a mapping dictionary that will point the
+        # code to the functions to that will regrid the data.
+        self.regrid_map[self.keyValue](
+            self, config_options, wrf_hyro_geo_meta, mpi_config
+        )
+
+    @property
+    def temporal_interpolate_inputs_map(self):
+        """Map the temporal interpolation options to the functions."""
+        return {
+            0: timeInterpMod.no_interpolation,
+            1: timeInterpMod.nearest_neighbor,
+            2: timeInterpMod.weighted_average,
+        }
+
+    def temporal_interpolate_inputs(
+        self, config_options: ConfigOptions, mpi_config: MpiConfig
+    ):
         """Run temporal interpolation of the input forcing grids that have been regridded.
 
         Polymorphic function that will run temporal interpolation of
@@ -914,16 +944,13 @@ class input_forcings:
         especially important for forcings that have large output
         frequencies. This is also important for frequent WRF-Hydro
         input timesteps.
-        :param ConfigOptions:
-        :param MpiConfig:
+        :param config_options:
+        :param mpi_config:
         :return:
         """
-        temporal_interpolate_inputs = {
-            0: timeInterpMod.no_interpolation,
-            1: timeInterpMod.nearest_neighbor,
-            2: timeInterpMod.weighted_average,
-        }
-        temporal_interpolate_inputs[self.timeInterpOpt](self, ConfigOptions, MpiConfig)
+        self.temporal_interpolate_inputs_map[self.timeInterpOpt](
+            self, config_options, mpi_config
+        )
 
 
 def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
