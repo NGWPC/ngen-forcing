@@ -1,13 +1,20 @@
-"""
-This module will guide the forcing engine in defining
-parameters in all input forcing products. These parameters
-include things such as file types, grid definitions (including
+"""Module will guide the forcing engine in defining parameters in all input forcing products.
+
+These parameters include things such as file types, grid definitions (including
 initializing ESMF grids and regrid objects), etc
 """
 
 import logging
 
 import numpy as np
+
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+    GeoMetaWrfHydro,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
 from ..log_level_set import MODULE_NAME
 from . import regrid, time_handling, timeInterpMod
@@ -45,7 +52,6 @@ class InputForcings:
         self.x_upper_bound_corner = None
         self.y_lower_bound_corner = None
         self.y_upper_bound_corner = None
-        self.cycleFreq = None
         self.outFreq = None
         self.regridOpt = None
         self.timeInterpOpt = None
