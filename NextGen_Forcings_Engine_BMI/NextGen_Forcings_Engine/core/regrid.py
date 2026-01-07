@@ -5249,7 +5249,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             err_handler.check_program_status(config_options, mpi_config)
 
             # convert to array for NWM
-            if input_forcings.productName == "NWM":
+            if input_forcings.product_name == "NWM":
                 var_tmp = np.asarray(var_tmp, dtype=np.float64)
 
             var_sub_tmp = mpi_config.scatter_array(
@@ -7278,7 +7278,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             # If we are regridding GFS data, and this is precipitation, we need to run calculations
             # on the global precipitation average rates to calculate instantaneous global rates.
             # This is due to GFS's weird nature of doing average rates over different periods.
-            if input_forcings.productName == "GFS_Production_GRIB2":
+            if input_forcings.product_name == "GFS_Production_GRIB2":
                 if grib_var == "PRATE":
                     if mpi_config.rank == 0:
                         if config_options.grid_type == "gridded":
@@ -13374,12 +13374,12 @@ def check_regrid_status(
             try:
                 input_forcings.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
-                    name=input_forcings.productName + "FORCING_REGRIDDED",
+                    name=input_forcings.product_name + "FORCING_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + input_forcings.productName
+                    + input_forcings.product_name
                     + " destination ESMF field object: "
                     + str(esmf_error)
                 )
@@ -13390,12 +13390,12 @@ def check_regrid_status(
                 input_forcings.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.NODE,
-                    name=input_forcings.productName + "FORCING_REGRIDDED",
+                    name=input_forcings.product_name + "FORCING_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + input_forcings.productName
+                    + input_forcings.product_name
                     + " destination ESMF field node mesh object: "
                     + str(esmf_error)
                 )
@@ -13404,12 +13404,12 @@ def check_regrid_status(
                 input_forcings.esmf_field_out_elem = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
-                    name=input_forcings.productName + "FORCING_REGRIDDED",
+                    name=input_forcings.product_name + "FORCING_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + input_forcings.productName
+                    + input_forcings.product_name
                     + " destination ESMF field element mesh object: "
                     + str(esmf_error)
                 )
@@ -13419,12 +13419,12 @@ def check_regrid_status(
                 input_forcings.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
-                    name=input_forcings.productName + "FORCING_REGRIDDED",
+                    name=input_forcings.product_name + "FORCING_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + input_forcings.productName
+                    + input_forcings.product_name
                     + " destination ESMF field element mesh object: "
                     + str(esmf_error)
                 )
@@ -13535,12 +13535,12 @@ def check_supp_pcp_regrid_status(
             try:
                 supplemental_precip.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
-                    name=supplemental_precip.productName + "SUPP_PCP_REGRIDDED",
+                    name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + supplemental_precip.productName
+                    + supplemental_precip.product_name
                     + " destination ESMF field object: "
                     + str(esmf_error)
                 )
@@ -13550,12 +13550,12 @@ def check_supp_pcp_regrid_status(
                 supplemental_precip.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.NODE,
-                    name=supplemental_precip.productName + "SUPP_PCP_REGRIDDED",
+                    name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + supplemental_precip.productName
+                    + supplemental_precip.product_name
                     + " destination ESMF node field object: "
                     + str(esmf_error)
                 )
@@ -13565,12 +13565,12 @@ def check_supp_pcp_regrid_status(
                 supplemental_precip.esmf_field_out_elem = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
-                    name=supplemental_precip.productName + "SUPP_PCP_REGRIDDED",
+                    name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + supplemental_precip.productName
+                    + supplemental_precip.product_name
                     + " destination ESMF element field object: "
                     + str(esmf_error)
                 )
@@ -13581,12 +13581,12 @@ def check_supp_pcp_regrid_status(
                 supplemental_precip.esmf_field_out = ESMF.Field(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
-                    name=supplemental_precip.productName + "SUPP_PCP_REGRIDDED",
+                    name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
                 )
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = (
                     "Unable to create "
-                    + supplemental_precip.productName
+                    + supplemental_precip.product_name
                     + " destination ESMF element field object: "
                     + str(esmf_error)
                 )
@@ -13892,7 +13892,7 @@ def calculate_weights(
     if input_forcings.nx_local < 2 or input_forcings.ny_local < 2:
         config_options.errMsg = (
             "You have either specified too many cores for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + ", or  your input forcing grid is too small to process. Local grid must "
             "have x/y dimension size of 2."
         )
@@ -13909,7 +13909,7 @@ def calculate_weights(
             if mpi_config.rank == 0:
                 config_options.statusMsg = (
                     "Trimming input forcing `{}` by {} grid cells".format(
-                        input_forcings.productName, border
+                        input_forcings.product_name, border
                     )
                 )
                 err_handler.log_msg(
@@ -13930,7 +13930,7 @@ def calculate_weights(
     lat_tmp = None
     lon_tmp = None
     if mpi_config.rank == 0:
-        if input_forcings.productName == "NWM":
+        if input_forcings.product_name == "NWM":
             nwm_geogrid = nc.Dataset(config_options.nwm_geogrid)
 
             # Get spatial bounds from aws_obj if available
@@ -14051,7 +14051,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in, name=input_forcings.productName + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14064,7 +14065,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in, name=input_forcings.productName + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14077,7 +14079,7 @@ def calculate_weights(
         try:
             input_forcings.esmf_field_in_elem = ESMF.Field(
                 input_forcings.esmf_grid_in,
-                name=input_forcings.productName + "_NATIVE_ELEMENT",
+                name=input_forcings.product_name + "_NATIVE_ELEMENT",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14090,7 +14092,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in, name=input_forcings.productName + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14112,7 +14115,7 @@ def calculate_weights(
         var_tmp.fill(1)
         var_tmp = var_tmp.filled(0)
 
-        if input_forcings.productName == "NWM":
+        if input_forcings.product_name == "NWM":
             var_tmp = np.asarray(var_tmp, dtype=np.float64)  # or np.float32
     else:
         var_tmp = None
@@ -14140,7 +14143,7 @@ def calculate_weights(
     weight_file = None
     weight_file_elem = None
     if config_options.weightsDir is not None:
-        grid_key = input_forcings.productName
+        grid_key = input_forcings.product_name
         file_key = f"{grid_key}_{config_options.geogrid}"
         hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
         if config_options.grid_type == "gridded":
@@ -14166,7 +14169,7 @@ def calculate_weights(
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Loading cached ESMF weight object for "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                         + " from "
                         + weight_file
                     )
@@ -14206,7 +14209,7 @@ def calculate_weights(
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Loading cached ESMF mesh element weight object for "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                         + " from "
                         + weight_file
                     )
@@ -14508,7 +14511,7 @@ def calculate_supp_pcp_weights(
     if supplemental_precip.nx_local < 2 or supplemental_precip.ny_local < 2:
         config_options.errMsg = (
             "You have either specified too many cores for: "
-            + supplemental_precip.productName
+            + supplemental_precip.product_name
             + ", or  your input forcing grid is too small to process. Local grid "
             "must have x/y dimension size of 2."
         )
@@ -14589,7 +14592,7 @@ def calculate_supp_pcp_weights(
         # Create a ESMF field to hold the incoming data.
         supplemental_precip.esmf_field_in = ESMF.Field(
             supplemental_precip.esmf_grid_in,
-            name=supplemental_precip.productName + "_NATIVE",
+            name=supplemental_precip.product_name + "_NATIVE",
         )
 
         # mpi_config.comm.barrier()
@@ -14642,7 +14645,7 @@ def calculate_supp_pcp_weights(
         # Create a ESMF field to hold the incoming data.
         supplemental_precip.esmf_field_in = ESMF.Field(
             supplemental_precip.esmf_grid_in,
-            name=supplemental_precip.productName + "_NATIVE",
+            name=supplemental_precip.product_name + "_NATIVE",
         )
 
         # mpi_config.comm.barrier()
@@ -14703,7 +14706,7 @@ def calculate_supp_pcp_weights(
         # Create a ESMF field to hold the incoming data.
         supplemental_precip.esmf_field_in_elem = ESMF.Field(
             supplemental_precip.esmf_grid_in,
-            name=supplemental_precip.productName + "_NATIVE",
+            name=supplemental_precip.product_name + "_NATIVE",
         )
 
         # mpi_config.comm.barrier()
@@ -14759,7 +14762,7 @@ def calculate_supp_pcp_weights(
         # Create a ESMF field to hold the incoming data.
         supplemental_precip.esmf_field_in = ESMF.Field(
             supplemental_precip.esmf_grid_in,
-            name=supplemental_precip.productName + "_NATIVE",
+            name=supplemental_precip.product_name + "_NATIVE",
         )
 
         # mpi_config.comm.barrier()

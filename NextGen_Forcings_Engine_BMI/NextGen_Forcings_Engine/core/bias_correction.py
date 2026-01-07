@@ -314,7 +314,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
             "Performing table lookup bias correction for: "
             + input_forcings.netcdf_var_names[force_num]
             + " For input: "
-            + input_forcings.productName
+            + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -323,7 +323,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
     if int(input_forcings.fcst_hour2) > 18:
         config_options.statusMsg = (
             "Current forecast hour for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " is greater than allowed forecast range of 18 for table lookup bias correction."
         )
         err_handler.log_warning(config_options, mpi_config)
@@ -342,7 +342,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
                 "Unable to extract: "
                 + input_forcings.netcdf_var_names[force_num]
                 + " from local forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + "("
                 + str(npe)
                 + ")"
@@ -358,7 +358,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
                 "Unable to perform valid search for: "
                 + input_forcings.netcdf_var_names[force_num]
                 + " from local forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -377,7 +377,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
                 "Unable to apply table bias correction for: "
                 + input_forcings.netcdf_var_names[force_num]
                 + " from local forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -392,7 +392,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -417,7 +417,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
                 "Unable to extract: "
                 + input_forcings.netcdf_var_names[force_num]
                 + " from local forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + "("
                 + str(npe)
                 + ")"
@@ -434,7 +434,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
                 "Unable to extract: "
                 + input_forcings.netcdf_var_names[force_num]
                 + " from local forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + "("
                 + str(npe)
                 + ")"
@@ -450,7 +450,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
             "Unable to perform valid search for: "
             + input_forcings.netcdf_var_names[force_num]
             + " from local forcing object for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -468,7 +468,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
             "Unable to apply table bias correction for: "
             + input_forcings.netcdf_var_names[force_num]
             + " from local forcing object for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -484,7 +484,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -500,7 +500,7 @@ def ncar_tbl_correction(input_forcings, config_options, mpi_config, force_num):
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -527,7 +527,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing blanket bias correction on incoming longwave "
-            "radiation fluxes for input: " + input_forcings.productName
+            "radiation fluxes for input: " + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -576,7 +576,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming LW from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -590,7 +590,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming LW for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -603,7 +603,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform LW bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -618,7 +618,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -640,7 +640,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming LW from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -657,7 +657,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming LW from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -671,7 +671,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to calculate valid index in incoming LW for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -684,7 +684,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to perform LW bias correction for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -700,7 +700,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -715,7 +715,7 @@ def ncar_blanket_adjustment_lw(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary LW array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -746,7 +746,7 @@ def ncar_sw_hrrr_bias_correct(
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR bias correction on incoming shortwave "
-            "radiation fluxes for input: " + input_forcings.productName
+            "radiation fluxes for input: " + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -867,7 +867,7 @@ def ncar_sw_hrrr_bias_correct(
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming shortwave forcing from object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -882,7 +882,7 @@ def ncar_sw_hrrr_bias_correct(
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to run a search for valid SW values for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -941,7 +941,7 @@ def ncar_sw_hrrr_bias_correct(
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming shortwave forcing from object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -956,7 +956,7 @@ def ncar_sw_hrrr_bias_correct(
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming shortwave forcing from object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -971,7 +971,7 @@ def ncar_sw_hrrr_bias_correct(
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to run a search for valid SW values for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -1034,7 +1034,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR HRRR bias correction on incoming 2m temperature input: "
-            + input_forcings.productName
+            + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -1089,7 +1089,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1103,7 +1103,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming temperature for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1116,7 +1116,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform temperature bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1131,7 +1131,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1151,7 +1151,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1166,7 +1166,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1180,7 +1180,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to calculate valid index in incoming temperature for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -1193,7 +1193,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to perform temperature bias correction for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -1209,7 +1209,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1224,7 +1224,7 @@ def ncar_temp_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1241,7 +1241,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR GFS bias correction on incoming 2m temperature input: "
-            + input_forcings.productName
+            + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -1272,7 +1272,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1287,7 +1287,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1301,7 +1301,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1316,7 +1316,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming temperature from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1333,7 +1333,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming temperature for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1346,7 +1346,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform temperature bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1361,7 +1361,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1374,7 +1374,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming temperature for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1387,7 +1387,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform temperature bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1400,7 +1400,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming temperature for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1413,7 +1413,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform temperature bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1428,7 +1428,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1442,7 +1442,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1455,7 +1455,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming temperature for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1468,7 +1468,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform temperature bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1483,7 +1483,7 @@ def ncar_temp_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary temperature array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1501,7 +1501,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR bias correction on incoming longwave "
-            "radiation fluxes for input: " + input_forcings.productName
+            "radiation fluxes for input: " + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -1532,7 +1532,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming longwave from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1547,7 +1547,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming longwave from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1561,7 +1561,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming longwave from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1576,7 +1576,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming longwave from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1593,7 +1593,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming longwave for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1605,7 +1605,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform longwave bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1619,7 +1619,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary longwave array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1633,7 +1633,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming longwave for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1645,7 +1645,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform longwave bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1657,7 +1657,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming longwave for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1670,7 +1670,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform longwave bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1685,7 +1685,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary longwave array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1699,7 +1699,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary longwave array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1712,7 +1712,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming longwave for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1724,7 +1724,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform longwave bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1738,7 +1738,7 @@ def ncar_lwdown_gfs_bias_correct(input_forcings, config_options, mpi_config, for
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary longwave array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1757,7 +1757,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR bias correction on incoming windspeed for input: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " at step "
             + str(config_options.current_output_step)
         )
@@ -1855,7 +1855,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1869,7 +1869,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming windspeed for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1882,7 +1882,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform windspeed bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1897,7 +1897,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1928,7 +1928,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1943,7 +1943,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -1957,7 +1957,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to calculate valid index in incoming windspeed for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -1970,7 +1970,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
     except NumpyExceptions as npe:
         config_options.errMsg = (
             "Unable to perform windspeed bias correction for: "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " ("
             + str(npe)
             + ")"
@@ -1986,7 +1986,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2000,7 +2000,7 @@ def ncar_wspd_hrrr_bias_correct(input_forcings, config_options, mpi_config, forc
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2018,7 +2018,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Performing NCAR bias correction on incoming windspeed for input: "
-            + input_forcings.productName
+            + input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config)
 
@@ -2155,7 +2155,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2170,7 +2170,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2184,7 +2184,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2199,7 +2199,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to extract incoming windspeed from forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2215,7 +2215,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming windspeed for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2228,7 +2228,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform windspeed bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2243,7 +2243,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2258,7 +2258,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming windspeed for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2271,7 +2271,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform windspeed bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2283,7 +2283,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming windspeed for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2296,7 +2296,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform windspeed bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2310,7 +2310,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2325,7 +2325,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2339,7 +2339,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to calculate valid index in incoming windspeed for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2352,7 +2352,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to perform windspeed bias correction for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2367,7 +2367,7 @@ def ncar_wspd_gfs_bias_correct(input_forcings, config_options, mpi_config, force
         except NumpyExceptions as npe:
             config_options.errMsg = (
                 "Unable to place temporary windspeed array back into forcing object for: "
-                + input_forcings.productName
+                + input_forcings.product_name
                 + " ("
                 + str(npe)
                 + ")"
@@ -2460,10 +2460,10 @@ def cfsv2_nldas_nwm_bias_correct(input_forcings, config_options, mpi_config, for
         err_handler.log_msg(config_options, mpi_config)
 
     # Check to ensure we are running with CFSv2 here....
-    if input_forcings.productName != "CFSv2_6Hr_Global_GRIB2":
+    if input_forcings.product_name != "CFSv2_6Hr_Global_GRIB2":
         config_options.errMsg = (
             "Attempting to run CFSv2-NLDAS bias correction on: "
-            + input_forcings.productName
+            + input_forcings.product_name
         )
         err_handler.log_critical(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)

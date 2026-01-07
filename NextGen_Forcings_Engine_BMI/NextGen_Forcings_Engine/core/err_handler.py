@@ -440,7 +440,7 @@ def check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig):
             min = input_forcings.regridded_forcings2[variable_range[varTmp][0]][
                 indCheck
             ].min()
-            if input_forcings.productName == "NWM":
+            if input_forcings.product_name == "NWM":
                 ConfigOptions.errMsg = (
                     f"Data (min = {min}) below minimum threshold for: {varTmp} in "
                     f"NWM data for {numCells} regridded pixel cells."
@@ -470,7 +470,7 @@ def check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig):
             max = input_forcings.regridded_forcings2[variable_range[varTmp][0]][
                 indCheck
             ].max()
-            if input_forcings.productName == "NWM":
+            if input_forcings.product_name == "NWM":
                 ConfigOptions.errMsg = (
                     f"Data (max = {max}) above maximum threshold for: {varTmp} in "
                     f"NWM data for {numCells} regridded pixel cells."

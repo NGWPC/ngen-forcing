@@ -361,7 +361,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
     except:
         ConfigOptions.errMsg = (
             "Unable to perform NDV search on input "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " regridded forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)
@@ -371,7 +371,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
     except:
         ConfigOptions.errMsg = (
             "Unable to perform search for valid values on input "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " regridded temperature forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)
@@ -383,7 +383,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
     except:
         ConfigOptions.errMsg = (
             "Unable to apply spatial lapse rate values to input "
-            + input_forcings.productName
+            + input_forcings.product_name
             + " regridded temperature forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)

@@ -106,7 +106,7 @@ def nearest_neighbor(input_forcings, ConfigOptions, MpiConfig):
     # internally (NWM-only).
     if (
         ConfigOptions.runCfsNldasBiasCorrect
-        and input_forcings.productName == "CFSv2_6Hr_Global_GRIB2"
+        and input_forcings.product_name == "CFSv2_6Hr_Global_GRIB2"
     ):
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = "Bypassing temporal interpolation routine due to NWM bias correction for CFSv2"
@@ -323,7 +323,7 @@ def weighted_average(input_forcings, ConfigOptions, MpiConfig):
     # internally (NWM-only).
     if (
         ConfigOptions.runCfsNldasBiasCorrect
-        and input_forcings.productName == "CFSv2_6Hr_Global_GRIB2"
+        and input_forcings.product_name == "CFSv2_6Hr_Global_GRIB2"
     ):
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = "Bypassing temporal interpolation routine due to NWM bias correction for CFSv2"

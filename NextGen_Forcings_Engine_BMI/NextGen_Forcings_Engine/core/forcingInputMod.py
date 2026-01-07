@@ -15,19 +15,12 @@ from . import regrid, time_handling, timeInterpMod
 LOG = logging.getLogger(MODULE_NAME)
 
 
-class input_forcings:
+class InputForcings:
     """Abstract class defining parameters of a single input forcing product.
 
     This is an abstract class that will define all the parameters
     of a single input forcing product.
     """
-
-    # Constants
-    GRIB2 = "GRIB2"
-    GRIB1 = "GRIB1"
-    NETCDF = "NETCDF"
-    NETCDF4 = "NETCDF4"
-    NWM = "LDASIN_DOMAIN1"
 
     def __init__(self):
         """Initialize all attributes and objects to None."""
@@ -37,9 +30,7 @@ class input_forcings:
         self.paramDir = None
         self.userFcstHorizon = None
         self.userCycleOffset = None
-        self.productName = None
-        self.fileType = None
-        self.file_ext = None
+        self.file_type = None
         self.nx_global = None
         self.ny_global = None
         self.nx_local = None
@@ -953,178 +944,191 @@ class input_forcings:
         )
 
 
-def initDict(ConfigOptions, GeoMetaWrfHydro, MpiConfig):
+def init_dict(
+    config_options: ConfigOptions,
+    geo_meta_wrf_hydro: GeoMetaWrfHydro,
+    mpi_config: MpiConfig,
+) -> dict:
     """Initialize the input forcing dictionary.
 
     Initial function to create an input forcing dictionary, which
     will contain an abstract class for each input forcing product.
     This gets called one time by the parent calling program.
-    :param ConfigOptions:
-    :return: InputDict - A dictionary defining our inputs.
+    :param config_options:
+    :return: input_dict - A dictionary defining our inputs.
     """
     # Initialize an empty dictionary
-    InputDict = {}
+    input_dict = {}
 
-    if ConfigOptions.precip_only_flag:
-        return InputDict
+    if config_options.precip_only_flag:
+        return input_dict
 
     # Loop through and initialize the empty class for each product.
     custom_count = 0
-    for force_tmp in range(0, ConfigOptions.number_inputs):
-        force_key = ConfigOptions.input_forcings[force_tmp]
-        InputDict[force_key] = input_forcings()
-        InputDict[force_key].keyValue = force_key
-        InputDict[force_key].regridOpt = ConfigOptions.regrid_opt[force_tmp]
-        InputDict[force_key].enforce = ConfigOptions.input_force_mandatory[force_tmp]
-        InputDict[force_key].timeInterpOpt = ConfigOptions.forceTemoralInterp[force_tmp]
-        InputDict[force_key].q2dDownscaleOpt = ConfigOptions.q2dDownscaleOpt[force_tmp]
-        InputDict[force_key].t2dDownscaleOpt = ConfigOptions.t2dDownscaleOpt[force_tmp]
-        InputDict[force_key].precipDownscaleOpt = ConfigOptions.precipDownscaleOpt[
+    for force_tmp in range(0, config_options.number_inputs):
+        force_key = config_options.input_forcings[force_tmp]
+        input_dict[force_key] = InputForcings()
+        input_dict[force_key].keyValue = force_key
+        input_dict[force_key].regridOpt = config_options.regrid_opt[force_tmp]
+        input_dict[force_key].enforce = config_options.input_force_mandatory[force_tmp]
+        input_dict[force_key].timeInterpOpt = config_options.forceTemoralInterp[
             force_tmp
         ]
-        InputDict[force_key].swDowscaleOpt = ConfigOptions.swDownscaleOpt[force_tmp]
-        InputDict[force_key].psfcDownscaleOpt = ConfigOptions.psfcDownscaleOpt[
+        input_dict[force_key].q2dDownscaleOpt = config_options.q2dDownscaleOpt[
+            force_tmp
+        ]
+        input_dict[force_key].t2dDownscaleOpt = config_options.t2dDownscaleOpt[
+            force_tmp
+        ]
+        input_dict[force_key].precipDownscaleOpt = config_options.precipDownscaleOpt[
+            force_tmp
+        ]
+        input_dict[force_key].swDowscaleOpt = config_options.swDownscaleOpt[force_tmp]
+        input_dict[force_key].psfcDownscaleOpt = config_options.psfcDownscaleOpt[
             force_tmp
         ]
         # Check to make sure the necessary input files for downscaling are present.
-        # if InputDict[force_key].t2dDownscaleOpt == 2:
+        # if input_dict[force_key].t2dDownscaleOpt == 2:
         #    # We are using a pre-calculated lapse rate on the WRF-Hydro grid.
-        #    pathCheck = ConfigOptions.downscaleParamDir = "/T2M_Lapse_Rate_" + \
-        #        InputDict[force_key].productName + ".nc"
+        #    pathCheck = config_options.downscaleParamDir = "/T2M_Lapse_Rate_" + \
+        #        input_dict[force_key].product_name + ".nc"
         #    if not os.path.isfile(pathCheck):
-        #        ConfigOptions.errMsg = "Expected temperature lapse rate grid: " + \
+        #        config_options.errMsg = "Expected temperature lapse rate grid: " + \
         #            pathCheck + " not found."
         #        raise Exception
 
-        InputDict[force_key].t2dBiasCorrectOpt = ConfigOptions.t2BiasCorrectOpt[
+        input_dict[force_key].t2dBiasCorrectOpt = config_options.t2BiasCorrectOpt[
             force_tmp
         ]
-        InputDict[force_key].q2dBiasCorrectOpt = ConfigOptions.q2BiasCorrectOpt[
+        input_dict[force_key].q2dBiasCorrectOpt = config_options.q2BiasCorrectOpt[
             force_tmp
         ]
-        InputDict[force_key].precipBiasCorrectOpt = ConfigOptions.precipBiasCorrectOpt[
+        input_dict[
+            force_key
+        ].precipBiasCorrectOpt = config_options.precipBiasCorrectOpt[force_tmp]
+        input_dict[force_key].swBiasCorrectOpt = config_options.swBiasCorrectOpt[
             force_tmp
         ]
-        InputDict[force_key].swBiasCorrectOpt = ConfigOptions.swBiasCorrectOpt[
+        input_dict[force_key].lwBiasCorrectOpt = config_options.lwBiasCorrectOpt[
             force_tmp
         ]
-        InputDict[force_key].lwBiasCorrectOpt = ConfigOptions.lwBiasCorrectOpt[
+        input_dict[force_key].windBiasCorrectOpt = config_options.windBiasCorrect[
             force_tmp
         ]
-        InputDict[force_key].windBiasCorrectOpt = ConfigOptions.windBiasCorrect[
-            force_tmp
-        ]
-        InputDict[force_key].psfcBiasCorrectOpt = ConfigOptions.psfcBiasCorrectOpt[
-            force_tmp
-        ]
-
-        InputDict[force_key].inDir = ConfigOptions.input_force_dirs[force_tmp]
-        InputDict[force_key].paramDir = ConfigOptions.dScaleParamDirs[force_tmp]
-        InputDict[force_key].fileType = ConfigOptions.input_force_types[force_tmp]
-        InputDict[force_key].define_product()
-        InputDict[force_key].userFcstHorizon = ConfigOptions.fcst_input_horizons[
-            force_tmp
-        ]
-        InputDict[force_key].userCycleOffset = ConfigOptions.fcst_input_offsets[
+        input_dict[force_key].psfcBiasCorrectOpt = config_options.psfcBiasCorrectOpt[
             force_tmp
         ]
 
-        InputDict[force_key].border = ConfigOptions.ignored_border_widths[force_tmp]
+        input_dict[force_key].inDir = config_options.input_force_dirs[force_tmp]
+        input_dict[force_key].paramDir = config_options.dScaleParamDirs[force_tmp]
+        input_dict[force_key].file_type = config_options.input_force_types[force_tmp]
+        input_dict[force_key].userFcstHorizon = config_options.fcst_input_horizons[
+            force_tmp
+        ]
+        input_dict[force_key].userCycleOffset = config_options.fcst_input_offsets[
+            force_tmp
+        ]
+
+        input_dict[force_key].border = config_options.ignored_border_widths[force_tmp]
 
         # If we have specified specific humidity downscaling, establish arrays to hold
         # temporary temperature arrays that are un-downscaled.
-        if InputDict[force_key].q2dDownscaleOpt > 0:
-            if ConfigOptions.grid_type == "gridded":
-                InputDict[force_key].t2dTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local], np.float32
+        if input_dict[force_key].q2dDownscaleOpt > 0:
+            if config_options.grid_type == "gridded":
+                input_dict[force_key].t2dTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
+                    np.float32,
                 )
-                InputDict[force_key].psfcTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local], np.float32
+                input_dict[force_key].psfcTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
+                    np.float32,
                 )
-            elif ConfigOptions.grid_type == "unstructured":
-                InputDict[force_key].t2dTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local], np.float32
+            elif config_options.grid_type == "unstructured":
+                input_dict[force_key].t2dTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local], np.float32
                 )
-                InputDict[force_key].psfcTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local], np.float32
+                input_dict[force_key].psfcTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local], np.float32
                 )
-                InputDict[force_key].t2dTmp_elem = np.empty(
-                    [GeoMetaWrfHydro.ny_local_elem], np.float32
+                input_dict[force_key].t2dTmp_elem = np.empty(
+                    [geo_meta_wrf_hydro.ny_local_elem], np.float32
                 )
-                InputDict[force_key].psfcTmp_elem = np.empty(
-                    [GeoMetaWrfHydro.ny_local_elem], np.float32
+                input_dict[force_key].psfcTmp_elem = np.empty(
+                    [geo_meta_wrf_hydro.ny_local_elem], np.float32
                 )
-            elif ConfigOptions.grid_type == "hydrofabric":
-                InputDict[force_key].t2dTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local], np.float32
+            elif config_options.grid_type == "hydrofabric":
+                input_dict[force_key].t2dTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local], np.float32
                 )
-                InputDict[force_key].psfcTmp = np.empty(
-                    [GeoMetaWrfHydro.ny_local], np.float32
+                input_dict[force_key].psfcTmp = np.empty(
+                    [geo_meta_wrf_hydro.ny_local], np.float32
                 )
         # Initialize the local final grid of values. This is represntative
         # of the local grid for this forcing, for a specific output timesetp.
         # This grid will be updated from one output timestep to another, and
         # also through downscaling and bias correction.
-        force_count = 9 if ConfigOptions.include_lqfrac else 8
-        if force_count == 8 and 8 in InputDict[force_key].input_map_output:
+        force_count = 9 if config_options.include_lqfrac else 8
+        if force_count == 8 and 8 in input_dict[force_key].input_map_output:
             # TODO: this assumes that LQFRAC (8) is always the last grib var
-            InputDict[force_key].grib_vars = InputDict[force_key].grib_vars[:-1]
+            input_dict[force_key].grib_vars = input_dict[force_key].grib_vars[:-1]
 
-        if ConfigOptions.grid_type == "gridded":
-            InputDict[force_key].final_forcings = np.empty(
-                [force_count, GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local],
+        if config_options.grid_type == "gridded":
+            input_dict[force_key].final_forcings = np.empty(
+                [force_count, geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
                 np.float64,
             )
-            InputDict[force_key].height = np.empty(
-                [GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local], np.float32
+            input_dict[force_key].height = np.empty(
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.float32
             )
-            InputDict[force_key].regridded_mask = np.empty(
-                [GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local], np.float32
+            input_dict[force_key].regridded_mask = np.empty(
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.float32
             )
-            InputDict[force_key].regridded_mask_AORC = np.empty(
-                [GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local], np.float32
+            input_dict[force_key].regridded_mask_AORC = np.empty(
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.float32
             )
-        elif ConfigOptions.grid_type == "unstructured":
-            InputDict[force_key].final_forcings = np.empty(
-                [force_count, GeoMetaWrfHydro.ny_local], np.float64
+        elif config_options.grid_type == "unstructured":
+            input_dict[force_key].final_forcings = np.empty(
+                [force_count, geo_meta_wrf_hydro.ny_local], np.float64
             )
-            InputDict[force_key].height = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].height = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
-            InputDict[force_key].regridded_mask = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].regridded_mask = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
-            InputDict[force_key].regridded_mask_AORC = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].regridded_mask_AORC = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
-            InputDict[force_key].final_forcings_elem = np.empty(
-                [force_count, GeoMetaWrfHydro.ny_local_elem], np.float64
+            input_dict[force_key].final_forcings_elem = np.empty(
+                [force_count, geo_meta_wrf_hydro.ny_local_elem], np.float64
             )
-            InputDict[force_key].height_elem = np.empty(
-                [GeoMetaWrfHydro.ny_local_elem], np.float32
+            input_dict[force_key].height_elem = np.empty(
+                [geo_meta_wrf_hydro.ny_local_elem], np.float32
             )
-            InputDict[force_key].regridded_mask_elem = np.empty(
-                [GeoMetaWrfHydro.ny_local_elem], np.float32
+            input_dict[force_key].regridded_mask_elem = np.empty(
+                [geo_meta_wrf_hydro.ny_local_elem], np.float32
             )
-            InputDict[force_key].regridded_mask_elem_AORC = np.empty(
-                [GeoMetaWrfHydro.ny_local_elem], np.float32
+            input_dict[force_key].regridded_mask_elem_AORC = np.empty(
+                [geo_meta_wrf_hydro.ny_local_elem], np.float32
             )
-        elif ConfigOptions.grid_type == "hydrofabric":
-            InputDict[force_key].final_forcings = np.empty(
-                [force_count, GeoMetaWrfHydro.ny_local], np.float64
+        elif config_options.grid_type == "hydrofabric":
+            input_dict[force_key].final_forcings = np.empty(
+                [force_count, geo_meta_wrf_hydro.ny_local], np.float64
             )
-            InputDict[force_key].height = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].height = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
-            InputDict[force_key].regridded_mask = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].regridded_mask = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
-            InputDict[force_key].regridded_mask_AORC = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            input_dict[force_key].regridded_mask_AORC = np.empty(
+                [geo_meta_wrf_hydro.ny_local], np.float32
             )
         # Obtain custom input cycle frequencies
         if force_key == 10 or force_key == 11:
-            InputDict[force_key].cycleFreq = ConfigOptions.customFcstFreq[custom_count]
+            input_dict[force_key].cycle_freq = config_options.customFcstFreq[
+                custom_count
+            ]
             custom_count = custom_count + 1
 
-    return InputDict
+    return input_dict

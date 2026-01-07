@@ -35,7 +35,7 @@ from .core import (
     parallel,
     suppPrecipMod,
 )
-from .model import NWMv3_Forcing_Engine_model
+from .model import NWMv3ForcingEngineModel
 
 # Import BMI grid functions to advertise grid features
 # Here is the model we want to run
@@ -117,7 +117,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self.cfg_bmi = None
         self._job_meta = None
         self._mpi_meta = None
-        self._WrfHydroGeoMeta = None
+        self._wrf_hydro_geo_meta = None
         self._grid_type = None
         self._grids = None
         self._grid_map = None
@@ -126,8 +126,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._var_name_map_long_first = None
         self._var_name_map_short_first = None
         self._var_units_map = None
-        self._inputForcingMod = None
-        self._suppPcpMod = None
+        self._input_forcing_mod = None
+        self._supp_pcp_mod = None
         self._model_parameters_list = []
 
         # Diagnostic timing setup
@@ -211,7 +211,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Parse the configuration options
         try:
-            self._job_meta.read_config(self.cfg_bmi)
+            self._job_meta.validate_config(self.cfg_bmi)
         except KeyboardInterrupt as e:
             err_handler.err_out_screen("User keyboard interrupt", e)
         except ImportError as e:
@@ -250,18 +250,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # information about the modeling domain, local processor
         # grid boundaries, and ESMF grid objects/fields to be used
         # in regridding.
-        self._WrfHydroGeoMeta = geoMod.GeoMetaWrfHydro()
+        self._wrf_hydro_geo_meta = geoMod.GeoMetaWrfHydro()
 
         if self._job_meta.grid_type == "gridded":
-            self._WrfHydroGeoMeta.initialize_destination_geo_gridded(
+            self._wrf_hydro_geo_meta.initialize_destination_geo_gridded(
                 self._job_meta, self._mpi_meta
             )
         elif self._job_meta.grid_type == "unstructured":
-            self._WrfHydroGeoMeta.initialize_destination_geo_unstructured(
+            self._wrf_hydro_geo_meta.initialize_destination_geo_unstructured(
                 self._job_meta, self._mpi_meta
             )
         elif self._job_meta.grid_type == "hydrofabric":
-            self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(
+            self._wrf_hydro_geo_meta.initialize_destination_geo_hydrofabric(
                 self._job_meta, self._mpi_meta
             )
         else:
@@ -319,13 +319,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self.grid_1: Grid = Grid(
                     1, 2, GridType.uniform_rectilinear
                 )  # Grid 1 is a 2-dimensional grid
-                self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
-                self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
-                self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
-                self.grid_1._size = len(self._WrfHydroGeoMeta.latitude_grid.flatten())
+                self.grid_1._grid_y = self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                self.grid_1._grid_x = self._wrf_hydro_geo_meta.longitude_grid.flatten()
+                self.grid_1._shape = self._wrf_hydro_geo_meta.latitude_grid.shape
+                self.grid_1._size = len(
+                    self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                )
                 self.grid_1._spacing = (
-                    self._WrfHydroGeoMeta.dx_meters,
-                    self._WrfHydroGeoMeta.dy_meters,
+                    self._wrf_hydro_geo_meta.dx_meters,
+                    self._wrf_hydro_geo_meta.dy_meters,
                 )
                 self.grid_1._units = "m"
                 self.grid_1._origin = None
@@ -382,13 +384,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self.grid_1: Grid = Grid(
                     1, 2, GridType.uniform_rectilinear
                 )  # Grid 1 is a 2-dimensional grid
-                self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
-                self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
-                self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
-                self.grid_1._size = len(self._WrfHydroGeoMeta.latitude_grid.flatten())
+                self.grid_1._grid_y = self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                self.grid_1._grid_x = self._wrf_hydro_geo_meta.longitude_grid.flatten()
+                self.grid_1._shape = self._wrf_hydro_geo_meta.latitude_grid.shape
+                self.grid_1._size = len(
+                    self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                )
                 self.grid_1._spacing = (
-                    self._WrfHydroGeoMeta.dx_meters,
-                    self._WrfHydroGeoMeta.dy_meters,
+                    self._wrf_hydro_geo_meta.dx_meters,
+                    self._wrf_hydro_geo_meta.dy_meters,
                 )
                 self.grid_1._units = "m"
                 self.grid_1._origin = None
@@ -480,14 +484,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     3, 2, GridType.unstructured
                 )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
-                self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
+                self.grid_2._grid_y = self._wrf_hydro_geo_meta.latitude_grid_elem
+                self.grid_2._grid_x = self._wrf_hydro_geo_meta.longitude_grid_elem
 
-                self.grid_3._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_3._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_3._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_3._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_2._size = len(self._WrfHydroGeoMeta.latitude_grid_elem)
-                self.grid_3._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_2._size = len(self._wrf_hydro_geo_meta.latitude_grid_elem)
+                self.grid_3._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_2, self.grid_3]
 
@@ -578,14 +582,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     3, 2, GridType.unstructured
                 )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
-                self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
+                self.grid_2._grid_y = self._wrf_hydro_geo_meta.latitude_grid_elem
+                self.grid_2._grid_x = self._wrf_hydro_geo_meta.longitude_grid_elem
 
-                self.grid_3._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_3._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_3._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_3._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_2._size = len(self._WrfHydroGeoMeta.latitude_grid_elem)
-                self.grid_3._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_2._size = len(self._wrf_hydro_geo_meta.latitude_grid_elem)
+                self.grid_3._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_2, self.grid_3]
 
@@ -657,10 +661,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     4, 2, GridType.unstructured
                 )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_4._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_4._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_4._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_4._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_4]
 
@@ -720,10 +724,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     4, 2, GridType.unstructured
                 )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_4._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_4._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_4._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_4._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_4]
 
@@ -755,7 +759,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         if self._job_meta.spatial_meta is not None:
             try:
-                self._WrfHydroGeoMeta.initialize_geospatial_metadata(
+                self._wrf_hydro_geo_meta.initialize_geospatial_metadata(
                     self._job_meta, self._mpi_meta
                 )
             except Exception as e:
@@ -764,7 +768,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
-        if self._WrfHydroGeoMeta.nx_local < 2 or self._WrfHydroGeoMeta.ny_local < 2:
+        if (
+            self._wrf_hydro_geo_meta.nx_local < 2
+            or self._wrf_hydro_geo_meta.ny_local < 2
+        ):
             self._job_meta.errMsg = (
                 "You have specified too many cores for your WRF-Hydro grid. "
                 "Local grid Must have x/y dimension size of 2."
@@ -774,7 +781,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Initialize our output object, which includes local slabs from the output grid.
         try:
-            self._OutputObj = ioMod.OutputObj(self._job_meta, self._WrfHydroGeoMeta)
+            self._output_obj = ioMod.OutputObj(self._job_meta, self._wrf_hydro_geo_meta)
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -785,8 +792,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # In addition, input ESMF grid objects will be created to hold data for
         # downscaling and regridding purposes.
         try:
-            self._inputForcingMod = forcingInputMod.initDict(
-                self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta
+            self._input_forcing_mod = forcingInputMod.init_dict(
+                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
             )
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
@@ -795,11 +802,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # If we have specified supplemental precipitation products, initialize
         # the supp class.
         if self._job_meta.number_supp_pcp > 0:
-            self._suppPcpMod = suppPrecipMod.initDict(
-                self._job_meta, self._WrfHydroGeoMeta
+            self._supp_pcp_mod = suppPrecipMod.initDict(
+                self._job_meta, self._wrf_hydro_geo_meta
             )
         else:
-            self._suppPcpMod = None
+            self._supp_pcp_mod = None
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # ------------- Initialize the parameters, inputs and outputs ----------#
@@ -810,7 +817,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 2D arrays from the gridded domain
             self._varsize = len(
-                np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten()
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
             )
 
             for model_output in self.get_output_var_names():
@@ -820,10 +827,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 1D arrays from the unstructured domain
             self._varsize = len(
-                np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten()
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
             )
             self._varsize_elem = len(
-                np.zeros(self._WrfHydroGeoMeta.latitude_grid_elem.shape).flatten()
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid_elem.shape).flatten()
             )
 
             for model_output in self.get_output_var_names():
@@ -838,7 +845,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 1D arrays from the hydrofabric domain
             self._varsize = len(
-                np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten()
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
             )
             for model_output in self.get_output_var_names():
                 self._values[model_output] = np.zeros(self._varsize, dtype=float)
@@ -851,11 +858,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
 
         # Initialize the Forcings Engine model
-        self._model = NWMv3_Forcing_Engine_model()
+        self._model = NWMv3ForcingEngineModel()
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values["CAT-ID"] = self._WrfHydroGeoMeta.element_ids
+            self._values["CAT-ID"] = self._wrf_hydro_geo_meta.element_ids
 
         self._configure_output_path()
 
@@ -872,7 +879,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         including both core model setup and additional job metadata configuration (such as b_date, geogrid, and output path).
 
         It performs the following:
-        - Sets up job metadata (b_date, geogrid) by calling `ConfigOptions`.
+        - Sets up job metadata (b_date, geogrid) by calling `config_options`.
         - Calls the `initialize()` function to handle core model setup (reading the config file,
           initializing basic model attributes like MPI, grids, etc.).
         - Handles additional configuration options, such as determining the output path
@@ -887,7 +894,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param output_path: The output path for model results. If omitted, a default path will be generated.
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
-        # Set the job metadata parameters (b_date, geogrid) using ConfigOptions
+        # Set the job metadata parameters (b_date, geogrid) using config_options
         self._job_meta = config.ConfigOptions(
             self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid
         )
@@ -909,7 +916,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
         time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
 
-        if self._output_configured or self._OutputObj is None:
+        if self._output_configured or self._output_obj is None:
             return  # Already configured or no output object to configure
 
         if self._job_meta.forcing_output == 1:
@@ -923,19 +930,19 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
 
             if output_path:
-                self._OutputObj.outPath = output_path
+                self._output_obj.outPath = output_path
             else:
                 filename = (
                     f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_"
                     + pd.Timestamp(self._job_meta.b_date_proc).strftime("%Y%m%d%H%M")
                     + ".nc"
                 )
-                self._OutputObj.outPath = os.path.join(
+                self._output_obj.outPath = os.path.join(
                     self._job_meta.scratch_dir, filename
                 )
 
-            self._OutputObj.init_forcing_file(
-                self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta
+            self._output_obj.init_forcing_file(
+                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
             )
             self._output_configured = True
 
@@ -979,11 +986,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self._values,
                 future_time,
                 self._job_meta,
-                self._WrfHydroGeoMeta,
-                self._inputForcingMod,
-                self._suppPcpMod,
+                self._wrf_hydro_geo_meta,
+                self._input_forcing_mod,
+                self._supp_pcp_mod,
                 self._mpi_meta,
-                self._OutputObj,
+                self._output_obj,
             )
         else:
             # Start a while loop to iterate the model time step by step until the
@@ -996,11 +1003,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     self._values,
                     self._values["current_model_time"],
                     self._job_meta,
-                    self._WrfHydroGeoMeta,
-                    self._inputForcingMod,
-                    self._suppPcpMod,
+                    self._wrf_hydro_geo_meta,
+                    self._input_forcing_mod,
+                    self._supp_pcp_mod,
                     self._mpi_meta,
-                    self._OutputObj,
+                    self._output_obj,
                 )
 
     # ------------------------------------------------------------
@@ -1016,9 +1023,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         """
         # Force destruction of ESMF objects
-        self._WrfHydroGeoMeta = None
-        self._inputForcingMod = None
-        self._suppPcpMod = None
+        self._wrf_hydro_geo_meta = None
+        self._input_forcing_mod = None
+        self._supp_pcp_mod = None
         self._model = None
 
         # Try moving this after all of the ESMF and model bits have
@@ -1991,7 +1998,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
     # ------------------------------------------------------------
 
-    def _parse_config(self, cfg):
+    def _parse_config(self, cfg: dict) -> dict:
         """Parse the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
 
         This function processes specific keys in the configuration dictionary:

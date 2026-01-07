@@ -243,19 +243,19 @@ class ConfigOptions:
             self.number_inputs = len(self.input_forcings)
 
             # Check to make sure forcing options make sense
-            for forceOpt in self.input_forcings:
-                if forceOpt < 0 or forceOpt > FORCE_COUNT:
-                    err_handler.err_out_screen(
+            for force_opt in self.input_forcings:
+                if force_opt < 0 or force_opt > FORCE_COUNT:
+                    err_out_screen(
                         f"Please specify InputForcings values between 1 and {FORCE_COUNT}."
                     )
 
                 # Keep tabs on how many custom input forcings we have.
-                if forceOpt == 10:
+                if force_opt == 10:
                     self.number_custom_inputs = self.number_custom_inputs + 1
 
                 # Flag to force mandatory configuration option to specify the NWM geogrid file if user requests
                 # NWM forcing files to be regridded to a given domain configuration
-                if forceOpt == 27:
+                if force_opt == 27:
                     try:
                         self.nwm_geogrid = cfg_bmi["NWM_Geogrid"]
                     except KeyError as e:
@@ -342,11 +342,11 @@ class ConfigOptions:
                 )
             # Loop through and ensure all input directories exist. Also strip out any whitespace
             # or new line characters.
-            for dirTmp in range(0, len(self.input_force_dirs)):
-                self.input_force_dirs[dirTmp] = self.input_force_dirs[dirTmp].strip()
+            for dir_tmp in range(0, len(self.input_force_dirs)):
+                self.input_force_dirs[dir_tmp] = self.input_force_dirs[dir_tmp].strip()
 
-                dir_path = self.input_force_dirs[dirTmp]
-                forcing_type = self.input_forcings[dirTmp]
+                dir_path = self.input_force_dirs[dir_tmp]
+                forcing_type = self.input_forcings[dir_tmp]
                 is_aws_forcing = forcing_type in [12, 21, 27]
 
                 if not os.path.isdir(dir_path):

@@ -11,11 +11,10 @@ import pandas as pd
 
 from ..log_level_set import MODULE_NAME
 from . import err_handler
-from .forcingInputMod import input_forcings
 
 LOG = logging.getLogger(MODULE_NAME)
 
-NETCDF = input_forcings.NETCDF
+NETCDF = "NETCDF"
 
 
 def calculate_lookback_window(config_options):
@@ -162,7 +161,7 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -251,7 +250,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     :param mpi_config:
     :return:
     """
-    if input_forcings.productName == "AORC":
+    if input_forcings.product_name == "AORC":
         # Calculate expected file paths.
         if d_current.year > 2019:
             tmp_file1 = (
@@ -281,7 +280,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
                 + "z"
                 + input_forcings.file_ext
             )
-    if input_forcings.productName == "AORC_Alaska":
+    if input_forcings.product_name == "AORC_Alaska":
         # Calculate expected file paths.
         tmp_file1 = (
             input_forcings.inDir
@@ -321,7 +320,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -379,7 +378,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
                     + " not found."
                 )
                 err_handler.log_critical(config_options, mpi_config)
-            else:
+            elif not config_options.aws:
                 config_options.statusMsg = (
                     "Expected input AORC file: "
                     + input_forcings.file_in2
@@ -439,7 +438,7 @@ def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -590,7 +589,7 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -789,7 +788,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -1029,7 +1028,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -1406,7 +1405,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -1652,7 +1651,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -1940,7 +1939,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -1953,7 +1952,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                     input_forcings.regridded_forcings2_elem = (
                         input_forcings.regridded_forcings2_elem
                     )
-                if input_forcings.productName == "GFS_Production_GRIB2":
+                if input_forcings.product_name == "GFS_Production_GRIB2":
                     if mpi_config.rank == 0:
                         input_forcings.globalPcpRate1 = input_forcings.globalPcpRate1
                         input_forcings.globalPcpRate2 = input_forcings.globalPcpRate2
@@ -1975,7 +1974,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                     input_forcings.regridded_forcings1[:, :, :] = (
                         input_forcings.regridded_forcings2[:, :, :]
                     )
-                    if input_forcings.productName == "GFS_Production_GRIB2":
+                    if input_forcings.product_name == "GFS_Production_GRIB2":
                         if mpi_config.rank == 0:
                             input_forcings.globalPcpRate1[:, :] = (
                                 input_forcings.globalPcpRate2[:, :]
@@ -1987,7 +1986,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                     input_forcings.regridded_forcings1[:, :] = (
                         input_forcings.regridded_forcings2[:, :]
                     )
-                    if input_forcings.productName == "GFS_Production_GRIB2":
+                    if input_forcings.product_name == "GFS_Production_GRIB2":
                         if mpi_config.rank == 0:
                             input_forcings.globalPcpRate1[:, :] = (
                                 input_forcings.globalPcpRate2[:, :]
@@ -1996,7 +1995,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                         input_forcings.regridded_forcings1_elem[:, :] = (
                             input_forcings.regridded_forcings2_elem[:, :]
                         )
-                        if input_forcings.productName == "GFS_Production_GRIB2":
+                        if input_forcings.product_name == "GFS_Production_GRIB2":
                             if mpi_config.rank == 0:
                                 input_forcings.globalPcpRate1_elem[:, :] = (
                                     input_forcings.globalPcpRate2_elem[:, :]
@@ -2217,7 +2216,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -2429,7 +2428,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -2608,7 +2607,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -3298,7 +3297,7 @@ def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_conf
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.productName
+                        + input_forcings.product_name
                     )
                     err_handler.log_msg(config_options, mpi_config)
                 input_forcings.rstFlag = 1
@@ -4396,7 +4395,7 @@ def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1
@@ -4624,7 +4623,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     if mpi_config.rank == 0:
         config_options.statusMsg = (
             "Processing %s Input Data. Calculating neighboring "
-            "files for this output timestep" % input_forcings.productName
+            "files for this output timestep" % input_forcings.product_name
         )
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
@@ -4809,7 +4808,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Restarting forecast cycle. Will regrid previous: "
-                            + input_forcings.productName
+                            + input_forcings.product_name
                         )
                         err_handler.log_msg(config_options, mpi_config)
                     input_forcings.rstFlag = 1

@@ -39,7 +39,7 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
                 outLayerCurrent = OutputObj.output_local[force_idx, :, :]
                 layerIn = input_forcings.final_forcings[force_idx, :, :]
                 if (
-                    input_forcings.productName == "ERA5"
+                    input_forcings.product_name == "ERA5"
                     and [12, 21] in ConfigOptions.input_forcings
                 ):
                     outLayerCurrent[
@@ -57,7 +57,7 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
                 outLayerCurrent = OutputObj.output_local[force_idx, :]
                 layerIn = input_forcings.final_forcings[force_idx, :]
                 if (
-                    input_forcings.productName == "ERA5"
+                    input_forcings.product_name == "ERA5"
                     and [12, 21] in ConfigOptions.input_forcings
                 ):
                     outLayerCurrent[
@@ -72,7 +72,7 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
                 outLayerCurrent_elem = OutputObj.output_local_elem[force_idx, :]
                 layerIn_elem = input_forcings.final_forcings_elem[force_idx, :]
                 if (
-                    input_forcings.productName == "ERA5"
+                    input_forcings.product_name == "ERA5"
                     and [12, 21] in ConfigOptions.input_forcings
                 ):
                     outLayerCurrent_elem[
@@ -93,7 +93,7 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
                 outLayerCurrent = OutputObj.output_local[force_idx, :]
                 layerIn = input_forcings.final_forcings[force_idx, :]
                 if (
-                    input_forcings.productName == "ERA5"
+                    input_forcings.product_name == "ERA5"
                     and [12, 21] in ConfigOptions.input_forcings
                 ):
                     outLayerCurrent[
