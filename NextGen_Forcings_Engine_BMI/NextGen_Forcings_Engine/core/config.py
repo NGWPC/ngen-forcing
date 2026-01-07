@@ -311,11 +311,15 @@ class ConfigOptions:
                     "Number of InputForcingTypes must match the number "
                     "of InputForcings in the configuration file."
                 )
-            for fileType in self.input_force_types:
-                if fileType not in ["GRIB1", "GRIB2", "NETCDF", "NETCDF4", "NWM"]:
-                    err_handler.err_out_screen(
-                        'Invalid forcing file type "{}" specified. '
-                        "Only GRIB1, GRIB2, and NETCDF are supported".format(fileType)
+            for file_type in self.input_force_types:
+                if file_type not in [
+                    "GRIB1",
+                    "GRIB2",
+                    "NETCDF",
+                    "NETCDF4",
+                    "NWM",
+                    "ZARR",
+                ]:
                     )
 
             # Read in the input directories for each forcing option.
