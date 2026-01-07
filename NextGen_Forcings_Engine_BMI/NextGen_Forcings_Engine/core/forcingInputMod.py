@@ -112,11 +112,6 @@ class InputForcings:
         self.fcst_date2 = None
         self.height = None
         self.height_elem = None
-        self.netcdf_var_names = None
-        self.grib_mes_idx = None
-        self.input_map_output = None
-        self.grib_levels = None
-        self.grib_vars = None
         self.tmpFile = None
         self.tmpFileHeight = None
         self.psfcTmp = None
