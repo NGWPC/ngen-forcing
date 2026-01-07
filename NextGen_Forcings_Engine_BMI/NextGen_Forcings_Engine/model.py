@@ -292,26 +292,35 @@ class NWMv3_Forcing_Engine_model:
                         ConfigOptions, OutputObj.outDate, MpiConfig
                     )
 
-                if forceKey in [12, 21, 27] and ConfigOptions.aws is None:
+                if forceKey in [12, 21, 27] and config_options.aws is None:
                     # Calculate the previous and next input cycle files from the inputs.
                     input_forcings.calc_neighbor_files(
-                        ConfigOptions, OutputObj.outDate, MpiConfig
+                        config_options, output_obj.outDate, mpi_config
                     )
-                    err_handler.check_program_status(ConfigOptions, MpiConfig)
+                    err_handler.check_program_status(config_options, mpi_config)
                 else:
                     # Flag to indicate the AWS .zarr AORC method
                     if forceKey == 12 or forceKey == 21:
-                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(
-                            ConfigOptions, MpiConfig, wrfHydroGeoMeta
+                        if self.source_data_processor is None:
+                            self.source_data_processor = AORCProcessor(
+                                config_options, mpi_config, wrf_hydro_geo_meta
+                            )
+                        config_options.aws_obj = self.source_data_processor.process(
+                            config_options.current_time
                         )
+
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
 
                     # Added separate processing path for CONUS NWM retrospective data
                     # TODO: Expand functionality for oCONUS domains (different zarr structure)
                     elif forceKey == 27:
-                        ConfigOptions.aws_obj = nwm_proc.proc_nwm(
-                            ConfigOptions, MpiConfig
+                        if self.source_data_processor is None:
+                            self.source_data_processor = NWMV3Processor(
+                                config_options, mpi_config, wrf_hydro_geo_meta
+                            )
+                        config_options.aws_obj = self.source_data_processor.process(
+                            config_options.current_time
                         )
 
                 # If skipping this forcing, continue early
