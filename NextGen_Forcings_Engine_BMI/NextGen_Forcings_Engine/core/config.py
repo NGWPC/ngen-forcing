@@ -130,7 +130,7 @@ class ConfigOptions:
         self.aorc_source = "s3://noaa-nws-aorc-v1-1-1km"
         self.aorc_year_url = "{source}/{year}.zarr"
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
-        self.nwm_url = None
+        self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
         self.nwm_domain = None
         self.nwm_geogrid = None
         self.geogrid = geogrid_arg
