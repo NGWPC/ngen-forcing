@@ -136,8 +136,8 @@ class ConfigOptions:
         self.geogrid = geogrid_arg
         self.geopackage = None
 
-    def read_config(self, cfg_bmi):
-        """Read in options from the configuration file and check that proper options were provided."""
+    def validate_config(self, cfg_bmi: dict) -> None:
+        """Validate in options from the configuration file and check that proper options were provided."""
         # Ensure b_date_proc is set; if not, read from the configuration file
         if self.b_date_proc is None:
             try:
