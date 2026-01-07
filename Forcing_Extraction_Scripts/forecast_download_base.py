@@ -11,7 +11,7 @@ from urllib import request, error
 import requests
 from bs4 import BeautifulSoup
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
 if not LOG.handlers:

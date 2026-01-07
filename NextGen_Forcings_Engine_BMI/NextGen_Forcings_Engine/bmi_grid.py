@@ -14,7 +14,7 @@ import numpy as np
 if TYPE_CHECKING:
     from numpy.typing import NDArray
 
-from .log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 
 import logging
 LOG = logging.getLogger(MODULE_NAME)

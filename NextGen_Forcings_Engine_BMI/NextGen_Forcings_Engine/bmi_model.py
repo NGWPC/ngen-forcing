@@ -47,8 +47,8 @@ from numpy.typing import NDArray
 if ESMF.version_compare('8.7.0', ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
-from .log_level_set import log_level_set, MODULE_NAME
-log_level_set()
+from nextgen_forcings_ewts import configure_logging, MODULE_NAME
+configure_logging()
 
 import logging
 LOG = logging.getLogger(MODULE_NAME)

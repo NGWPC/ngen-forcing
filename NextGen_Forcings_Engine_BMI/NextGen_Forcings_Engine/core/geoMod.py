@@ -13,7 +13,7 @@ except ImportError:
     import ESMF
 
 import logging
-from ..log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 
 class GeoMetaWrfHydro:
