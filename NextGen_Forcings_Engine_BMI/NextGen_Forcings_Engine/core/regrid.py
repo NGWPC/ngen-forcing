@@ -4951,10 +4951,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     with MPICommExecutor(comm=mpi_config.comm, root=0) as executor:
         with dask.config.set(scheduler=executor):
             if mpi_config.rank == 0:
-                id_tmp = config_options.aws_obj.sel(
-                    time=config_options.current_time.strftime("%Y-%m-%d %H:%M:%S")
-                )
-                id_tmp = id_tmp.compute()
+                id_tmp=config_options.aws_obj
             else:
                 id_tmp = None
     mpi_config.comm.barrier()
