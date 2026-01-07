@@ -12,7 +12,7 @@ from . import err_handler
 from .forcingInputMod import input_forcings
 
 import logging
-from ..log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 
 NETCDF = input_forcings.NETCDF
