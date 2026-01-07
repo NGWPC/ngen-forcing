@@ -24,7 +24,7 @@ FORCE_COUNT = 27
 class ConfigOptions:
     """Configuration abstract class for configuration options read in from the file specified by the user."""
 
-    def __init__(self, config, b_date=None, geogrid_arg=None):
+    def __init__(self, config: dict, b_date=None, geogrid_arg=None):
         """Initialize the configuration class to empty None attributes.
 
         param config: The user-specified path to the configuration file.
