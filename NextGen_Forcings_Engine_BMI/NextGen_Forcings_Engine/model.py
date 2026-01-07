@@ -5,9 +5,29 @@ import os
 import numpy as np
 import pandas as pd
 
-from .core import bias_correction, disaggregateMod, downscale, err_handler, layeringMod
-from .log_level_set import MODULE_NAME
-from .models import aorc_proc, nwm_proc
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
+    bias_correction,
+    disaggregateMod,
+    downscale,
+    err_handler,
+    layeringMod,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+    GeoMetaWrfHydro,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import (
+    MODULE_NAME,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.models.aorc_proc_new import (
+    AORCProcessor,
+    NWMV3Processor,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.models.nwm_proc import proc_nwm
 
 LOG = logging.getLogger(MODULE_NAME)
 
