@@ -133,22 +133,11 @@ class input_forcings:
         self.regridded_precip2_elem = None
         self.border = None
         self.skip = False
-        self.forecast_horizons = None
 
-    def define_product(self):
-        """Define the product name based on the mapping forcing key value.
-
-        Function to define the product name based on the mapping
-        forcing key value.
-        :return:
-        """
-        GRIB1 = self.GRIB1
-        GRIB2 = self.GRIB2
-        NETCDF = self.NETCDF
-        NETCDF4 = self.NETCDF4
-        NWM = self.NWM
-
-        product_names = {
+    @property
+    def product_name(self):
+        """Map the forcing key value to the product name."""
+        return {
             1: "NLDAS2_GRIB1",
             2: "NARR_GRIB1",
             3: "GFS_Production_GRIB2",
@@ -176,45 +165,28 @@ class input_forcings:
             25: "NDFD",
             26: "HRRR_15min",
             27: "NWM",
-        }
-        self.productName = product_names[self.keyValue]
+        }[self.keyValue]
 
-        ## DEFINED BY CONFIG
-        # product_types = {
-        #     1: GRIB1,
-        #     2: GRIB1,
-        #     3: GRIB2,
-        #     4: GRIB2,
-        #     5: GRIB2,
-        #     6: GRIB2,
-        #     7: GRIB2,
-        #     8: GRIB2,
-        #     9: GRIB2,
-        #     10: NETCDF,
-        #     11: NETCDF,
-        #     12: NETCDF,
-        #     13: GRIB2,
-        #     14: GRIB2,
-        #     15: GRIB2,
-        #     16: GRIB2,
-        #     17: GRIB2,
-        #     18: GRIB2,
-        #     19: GRIB2,
-        #     20: NETCDF
-        # }
-        # self.fileType = product_types[self.keyValue]
-        if self.fileType == "GRIB1":
-            self.file_ext = ".grb"
-        elif self.fileType == "GRIB2":
-            self.file_ext = ".grib2"
-        elif self.fileType == "NETCDF":
-            self.file_ext = ".nc"
-        elif self.fileType == "NETCDF4":
-            self.file_ext = ".nc4"
-        elif self.fileType == "NWM":
-            self.file_ext = ".LDASIN_DOMAIN1"
+    @property
+    def file_ext(self):
+        """Map the forcing file type to the file extension."""
+        if self.file_type == "GRIB1":
+            return ".grb"
+        elif self.file_type == "GRIB2":
+            return ".grib2"
+        elif self.file_type == "NETCDF":
+            return ".nc"
+        elif self.file_type == "NETCDF4":
+            return ".nc4"
+        elif self.file_type == "NWM":
+            return ".LDASIN_DOMAIN1"
+        elif self.file_type == "ZARR":
+            return ".zarr"
 
-        cycle_freq_minutes = {
+    @property
+    def cycle_freq(self):
+        """Map the forcing key value to the cycle frequency in minutes."""
+        return {
             1: 60,
             2: 180,
             3: 360,
@@ -242,10 +214,12 @@ class input_forcings:
             25: 1440,
             26: 15,
             27: -9999,
-        }
-        self.cycleFreq = cycle_freq_minutes[self.keyValue]
+        }[self.keyValue]
 
-        grib_vars_in = {
+    @property
+    def grib_vars(self):
+        """Map the forcing key value to the required GRIB variable names."""
+        return {
             1: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
             2: None,
             3: [
@@ -303,10 +277,12 @@ class input_forcings:
             25: ["TMP", "WDIR", "WSPD", "APCP"],
             26: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
             27: ["T2D", "Q2D", "U2D", "V2D", "RAINRATE", "SWDOWN", "LWDOWN", "PSFC"],
-        }
-        self.grib_vars = grib_vars_in[self.keyValue]
+        }[self.keyValue]
 
-        grib_levels_in = {
+    @property
+    def grib_levels(self):
+        """Map the forcing key value to the required GRIB variable levels."""
+        return {
             1: [
                 "2 m above ground",
                 "2 m above ground",
@@ -473,10 +449,12 @@ class input_forcings:
                 "surface",
             ],
             27: None,
-        }
-        self.grib_levels = grib_levels_in[self.keyValue]
+        }[self.keyValue]
 
-        netcdf_variables = {
+    @property
+    def netcdf_var_names(self):
+        """Map the forcing key value to the required NetCDF variable names."""
+        return {
             1: [
                 "TMP_2maboveground",
                 "SPFH_2maboveground",
@@ -661,12 +639,16 @@ class input_forcings:
                 "PRES_surface",
             ],
             27: ["T2D", "Q2D", "U2D", "V2D", "RAINRATE", "SWDOWN", "LWDOWN", "PSFC"],
-        }
-        self.netcdf_var_names = netcdf_variables[self.keyValue]
+        }[self.keyValue]
 
-        # arrays that store the message ids of required forcing variables for each forcing type
-        # TODO fill these arrays for forcing types other than GFS
-        grib_message_idx = {
+    @property
+    def grib_mes_idx(self):
+        """Map the forcing key value to the required GRIB message ids.
+
+        arrays that store the message ids of required forcing variables for each forcing type
+        TODO fill these arrays for forcing types other than GFS
+        """
+        return {
             1: None,
             2: None,
             3: None,
@@ -694,10 +676,12 @@ class input_forcings:
             25: None,
             26: None,
             27: None,
-        }
-        self.grib_mes_idx = grib_message_idx[self.keyValue]
+        }[self.keyValue]
 
-        input_map_to_outputs = {
+    @property
+    def input_map_output(self):
+        """Map the forcing key value to the input to output variable mapping."""
+        return {
             1: [4, 5, 0, 1, 3, 7, 2, 6],
             2: None,
             3: [4, 5, 0, 1, 3, 7, 2, 6, 8],
@@ -725,10 +709,12 @@ class input_forcings:
             25: [4, 0, 1, 3],
             26: [4, 5, 0, 1, 3, 7, 2, 6],
             27: [4, 5, 0, 1, 3, 7, 2, 6],
-        }
-        self.input_map_output = input_map_to_outputs[self.keyValue]
+        }[self.keyValue]
 
-        forecast_horizons = {
+    @property
+    def forecast_horizons(self):
+        """Map the forcing key value to the forecast horizons list."""
+        return {
             1: None,
             2: None,
             3: None,
@@ -831,8 +817,7 @@ class input_forcings:
                 18,
             ],
             27: None,
-        }
-        self.forecast_horizons = forecast_horizons[self.keyValue]
+        }[self.keyValue]
 
     def calc_neighbor_files(self, ConfigOptions, dCurrent, MpiConfig):
         """Calculate the last/next expected input forcing file based on the current time step.
