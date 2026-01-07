@@ -273,28 +273,19 @@ class ConfigOptions:
                             "Improper NWM Geogrid file option specified in configuration file",
                             e,
                         )
-                    if (
+                    nwm_domain = (
                         self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
-                        == "CONUS"
-                    ):
+                    )
+                    if nwm_domain == "CONUS":
                         self.nwm_domain = "CONUS"
                         self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
-                    elif (
-                        self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
-                        == "HI"
-                    ):
+                    elif nwm_domain == "HI":
                         self.nwm_domain = "Hawaii"
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif (
-                        self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
-                        == "PRVI"
-                    ):
+                    elif nwm_domain == "PRVI":
                         self.nwm_domain = "PR"
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif (
-                        self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
-                        == "AK"
-                    ):
+                    elif nwm_domain == "AK":
                         self.nwm_domain = "Alaska"
                         self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
 
