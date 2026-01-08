@@ -35,26 +35,6 @@ def _get_cache_path(ConfigOptions) -> str:
     
     return cache_path
 
-#def _load_from_cache(ConfigOptions, cache_path: str) -> xr.Dataset:
-#    """
-#    Load time-selected dataset from disk cache.
-#    
-#    :param ConfigOptions: Configuration with current_time
-#    :param cache_path: Path to cached NetCDF file
-#    :return: Time-selected Dataset if cache exists and is valid, None otherwise
-#    """
-#    
-#    try:
-#        if os.path.exists(cache_path):
-#            LOG.debug(f"Loading from cache: {cache_path}\n")
-#            ds = xr.open_dataset(cache_path, engine='netcdf4')
-#            c_time_np = np.datetime64(ConfigOptions.current_time)
-#            time_sel_ds = ds.sel(time=c_time_np)
-#            return time_sel_ds
-#    except Exception as e:
-#        LOG.warning(f"Cache load failed: {e}\n")
-#    return None
-
 def _save_to_cache(ds: xr.Dataset, cache_path: str) -> None:
     """
     Save dataset to disk cache as NetCDF.
@@ -238,7 +218,6 @@ def proc_aorc(ConfigOptions, MpiConfig, wrf_hydro_geo_meta):
                         LOG.debug("final_ds updated for new year\n")
                     
                     # Always select from in-memory/open dataset
-
                     _aorc_cache.time_sel_ds = _aorc_cache.final_ds.sel(time=c_time_np)
                     
                 except Exception as e:
