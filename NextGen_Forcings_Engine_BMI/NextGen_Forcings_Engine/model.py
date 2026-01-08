@@ -203,9 +203,9 @@ class NWMv3_Forcing_Engine_model:
             # we are currently processing for forcings
             if MpiConfig.rank == 0 and show_message:
                 ConfigOptions.statusMsg = '========================================='
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+                err_handler.log_msg(ConfigOptions, MpiConfig, True)
                 ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+                err_handler.log_msg(ConfigOptions, MpiConfig, True)
 
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
