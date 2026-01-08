@@ -36,6 +36,7 @@ class NWMv3_Forcing_Engine_model:
     # def aws_obj(files):
     #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
+
     def run(self, model: dict, future_time: float, ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMod, MpiConfig, OutputObj):
         """
         Executes the full forcings engine BMI pipeline for a given future timestep.
@@ -76,6 +77,7 @@ class NWMv3_Forcing_Engine_model:
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
+
 
         # Assign the future time to the configuration
         ConfigOptions.bmi_time = future_time
@@ -157,7 +159,7 @@ class NWMv3_Forcing_Engine_model:
         # 4.) Downscale.
         # 5.) Layer, and output as necessary.
         ana_factor = 1 if ConfigOptions.ana_flag is False else 0
-        show_message = True
+        #show_message = True
         if not ConfigOptions.precip_only_flag:
             if ConfigOptions.grid_type == "gridded":
                 # Reset out final grids to missing values.
@@ -201,11 +203,9 @@ class NWMv3_Forcing_Engine_model:
 
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
-            if MpiConfig.rank == 0 and show_message:
-                ConfigOptions.statusMsg = '========================================='
-                err_handler.log_msg(ConfigOptions, MpiConfig)
-                ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+            if MpiConfig.rank == 0:
+                LOG.debug(f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}")
+                
 
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
@@ -341,7 +341,7 @@ class NWMv3_Forcing_Engine_model:
                 # OutputObj.output_final_ldasin(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
                 # err_handler.check_program_status(ConfigOptions, MpiConfig)
                 ##############################################################################################
-
+        
         if ConfigOptions.customSuppPcpFreq is not None:
             # Process supplemental precipitation if we specified in the configuration file.
             if ConfigOptions.number_supp_pcp > 0:

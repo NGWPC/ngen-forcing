@@ -1,11 +1,16 @@
 import datetime
 import os
+import time
 
 from . import bias_correction
 from . import disaggregateMod
 from . import downscale
 from . import err_handler
 from . import layeringMod
+
+import logging
+from ..log_level_set import MODULE_NAME
+LOG = logging.getLogger(MODULE_NAME)
 
 
 def process_forecasts(ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMod, MpiConfig, OutputObj):
@@ -119,6 +124,11 @@ def process_forecasts(ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMo
         # 5.) Layer, and output as necessary.
         ana_factor = 1 if ConfigOptions.ana_flag is False else 0
         show_message = True
+        
+        ConfigOptions.statusMsg = 'Computing timesteps...'
+        err_handler.log_msg(ConfigOptions, MpiConfig)
+        t0 = time.time()
+
         for outStep in range(1, ConfigOptions.num_output_steps + 1):
             # Reset out final grids to missing values.
             OutputObj.output_local[:, :, :] = -9999.0
@@ -143,11 +153,9 @@ def process_forecasts(ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMo
                     seconds=ConfigOptions.output_freq * 60
                 )
             if MpiConfig.rank == 0 and show_message:
-                ConfigOptions.statusMsg = '========================================='
-                err_handler.log_msg(ConfigOptions, MpiConfig)
-                ConfigOptions.statusMsg = "Processing for output timestep: " + \
-                                          file_date.strftime('%Y-%m-%d %H:%M')
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+                LOG.debug('=========================================')
+                LOG.debug(f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}")
+
             # MpiConfig.comm.barrier()
 
             # Compose the expected path to the output file. Check to see if the file exists,
@@ -265,6 +273,12 @@ def process_forecasts(ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMo
 
                     OutputObj.output_final_ldasin(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
                     err_handler.check_program_status(ConfigOptions, MpiConfig)
+        t1 = time.time()
+        timestep_total = t1 - t0
+
+        if MpiConfig.rank == 0:
+            LOG.info = f'Completed all timesteps in {timestep_total:.3f} seconds.\n'
+            LOG.info = f'Average time per timestep: {timestep_total / ConfigOptions.num_output_steps:.3f} seconds.\n'
 
         if (not ConfigOptions.ana_flag) or (fcstCycleNum == (ConfigOptions.nFcsts - 1)):
             if MpiConfig.rank == 0:
