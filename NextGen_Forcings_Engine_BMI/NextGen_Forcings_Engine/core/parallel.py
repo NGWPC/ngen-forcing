@@ -62,13 +62,15 @@ class MpiConfig:
             self.wait_for_debugpy_client()
 
     def __broadcast_new_64bit_uid(self, config_options):
-        """Generate"""
+        """Broadcast a random uint64 then save the hash of that to self.uid64,
+        which effectively broadcasts the same unique string to all ranks."""
         if self.uid64 is not None:
             raise ValueError(f"self.uid64 already set: {repr(self.uid64)}")
         
         rand_uint64 = None
         if self.rank == 0:
-            rand_uint64 = np.random.randint(0, 2**64, dtype="uint64")
+            rng = np.random.default_rng()
+            rand_uint64 = rng.integers(0, 2**64, dtype=np.uint64)
         rand_uint64 = self.broadcast_parameter(rand_uint64, config_options, param_type=np.uint64)
 
         # Since based on 64-bit int, first 16 chars are 0, final 16 chars are random
