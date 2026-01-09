@@ -9127,17 +9127,17 @@ def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[s
 
 
 def load_weight_file(mpi_config, config_options, input_forcings, weight_file: str, element_mode: bool) -> None:
-    """`input_forcings.regridObj` is modified in-place."""
+    """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place."""
     if not os.path.exists(weight_file):
         raise FileNotFoundError(f"MPI rank {mpi_config.rank} could not find weight file: {weight_file})")
 
     if not element_mode:
-        msg_augment = " mesh element "
+        msg_augment = " "
         field_in = input_forcings.esmf_field_in
         field_out = input_forcings.esmf_field_out
         target_object_attr_name = "regridObj"
     else:
-        msg_augment = " "
+        msg_augment = " mesh element "
         field_in = input_forcings.esmf_field_in_elem
         field_out = input_forcings.esmf_field_out_elem
         target_object_attr_name = "regridObj_elem"
