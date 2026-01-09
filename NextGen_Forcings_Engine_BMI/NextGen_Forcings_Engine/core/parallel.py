@@ -1,3 +1,5 @@
+import uuid
+
 import mpi4py
 import numpy as np
 
@@ -28,6 +30,7 @@ class MpiConfig:
         self.comm = None
         self.rank = None
         self.size = None
+        self.uid64: str | None = None  # broadcasted random 16 chars based on random uint64
 
     def initialize_comm(self, config_options, comm=None):
         """
@@ -53,8 +56,25 @@ class MpiConfig:
             config_options.errMsg = "Unable to retrieve the MPI processor rank."
             raise mpi_exception
 
+        self.__broadcast_new_64bit_uid(config_options)
+
         if False:
             self.wait_for_debugpy_client()
+
+    def __broadcast_new_64bit_uid(self, config_options):
+        """Generate"""
+        if self.uid64 is not None:
+            raise ValueError(f"self.uid64 already set: {repr(self.uid64)}")
+        
+        rand_uint64 = None
+        if self.rank == 0:
+            rand_uint64 = np.random.randint(0, 2**64, dtype="uint64")
+        rand_uint64 = self.broadcast_parameter(rand_uint64, config_options, param_type=np.uint64)
+
+        # Since based on 64-bit int, first 16 chars are 0, final 16 chars are random
+        uid_64bit_hex = uuid.UUID(int=rand_uint64).hex
+        assert len(uid_64bit_hex) == 32  
+        self.uid64 = uid_64bit_hex[16:]
 
     def wait_for_debugpy_client(self):
         """This blocks until the debugpy clients have attached to cppdbg/gdb.
