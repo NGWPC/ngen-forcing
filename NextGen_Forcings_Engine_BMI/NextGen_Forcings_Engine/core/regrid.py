@@ -9155,8 +9155,8 @@ def load_weight_file(
 
     config_options.statusMsg = f"RANK: {mpi_config.rank}: Loading cached ESMF{msg_augment}weight object for {input_forcings.productName} from {weight_file}"
     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-    err_handler.check_program_status(config_options, mpi_config)
 
+    err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = time.monotonic()
         regrid = ESMF.RegridFromFile(field_in, field_out, weight_file)
@@ -9202,10 +9202,11 @@ def make_regrid(
     if mpi_config.rank == 0:
         config_options.statusMsg = start_msg
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-    err_handler.check_program_status(config_options, mpi_config)
 
     extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
+
+    err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = time.monotonic()
         regrid = (
@@ -9256,6 +9257,7 @@ def execute_regrid(
         regrid_object = input_forcings.regridObj_elem
         target_object_attr_name = "esmf_field_out_elem"
 
+    err_handler.check_program_status(config_options, mpi_config)
     try:
         setattr(input_forcings, target_object_attr_name, regrid_object(field_in, field_out))
     except ValueError as ve:
@@ -9263,10 +9265,12 @@ def execute_regrid(
         err_handler.log_critical(config_options, mpi_config)
         # delete bad cached file if it exists
         if weight_file is not None:
-            if os.path.exists(weight_file):
-                config_options.statusMsg = f"Deleting: {weight_file}"
-                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+            config_options.statusMsg = f"Deleting if exists: {weight_file}"
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+            try:
                 os.remove(weight_file)
+            except FileNotFoundError:
+                pass
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -9568,8 +9572,6 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     # mpi_config.comm.barrier()
 
     # ## CALCULATE WEIGHT ## #
-    # Try to find a pre-existing weight file, if available
-
     common_args = (mpi_config, config_options, input_forcings)
     weight_file, weight_file_elem = get_weight_file_names(*common_args)
 
@@ -9602,6 +9604,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if config_options.grid_type == "unstructured":
         execute_regrid(*common_args, weight_file, element_mode=True)
         input_forcings.regridded_mask_elem[:] = np.round(input_forcings.esmf_field_out_elem.data[:])
+
+    err_handler.check_program_status(config_options, mpi_config)
 
 
 def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_options, mpi_config,
