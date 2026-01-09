@@ -9107,6 +9107,25 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
     return calc_regrid_flag
 
 
+def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[str | None, str | None]:
+    if not config_options.weightsDir:
+        return None, None
+
+    grid_key = input_forcings.productName
+    file_key = f"{grid_key}_{config_options.geogrid}"
+    hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
+    # hash_key += f"_{mpi_config.uid64}"
+
+    weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
+
+    if config_options.grid_type == "unstructured":
+        weight_file_elem = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}_elem.nc4")
+    else:
+        weight_file_elem = None
+
+    return weight_file, weight_file_elem
+
+
 def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta,
                       lat_var="latitude", lon_var="longitude", fill=False):
     """
@@ -9406,20 +9425,9 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     # ## CALCULATE WEIGHT ## #
     # Try to find a pre-existing weight file, if available
 
-    weight_file = None
-    weight_file_elem = None
-    if config_options.weightsDir is not None:
-        grid_key = input_forcings.productName
-        file_key = f"{grid_key}_{config_options.geogrid}"
-        hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
-        if config_options.grid_type == "gridded":
-            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
-        elif config_options.grid_type == "unstructured":
-            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
-            weight_file_elem = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}_elem.nc4")
-        elif config_options.grid_type == "hydrofabric":
-            weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
+    weight_file, weight_file_elem = get_weight_file_names(mpi_config, input_forcings, config_options)
 
+    if config_options.weightsDir is not None:
         # check if file exists:
         if os.path.exists(weight_file):
             # read the data
