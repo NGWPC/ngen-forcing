@@ -9238,6 +9238,36 @@ def write_element_weight_file(mpi_config, config_options, input_forcings, weight
         traceback.print_exception(etype, value, tb)
 
 
+def execute_base_regrid(mpi_config, config_options, input_forcings, weight_file: str) -> None:
+    """`input_forcings.esmf_field_out` is modified in-place. On error, weight file is deleted from disk."""
+    try:
+        input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
+                                                                    input_forcings.esmf_field_out)
+    except ValueError as ve:
+        config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
+        err_handler.log_critical(config_options, mpi_config)
+        # delete bad cached file if it exists
+        if weight_file is not None:
+            if os.path.exists(weight_file):
+                os.remove(weight_file)
+    err_handler.check_program_status(config_options, mpi_config)
+
+
+def execute_element_regrid(mpi_config, config_options, input_forcings, weight_file_elem: str) -> None:
+    """`input_forcings.esmf_field_out_elem` is modified in-place. On error, weight file is deleted from disk."""
+    try:
+        input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
+                                                                            input_forcings.esmf_field_out_elem)
+    except ValueError as ve:
+        config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
+        err_handler.log_critical(config_options, mpi_config)
+        # delete bad cached file if it exists
+        if weight_file_elem is not None:
+            if os.path.exists(weight_file_elem):
+                os.remove(weight_file_elem)
+    err_handler.check_program_status(config_options, mpi_config)
+
+
 def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta,
                       lat_var="latitude", lon_var="longitude", fill=False):
     """
@@ -9549,21 +9579,9 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if input_forcings.regridObj is None:
         write_base_weight_file(mpi_config, config_options, input_forcings, weight_file=weight_file, fill=fill)
         err_handler.check_program_status(config_options, mpi_config)
+        execute_base_regrid(mpi_config, config_options, input_forcings, weight_file=weight_file)
 
-        # Run the regridding object on this test dataset. Check the output grid for
-        # any 0 values.
-        try:
-            input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
-                                                                     input_forcings.esmf_field_out)
-        except ValueError as ve:
-            config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
-            err_handler.log_critical(config_options, mpi_config)
-            # delete bad cached file if it exists
-            if weight_file is not None:
-                if os.path.exists(weight_file):
-                    os.remove(weight_file)
-        err_handler.check_program_status(config_options, mpi_config)
-
+    # Apply
     if config_options.grid_type == "gridded":
         input_forcings.regridded_mask[:, :] = np.round(input_forcings.esmf_field_out.data[:, :])
     elif config_options.grid_type != "gridded":
@@ -9572,21 +9590,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     if config_options.grid_type == "unstructured" and input_forcings.regridObj_elem is None:
         write_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem, fill=fill)
         err_handler.check_program_status(config_options, mpi_config)
-
-        # Run the regridding object on this test dataset. Check the output grid for
-        # any 0 values.
-        try:
-            input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
-                                                                               input_forcings.esmf_field_out_elem)
-        except ValueError as ve:
-            config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
-            err_handler.log_critical(config_options, mpi_config)
-            # delete bad cached file if it exists
-            if weight_file_elem is not None:
-                if os.path.exists(weight_file_elem):
-                    os.remove(weight_file_elem)
-        err_handler.check_program_status(config_options, mpi_config)
-
+        execute_element_regrid(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem)
+        # Apply
         input_forcings.regridded_mask_elem[:] = np.round(input_forcings.esmf_field_out_elem.data[:])
 
 
