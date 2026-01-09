@@ -9176,6 +9176,68 @@ def load_element_weight_file(mpi_config, config_options, input_forcings, weight_
         err_handler.log_warning(config_options, mpi_config)
 
 
+def write_base_weight_file(mpi_config, config_options, input_forcings, weight_file: str, fill: bool) -> None:
+    """`input_forcings.regridObj` is modified in-place."""
+    assert isinstance(fill, bool)
+    if mpi_config.rank == 0:
+        config_options.statusMsg = "Creating weight object from ESMF"
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    err_handler.check_program_status(config_options, mpi_config)
+    extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
+    regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
+    try:
+        begin = time.monotonic()
+        input_forcings.regridObj = ESMF.Regrid(input_forcings.esmf_field_in,
+                                                input_forcings.esmf_field_out,
+                                                src_mask_values=np.array([0, config_options.globalNdv]),
+                                                regrid_method=regrid_method,
+                                                extrap_method=extrap_method,
+                                                unmapped_action=ESMF.UnmappedAction.IGNORE,
+                                                filename=weight_file)
+        end = time.monotonic()
+
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Finished generating weight object with ESMF, took {} seconds".format(
+                end - begin)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
+        config_options.errMsg = "Unable to regrid input data from ESMF: " + str(esmf_error)
+        err_handler.log_critical(config_options, mpi_config)
+        etype, value, tb = sys.exc_info()
+        traceback.print_exception(etype, value, tb)
+
+
+def write_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem: str, fill: bool) -> None:
+    """`input_forcings.regridObj_elem` is modified in-place."""
+    assert isinstance(fill, bool)
+    if mpi_config.rank == 0:
+        config_options.statusMsg = "Creating ESMF mesh element weight object from ESMF"
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    err_handler.check_program_status(config_options, mpi_config)
+    extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
+    regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
+    try:
+        begin = time.monotonic()
+        input_forcings.regridObj_elem = ESMF.Regrid(input_forcings.esmf_field_in_elem,
+                                                    input_forcings.esmf_field_out_elem,
+                                                    src_mask_values=np.array([0, config_options.globalNdv]),
+                                                    regrid_method=regrid_method,
+                                                    extrap_method=extrap_method,
+                                                    unmapped_action=ESMF.UnmappedAction.IGNORE,
+                                                    filename=weight_file_elem)
+        end = time.monotonic()
+
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Finished generating ESMF mesh element weight object with ESMF, took {} seconds".format(
+                end - begin)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
+        config_options.errMsg = "Unable to regrid input data into ESMF mesh element weight object from ESMF: " + str(esmf_error)
+        err_handler.log_critical(config_options, mpi_config)
+        etype, value, tb = sys.exc_info()
+        traceback.print_exception(etype, value, tb)
+
+
 def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta,
                       lat_var="latitude", lon_var="longitude", fill=False):
     """
@@ -9485,33 +9547,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
             load_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem)
 
     if input_forcings.regridObj is None:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Creating weight object from ESMF"
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        err_handler.check_program_status(config_options, mpi_config)
-        extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
-        regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
-        try:
-            begin = time.monotonic()
-            input_forcings.regridObj = ESMF.Regrid(input_forcings.esmf_field_in,
-                                                   input_forcings.esmf_field_out,
-                                                   src_mask_values=np.array([0, config_options.globalNdv]),
-                                                   regrid_method=regrid_method,
-                                                   extrap_method=extrap_method,
-                                                   unmapped_action=ESMF.UnmappedAction.IGNORE,
-                                                   filename=weight_file)
-            end = time.monotonic()
-
-            if mpi_config.rank == 0:
-                config_options.statusMsg = "Finished generating weight object with ESMF, took {} seconds".format(
-                    end - begin)
-                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-            config_options.errMsg = "Unable to regrid input data from ESMF: " + str(esmf_error)
-            err_handler.log_critical(config_options, mpi_config)
-            etype, value, tb = sys.exc_info()
-            traceback.print_exception(etype, value, tb)
-
+        write_base_weight_file(mpi_config, config_options, input_forcings, weight_file=weight_file, fill=fill)
         err_handler.check_program_status(config_options, mpi_config)
 
         # Run the regridding object on this test dataset. Check the output grid for
@@ -9534,33 +9570,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
         input_forcings.regridded_mask[:] = np.round(input_forcings.esmf_field_out.data[:])
 
     if config_options.grid_type == "unstructured" and input_forcings.regridObj_elem is None:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Creating ESMF mesh element weight object from ESMF"
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        err_handler.check_program_status(config_options, mpi_config)
-        extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
-        regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
-        try:
-            begin = time.monotonic()
-            input_forcings.regridObj_elem = ESMF.Regrid(input_forcings.esmf_field_in_elem,
-                                                        input_forcings.esmf_field_out_elem,
-                                                        src_mask_values=np.array([0, config_options.globalNdv]),
-                                                        regrid_method=regrid_method,
-                                                        extrap_method=extrap_method,
-                                                        unmapped_action=ESMF.UnmappedAction.IGNORE,
-                                                        filename=weight_file_elem)
-            end = time.monotonic()
-
-            if mpi_config.rank == 0:
-                config_options.statusMsg = "Finished generating ESMF mesh element weight object with ESMF, took {} seconds".format(
-                    end - begin)
-                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-            config_options.errMsg = "Unable to regrid input data into ESMF mesh element weight object from ESMF: " + str(esmf_error)
-            err_handler.log_critical(config_options, mpi_config)
-            etype, value, tb = sys.exc_info()
-            traceback.print_exception(etype, value, tb)
-
+        write_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem, fill=fill)
         err_handler.check_program_status(config_options, mpi_config)
 
         # Run the regridding object on this test dataset. Check the output grid for
