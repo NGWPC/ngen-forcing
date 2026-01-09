@@ -9114,7 +9114,7 @@ def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[s
     grid_key = input_forcings.productName
     file_key = f"{grid_key}_{config_options.geogrid}"
     hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
-    # hash_key += f"_{mpi_config.uid64}"
+    hash_key += f"_{mpi_config.uid64}"
 
     weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
 
@@ -9126,145 +9126,123 @@ def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[s
     return weight_file, weight_file_elem
 
 
-def load_base_weight_file(mpi_config, config_options, input_forcings, weight_file: str) -> None:
+def load_weight_file(mpi_config, config_options, input_forcings, weight_file: str, element_mode: bool) -> None:
     """`input_forcings.regridObj` is modified in-place."""
+    if not os.path.exists(weight_file):
+        raise FileNotFoundError(f"MPI rank {mpi_config.rank} could not find weight file: {weight_file})")
+
+    if not element_mode:
+        msg_augment = " mesh element "
+        field_in = input_forcings.esmf_field_in
+        field_out = input_forcings.esmf_field_out
+        target_object_attr_name = "regridObj"
+    else:
+        msg_augment = " "
+        field_in = input_forcings.esmf_field_in_elem
+        field_out = input_forcings.esmf_field_out_elem
+        target_object_attr_name = "regridObj_elem"
+
+    config_options.statusMsg = f"RANK: {mpi_config.rank}: Loading cached ESMF{msg_augment}weight object for {input_forcings.productName} from {weight_file}"
+    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    err_handler.check_program_status(config_options, mpi_config)
+
     try:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Loading cached ESMF weight object for " + input_forcings.productName + \
-                                        " from " + weight_file
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        err_handler.check_program_status(config_options, mpi_config)
-
         begin = time.monotonic()
-        input_forcings.regridObj = ESMF.RegridFromFile(input_forcings.esmf_field_in,
-                                                        input_forcings.esmf_field_out,
-                                                        weight_file)
+        regrid = ESMF.RegridFromFile(field_in, field_out, weight_file)
+        setattr(input_forcings, target_object_attr_name, regrid)
         end = time.monotonic()
-
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Finished loading weight object with ESMF, took {} seconds".format(
-                end - begin)
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
     except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = "Unable to load cached ESMF weight file: " + str(esmf_error)
+        config_options.errMsg = f"Unable to load cached ESMF{msg_augment}weight file: " + str(esmf_error)
         err_handler.log_warning(config_options, mpi_config)
+    else:
+        config_options.statusMsg = (
+            f"RANK: {mpi_config.rank}: Finished loading{msg_augment}weight object with ESMF, took {end - begin} seconds"
+        )
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
+    err_handler.check_program_status(config_options, mpi_config)
 
 
-def load_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem: str) -> None:
-    """`input_forcings.regridObj_elem` is modified in-place."""
-    try:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Loading cached ESMF mesh element weight object for " + input_forcings.productName + \
-                                        " from " + weight_file_elem
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        err_handler.check_program_status(config_options, mpi_config)
 
-        begin = time.monotonic()
-        input_forcings.regridObj_elem = ESMF.RegridFromFile(input_forcings.esmf_field_in_elem,
-                                                            input_forcings.esmf_field_out_elem,
-                                                            weight_file_elem)
-        end = time.monotonic()
-
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Finished loading mesh element weight object with ESMF, took {} seconds".format(
-                end - begin)
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
-    except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = "Unable to load cached ESMF mesh element weight file: " + str(esmf_error)
-        err_handler.log_warning(config_options, mpi_config)
-
-
-def write_base_weight_file(mpi_config, config_options, input_forcings, weight_file: str, fill: bool) -> None:
-    """`input_forcings.regridObj` is modified in-place."""
+def make_regrid(
+    mpi_config, config_options, input_forcings, weight_file: str | None, fill: bool, element_mode: bool
+) -> None:
+    """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place.
+    Writes weight file to disk if weight_file is not None.
+    Operates on element object if `element_mode` is True."""
     assert isinstance(fill, bool)
+
+    if not element_mode:
+        msg_augment = " "
+        field_in = input_forcings.esmf_field_in
+        field_out = input_forcings.esmf_field_out
+        target_object_attr_name = "regridObj"
+    else:
+        msg_augment = " mesh element "
+        field_in = input_forcings.esmf_field_in_elem
+        field_out = input_forcings.esmf_field_out_elem
+        target_object_attr_name = "regridObj_elem"
+
+    start_msg = f"RANK: {mpi_config.rank}: Creating{msg_augment}weight object from ESMF. weight_file={weight_file}"
     if mpi_config.rank == 0:
-        config_options.statusMsg = "Creating weight object from ESMF"
+        config_options.statusMsg = start_msg
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
+
     extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
     try:
         begin = time.monotonic()
-        input_forcings.regridObj = ESMF.Regrid(input_forcings.esmf_field_in,
-                                                input_forcings.esmf_field_out,
-                                                src_mask_values=np.array([0, config_options.globalNdv]),
-                                                regrid_method=regrid_method,
-                                                extrap_method=extrap_method,
-                                                unmapped_action=ESMF.UnmappedAction.IGNORE,
-                                                filename=weight_file)
+        regrid = ESMF.Regrid(
+                field_in,
+                field_out,
+                src_mask_values=np.array([0, config_options.globalNdv]),
+                regrid_method=regrid_method,
+                extrap_method=extrap_method,
+                unmapped_action=ESMF.UnmappedAction.IGNORE,
+                filename=weight_file,
+            ),
+        setattr(input_forcings, target_object_attr_name, regrid)
         end = time.monotonic()
-
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Finished generating weight object with ESMF, took {} seconds".format(
-                end - begin)
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = "Unable to regrid input data from ESMF: " + str(esmf_error)
+        config_options.errMsg = f"RANK: {mpi_config.rank}: Failed: {start_msg}. Unable to regrid input data from ESMF: " + str(esmf_error)
         err_handler.log_critical(config_options, mpi_config)
         etype, value, tb = sys.exc_info()
         traceback.print_exception(etype, value, tb)
+    else:
+        if mpi_config.rank == 0:
+            config_options.statusMsg = f"RANK: {mpi_config.rank}: Finished: {start_msg}, took {end - begin} seconds"
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
-
-def write_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem: str, fill: bool) -> None:
-    """`input_forcings.regridObj_elem` is modified in-place."""
-    assert isinstance(fill, bool)
-    if mpi_config.rank == 0:
-        config_options.statusMsg = "Creating ESMF mesh element weight object from ESMF"
-        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
-    extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
-    regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
+
+
+def execute_regrid(mpi_config, config_options, input_forcings, weight_file: str, element_mode: bool) -> None:
+    """`input_forcings.esmf_field_out` or `input_forcings.esmf_field_out_elem` is modified in-place.
+    On error, weight file is deleted from disk."""
+    if not element_mode:
+        field_in = input_forcings.esmf_field_in
+        field_out = input_forcings.esmf_field_out
+        regrid_object = input_forcings.regridObj
+        target_object_attr_name = "esmf_field_out"
+    else:
+        field_in = input_forcings.esmf_field_in_elem
+        field_out = input_forcings.esmf_field_out_elem
+        regrid_object = input_forcings.regridObj_elem
+        target_object_attr_name = "esmf_field_out_elem"
+
     try:
-        begin = time.monotonic()
-        input_forcings.regridObj_elem = ESMF.Regrid(input_forcings.esmf_field_in_elem,
-                                                    input_forcings.esmf_field_out_elem,
-                                                    src_mask_values=np.array([0, config_options.globalNdv]),
-                                                    regrid_method=regrid_method,
-                                                    extrap_method=extrap_method,
-                                                    unmapped_action=ESMF.UnmappedAction.IGNORE,
-                                                    filename=weight_file_elem)
-        end = time.monotonic()
-
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Finished generating ESMF mesh element weight object with ESMF, took {} seconds".format(
-                end - begin)
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-    except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = "Unable to regrid input data into ESMF mesh element weight object from ESMF: " + str(esmf_error)
-        err_handler.log_critical(config_options, mpi_config)
-        etype, value, tb = sys.exc_info()
-        traceback.print_exception(etype, value, tb)
-
-
-def execute_base_regrid(mpi_config, config_options, input_forcings, weight_file: str) -> None:
-    """`input_forcings.esmf_field_out` is modified in-place. On error, weight file is deleted from disk."""
-    try:
-        input_forcings.esmf_field_out = input_forcings.regridObj(input_forcings.esmf_field_in,
-                                                                    input_forcings.esmf_field_out)
+        setattr(input_forcings, target_object_attr_name, regrid_object(field_in, field_out))
     except ValueError as ve:
         config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
         err_handler.log_critical(config_options, mpi_config)
         # delete bad cached file if it exists
         if weight_file is not None:
             if os.path.exists(weight_file):
+                config_options.statusMsg = f"Deleting: {weight_file}"
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
                 os.remove(weight_file)
-    err_handler.check_program_status(config_options, mpi_config)
 
-
-def execute_element_regrid(mpi_config, config_options, input_forcings, weight_file_elem: str) -> None:
-    """`input_forcings.esmf_field_out_elem` is modified in-place. On error, weight file is deleted from disk."""
-    try:
-        input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(input_forcings.esmf_field_in_elem,
-                                                                            input_forcings.esmf_field_out_elem)
-    except ValueError as ve:
-        config_options.errMsg = "Unable to extract regridded data from ESMF regridded field: " + str(ve)
-        err_handler.log_critical(config_options, mpi_config)
-        # delete bad cached file if it exists
-        if weight_file_elem is not None:
-            if os.path.exists(weight_file_elem):
-                os.remove(weight_file_elem)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9568,30 +9546,36 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     # Try to find a pre-existing weight file, if available
 
     weight_file, weight_file_elem = get_weight_file_names(mpi_config, input_forcings, config_options)
+    common_args = (mpi_config, config_options, input_forcings)
 
-    if config_options.weightsDir is not None:
-        if os.path.exists(weight_file):
-            load_base_weight_file(mpi_config, config_options, input_forcings, weight_file=weight_file)
-
-        if config_options.grid_type == "unstructured" and os.path.exists(weight_file_elem):
-            load_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem)
-
+    # If regrid object has not been initialized yet, initialize it.
     if input_forcings.regridObj is None:
-        write_base_weight_file(mpi_config, config_options, input_forcings, weight_file=weight_file, fill=fill)
-        err_handler.check_program_status(config_options, mpi_config)
-        execute_base_regrid(mpi_config, config_options, input_forcings, weight_file=weight_file)
 
-    # Apply
+        # make_regrid's call to Regrid() is an implicit MPI barrier, all ranks must call it.
+        if config_options.weightsDir is not None:
+            if (not os.path.exists(weight_file)):
+                make_regrid(*common_args, weight_file=weight_file, fill=fill, element_mode=False)
+
+            if config_options.grid_type == "unstructured" and (not os.path.exists(weight_file_elem)):
+                make_regrid(*common_args, weight_file=weight_file_elem, fill=fill, element_mode=True)
+
+            load_weight_file(*common_args, weight_file, element_mode=False)
+            if config_options.grid_type == "unstructured":
+                load_weight_file(*common_args, weight_file, element_mode=True)
+        else:
+            # Make regrid object in memory without writing files
+            make_regrid(*common_args, weight_file=None, fill=fill, element_mode=False)
+            if config_options.grid_type == "unstructured":
+                make_regrid(*common_args, weight_file=None, fill=fill, element_mode=True)
+
+    execute_regrid(*common_args, weight_file, element_mode=False)
     if config_options.grid_type == "gridded":
         input_forcings.regridded_mask[:, :] = np.round(input_forcings.esmf_field_out.data[:, :])
     elif config_options.grid_type != "gridded":
         input_forcings.regridded_mask[:] = np.round(input_forcings.esmf_field_out.data[:])
 
-    if config_options.grid_type == "unstructured" and input_forcings.regridObj_elem is None:
-        write_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem, fill=fill)
-        err_handler.check_program_status(config_options, mpi_config)
-        execute_element_regrid(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem)
-        # Apply
+    if config_options.grid_type == "unstructured":
+        execute_regrid(*common_args, weight_file, element_mode=True)
         input_forcings.regridded_mask_elem[:] = np.round(input_forcings.esmf_field_out_elem.data[:])
 
 
