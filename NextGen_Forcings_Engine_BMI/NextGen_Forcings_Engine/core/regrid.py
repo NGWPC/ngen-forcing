@@ -9126,6 +9126,56 @@ def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[s
     return weight_file, weight_file_elem
 
 
+def load_base_weight_file(mpi_config, config_options, input_forcings, weight_file: str) -> None:
+    """`input_forcings.regridObj` is modified in-place."""
+    try:
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Loading cached ESMF weight object for " + input_forcings.productName + \
+                                        " from " + weight_file
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+        err_handler.check_program_status(config_options, mpi_config)
+
+        begin = time.monotonic()
+        input_forcings.regridObj = ESMF.RegridFromFile(input_forcings.esmf_field_in,
+                                                        input_forcings.esmf_field_out,
+                                                        weight_file)
+        end = time.monotonic()
+
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Finished loading weight object with ESMF, took {} seconds".format(
+                end - begin)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
+    except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
+        config_options.errMsg = "Unable to load cached ESMF weight file: " + str(esmf_error)
+        err_handler.log_warning(config_options, mpi_config)
+
+
+def load_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem: str) -> None:
+    """`input_forcings.regridObj_elem` is modified in-place."""
+    try:
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Loading cached ESMF mesh element weight object for " + input_forcings.productName + \
+                                        " from " + weight_file_elem
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+        err_handler.check_program_status(config_options, mpi_config)
+
+        begin = time.monotonic()
+        input_forcings.regridObj_elem = ESMF.RegridFromFile(input_forcings.esmf_field_in_elem,
+                                                            input_forcings.esmf_field_out_elem,
+                                                            weight_file_elem)
+        end = time.monotonic()
+
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "Finished loading mesh element weight object with ESMF, took {} seconds".format(
+                end - begin)
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
+    except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
+        config_options.errMsg = "Unable to load cached ESMF mesh element weight file: " + str(esmf_error)
+        err_handler.log_warning(config_options, mpi_config)
+
+
 def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_config, wrf_hydro_geo_meta,
                       lat_var="latitude", lon_var="longitude", fill=False):
     """
@@ -9428,55 +9478,11 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     weight_file, weight_file_elem = get_weight_file_names(mpi_config, input_forcings, config_options)
 
     if config_options.weightsDir is not None:
-        # check if file exists:
         if os.path.exists(weight_file):
-            # read the data
-            try:
-                if mpi_config.rank == 0:
-                    config_options.statusMsg = "Loading cached ESMF weight object for " + input_forcings.productName + \
-                                               " from " + weight_file
-                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-                err_handler.check_program_status(config_options, mpi_config)
+            load_base_weight_file(mpi_config, config_options, input_forcings, weight_file=weight_file)
 
-                begin = time.monotonic()
-                input_forcings.regridObj = ESMF.RegridFromFile(input_forcings.esmf_field_in,
-                                                               input_forcings.esmf_field_out,
-                                                               weight_file)
-                end = time.monotonic()
-
-                if mpi_config.rank == 0:
-                    config_options.statusMsg = "Finished loading weight object with ESMF, took {} seconds".format(
-                        end - begin)
-                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
-            except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
-                config_options.errMsg = "Unable to load cached ESMF weight file: " + str(esmf_error)
-                err_handler.log_warning(config_options, mpi_config)
-
-        # check if unstructured mesh element weight file exists:
         if config_options.grid_type == "unstructured" and os.path.exists(weight_file_elem):
-            # read the data
-            try:
-                if mpi_config.rank == 0:
-                    config_options.statusMsg = "Loading cached ESMF mesh element weight object for " + input_forcings.productName + \
-                                               " from " + weight_file
-                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-                err_handler.check_program_status(config_options, mpi_config)
-
-                begin = time.monotonic()
-                input_forcings.regridObj_elem = ESMF.RegridFromFile(input_forcings.esmf_field_in_elem,
-                                                                    input_forcings.esmf_field_out_elem,
-                                                                    weight_file_elem)
-                end = time.monotonic()
-
-                if mpi_config.rank == 0:
-                    config_options.statusMsg = "Finished loading mesh element weight object with ESMF, took {} seconds".format(
-                        end - begin)
-                    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
-            except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
-                config_options.errMsg = "Unable to load cached ESMF mesh element weight file: " + str(esmf_error)
-                err_handler.log_warning(config_options, mpi_config)
+            load_element_weight_file(mpi_config, config_options, input_forcings, weight_file_elem=weight_file_elem)
 
     if input_forcings.regridObj is None:
         if mpi_config.rank == 0:
