@@ -29,6 +29,9 @@ import pandas as pd
 from . import err_handler
 from . import ioMod
 from . import timeInterpMod
+from .parallel import MpiConfig
+from .config import ConfigOptions
+from .geoMod import GeoMetaWrfHydro
 
 import dask
 import dask.delayed
@@ -9107,7 +9110,9 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
     return calc_regrid_flag
 
 
-def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[str | None, str | None]:
+def get_weight_file_names(
+    mpi_config: MpiConfig, config_options: ConfigOptions, input_forcings: GeoMetaWrfHydro
+) -> tuple[str | None, str | None]:
     if not config_options.weightsDir:
         return None, None
 
@@ -9126,7 +9131,13 @@ def get_weight_file_names(mpi_config, input_forcings, config_options) -> tuple[s
     return weight_file, weight_file_elem
 
 
-def load_weight_file(mpi_config, config_options, input_forcings, weight_file: str, element_mode: bool) -> None:
+def load_weight_file(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    input_forcings: GeoMetaWrfHydro,
+    weight_file: str,
+    element_mode: bool,
+) -> None:
     """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place."""
     if not os.path.exists(weight_file):
         raise FileNotFoundError(f"MPI rank {mpi_config.rank} could not find weight file: {weight_file})")
@@ -9163,9 +9174,13 @@ def load_weight_file(mpi_config, config_options, input_forcings, weight_file: st
     err_handler.check_program_status(config_options, mpi_config)
 
 
-
 def make_regrid(
-    mpi_config, config_options, input_forcings, weight_file: str | None, fill: bool, element_mode: bool
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    input_forcings: GeoMetaWrfHydro,
+    weight_file: str | None,
+    fill: bool,
+    element_mode: bool,
 ) -> None:
     """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place.
     Writes weight file to disk if weight_file is not None.
@@ -9193,7 +9208,8 @@ def make_regrid(
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
     try:
         begin = time.monotonic()
-        regrid = ESMF.Regrid(
+        regrid = (
+            ESMF.Regrid(
                 field_in,
                 field_out,
                 src_mask_values=np.array([0, config_options.globalNdv]),
@@ -9202,10 +9218,13 @@ def make_regrid(
                 unmapped_action=ESMF.UnmappedAction.IGNORE,
                 filename=weight_file,
             ),
+        )
         setattr(input_forcings, target_object_attr_name, regrid)
         end = time.monotonic()
     except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = f"RANK: {mpi_config.rank}: Failed: {start_msg}. Unable to regrid input data from ESMF: " + str(esmf_error)
+        config_options.errMsg = (
+            f"RANK: {mpi_config.rank}: Failed: {start_msg}. Unable to regrid input data from ESMF: " + str(esmf_error)
+        )
         err_handler.log_critical(config_options, mpi_config)
         etype, value, tb = sys.exc_info()
         traceback.print_exception(etype, value, tb)
@@ -9217,7 +9236,13 @@ def make_regrid(
     err_handler.check_program_status(config_options, mpi_config)
 
 
-def execute_regrid(mpi_config, config_options, input_forcings, weight_file: str, element_mode: bool) -> None:
+def execute_regrid(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    input_forcings: GeoMetaWrfHydro,
+    weight_file: str,
+    element_mode: bool,
+) -> None:
     """`input_forcings.esmf_field_out` or `input_forcings.esmf_field_out_elem` is modified in-place.
     On error, weight file is deleted from disk."""
     if not element_mode:
@@ -9545,8 +9570,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     # ## CALCULATE WEIGHT ## #
     # Try to find a pre-existing weight file, if available
 
-    weight_file, weight_file_elem = get_weight_file_names(mpi_config, input_forcings, config_options)
     common_args = (mpi_config, config_options, input_forcings)
+    weight_file, weight_file_elem = get_weight_file_names(*common_args)
 
     # If regrid object has not been initialized yet, initialize it.
     if input_forcings.regridObj is None:
