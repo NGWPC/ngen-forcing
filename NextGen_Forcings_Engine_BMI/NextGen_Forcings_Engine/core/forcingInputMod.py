@@ -15,8 +15,8 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GeoMetaWrfHydro,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from nextgen_forcings_ewts import MODULE_NAME
 
-from ..log_level_set import MODULE_NAME
 from . import regrid, time_handling, timeInterpMod
 
 LOG = logging.getLogger(MODULE_NAME)

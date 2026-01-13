@@ -8,7 +8,7 @@ import numpy as np
 import xarray as xr
 from mpi4py.futures import MPICommExecutor
 
-from ..log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -42,23 +42,25 @@ def _get_cache_path(ConfigOptions) -> str:
     return cache_path
 
 
-def _load_from_cache(ConfigOptions, cache_path: str) -> xr.Dataset:
-    """Load time-selected dataset from disk cache.
-
-    :param ConfigOptions: Configuration with current_time
-    :param cache_path: Path to cached NetCDF file
-    :return: Time-selected Dataset if cache exists and is valid, None otherwise
-    """
-    try:
-        if os.path.exists(cache_path):
-            LOG.debug(f"Loading from cache: {cache_path}\n")
-            ds = xr.open_dataset(cache_path, engine="netcdf4")
-            c_time_np = np.datetime64(ConfigOptions.current_time)
-            time_sel_ds = ds.sel(time=c_time_np)
-            return time_sel_ds
-    except Exception as e:
-        LOG.warning(f"Cache load failed: {e}\n")
-    return None
+# def _load_from_cache(ConfigOptions, cache_path: str) -> xr.Dataset:
+#    """
+#    Load time-selected dataset from disk cache.
+#
+#    :param ConfigOptions: Configuration with current_time
+#    :param cache_path: Path to cached NetCDF file
+#    :return: Time-selected Dataset if cache exists and is valid, None otherwise
+#    """
+#
+#    try:
+#        if os.path.exists(cache_path):
+#            LOG.debug(f"Loading from cache: {cache_path}\n")
+#            ds = xr.open_dataset(cache_path, engine='netcdf4')
+#            c_time_np = np.datetime64(ConfigOptions.current_time)
+#            time_sel_ds = ds.sel(time=c_time_np)
+#            return time_sel_ds
+#    except Exception as e:
+#        LOG.warning(f"Cache load failed: {e}\n")
+#    return None
 
 
 def _save_to_cache(ds: xr.Dataset, cache_path: str) -> None:
@@ -212,34 +214,34 @@ def proc_aorc(ConfigOptions, MpiConfig, wrf_hydro_geo_meta):
                     c_time_np = np.datetime64(ConfigOptions.current_time)
                     check_bool = check_time(ConfigOptions)
 
-                    xmax, xmin, ymax, ymin = get_bounds_quick(wrf_hydro_geo_meta)
-                    cache_path = _get_cache_path(ConfigOptions)
+                    if check_bool:
+                        # Year changed - need to load new dataset
+                        xmax, xmin, ymax, ymin = get_bounds_quick(wrf_hydro_geo_meta)
+                        cache_path = _get_cache_path(ConfigOptions)
 
-                    # Try to load from disk cache first
-                    cached_result = _load_from_cache(ConfigOptions, cache_path)
-                    if cached_result is not None:
-                        _aorc_cache.time_sel_ds = cached_result
-                    elif check_bool:
-                        # Cache miss or new year - fetch from AWS
-                        url = set_year(ConfigOptions)
-                        ds = create_dataset(url)
-                        sliced_ds = slice_dataset(ds, xmax, xmin, ymax, ymin)
-                        time_sliced_ds = time_slice(ConfigOptions, sliced_ds)
-                        _aorc_cache.final_ds = compute_dataset(time_sliced_ds)
+                        if os.path.exists(cache_path):
+                            # Load from disk cache (once per year)
+                            LOG.debug(
+                                f"Loading year dataset from cache: {cache_path}\n"
+                            )
+                            _aorc_cache.final_ds = xr.open_dataset(
+                                cache_path, engine="netcdf4"
+                            )
+                        else:
+                            # Cache miss - fetch from AWS
+                            url = set_year(ConfigOptions)
+                            ds = create_dataset(url)
+                            sliced_ds = slice_dataset(ds, xmax, xmin, ymax, ymin)
+                            time_sliced_ds = time_slice(ConfigOptions, sliced_ds)
+                            _aorc_cache.final_ds = compute_dataset(time_sliced_ds)
 
-                        # Save to disk cache
-                        _save_to_cache(_aorc_cache.final_ds, cache_path)
+                            # Save to disk cache
+                            _save_to_cache(_aorc_cache.final_ds, cache_path)
 
-                        _aorc_cache.time_sel_ds = _aorc_cache.final_ds.sel(
-                            time=c_time_np
-                        )
-                        LOG.debug("time_sel_ds updated\n")
-                    else:
-                        # Same year, use cached full dataset
-                        LOG.debug("time_sel_ds not updated\n")
-                        _aorc_cache.time_sel_ds = _aorc_cache.final_ds.sel(
-                            time=c_time_np
-                        )
+                        LOG.debug("final_ds updated for new year\n")
+
+                    # Always select from in-memory/open dataset
+                    _aorc_cache.time_sel_ds = _aorc_cache.final_ds.sel(time=c_time_np)
 
                 except Exception as e:
                     LOG.critical(f"Error with AORC processing: {e}")

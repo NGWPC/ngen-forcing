@@ -71,19 +71,20 @@ def run_bmi(
     # Initialize arrays based on grid type
     # ===============================
     if model._grid_type in {"gridded", "hydrofabric"}:
+        varsize = len(model._WrfHydroGeoMeta.element_ids_global) if model._grid_type == "hydrofabric" else model._varsize
         # Shared initialization
-        U2D = np.zeros(model._varsize, dtype=float)
-        V2D = np.zeros(model._varsize, dtype=float)
-        LWDOWN = np.zeros(model._varsize, dtype=float)
-        SWDOWN = np.zeros(model._varsize, dtype=float)
-        T2D = np.zeros(model._varsize, dtype=float)
-        Q2D = np.zeros(model._varsize, dtype=float)
-        PSFC = np.zeros(model._varsize, dtype=float)
-        RAINRATE = np.zeros(model._varsize, dtype=float)
+        U2D = np.zeros(varsize, dtype=float)
+        V2D = np.zeros(varsize, dtype=float)
+        LWDOWN = np.zeros(varsize, dtype=float)
+        SWDOWN = np.zeros(varsize, dtype=float)
+        T2D = np.zeros(varsize, dtype=float)
+        Q2D = np.zeros(varsize, dtype=float)
+        PSFC = np.zeros(varsize, dtype=float)
+        RAINRATE = np.zeros(varsize, dtype=float)
         if model._job_meta.include_lqfrac == 1:
-            LQFRAC = np.zeros(model._varsize, dtype=float)
+            LQFRAC = np.zeros(varsize, dtype=float)
         if model._grid_type == "hydrofabric":
-            CAT_IDS = np.zeros(model._varsize, dtype=int)
+            CAT_IDS = np.zeros(varsize, dtype=int)
 
     elif model._grid_type == "unstructured":
         # Unstructured grid (element + node)

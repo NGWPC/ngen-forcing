@@ -37,6 +37,9 @@ dependencies = [
 
 dynamic = ["version"]
 
+[project.optional-dependencies]
+develop = ["pytest"]
+
 [project.urls]
 Repository = "https://github.com/NGWPC/ngen-forcing"
 Issues = "https://github.com/NGWPC/ngen-forcing/issues"
@@ -49,7 +52,8 @@ build-backend = "setuptools.build_meta"
 where = ["NextGen_Forcings_Engine_BMI", "."]
 include = ["NextGen_Forcings_Engine*", 
     "Forcing_Extraction_Scripts*", 
-    "ESMF_Mesh_Domain_Configuration_Production*"]
+    "ESMF_Mesh_Domain_Configuration_Production*",
+    "nextgen_forcings_ewts*"]
 namespaces = false
 
 [tool.setuptools.dynamic]

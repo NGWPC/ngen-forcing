@@ -57,11 +57,9 @@ from numpy.typing import NDArray
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
-import logging
+from nextgen_forcings_ewts import MODULE_NAME, configure_logging
 
-from .log_level_set import MODULE_NAME, log_level_set
-
-log_level_set()
+configure_logging()
 
 
 LOG = logging.getLogger(MODULE_NAME)
@@ -168,7 +166,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
 
     # -------------------------------------------------------------------
-    def initialize(self, config_file: str) -> None:
+    def initialize(self, config_file: str, output_path: str | None = None) -> None:
         """Initialize the model using a configuration file.
 
         This function is part of the BMI (Basic Model Interface) specification and is automatically
@@ -182,8 +180,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+
         LOG.info("---------------------------")
-        LOG.info("BMI Forcing Engine initialized with {config_file}")
+        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
@@ -242,6 +241,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
             esmf_creation.create_mesh(self._job_meta)
+        self._mpi_meta.comm.Barrier()
+
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
             forcing_extraction.retrieve_forcing(self._job_meta)
@@ -862,9 +863,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values["CAT-ID"] = self._wrf_hydro_geo_meta.element_ids
+            self._values["CAT-ID"] = self._wrf_hydro_geo_meta.element_ids_global
 
-        self._configure_output_path()
+        self._configure_output_path(output_path)
 
     def initialize_with_params(
         self,
@@ -900,9 +901,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         )
 
         # Now that _job_meta is set, call initialize() to set up the core model
-        self.initialize(config_file)
-
-        self._configure_output_path(output_path)
+        self.initialize(config_file, output_path=output_path)
 
     def _configure_output_path(self, output_path: str | None = None) -> None:
         """Set the output path and initializes the output NetCDF file if forcing output is enabled.
@@ -1257,6 +1256,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Ensure dtype is float64 (C double)
         if arr.dtype != np.float64:
+            LOG.warning(
+                f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
+            )
+        # Ensure dtype is float64 (C double), except for CAT-ID
+        if var_name == "CAT-ID":
+            if arr.dtype != np.int32:
+                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
+                LOG.critical(msg)
+                raise RuntimeError(msg)
+        elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
             )

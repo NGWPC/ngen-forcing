@@ -12,9 +12,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling import (
     calculate_lookback_window,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import (
-    MODULE_NAME,
-)
+from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
 

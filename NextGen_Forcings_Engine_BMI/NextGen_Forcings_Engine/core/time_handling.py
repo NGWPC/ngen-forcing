@@ -9,6 +9,8 @@ import os
 import numpy as np
 import pandas as pd
 
+from nextgen_forcings_ewts import MODULE_NAME
+
 from ..log_level_set import MODULE_NAME
 from . import err_handler
 
@@ -369,23 +371,24 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     err_handler.check_program_status(config_options, mpi_config)
 
     # Ensure we have the necessary new file
-    if mpi_config.rank == 0:
-        if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.enforce == 1:
-                config_options.errMsg = (
-                    "Expected input AORC file: "
-                    + input_forcings.file_in2
-                    + " not found."
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            elif not config_options.aws:
-                config_options.statusMsg = (
-                    "Expected input AORC file: "
-                    + input_forcings.file_in2
-                    + " not found. Will not use in final layering."
-                )
-                err_handler.log_warning(config_options, mpi_config)
-    err_handler.check_program_status(config_options, mpi_config)
+    if config_options.input_forcings[0] not in [12, 21]:
+        if mpi_config.rank == 0:
+            if not os.path.isfile(input_forcings.file_in2):
+                if input_forcings.enforce == 1:
+                    config_options.errMsg = (
+                        "Expected input AORC file: "
+                        + input_forcings.file_in2
+                        + " not found."
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                else:
+                    config_options.statusMsg = (
+                        "Expected input AORC file: "
+                        + input_forcings.file_in2
+                        + " not found. Will not use in final layering."
+                    )
+                    err_handler.log_warning(config_options, mpi_config)
+    # err_handler.check_program_status(config_options, mpi_config)
 
     # If the file is missing, set the local slab of arrays to missing.
     if not os.path.exists(input_forcings.file_in2):

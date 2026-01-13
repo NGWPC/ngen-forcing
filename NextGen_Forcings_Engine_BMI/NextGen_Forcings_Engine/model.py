@@ -26,9 +26,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import (
-    MODULE_NAME,
-)
+from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -269,9 +267,9 @@ class NWMv3ForcingEngineModel:
             # we are currently processing for forcings
             if mpi_config.rank == 0 and show_message:
                 config_options.statusMsg = "========================================="
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)
                 config_options.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(config_options, mpi_config)
+                err_handler.log_msg(config_options, mpi_config, True)
 
             config_options.currentForceNum = 0
             config_options.currentCustomForceNum = 0
@@ -588,14 +586,13 @@ class NWMv3ForcingEngineModel:
         """##################Step 5: write output ##########################################################################"""
         # If user requests output for given domain, then call
         # the I/O module to update opened netcdf file with forcing fields
-        if config_options.forcing_output == 1:
-            output_obj.update_forcing_file_output(
+        if (
+            config_options.forcing_output == 1
+            or config_options.grid_type == "hydrofabric"
+        ):
+            output_obj.gather_global_outputs(
                 config_options, wrf_hydro_geo_meta, mpi_config
             )
-            if mpi_config.rank == 0:
-                LOG.debug(
-                    f"Writing output forcing file for timestamp: {output_obj.outDate.strftime('%Y-%m-%d %H:%M')}"
-                )
 
         """##################Step 6: flatten and update dict##########################################################################"""
         if config_options.grid_type == "gridded":
@@ -611,9 +608,10 @@ class NWMv3ForcingEngineModel:
                 model[variable + "_NODE"] = output_obj.output_local[count, :].flatten()
         elif config_options.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + "_ELEMENT"] = output_obj.output_local[
+                model[variable + "_ELEMENT"] = output_obj.output_global[
                     count, :
                 ].flatten()
+                model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
 
         """###############Step 7: Advance BMI index#############################################################################"""
         ## Update BMI model time index to next iteration
