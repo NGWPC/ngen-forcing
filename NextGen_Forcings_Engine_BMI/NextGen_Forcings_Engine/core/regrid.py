@@ -4951,7 +4951,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     with MPICommExecutor(comm=mpi_config.comm, root=0) as executor:
         with dask.config.set(scheduler=executor):
             if mpi_config.rank == 0:
-                id_tmp=config_options.aws_obj
+                id_tmp = config_options.aws_obj
             else:
                 id_tmp = None
     mpi_config.comm.barrier()
@@ -12839,7 +12839,7 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
                 ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
                 id_tmp = config_options.aws_obj.sel(
-                    longitude=slice(xmin, xmax), latitude=slice(ymin, ymax)
+                    x=slice(xmin, xmax), y=slice(ymin, ymax)
                 )
                 id_tmp = id_tmp.compute()
             else:
@@ -12883,6 +12883,8 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 config_options,
                 mpi_config,
                 wrf_hydro_geo_meta,
+                lat_var="y",
+                lon_var="x",
             )
 
         # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend

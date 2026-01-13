@@ -134,11 +134,14 @@ class ConfigOptions:
         self.aws = None
         self.aws_obj = None
         self.aws_time = None
-        self.aorc_source = "s3://noaa-nws-aorc-v1-1-1km"
-        self.aorc_year_url = "{source}/{year}.zarr"
+        self.aorc_conus_source = "s3://noaa-nws-aorc-v1-1-1km"
+        self.aorc_conus_year_url = "{source}/{year}.zarr"
+        self.aorc_alaska_source = "s3://ngwpc-data/AORC/Alaska"
+        self.aorc_alaska_url = (
+            "{source}/{year}/{year}{month:02d}/AK_AORC-OWP_{date}.nc4"
+        )
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
-        self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
-        self.nwm_domain = None
+
         self.nwm_geogrid = None
         self.geogrid = geogrid_arg
         self.geopackage = None
@@ -278,21 +281,6 @@ class ConfigOptions:
                             "Improper NWM Geogrid file option specified in configuration file",
                             e,
                         )
-                    nwm_domain = (
-                        self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
-                    )
-                    if nwm_domain == "CONUS":
-                        self.nwm_domain = "CONUS"
-                        self.nwm_url = "{source}/{domain}/zarr/forcing/{var}.zarr"
-                    elif nwm_domain == "HI":
-                        self.nwm_domain = "Hawaii"
-                        self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif nwm_domain == "PRVI":
-                        self.nwm_domain = "PR"
-                        self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
-                    elif nwm_domain == "AK":
-                        self.nwm_domain = "Alaska"
-                        self.nwm_url = "{source}/{domain}/zarr/forcing.zarr"
 
             # Read in the input forcings types (GRIB[1|2], NETCDF)
             try:
@@ -2088,6 +2076,23 @@ class ConfigOptions:
                     f"match the frequency of custom input forcings selected "
                     f"({self.number_custom_inputs})."
                 )
+
+    @property
+    def nwm_domain(self):
+        """Extract NWM domain from the geogrid filename."""
+        domain = self.nwm_geogrid.split("/")[-1].split("_")[-1].split(".")[0]
+        if domain == "PuertoRico":
+            return "PR"
+        else:
+            return domain
+
+    @property
+    def nwm_url(self):
+        """Construct NWM Zarr URL based on domain."""
+        if self.nwm_domain == "CONUS":
+            return "{source}/{domain}/zarr/forcing/{var}.zarr"
+        elif self.nwm_domain in ["Hawaii", "PR", "Alaska"]:
+            return "{source}/{domain}/zarr/forcing.zarr"
 
     @property
     def use_data_at_current_time(self):

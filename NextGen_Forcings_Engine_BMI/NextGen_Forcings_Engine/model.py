@@ -18,13 +18,14 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GeoMetaWrfHydro,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.historical_data_loaders import (
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing import (
+    AORCAlaskaProcessor,
     AORCConusProcessor,
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import (
     MODULE_NAME,
 )
@@ -309,14 +310,16 @@ class NWMv3ForcingEngineModel:
                     err_handler.check_program_status(config_options, mpi_config)
                 else:
                     # Flag to indicate the AWS .zarr AORC method
-                    if forceKey == 12 or forceKey == 21:
+                    if forceKey == 12:
                         if self.source_data_processor is None:
-                            self.source_data_processor = AORCProcessor(
+                            self.source_data_processor = AORCConusProcessor(
                                 config_options, mpi_config, wrf_hydro_geo_meta
                             )
-                        config_options.aws_obj = self.source_data_processor.process(
-                            config_options.current_time
-                        )
+                    elif forceKey == 21:
+                        if self.source_data_processor is None:
+                            self.source_data_processor = AORCAlaskaProcessor(
+                                config_options, mpi_config, wrf_hydro_geo_meta
+                            )
 
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
@@ -325,12 +328,26 @@ class NWMv3ForcingEngineModel:
                     # TODO: Expand functionality for oCONUS domains (different zarr structure)
                     elif forceKey == 27:
                         if self.source_data_processor is None:
-                            self.source_data_processor = NWMV3Processor(
-                                config_options, mpi_config, wrf_hydro_geo_meta
-                            )
-                        config_options.aws_obj = self.source_data_processor.process(
-                            config_options.current_time
-                        )
+                            if config_options.nwm_domain == "CONUS":
+                                self.source_data_processor = NWMV3ConusProcessor(
+                                    config_options, mpi_config, wrf_hydro_geo_meta
+                                )
+                            elif config_options.nwm_domain in [
+                                "Hawaii",
+                                "PR",
+                                "Alaska",
+                            ]:
+                                self.source_data_processor = NWMV3OConusProcessor(
+                                    config_options, mpi_config, wrf_hydro_geo_meta
+                                )
+                            else:
+                                raise ValueError(
+                                    f"Unsupported domain type ({config_options.nwm_domain} for forcing type: {forceKey} )"
+                                )
+
+                    config_options.aws_obj = self.source_data_processor.process(
+                        config_options.current_time
+                    )
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
@@ -416,28 +433,28 @@ class NWMv3ForcingEngineModel:
 
             # Process supplemental precipitation if we specified in the configuration file.
             if config_options.number_supp_pcp > 0:
-                for suppPcpKey in config_options.supp_precip_forcings:
-                    if suppPcpKey != 13:
+                for supp_pcp_key in config_options.supp_precip_forcings:
+                    if supp_pcp_key != 13:
                         # Like with input forcings, calculate the neighboring files to use.
-                        supp_pcp_mod[suppPcpKey].calc_neighbor_files(
+                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
                             config_options, output_obj.outDate, mpi_config
                         )
                         err_handler.check_program_status(config_options, mpi_config)
 
                         # Regrid the supplemental precipitation.
-                        supp_pcp_mod[suppPcpKey].regrid_inputs(
+                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             config_options, wrf_hydro_geo_meta, mpi_config
                         )
                         err_handler.check_program_status(config_options, mpi_config)
 
                         if (
-                            supp_pcp_mod[suppPcpKey].regridded_precip1 is not None
-                            and supp_pcp_mod[suppPcpKey].regridded_precip2 is not None
+                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
+                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
                         ):
                             # Run check on regridded fields for reasonable values that are not missing values.
                             err_handler.check_supp_pcp_bounds(
                                 config_options,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
                                 wrf_hydro_geo_meta,
                             )
@@ -446,14 +463,14 @@ class NWMv3ForcingEngineModel:
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                             disaggregate_fun(
                                 input_forcings,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 config_options,
                                 mpi_config,
                             )
                             err_handler.check_program_status(config_options, mpi_config)
 
                             # Run temporal interpolation on the grids.
-                            supp_pcp_mod[suppPcpKey].temporal_interpolate_inputs(
+                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
                                 config_options, mpi_config
                             )
                             err_handler.check_program_status(config_options, mpi_config)
@@ -461,7 +478,7 @@ class NWMv3ForcingEngineModel:
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
                                 output_obj,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 config_options,
                                 mpi_config,
                             )
@@ -481,28 +498,28 @@ class NWMv3ForcingEngineModel:
         if config_options.customSuppPcpFreq is not None:
             # Process supplemental precipitation if we specified in the configuration file.
             if config_options.number_supp_pcp > 0:
-                for suppPcpKey in config_options.supp_precip_forcings:
-                    if suppPcpKey == 14:
+                for supp_pcp_key in config_options.supp_precip_forcings:
+                    if supp_pcp_key == 14:
                         # Like with input forcings, calculate the neighboring files to use.
-                        supp_pcp_mod[suppPcpKey].calc_neighbor_files(
+                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
                             config_options, output_obj.outDate, mpi_config
                         )
                         err_handler.check_program_status(config_options, mpi_config)
 
                         # Regrid the supplemental precipitation.
-                        supp_pcp_mod[suppPcpKey].regrid_inputs(
+                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             config_options, wrf_hydro_geo_meta, mpi_config
                         )
                         err_handler.check_program_status(config_options, mpi_config)
 
                         if (
-                            supp_pcp_mod[suppPcpKey].regridded_precip1 is not None
-                            and supp_pcp_mod[suppPcpKey].regridded_precip2 is not None
+                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
+                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
                         ):
                             # Run check on regridded fields for reasonable values that are not missing values.
                             err_handler.check_supp_pcp_bounds(
                                 config_options,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
                                 wrf_hydro_geo_meta,
                             )
@@ -510,14 +527,14 @@ class NWMv3ForcingEngineModel:
 
                             disaggregate_fun(
                                 input_forcings,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 config_options,
                                 mpi_config,
                             )
                             err_handler.check_program_status(config_options, mpi_config)
 
                             # Run temporal interpolation on the grids.
-                            supp_pcp_mod[suppPcpKey].temporal_interpolate_inputs(
+                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
                                 config_options, mpi_config
                             )
                             err_handler.check_program_status(config_options, mpi_config)
@@ -525,7 +542,7 @@ class NWMv3ForcingEngineModel:
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
                                 output_obj,
-                                supp_pcp_mod[suppPcpKey],
+                                supp_pcp_mod[supp_pcp_key],
                                 config_options,
                                 mpi_config,
                             )
