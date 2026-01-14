@@ -9199,41 +9199,63 @@ def make_regrid(
         target_object_attr_name = "regridObj_elem"
 
     start_msg = f"RANK: {mpi_config.rank}: Creating{msg_augment}weight object from ESMF. weight_file={weight_file}"
-    if mpi_config.rank == 0:
-        config_options.statusMsg = start_msg
-        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    config_options.statusMsg = start_msg
+    err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[input_forcings.regridOpt - 1]
 
-    err_handler.check_program_status(config_options, mpi_config)
-    try:
-        begin = time.monotonic()
-        regrid = (
-            ESMF.Regrid(
-                field_in,
-                field_out,
-                src_mask_values=np.array([0, config_options.globalNdv]),
-                regrid_method=regrid_method,
-                extrap_method=extrap_method,
-                unmapped_action=ESMF.UnmappedAction.IGNORE,
-                filename=weight_file,
-            ),
-        )
-        setattr(input_forcings, target_object_attr_name, regrid)
-        end = time.monotonic()
-    except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
-        config_options.errMsg = (
-            f"RANK: {mpi_config.rank}: Failed: {start_msg}. Unable to regrid input data from ESMF: " + str(esmf_error)
-        )
-        err_handler.log_critical(config_options, mpi_config)
-        etype, value, tb = sys.exc_info()
-        traceback.print_exception(etype, value, tb)
-    else:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = f"RANK: {mpi_config.rank}: Finished: {start_msg}, took {end - begin} seconds"
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+    regrid_args = (field_in, field_out)
+    regrid_kwargs = {
+        "src_mask_values": np.array([0, config_options.globalNdv]),
+        "regrid_method": regrid_method,
+        "extrap_method": extrap_method,
+        "unmapped_action": ESMF.UnmappedAction.IGNORE,
+        "filename": weight_file,
+    }
 
+    # if mpi_config.rank == 0:  # Enable to simulate retry loop with eventual graceful failure of rank 0, reproducing deadlock condition when rank 1 blocks on ESMF.Regrid() and rank 0 reaches MPI reduce().
+    if mpi_config.rank == 1:  # Enable to simulate retry loop with eventual graceful failure of non-0 rank, reproducing later FileNotFoundError when rank 0 blocks on ESMF.Regrid() and the weights file is never created.
+        regrid_kwargs["UNEXPECTED_KEY"] = None
+
+    attempt = 0
+    attempt_limit = 3
+
+    while True:
+
+        attempt += 1
+        config_options.statusMsg = f"RANK: {mpi_config.rank}: Starting attempt {attempt} of {attempt_limit} at Regrid()"
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
+        try:
+            begin = time.monotonic()
+            regrid = ESMF.Regrid(*regrid_args, **regrid_kwargs)
+            setattr(input_forcings, target_object_attr_name, regrid)
+            end = time.monotonic()
+
+        except Exception as esmf_error:
+            if attempt >= attempt_limit:
+                # Fail out
+                config_options.errMsg = (
+                    f"RANK: {mpi_config.rank}: Failed: unable to regrid input data from ESMF after {attempt} attempts, tried: {start_msg}. Error msg: " + str(esmf_error)
+                )
+                err_handler.log_critical(config_options, mpi_config)
+                etype, value, tb = sys.exc_info()
+                traceback.print_exception(etype, value, tb)
+                break
+
+            else:
+                # Retry
+                config_options.statusMsg = f"RANK: {mpi_config.rank}: Failed attempt {attempt} of {attempt_limit} at Regrid(), will retry..."
+                err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+
+        else:
+            # Success
+            config_options.statusMsg = f"RANK: {mpi_config.rank}: Finished Regrid() at attempt {attempt} of {attempt_limit}: {start_msg}, took {end - begin} seconds"
+            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+            break
+
+    # err_handler.check_program_status(config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True)
     err_handler.check_program_status(config_options, mpi_config)
 
 
