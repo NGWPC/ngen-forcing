@@ -195,13 +195,17 @@ def err_out(ConfigOptions):
     sys.exit(1)
 
 
-def log_error(ConfigOptions, MpiConfig):
+def log_error(ConfigOptions, MpiConfig, msg: str = None):
     """
     Function to log an error message to the log file.
     :param ConfigOptions:
     :param MpiConfig:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.errMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.errMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = "Unable to obtain a logger object for: " + \
                                ConfigOptions.logFile
@@ -215,13 +219,17 @@ def log_error(ConfigOptions, MpiConfig):
     ConfigOptions.errFlag = 1
 
 
-def log_critical(ConfigOptions, MpiConfig):
+def log_critical(ConfigOptions, MpiConfig, msg: str = None):
     """
     Function for logging an error message without exiting without a
     non-zero exit status.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.errMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.errMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = "Unable to obtain a logger object for: " + \
                                ConfigOptions.logFile
@@ -239,12 +247,16 @@ def log_critical(ConfigOptions, MpiConfig):
     ConfigOptions.errFlag = 1
 
 
-def log_warning(ConfigOptions, MpiConfig):
+def log_warning(ConfigOptions, MpiConfig, msg: str = None):
     """
     Function to log warning messages to the log file.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.statusMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.statusMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = "Unable to obtain a logger object for: " + \
                                ConfigOptions.logFile
@@ -257,12 +269,20 @@ def log_warning(ConfigOptions, MpiConfig):
                              ' for log file: ' + ConfigOptions.logFile), MpiConfig)
 
 
-def log_msg(ConfigOptions, MpiConfig, debug: bool = False):
+def log_msg(ConfigOptions, MpiConfig, debug: bool = False, msg: str = None):
     """
     Function to log INFO messages to a specified log file.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.statusMsg in-place before sending log call.
     :return:
     """
+    if not isinstance(debug, bool):
+        raise TypeError(f"Expected type bool for debug, got type: {type(debug)}")
+    if msg is not None:
+        if not isinstance(msg, str):
+            raise TypeError(f"Expected type str or NoneType for msg, got type: {type(msg)}")
+        ConfigOptions.statusMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = "log_msg: Unable to obtain a logger object for: " + \
                                ConfigOptions.logFile
