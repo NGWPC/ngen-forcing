@@ -18,7 +18,7 @@ from typing import Optional
 import numpy as np
 from netCDF4 import Dataset
 
-from ..log_level_set import MODULE_NAME
+
 from . import err_handler
 
 import logging
@@ -1003,7 +1003,7 @@ class OutputObj:
                     dataOutTmp = MpiConfig.merge_slabs_gatherv(
                         self.output_local[output_variable_attribute_dict[varTmp][0], :],
                         ConfigOptions,
-                    , allgather=True)
+                    allgather=True)
                     # NOTE this assumes that the var order here matches var order elsewhere.
                     self.output_global[i_var, :] = dataOutTmp.flatten()
                 elif ConfigOptions.grid_type == "unstructured":

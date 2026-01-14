@@ -57,6 +57,8 @@ from numpy.typing import NDArray
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
+import logging
+
 from nextgen_forcings_ewts import MODULE_NAME, configure_logging
 
 configure_logging()
@@ -180,7 +182,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
-
         LOG.info("---------------------------")
         LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
@@ -769,15 +770,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
-        if (
-            self._wrf_hydro_geo_meta.nx_local < 2
-            or self._wrf_hydro_geo_meta.ny_local < 2
-        ):
-            self._job_meta.errMsg = (
-                "You have specified too many cores for your WRF-Hydro grid. "
-                "Local grid Must have x/y dimension size of 2."
-            )
-            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+
+        #I don't think this is valid. The logic falls through when you have 1 catchment. Seems to run fine without this check. -MD
+        # if (
+        #     self._wrf_hydro_geo_meta.nx_local < 2
+        #     or self._wrf_hydro_geo_meta.ny_local < 2
+        # ):
+        #     self._job_meta.errMsg = (
+        #         "You have specified too many cores for your WRF-Hydro grid. "
+        #         "Local grid Must have x/y dimension size of 2."
+        #     )
+        #     err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # Initialize our output object, which includes local slabs from the output grid.

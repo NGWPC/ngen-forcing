@@ -11,7 +11,6 @@ import pandas as pd
 
 from nextgen_forcings_ewts import MODULE_NAME
 
-from ..log_level_set import MODULE_NAME
 from . import err_handler
 
 LOG = logging.getLogger(MODULE_NAME)

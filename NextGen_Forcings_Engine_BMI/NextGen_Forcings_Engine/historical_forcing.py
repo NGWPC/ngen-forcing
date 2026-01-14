@@ -25,9 +25,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import (
-    MODULE_NAME,
-)
+from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -46,7 +44,7 @@ class BaseProcessor:
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
         self.dest_crs = CRS(4326)
-        self.buffer = 0.0  # degree buffer around bounding box
+        self.buffer = 0.01  # degree buffer around bounding box
 
     @property
     def box(self):
@@ -448,8 +446,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    @property
-    def url(self) -> str:
+    def url(self, var: str = None) -> str:
         """Generate NWM S3 zarr URL.
 
         :return: NWM S3 zarr URL
@@ -470,12 +467,12 @@ class NWMV3OConusProcessor(NWMV3Processor):
         """
         try:
             with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                ds = xr.open_zarr(self.url, storage_options={"anon": True})
+                ds = xr.open_zarr(self.url(), storage_options={"anon": True})
                 return self.slice_ds(ds, self.time_min, self.time_max).rename(
                     {self.x_label: "x", self.y_label: "y"}
                 )
         except Exception as e:
             LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
+                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
             )
             raise e

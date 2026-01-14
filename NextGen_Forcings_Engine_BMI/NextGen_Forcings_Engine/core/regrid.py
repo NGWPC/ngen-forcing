@@ -27,13 +27,21 @@ import dask.delayed
 import netCDF4 as nc
 import numpy as np
 import pandas as pd
+from pyproj import Transformer
 
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
+    err_handler,
+    ioMod,
+    timeInterpMod,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+    GeoMetaWrfHydro,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
-
-from . import err_handler, ioMod, timeInterpMod
-from .config import ConfigOptions
-from .geoMod import GeoMetaWrfHydro
-from .parallel import MpiConfig
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -13758,7 +13766,7 @@ def get_weight_file_names(
     if not config_options.weightsDir:
         return None, None
 
-    grid_key = input_forcings.productName
+    grid_key = input_forcings.product_name
     file_key = f"{grid_key}_{config_options.geogrid}"
     hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
     hash_key += f"_{mpi_config.uid64}"
@@ -13799,7 +13807,7 @@ def load_weight_file(
         field_out = input_forcings.esmf_field_out_elem
         target_object_attr_name = "regridObj_elem"
 
-    config_options.statusMsg = f"RANK: {mpi_config.rank}: Loading cached ESMF{msg_augment}weight object for {input_forcings.productName} from {weight_file}"
+    config_options.statusMsg = f"RANK: {mpi_config.rank}: Loading cached ESMF{msg_augment}weight object for {input_forcings.product_name} from {weight_file}"
     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
     err_handler.check_program_status(config_options, mpi_config)
