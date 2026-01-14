@@ -296,15 +296,14 @@ def main():
     # Process data
     sim_dir = _normpath(here, cfg['sim_dir'], f"{cfg['coastal_model']}_{_parse_utc(cfg['start_time'])}")
 
-    if  cfg["coastal_model"].lower() == "sfincs": 
-      tpxo_env = None
-      ld_library_path = cfg.get('ld_library_path', None)
-      if ld_library_path:
+    tpxo_env = None
+    ld_library_path = cfg.get('ld_library_path', None)
+    if ld_library_path:
         tpxo_env={
             "LD_LIBRARY_PATH": ld_library_path
         }
 
-      processor = DataProcessor(
+    processor = DataProcessor(
         coastal_model=cfg['coastal_model'],
         domain_info=domain_info,
         sim_dir=sim_dir,
@@ -317,8 +316,14 @@ def main():
         tpxo_relative_path=cfg.get('tpxo_relative_path', None),
         tpxo_model_control=cfg.get('tpxo_model_control', None),
         tpxo_env=tpxo_env
-      )
+    )
+
+    if  cfg["coastal_model"].lower() == "sfincs": 
       processor.process_all()
+    elif  cfg["coastal_model"].lower() == "schism": 
+      processor.process_schism()
+    else:
+        raise ValueError("Unknown value for config key: coastal_model! ")
 
     print("Forcing file generation COMPLETE")
 
