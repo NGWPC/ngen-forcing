@@ -11,20 +11,26 @@ import shapely
 import esmpy as ESMF
 
 
-def retry_w_mpi_context(reraise: bool, num_retries: int, sleep_start: float, sleep_factor: float):
+def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep_factor: float):
     """
     Decorator intended to retry functions in MPI context, that involve collective / barrier calls.
     For example, ESMF functions like ESMF.Regrid(), which, with default calls to err_handler.check_program_status,
-    may result in deadlocks if one rank fails out and the others don't.
+    may result in deadlocks if one rank fails out and the others don't, without calling MPI Abort() or re-raising the exception.
 
-    This decorator causes any/all ranks to call their own MPI Abort(), rather than only rank 0 calling MPI Abort().
+    Causes any/all ranks to call their own MPI Abort(), rather than only rank 0 calling MPI Abort().
 
-    :param reraise: If True, on fail-out, reraise the exception of the final attempt. If False, on fail-out, MPI Abort() without reraising.
+    May only wrap functions that include the following parameters as their first three arguments:
+            mpi_config: MpiConfig,
+            config_options: ConfigOptions,
+            err_handler: types.ModuleType,
+
+    :param abort: If True, on fail-out, MPI Abort() (system exit all ranks) without reraising the exeption. If False, on fail-out, reraise the exception of the final attempt.
     :param num_retries: The number of retries to perform. Must be >= 0.
     :param sleep_start: The sleep duration in seconds, between the first and second attempts.
     :param sleep_factor: With each attempt prior to fail-out, the sleep duration is multiplied by this amount.
     :return: On success, the decorated function returns its normally returned value. On fail-out, either an exception is raised, or MPI Abort() is called (system exit).
     """
+
     def decorator(func):
 
         @functools.wraps(func)
@@ -68,11 +74,14 @@ def retry_w_mpi_context(reraise: bool, num_retries: int, sleep_start: float, sle
                     else:
                         # Fail out
                         msg += f" Attempts exceeded limit."
-                        if not reraise:
+                        if abort:
+                            msg += " Will MPI Abort()."
                             err_handler.log_critical(config_options, mpi_config, msg=msg)
                             # This decorator is intended to be used for functions that make calls to collective / barrier functions,
                             # So the unusual arguments to check_program_status are used to prevent potential deadlocks.
-                            err_handler.check_program_status(config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True)
+                            err_handler.check_program_status(
+                                config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True
+                            )
                         else:
                             msg += " Reraising exception."
                             err_handler.log_critical(config_options, mpi_config, msg=msg)
@@ -82,23 +91,51 @@ def retry_w_mpi_context(reraise: bool, num_retries: int, sleep_start: float, sle
                 else:
                     msg = f"func {func.__name__} finished after {attempt} attempts."
                     err_handler.log_msg(config_options, mpi_config, debug=True, msg=msg)
-                    err_handler.check_program_status(config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True)
+                    err_handler.check_program_status(
+                        config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True
+                    )
                     return ret
 
         return wrapper
+
     return decorator
 
 
-@retry_w_mpi_context(reraise=False, num_retries=3, sleep_start=1, sleep_factor=3)
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+def esmf_field_retry(
+    mpi_config: MpiConfig, config_options: ConfigOptions, err_handler: types.ModuleType, *esmf_args, **esmf_kwargs
+):
+    """ESMF.Field() call, wrapped by MPI-aware retry decorator."""
+    return ESMF.Field(*esmf_args, **esmf_kwargs)
+
+
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+def esmf_grid_retry(
+    mpi_config: MpiConfig, config_options: ConfigOptions, err_handler: types.ModuleType, *esmf_args, **esmf_kwargs
+):
+    """ESMF.Grid() call, wrapped by MPI-aware retry decorator."""
+    return ESMF.Grid(*esmf_args, **esmf_kwargs)
+
+
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+def esmf_mesh_retry(
+    mpi_config: MpiConfig, config_options: ConfigOptions, err_handler: types.ModuleType, *esmf_args, **esmf_kwargs
+):
+    """ESMF.Mesh() call, wrapped by MPI-aware retry decorator."""
+    return ESMF.Mesh(*esmf_args, **esmf_kwargs)
+
+
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
 def esmf_regrid_retry(
-    # Used by retry decorator
-    mpi_config: MpiConfig,
-    config_options: ConfigOptions,
-    err_handler: types.ModuleType,
-    # Passed to ESMF call
-    *esmf_args,
-    **esmf_kwargs,
+    mpi_config: MpiConfig, config_options: ConfigOptions, err_handler: types.ModuleType, *esmf_args, **esmf_kwargs
 ):
     """ESMF.Regrid() call, wrapped by MPI-aware retry decorator."""
-    regrid = ESMF.Regrid(*esmf_args, **esmf_kwargs)
-    return regrid
+    return ESMF.Regrid(*esmf_args, **esmf_kwargs)
+
+
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+def esmf_regridfromfile_retry(
+    mpi_config: MpiConfig, config_options: ConfigOptions, err_handler: types.ModuleType, *esmf_args, **esmf_kwargs
+):
+    """ESMF.RegridFromFile() call, wrapped by MPI-aware retry decorator."""
+    return ESMF.RegridFromFile(*esmf_args, **esmf_kwargs)
