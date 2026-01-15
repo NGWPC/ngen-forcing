@@ -1,6 +1,7 @@
 """
 Regridding module file for regridding input forcing files.
 """
+import functools
 import os
 import sys
 import traceback
@@ -32,6 +33,14 @@ from . import timeInterpMod
 from .parallel import MpiConfig
 from .config import ConfigOptions
 from .geoMod import GeoMetaWrfHydro
+
+from ..esmf_utils import (
+    esmf_field_retry,
+    esmf_grid_retry,
+    esmf_mesh_retry,
+    esmf_regrid_retry,
+    esmf_regridfromfile_retry,
+)
 
 import dask
 import dask.delayed
@@ -94,6 +103,9 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     :param mpi_config:
     :return:
     """
+    esmf_grid_retry_partial = functools.partial(esmf_grid_retry, mpi_config, config_options, err_handler)
+    esmf_mesh_retry_partial = functools.partial(esmf_mesh_retry, mpi_config, config_options, err_handler)
+
     ds = None
 
     try:
@@ -143,7 +155,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             if config_options.grid_type == "gridded":
                 try:
                     # noinspection PyTypeChecker
-                    input_forcings.esmf_grid_in = ESMF.Grid(np.array([input_forcings.ny_global, input_forcings.nx_global]),
+                    input_forcings.esmf_grid_in = esmf_grid_retry_partial(np.array([input_forcings.ny_global, input_forcings.nx_global]),
                                                             staggerloc=ESMF.StaggerLoc.CENTER,
                                                             coord_sys=ESMF.CoordSys.SPH_DEG)
                 except ESMF.ESMPyException as esmf_error:
@@ -164,8 +176,8 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 err_handler.check_program_status(config_options, mpi_config)
             elif config_options.grid_type == "unstructured":
                 try:
-                    input_forcings.esmf_grid_in = ESMF.Mesh(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
-                    input_forcings.esmf_grid_in_elem = ESMF.Mesh(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
+                    input_forcings.esmf_grid_in = esmf_mesh_retry_partial(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
+                    input_forcings.esmf_grid_in_elem = esmf_mesh_retry_partial(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
                 except ESMF.ESMPyException as esmf_error:
                     config_options.errMsg = f"Unable to create source ESMF Mesh from netCDF file: {input_forcings.file_in} ({str(esmf_error)})"
                     err_handler.log_critical(config_options, mpi_config)
@@ -182,7 +194,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 err_handler.check_program_status(config_options, mpi_config)
             elif config_options.grid_type == "hydrofabric":
                 try:
-                    input_forcings.esmf_grid_in = ESMF.Mesh(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
+                    input_forcings.esmf_grid_in = esmf_mesh_retry_partial(filename=config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
                 except ESMF.ESMPyException as esmf_error:
                     config_options.errMsg = f"Unable to create source ESMF Mesh from netCDF file: {input_forcings.file_in} ({str(esmf_error)})"
                     err_handler.log_critical(config_options, mpi_config)
@@ -8869,11 +8881,13 @@ def check_regrid_status(id_tmp, force_count, input_forcings, config_options, wrf
     :param mpi_config:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(esmf_field_retry, mpi_config, config_options, err_handler)
+
     # If the destination ESMF field hasn't been created, create it here.
     if not input_forcings.esmf_field_out:
         if config_options.grid_type == 'gridded':
             try:
-                input_forcings.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid,
+                input_forcings.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid,
                                                            name=input_forcings.productName + 'FORCING_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + input_forcings.productName + \
@@ -8882,14 +8896,14 @@ def check_regrid_status(id_tmp, force_count, input_forcings, config_options, wrf
 
         elif config_options.grid_type == 'unstructured':
             try:
-                input_forcings.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.NODE,
+                input_forcings.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.NODE,
                                                            name=input_forcings.productName + 'FORCING_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + input_forcings.productName + \
                                         " destination ESMF field node mesh object: " + str(esmf_error)
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                input_forcings.esmf_field_out_elem = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
+                input_forcings.esmf_field_out_elem = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
                                                                 name=input_forcings.productName + 'FORCING_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + input_forcings.productName + \
@@ -8897,7 +8911,7 @@ def check_regrid_status(id_tmp, force_count, input_forcings, config_options, wrf
                 err_handler.log_critical(config_options, mpi_config)
         elif config_options.grid_type == 'hydrofabric':
             try:
-                input_forcings.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
+                input_forcings.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
                                                            name=input_forcings.productName + 'FORCING_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + input_forcings.productName + \
@@ -8970,11 +8984,13 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
     :param mpi_config:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(esmf_field_retry, mpi_config, config_options, err_handler)
+
     # If the destination ESMF field hasn't been created, create it here.
     if not supplemental_precip.esmf_field_out:
         if config_options.grid_type == 'gridded':
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid,
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid,
                                                                 name=supplemental_precip.productName + 'SUPP_PCP_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + supplemental_precip.productName + \
@@ -8982,7 +8998,7 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
                 err_handler.err_out(config_options)
         elif config_options.grid_type == 'unstructured':
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.NODE,
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.NODE,
                                                                 name=supplemental_precip.productName + 'SUPP_PCP_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + supplemental_precip.productName + \
@@ -8990,7 +9006,7 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
                 err_handler.err_out(config_options)
 
             try:
-                supplemental_precip.esmf_field_out_elem = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
+                supplemental_precip.esmf_field_out_elem = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
                                                                      name=supplemental_precip.productName + 'SUPP_PCP_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + supplemental_precip.productName + \
@@ -8999,7 +9015,7 @@ def check_supp_pcp_regrid_status(id_tmp, supplemental_precip, config_options, wr
 
         elif config_options.grid_type == 'hydrofabric':
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(wrf_hydro_geo_meta.esmf_grid, meshloc=ESMF.MeshLoc.ELEMENT,
                                                                 name=supplemental_precip.productName + 'SUPP_PCP_REGRIDDED')
             except ESMF.ESMPyException as esmf_error:
                 config_options.errMsg = "Unable to create " + supplemental_precip.productName + \
@@ -9159,7 +9175,10 @@ def load_weight_file(
     err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = time.monotonic()
-        regrid = ESMF.RegridFromFile(field_in, field_out, weight_file)
+        regrid = esmf_regridfromfile_retry(
+            mpi_config, config_options, err_handler,
+            field_in, field_out, weight_file
+        )
         setattr(input_forcings, target_object_attr_name, regrid)
         end = time.monotonic()
     except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
@@ -9209,16 +9228,17 @@ def make_regrid(
     err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = time.monotonic()
-        regrid = (
-            ESMF.Regrid(
-                field_in,
-                field_out,
-                src_mask_values=np.array([0, config_options.globalNdv]),
-                regrid_method=regrid_method,
-                extrap_method=extrap_method,
-                unmapped_action=ESMF.UnmappedAction.IGNORE,
-                filename=weight_file,
-            ),
+        regrid = esmf_regrid_retry(
+            mpi_config,
+            config_options,
+            err_handler,
+            field_in,
+            field_out,
+            src_mask_values=np.array([0, config_options.globalNdv]),
+            regrid_method=regrid_method,
+            extrap_method=extrap_method,
+            unmapped_action=ESMF.UnmappedAction.IGNORE,
+            filename=weight_file,
         )
         setattr(input_forcings, target_object_attr_name, regrid)
         end = time.monotonic()
@@ -9288,6 +9308,8 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     :param force_count:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(esmf_field_retry, mpi_config, config_options, err_handler)
+    esmf_grid_retry_partial = functools.partial(esmf_grid_retry, mpi_config, config_options, err_handler)
 
     config_options.statusMsg = "Calculate Weights"
     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
@@ -9333,7 +9355,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
 
     try:
         # noinspection PyTypeChecker
-        input_forcings.esmf_grid_in = ESMF.Grid(np.array([input_forcings.ny_global, input_forcings.nx_global]),
+        input_forcings.esmf_grid_in = esmf_grid_retry_partial(np.array([input_forcings.ny_global, input_forcings.nx_global]),
                                                 staggerloc=ESMF.StaggerLoc.CENTER,
                                                 coord_sys=ESMF.CoordSys.SPH_DEG)
     except ESMF.ESMPyException as esmf_error:
@@ -9501,7 +9523,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
 
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(input_forcings.esmf_grid_in,
+            input_forcings.esmf_field_in = esmf_field_retry_partial(input_forcings.esmf_grid_in,
                                                       name=input_forcings.productName + "_NATIVE")
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(esmf_error)
@@ -9512,7 +9534,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
 
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(input_forcings.esmf_grid_in,
+            input_forcings.esmf_field_in = esmf_field_retry_partial(input_forcings.esmf_grid_in,
                                                       name=input_forcings.productName + "_NATIVE")
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(esmf_error)
@@ -9521,7 +9543,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
 
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in_elem = ESMF.Field(input_forcings.esmf_grid_in,
+            input_forcings.esmf_field_in_elem = esmf_field_retry_partial(input_forcings.esmf_grid_in,
                                                            name=input_forcings.productName + "_NATIVE_ELEMENT")
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(esmf_error)
@@ -9531,7 +9553,7 @@ def calculate_weights(id_tmp, force_count, input_forcings, config_options, mpi_c
     elif config_options.grid_type == "hydrofabric":
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(input_forcings.esmf_grid_in,
+            input_forcings.esmf_field_in = esmf_field_retry_partial(input_forcings.esmf_grid_in,
                                                       name=input_forcings.productName + "_NATIVE")
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(esmf_error)
@@ -9621,6 +9643,10 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
     :param config_options:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(esmf_field_retry, mpi_config, config_options, err_handler)
+    esmf_grid_retry_partial = functools.partial(esmf_grid_retry, mpi_config, config_options, err_handler)
+    esmf_regrid_retry_partial = functools.partial(esmf_regrid_retry, mpi_config, config_options, err_handler)
+
     ndims = 0
     if mpi_config.rank == 0:
         ncvar = id_tmp.variables[supplemental_precip.netcdf_var_names[0]]
@@ -9662,7 +9688,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
 
     try:
         # noinspection PyTypeChecker
-        supplemental_precip.esmf_grid_in = ESMF.Grid(np.array([supplemental_precip.ny_global,
+        supplemental_precip.esmf_grid_in = esmf_grid_retry_partial(np.array([supplemental_precip.ny_global,
                                                                supplemental_precip.nx_global]),
                                                      staggerloc=ESMF.StaggerLoc.CENTER,
                                                      coord_sys=ESMF.CoordSys.SPH_DEG)
@@ -9752,7 +9778,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
 
     if config_options.grid_type == "gridded":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(supplemental_precip.esmf_grid_in,
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(supplemental_precip.esmf_grid_in,
                                                        name=supplemental_precip.productName + "_NATIVE")
 
         # mpi_config.comm.barrier()
@@ -9778,7 +9804,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+        supplemental_precip.regridObj = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in,
                                                     supplemental_precip.esmf_field_out,
                                                     src_mask_values=np.array([0]),
                                                     regrid_method = ESMF.RegridMethod.BILINEAR,
@@ -9792,7 +9818,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
 
     elif config_options.grid_type == "unstructured":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(supplemental_precip.esmf_grid_in,
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(supplemental_precip.esmf_grid_in,
                                                        name=supplemental_precip.productName + "_NATIVE")
 
         # mpi_config.comm.barrier()
@@ -9819,13 +9845,13 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         # mpi_config.comm.barrier()
 
         if supplemental_precip.regridOpt == 1:
-            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in,
                                                         supplemental_precip.esmf_field_out,
                                                         src_mask_values=np.array([0]),
                                                         regrid_method=ESMF.RegridMethod.BILINEAR,
                                                         unmapped_action=ESMF.UnmappedAction.IGNORE)
         elif supplemental_precip.regridOpt == 2:
-            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in,
                                                         supplemental_precip.esmf_field_out,
                                                         src_mask_values=np.array([0]),
                                                         regrid_method=ESMF.RegridMethod.NEAREST_STOD,
@@ -9838,7 +9864,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[:]
 
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in_elem = ESMF.Field(supplemental_precip.esmf_grid_in,
+        supplemental_precip.esmf_field_in_elem = esmf_field_retry_partial(supplemental_precip.esmf_grid_in,
                                                             name=supplemental_precip.productName + "_NATIVE")
 
         # mpi_config.comm.barrier()
@@ -9864,7 +9890,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.esmf_field_in_elem.data[:] = var_sub_tmp_elem
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj_elem = ESMF.Regrid(supplemental_precip.esmf_field_in_elem,
+        supplemental_precip.regridObj_elem = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in_elem,
                                                          supplemental_precip.esmf_field_out_elem,
                                                          src_mask_values=np.array([0]),
                                                          regrid_method= ESMF.RegridMethod.BILINEAR,
@@ -9878,7 +9904,7 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
 
     elif config_options.grid_type == "hydrofabric":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(supplemental_precip.esmf_grid_in,
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(supplemental_precip.esmf_grid_in,
                                                        name=supplemental_precip.productName + "_NATIVE")
 
         # mpi_config.comm.barrier()
@@ -9905,14 +9931,14 @@ def calculate_supp_pcp_weights(supplemental_precip, id_tmp, tmp_file, config_opt
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
         if supplemental_precip.regridOpt == 2:
-            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in,
                                                         supplemental_precip.esmf_field_out,
                                                         src_mask_values=np.array([0]),
                                                         regrid_method=ESMF.RegridMethod.NEAREST_STOD,
                                                         unmapped_action=ESMF.UnmappedAction.IGNORE, 
                                                         extrap_method=ESMF.ExtrapMethod.NEAREST_STOD)
         elif supplemental_precip.regridOpt == 1:
-            supplemental_precip.regridObj = ESMF.Regrid(supplemental_precip.esmf_field_in,
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(supplemental_precip.esmf_field_in,
                                                         supplemental_precip.esmf_field_out,
                                                         src_mask_values=np.array([0]),
                                                         regrid_method=ESMF.RegridMethod.BILINEAR,
