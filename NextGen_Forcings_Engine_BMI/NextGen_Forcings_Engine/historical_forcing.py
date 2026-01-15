@@ -123,7 +123,7 @@ class BaseProcessor:
         start = time()
         yield
         end = time()
-        LOG.info(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+        LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
     def slice_ds(
         self, ds: xr.Dataset, start_time: np.datetime64, end_time: np.datetime64
@@ -133,13 +133,18 @@ class BaseProcessor:
         :return: Sliced Dataset
         """
         with self.timing_block("slicing dataset"):
-            return ds.sel(
+            sliced_ds = ds.sel(
                 {
                     self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
                     self.y_label: slice(self.reprojected_ymin, self.reprojected_ymax),
                     self.time_label: slice(start_time, end_time),
                 }
             )
+            if sliced_ds[self.x_label].size == 0 or sliced_ds[self.y_label].size == 0:
+                raise ValueError(
+                    "Unable to find data for the specified input dataset, domain, and catchment locations. Check that the dataset is supported for the given domain"
+                )
+        return sliced_ds
 
     @property
     def time_min(self) -> np.datetime64:
@@ -186,7 +191,7 @@ class BaseProcessor:
         :return: Computed Dataset
         """
         with self.timing_block("computing dataset"):
-            return self.sliced_ds.compute()
+            return self.sliced_ds.compute().rio.write_crs(self.src_crs)
 
     def process(self, current_time) -> xr.Dataset:
         """Process forcing data for the given configuration and geospatial metadata."""
@@ -199,7 +204,8 @@ class BaseProcessor:
         self.mpi_config.comm.barrier()
         out_ds = self.mpi_config.comm.bcast(final_ds, root=0)
 
-        self.plot_precip(out_ds)
+        # self.plot_precip(out_ds)
+        # self.write_sum_tif()
         return out_ds
 
     def plot_precip(self, ds: xr.Dataset):
@@ -213,6 +219,12 @@ class BaseProcessor:
         plt.title(f"Precipitation at {str(ds.time.values)}")
         plt.savefig(f"{self.precip_variable}_{str(ds.time.values)}.png")
         plt.clf()
+
+    def write_sum_tif(self):
+        """Write precip sum raster."""
+        self.aws_ds[self.precip_variable].sum("time").rio.to_raster(
+            f"{self.precip_variable}_sum.tif"
+        )
 
 
 class AORCConusProcessor(BaseProcessor):
@@ -269,8 +281,10 @@ class AORCConusProcessor(BaseProcessor):
                     f"Error opening {self.dataset_name} data from {self.url(year)}: {e}\n"
                 )
                 raise e
-        return xr.concat(datasets, dim="time").rename(
-            {self.x_label: "x", self.y_label: "y"}
+        return (
+            xr.concat(datasets, dim="time")
+            .rename({self.x_label: "x", self.y_label: "y"})
+            .rio.write_crs(self.src_crs)
         )
 
 
@@ -326,7 +340,7 @@ class AORCAlaskaProcessor(AORCConusProcessor):
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     load_dotenv(find_dotenv())
 
-                    LOG.info(os.environ["AWS_ACCESS_KEY_ID"])
+                    LOG.debug(os.environ["AWS_ACCESS_KEY_ID"])
                     s3 = s3fs.S3FileSystem()
                     with s3.open(self.url(date)) as f:
                         ds = xr.open_dataset(f, engine="h5netcdf")
@@ -335,7 +349,7 @@ class AORCAlaskaProcessor(AORCConusProcessor):
                             self.slice_ds(ds, date, date + np.timedelta64(1, "h"))
                         )
             except Exception as e:
-                LOG.info(traceback.format_exc())
+                LOG.debug(traceback.format_exc())
                 LOG.critical(
                     f"Error opening {self.dataset_name} data from {self.url(date)}: {e}\n"
                 )

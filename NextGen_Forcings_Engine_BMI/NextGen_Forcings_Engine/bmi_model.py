@@ -771,7 +771,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
 
-        #I don't think this is valid. The logic falls through when you have 1 catchment. Seems to run fine without this check. -MD
+        # I don't think this is valid. The logic falls through when you have 1 catchment. Seems to run fine without this check. -MD
         # if (
         #     self._wrf_hydro_geo_meta.nx_local < 2
         #     or self._wrf_hydro_geo_meta.ny_local < 2
