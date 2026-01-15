@@ -35,10 +35,17 @@ def retry_w_mpi_context(reraise: bool, num_retries: int, sleep_start: float, sle
             *args,
             **kwargs,
         ):
-            assert num_retries >= 0
+            if not isinstance(mpi_config, MpiConfig):
+                raise TypeError(f"Expected type {MpiConfig} for mpi_config, got: {type(mpi_config)}")
+            if not isinstance(config_options, ConfigOptions):
+                raise TypeError(f"Expected type {ConfigOptions} for config_options, got: {type(config_options)}")
+            if not isinstance(err_handler, types.ModuleType):
+                raise TypeError(f"Expected type {types.ModuleType} for err_handler, got: {type(err_handler)}")
+            if num_retries < 0:
+                raise ValueError(f"Expected num_retries >= 0, got: {num_retries}")
+
             sleep_sec = sleep_start
             attempt = 0
-
             while True:
                 attempt += 1
                 msg = f"Starting attempt {attempt} of {num_retries + 1} for func: {func.__name__}."
