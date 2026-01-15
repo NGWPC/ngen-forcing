@@ -181,7 +181,7 @@ class BaseProcessor:
         """
         return self.time_min + np.timedelta64(
             self.config_options.fcst_input_horizons[0], "m"
-        )
+        )+np.timedelta64(self.config_options.fcst_freq,"m")
 
     @property
     @lru_cache
