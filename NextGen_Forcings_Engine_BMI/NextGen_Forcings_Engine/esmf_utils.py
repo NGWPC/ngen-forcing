@@ -139,3 +139,17 @@ def esmf_regridfromfile_retry(
 ):
     """ESMF.RegridFromFile() call, wrapped by MPI-aware retry decorator."""
     return ESMF.RegridFromFile(*esmf_args, **esmf_kwargs)
+
+
+@retry_w_mpi_context(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+def esmf_regridobj_call_retry(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    regridObj: ESMF.api.regrid.Regrid | ESMF.api.regrid.RegridFromFile,
+    *esmf_args,
+    **esmf_kwargs,
+):
+    """Call to provided regridObj (or regridObj_elem) object, wrapped by MPI-aware retry decorator.
+    These objects are attrs of class .core.forcingInputMod.input_forcings."""
+    return regridObj(*esmf_args, **esmf_kwargs)
