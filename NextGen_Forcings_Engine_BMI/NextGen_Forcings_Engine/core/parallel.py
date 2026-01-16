@@ -1,3 +1,5 @@
+
+import os
 import uuid
 
 import mpi4py
@@ -60,7 +62,8 @@ class MpiConfig:
 
         self.__broadcast_new_64bit_uid(config_options)
 
-        if False:
+        wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
+        if wait_for_debug.lower() in ("true", "1"):
             self.wait_for_debugpy_client()
 
     def __broadcast_new_64bit_uid(self, config_options):
