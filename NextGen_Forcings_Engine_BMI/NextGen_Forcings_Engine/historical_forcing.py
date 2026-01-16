@@ -179,9 +179,11 @@ class BaseProcessor:
 
         :return: Maximum time as np.datetime64
         """
-        return self.time_min + np.timedelta64(
-            self.config_options.fcst_input_horizons[0], "m"
-        )+np.timedelta64(self.config_options.fcst_freq,"m")
+        return (
+            self.time_min
+            + np.timedelta64(self.config_options.fcst_input_horizons[0], "m")
+            + np.timedelta64(self.config_options.fcst_freq, "m")
+        )
 
     @property
     @lru_cache
@@ -196,17 +198,19 @@ class BaseProcessor:
     def process(self, current_time) -> xr.Dataset:
         """Process forcing data for the given configuration and geospatial metadata."""
         self.current_time = current_time
+        final_ds = None
         with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
             with dask.config.set(scheduler=executor):
                 if self.mpi_config.rank == 0:
                     final_ds = self.aws_ds.sel(time=self.current_time_datetime)
 
         self.mpi_config.comm.barrier()
-        out_ds = self.mpi_config.comm.bcast(final_ds, root=0)
+        final_ds = self.mpi_config.comm.bcast(final_ds, root=0)
 
-        # self.plot_precip(out_ds)
+        # if self.mpi_config.rank == 0:
+        #     self.plot_precip(final_ds)
         # self.write_sum_tif()
-        return out_ds
+        return final_ds
 
     def plot_precip(self, ds: xr.Dataset):
         """Plot precipitation field for the current time step."""
@@ -217,7 +221,9 @@ class BaseProcessor:
             ax=qmesh.axes, facecolor="none", edgecolor="black"
         )
         plt.title(f"Precipitation at {str(ds.time.values)}")
-        plt.savefig(f"{self.precip_variable}_{str(ds.time.values)}.png")
+        plt.savefig(
+            f"{self.precip_variable}_{str(ds.time.values)}_{self.mpi_config.rank}.png"
+        )
         plt.clf()
 
     def write_sum_tif(self):
