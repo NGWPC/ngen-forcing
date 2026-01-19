@@ -386,7 +386,7 @@ class NWMV3Processor(BaseProcessor):
     @property
     def src_crs(self):
         """Get source CRS from dataset."""
-        return CRS(xr.open_zarr(self.url(self.vars[0])).crs.attrs["spatial_ref"])
+        return CRS(xr.open_zarr(self.url(self.vars[0]), storage_options={"anon": True}).crs.attrs["spatial_ref"])
 
     @property
     def vars(
