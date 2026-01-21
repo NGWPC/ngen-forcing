@@ -147,18 +147,13 @@ ENV OMPI_MCA_btl_base_warn_component_unused=0
 # Reset SHELL so we're not locked into the gcc-10 build environment
 SHELL ["/bin/bash", "-c"]
 
-COPY ./docker/run-ngen-forcing.sh /ngen-app/bin/
-RUN set -eux; \
-    \
-    chmod +x /ngen-app/bin/run-ngen-forcing.sh
-
 COPY . /ngen-app/ngen-forcing/
 
 # Install ngen-forcing as a Python package
 WORKDIR /ngen-app/ngen-forcing
 RUN set -eux; \
     pip install --upgrade pip setuptools wheel; \
-    pip install --no-cache-dir mpi4py .
+    pip install --no-cache-dir mpi4py . ./nextgen_forcings_ewts
 
 ARG CI_COMMIT_REF_NAME
 

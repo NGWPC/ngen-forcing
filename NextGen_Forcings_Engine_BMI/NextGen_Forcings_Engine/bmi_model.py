@@ -1,6 +1,8 @@
 # Need these for BMI
 # This is needed for get_var_bytes
+import hashlib
 import os
+import gc
 from pathlib import Path
 
 import netCDF4 as nc
@@ -45,8 +47,8 @@ from numpy.typing import NDArray
 if ESMF.version_compare('8.7.0', ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
-from .log_level_set import log_level_set, MODULE_NAME
-log_level_set()
+from nextgen_forcings_ewts import configure_logging, MODULE_NAME
+configure_logging()
 
 import logging
 LOG = logging.getLogger(MODULE_NAME)
@@ -154,7 +156,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
 
     # -------------------------------------------------------------------
-    def initialize(self, config_file: str) -> None:
+    def initialize(self, config_file: str, output_path: str | None = None) -> None:
         """
         This function is part of the BMI (Basic Model Interface) specification and is automatically
         invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
@@ -170,7 +172,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
 
         LOG.info('---------------------------')
-        LOG.info("BMI Forcing Engine initialized with {config_file}")
+        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
@@ -223,7 +225,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         #LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         #Call ESMF mesh creation process
-        esmf_creation.create_mesh(self._job_meta)
+        if self._mpi_meta.rank == 0:
+            esmf_creation.create_mesh(self._job_meta)
+        self._mpi_meta.comm.Barrier()
+
         #Call forcing_extraction process
         if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
             forcing_extraction.retrieve_forcing(self._job_meta)
@@ -594,10 +599,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids
+            self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids_global
 
 
-        self._configure_output_path()
+        self._configure_output_path(output_path)
 
     def initialize_with_params(self, config_file: str, b_date: str = None, geogrid: str = None, output_path: str = None) -> None:
         """
@@ -624,9 +629,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._job_meta = config.ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
 
         # Now that _job_meta is set, call initialize() to set up the core model
-        self.initialize(config_file)
-
-        self._configure_output_path(output_path)
+        self.initialize(config_file, output_path=output_path)
 
 
     def _configure_output_path(self, output_path: str | None = None) -> None:
@@ -636,6 +639,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :param output_path: Optional override path.
         """
+        
+        gpkg_key = self._job_meta.geopackage
+        time_key = str(time.time()).replace('.','')
+        gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
+        time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
+       
         if self._output_configured or self._OutputObj is None:
             return  # Already configured or no output object to configure
 
@@ -653,7 +662,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self._OutputObj.outPath = output_path
             else:
                 filename = (
-                        f"NextGen_Forcings_Engine_{ext}_output_" +
+                        f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_" +
                         pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') +
                         ".nc"
                 )
@@ -719,31 +728,31 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: None
         """
 
+        # Force destruction of ESMF objects
+        self._WrfHydroGeoMeta = None
+        self._inputForcingMod = None
+        self._suppPcpMod = None
+        self._model = None
+
+        # Try moving this after all of the ESMF and model bits have
+        # been disposed of - maybe they were keeping something open.
+        #
+        # Potential workaround if that's not enough: uncomment the
+        # return before the file cleanup block, leak the files during
+        # the job, and let the workflow clean them up after the
+        # process exits
+        gc.collect()  # make sure objects are deleted from memory
         if self._mpi_meta.rank == 0:
             for filename in os.listdir(self._job_meta.scratch_dir):
-                file_path = os.path.join(self._job_meta.scratch_dir, filename)
-                if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
-                    os.remove(file_path)
-                elif os.path.isdir(file_path):
-                    os.rmdir(file_path)
-
-        # Force destruction of ESMF objects
-        try:
-            del self._WrfHydroGeoMeta
-        except AttributeError:
-            pass
-
-        try:
-            del self._inputForcingMod
-        except AttributeError:
-            pass
-
-        try:
-            del self._suppPcpMod
-        except AttributeError:
-            pass
-
-        self._model = None
+                # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
+                # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
+                # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
+                if not filename.startswith(".nfs"):
+                    file_path = os.path.join(self._job_meta.scratch_dir, filename)
+                    if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
+                        os.remove(file_path)
+                    elif os.path.isdir(file_path):
+                        os.rmdir(file_path)
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
@@ -941,8 +950,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             LOG.warning(f"[BMI] Array for '{var_name}' is not C-contiguous; making a copy.")
             arr = np.ascontiguousarray(arr)
 
-        # Ensure dtype is float64 (C double)
-        if arr.dtype != np.float64:
+        # Ensure dtype is float64 (C double), except for CAT-ID
+        if var_name == "CAT-ID":
+            if arr.dtype != np.int32:
+                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
+                LOG.critical(msg)
+                raise RuntimeError(msg)
+        elif arr.dtype != np.float64:
             LOG.warning(f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
             arr = arr.astype(np.float64)
 

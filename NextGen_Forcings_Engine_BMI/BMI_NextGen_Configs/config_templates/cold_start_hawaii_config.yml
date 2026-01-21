@@ -10,7 +10,7 @@ OutputFrequency: 60
 SubOutputHour: 0
 SubOutFreq: 0
 ScratchDir: "{root_dir}/scratch/cold_start"
-Output: 1
+Output: 0
 compressOutput: 0
 floatOutput: 0
 AnAFlag: 1

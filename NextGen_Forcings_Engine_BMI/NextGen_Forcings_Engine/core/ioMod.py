@@ -19,7 +19,7 @@ from netCDF4 import Dataset
 from . import err_handler
 
 import logging
-from ..log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 
 if "WGRIB2" not in os.environ:
@@ -37,11 +37,13 @@ class OutputObj:
 
     def __init__(self, ConfigOptions, GeoMetaWrfHydro):
         self.output_local = None
+        self.output_global = None
         self.outPath = None
         self.outDate = None
         self.idOut = None
         self.out_ndv = -9999
 
+        # TODO should the length of these depend on `if ConfigOptions.include_lqfrac`?
         # Create local "slabs" to hold final output grids. These
         # will be collected during the output routine below.
         if ConfigOptions.grid_type == 'unstructured':
@@ -51,6 +53,7 @@ class OutputObj:
             self.output_local = np.empty([9, GeoMetaWrfHydro.ny_local, GeoMetaWrfHydro.nx_local])
         elif ConfigOptions.grid_type == 'hydrofabric':
             self.output_local = np.empty([9, GeoMetaWrfHydro.ny_local])
+            self.output_global = np.empty([9, GeoMetaWrfHydro.ny_global])
         # self.output_local[:,:,:] = self.out_ndv
 
     def init_forcing_file(self, ConfigOptions, geoMetaWrfHydro, MpiConfig):
@@ -617,13 +620,22 @@ class OutputObj:
 
         err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-    def update_forcing_file_output(self, ConfigOptions, geoMetaWrfHydro, MpiConfig):
+    def gather_global_outputs(self, ConfigOptions, geoMetaWrfHydro, MpiConfig):
         """
         Updates the output NetCDF file with the regridded or processed forcing data from each processor.
 
         This function will collect data from the different processors, assemble it into a final grid based on the grid type (gridded, hydrofabric, unstructured), and write the result into the output NetCDF file.
 
         It also handles setting various global and variable attributes in the output file, including the creation of dimensions, variables, and geospatial metadata.
+
+        Originally this method had one purpose: to write global results (gathered from all processors) to an output NetCDF file.
+        This method was later updated to support another purpose, the case of ngen's intentional hydrofabric catchment partitioning differing from
+        ESMF's arbitrary mesh/grid partitioning. For that case, MPI Allgatherv is used instead of Gatherv, and the results are stored in
+        an attribute that stores global outputs, s.t. all processors have access to results from all other processors. This way, the ngen rank
+        can acquire hydrofabric forcing results from any of the ngen-forcing ranks.
+
+        The update described above introduced checks for ConfigOptions.forcing_output. Previously, this method would always write to the NetCDF file,
+        but with the update, this method only writes conditionally on that configuration option.
 
         :param ConfigOptions: Configuration options object containing various settings and parameters.
                               It includes globalNdv (NoDataValue), bmi_time_index, regrid_opt, grid_type, etc.
@@ -652,7 +664,8 @@ class OutputObj:
                                                         'Fraction of precipitation that is liquid vs. frozen',
                                                         'time: point', 0.01, 0.0, 3]
 
-        if MpiConfig.rank == 0:
+        if ConfigOptions.forcing_output == 1 and MpiConfig.rank == 0:
+            LOG.debug(f"Writing output forcing file for timestamp {self.outDate.strftime('%Y-%m-%d %H:%M')}: {self.outPath}")
             # Only output on the master processor.
             try:
                 # Try opening the output file and populating the time variable
@@ -670,14 +683,16 @@ class OutputObj:
 
         # Now loop through each variable, collect the data (call on each processor), assemble into the final
         # output grid, and place into the output file (if on processor 0).
-        for varTmp in output_variable_attribute_dict:
+        for i_var, varTmp in enumerate(output_variable_attribute_dict):
 
             # Collect data from the various processors, and place into the output file.
             try:
                 if ConfigOptions.grid_type == "gridded":
                     dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local[output_variable_attribute_dict[varTmp][0], :, :], ConfigOptions)
                 elif ConfigOptions.grid_type == "hydrofabric":
-                    dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
+                    dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local[output_variable_attribute_dict[varTmp][0], :], ConfigOptions, allgather=True)
+                    # NOTE this assumes that the var order here matches var order elsewhere.
+                    self.output_global[i_var, :] = dataOutTmp.flatten()
                 elif ConfigOptions.grid_type == "unstructured":
                     if varTmp == "RAINRATE":
                       dataOutTmp = MpiConfig.merge_slabs_gatherv(self.output_local_elem[output_variable_attribute_dict[varTmp][0], :], ConfigOptions)
@@ -690,7 +705,7 @@ class OutputObj:
                 err_handler.log_critical(ConfigOptions, MpiConfig)
                 continue
 
-            if MpiConfig.rank == 0:
+            if ConfigOptions.forcing_output == 1 and MpiConfig.rank == 0:
                 # Only process on the master processor
                 if idOut is not None:
                     try:
@@ -701,12 +716,12 @@ class OutputObj:
                     except (ValueError, IOError) as e:
                         ConfigOptions.errMsg = f"Unable to place final output grid for: {varTmp} - {e}"
                         err_handler.log_critical(ConfigOptions, MpiConfig)
-                # Reset temporary data objects to keep memory usage down.
-                del dataOutTmp
+            # Reset temporary data objects to keep memory usage down.
+            dataOutTmp = None
 
             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-        if MpiConfig.rank == 0 and idOut is not None:
+        if ConfigOptions.forcing_output == 1 and MpiConfig.rank == 0 and idOut is not None:
             # Close the NetCDF file
             try:
                 idOut.close()

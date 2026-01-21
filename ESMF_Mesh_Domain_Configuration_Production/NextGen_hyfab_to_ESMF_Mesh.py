@@ -5,6 +5,9 @@ import pandas as pd
 import argparse
 import pathlib
 import scipy
+import os
+import uuid
+
 gpd.options.display_precision = 16
 np.set_printoptions(precision=128)
 
@@ -217,8 +220,15 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
         elementConn[i, 0:element_num_nodes[i]] = node_connectivity_final[start_index:end_index]
         start_index = end_index
 
+    out_dir = os.path.dirname(esmf_mesh_output)
+    base = os.path.basename(esmf_mesh_output)
+
+    # Format: .<filename>.tmp.<UUID>
+    # Hidden temp file tied to the final filename, guaranteed unique
+    temp_path = os.path.join(out_dir, f".{base}.tmp.{uuid.uuid4()}")
+
     # Create ESMF mesh netcdf file
-    nc = netCDF4.Dataset(esmf_mesh_output, "w", format="NETCDF4")
+    nc = netCDF4.Dataset(temp_path, "w", format="NETCDF4")
     node_count_dim = nc.createDimension("nodeCount", node_count)
     elem_count_dim = nc.createDimension("elementCount", element_count)
     elem_conn_count_dim = nc.createDimension("connectionCount", len(node_connectivity_final))
@@ -235,6 +245,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     center_coords_var.units = "degrees"
     nc.gridType = "unstructured"
     nc.version = "0.9"
+
 
     # Flag to whether include hydrofabric metadata if parquet file was specified
     if parquet is not None:
@@ -258,7 +269,20 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     center_coords_var[:, 0] = element_x_coord
     center_coords_var[:, 1] = element_y_coord
     elem_id[:] = hyfab.element_id.values
+
+    nc.sync()
     nc.close()
+
+    try:
+        os.link(temp_path, esmf_mesh_output)
+
+        # Give up the temporary name. The underlying file remains,
+        # because 'esmf_mesh_output' now points to the same inode.
+        os.remove(temp_path)
+
+    except FileExistsError:
+        # Another process already published the file.
+        os.remove(temp_path)
 
 
 def get_options():

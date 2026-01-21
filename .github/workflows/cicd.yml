@@ -2,9 +2,9 @@ name: CI/CD Pipeline
 
 on:
   push:
-    branches: [master, nwm-master, development, release-candidate]
+    branches: [ngwpc-candidate, ngwpc-release, master, nwm-master, development, release-candidate]
   pull_request:
-    branches: [main, nwm-master, development, release-candidate]
+    branches: [ngwpc-candidate, ngwpc-release, main, nwm-master, development, release-candidate]
   release:
     types: [published]
 
@@ -22,7 +22,7 @@ jobs:
     outputs:
       image_base: ${{ steps.vars.outputs.image_base }}
       image_bmi: ${{ steps.vars.outputs.image_bmi }}
-      image_lumped: ${{ steps.vars.outputs.image_lumped }}
+      # image_lumped: ${{ steps.vars.outputs.image_lumped }}
       image_coastal: ${{ steps.vars.outputs.image_coastal }}
       image_sfincs: ${{ steps.vars.outputs.image_sfincs }}
       pr_tag: ${{ steps.vars.outputs.pr_tag }}
@@ -40,7 +40,7 @@ jobs:
           IMAGE_BASE="${REGISTRY}/${ORG}"
           echo "image_base=${IMAGE_BASE}" >> "$GITHUB_OUTPUT"
           echo "image_bmi=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
-          echo "image_lumped=${IMAGE_BASE}/ngen-lumped-forcing" >> "$GITHUB_OUTPUT"
+          # echo "image_lumped=${IMAGE_BASE}/ngen-lumped-forcing" >> "$GITHUB_OUTPUT"
           echo "image_coastal=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
           echo "image_sfincs=${IMAGE_BASE}/ngen-sfincs-forcing" >> "$GITHUB_OUTPUT"
 
@@ -99,44 +99,44 @@ jobs:
           build-args: |
             CI_COMMIT_REF_NAME=${{ github.ref_name }}
 
-  build-lumped:
-    name: build-lumped
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: setup
-    steps:
-      - uses: actions/checkout@v4
+  # build-lumped:
+  #   name: build-lumped
+  #   if: github.event_name == 'pull_request' || github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+  #   needs: setup
+  #   steps:
+  #     - uses: actions/checkout@v4
 
-      - name: Free disk space
-        run: |
-          sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache || true
-          docker system prune -af || true
-          docker builder prune -af || true
-          df -h
+  #     - name: Free disk space
+  #       run: |
+  #         sudo rm -rf /usr/local/lib/android /opt/ghc /usr/share/dotnet /opt/hostedtoolcache || true
+  #         docker system prune -af || true
+  #         docker builder prune -af || true
+  #         df -h
 
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+  #     - name: Set up Buildx
+  #       uses: docker/setup-buildx-action@v3
 
-      - name: Log in to registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+  #     - name: Log in to registry
+  #       uses: docker/login-action@v3
+  #       with:
+  #         registry: ${{ env.REGISTRY }}
+  #         username: ${{ github.actor }}
+  #         password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build & push Lumped Forcing
-        uses: docker/build-push-action@v6
-        with:
-          load: false
-          platforms: linux/amd64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          context: .
-          file: Dockerfile.lumped-forcings
-          push: true
-          tags: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.test_image_tag }}
-          build-args: |
-            CI_COMMIT_REF_NAME=${{ github.ref_name }}
+  #     - name: Build & push Lumped Forcing
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         load: false
+  #         platforms: linux/amd64
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
+  #         context: .
+  #         file: Dockerfile.lumped-forcings
+  #         push: true
+  #         tags: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.test_image_tag }}
+  #         build-args: |
+  #           CI_COMMIT_REF_NAME=${{ github.ref_name }}
 
   build-coastal:
     name: build-coastal
@@ -226,15 +226,15 @@ jobs:
     steps:
       - run: echo "Running BMI Forcing Unit Tests..."
 
-  unit-test-lumped:
-    name: unit-test-lumped
-    if: github.event_name == 'pull_request' || github.event_name == 'push'
-    runs-on: ubuntu-latest
-    needs: [setup, build-lumped]
-    container:
-      image: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.test_image_tag }}
-    steps:
-      - run: echo "Running Lumped Forcing Unit Tests..."
+  # unit-test-lumped:
+  #   name: unit-test-lumped
+  #   if: github.event_name == 'pull_request' || github.event_name == 'push'
+  #   runs-on: ubuntu-latest
+  #   needs: [setup, build-lumped]
+  #   container:
+  #     image: ${{ needs.setup.outputs.image_lumped }}:${{ needs.setup.outputs.test_image_tag }}
+  #   steps:
+  #     - run: echo "Running Lumped Forcing Unit Tests..."
 
   unit-test-coastal:
     name: unit-test-coastal
@@ -259,7 +259,7 @@ jobs:
   codeql-scan:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: [setup, build-bmi, build-lumped, build-coastal, build-sfincs]
+    needs: [setup, build-bmi, build-coastal, build-sfincs]
     permissions:
       actions: read
       contents: read
@@ -284,12 +284,12 @@ jobs:
   container-scanning:
     if: github.event_name == 'pull_request' || github.event_name == 'push'
     runs-on: ubuntu-latest
-    needs: [setup, build-bmi, build-lumped, build-coastal, build-sfincs]
+    needs: [setup, build-bmi, build-coastal, build-sfincs]
     strategy:
       matrix:
         target:
           - { name: bmi,     ref: '${{ needs.setup.outputs.image_bmi }}' }
-          - { name: lumped,  ref: '${{ needs.setup.outputs.image_lumped }}' }
+          # - { name: lumped,  ref: '${{ needs.setup.outputs.image_lumped }}' }
           - { name: coastal, ref: '${{ needs.setup.outputs.image_coastal }}' }
     steps:
       - name: Log in to GHCR
@@ -329,7 +329,7 @@ jobs:
     name: deploy-latest-on-development
     if: github.event_name == 'push' && github.ref_name == 'development'
     runs-on: ubuntu-latest
-    needs: [setup, build-bmi, build-lumped, build-coastal, build-sfincs, unit-test-bmi, unit-test-lumped, unit-test-coastal, unit-test-sfincs, codeql-scan, container-scanning]
+    needs: [setup, build-bmi, build-coastal, build-sfincs, unit-test-bmi, unit-test-coastal, unit-test-sfincs, codeql-scan, container-scanning]
 
     strategy:
       fail-fast: false
@@ -337,8 +337,8 @@ jobs:
         include:
           - label: BMI Forcing
             IMAGE_BASE: ${{ needs.setup.outputs.image_bmi }}
-          - label: Lumped Forcing
-            IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
+          # - label: Lumped Forcing
+          #   IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
           - label: Coastal
             IMAGE_BASE: ${{ needs.setup.outputs.image_coastal }}
           - label: SFINCS Forcing
@@ -379,8 +379,8 @@ jobs:
         include:
           - label: BMI Forcing
             IMAGE_BASE: ${{ needs.setup.outputs.image_bmi }}
-          - label: Lumped Forcing
-            IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
+          # - label: Lumped Forcing
+          #   IMAGE_BASE: ${{ needs.setup.outputs.image_lumped }}
           - label: Coastal
             IMAGE_BASE: ${{ needs.setup.outputs.image_coastal }}
           - label: SFINCS Forcing

@@ -18,9 +18,10 @@ from .core import disaggregateMod
 from .core import downscale
 from .core import err_handler
 from .core import layeringMod
-from . import nwm_proc
+from .models import nwm_proc
+from .models import aorc_proc
 
-from .log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 
 import logging
 LOG = logging.getLogger(MODULE_NAME)
@@ -140,13 +141,13 @@ class NWMv3_Forcing_Engine_model:
         # Log information about this forecast cycle
         if MpiConfig.rank == 0:
             ConfigOptions.statusMsg = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
             ConfigOptions.statusMsg = 'Processing Forecast Cycle: ' + \
                                       ConfigOptions.current_fcst_cycle.strftime('%Y-%m-%d %H:%M')
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
             ConfigOptions.statusMsg = 'Forecast Cycle Length is: ' + \
                                       str(ConfigOptions.cycle_length_minutes) + " minutes"
-            err_handler.log_msg(ConfigOptions, MpiConfig)
+            err_handler.log_msg(ConfigOptions, MpiConfig, True)
         # MpiConfig.comm.barrier()
 
         # Loop through each output timestep. Perform the following functions:
@@ -168,6 +169,7 @@ class NWMv3_Forcing_Engine_model:
             elif ConfigOptions.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
                 OutputObj.output_local[:, :] = ConfigOptions.globalNdv
+                OutputObj.output_global[:, :] = ConfigOptions.globalNdv
 
             # Increment or initialize output step count
             if ConfigOptions.current_output_step is None:
@@ -201,9 +203,9 @@ class NWMv3_Forcing_Engine_model:
             # we are currently processing for forcings
             if MpiConfig.rank == 0 and show_message:
                 ConfigOptions.statusMsg = '========================================='
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+                err_handler.log_msg(ConfigOptions, MpiConfig, True)
                 ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(ConfigOptions, MpiConfig)
+                err_handler.log_msg(ConfigOptions, MpiConfig, True)
 
             ConfigOptions.currentForceNum = 0
             ConfigOptions.currentCustomForceNum = 0
@@ -233,17 +235,7 @@ class NWMv3_Forcing_Engine_model:
                 else:
                     # Flag to indicate the AWS .zarr AORC method
                     if forceKey == 12 or forceKey == 21:
-                        if ConfigOptions.aws_time is None or ConfigOptions.current_time.year != ConfigOptions.aws_time.year:
-                            ConfigOptions.aws_time = ConfigOptions.current_time
-                            _s3 = s3fs.S3FileSystem(anon=True)
-                            files = [s3fs.S3Map(root=ConfigOptions.aorc_year_url.format(source=ConfigOptions.aorc_source, year=year), s3=_s3,
-                                                check=False, ) for year in [ConfigOptions.aws_time.year]]
-                            with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
-                                with dask.config.set(scheduler=executor):
-                                    if MpiConfig.rank == 0:
-                                        # TODO This is using the wrong call for zarr format - should be a single file, not a list
-                                        ConfigOptions.aws_obj = xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
-                            MpiConfig.comm.barrier()
+                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(ConfigOptions, MpiConfig, wrfHydroGeoMeta)
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     # Which grabs the entire timeseries based on s3 bucket organizations
                     
@@ -400,9 +392,8 @@ class NWMv3_Forcing_Engine_model:
 
         # If user requests output for given domain, then call
         # the I/O module to update opened netcdf file with forcing fields
-        if ConfigOptions.forcing_output == 1:
-            OutputObj.update_forcing_file_output(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-            LOG.info(f"Writing output forcing file for timestamp: {OutputObj.outDate.strftime('%Y-%m-%d %H:%M')}")
+        if ConfigOptions.forcing_output == 1 or ConfigOptions.grid_type == "hydrofabric":
+            OutputObj.gather_global_outputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
 
         if ConfigOptions.grid_type == "gridded":
             for count, variable in enumerate(variables):
@@ -413,7 +404,8 @@ class NWMv3_Forcing_Engine_model:
                 model[variable + '_NODE'] = OutputObj.output_local[count, :].flatten()
         elif ConfigOptions.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local[count, :].flatten()
+                model[variable + '_ELEMENT'] = OutputObj.output_global[count, :].flatten()
+                model['CAT-ID'] = wrfHydroGeoMeta.element_ids_global
 
         ## Update BMI model time index to next iteration
         ConfigOptions.bmi_time_index += 1

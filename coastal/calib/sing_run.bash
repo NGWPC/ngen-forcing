@@ -14,7 +14,7 @@ set -x
 #load the configuration file
 . ./schism_calib.cfg
 
-export NGWPC_COASTAL_PARM_DIR=/ngwpc-coastal
+export NGWPC_COASTAL_PARM_DIR=/ngen-test/coastal/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #

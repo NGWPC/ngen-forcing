@@ -9,7 +9,7 @@ from scipy import spatial
 from logging import FileHandler
 
 import logging
-from ..log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 log_name = MODULE_NAME
 
