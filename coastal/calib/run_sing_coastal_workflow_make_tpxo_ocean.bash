@@ -27,9 +27,5 @@ ngen_forcing_dir=$(pwd)/../../
 make_tpxo_ocean ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS \
 	$OTPSDIR \
 	$ngen_forcing_dir\
-	$PARMnwm/coastal \
-	$COASTAL_DOMAIN  \
+	${OPEN_BNDS_HGRID_FILE} \
 	$FCST_TIMESTEP_LENGTH_SECS
-
-
-

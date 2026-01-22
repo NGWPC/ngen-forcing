@@ -1204,7 +1204,7 @@ class DataProcessor:
             print(f"[process] Model '{self.model}' not implemented yet.")
             return
         else:
-            if self.domain_info['domain'][0]['name'] == 'prvi' and self.meteo == "nwm_retro":
+            if self.domain_info['domain'][0]['region'] == 'prvi' and self.meteo == "nwm_retro":
               path = os.path.join(self.raw_root, "meteo", "nwm_retro")
               retro_files = os.listdir(path)
               for f in retro_files:

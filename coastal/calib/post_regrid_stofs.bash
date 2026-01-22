@@ -32,7 +32,6 @@ post_nwm_coastal_regrid_estofs() {
 
    start_date=${PDY}
    start_hour=${cyc}
-   #estofs_data=$DATAexec/estofs.t${start_hour}z.fields.cwl.nc
    estofs_data=$DATAexec/stofs_2d_glo.t${start_hour}z.fields.cwl.nc
    output_file=$DATAexec/elev2D.th.nc
 
@@ -43,7 +42,7 @@ post_nwm_coastal_regrid_estofs() {
            old_length_hrs=$LENGTH_HRS
            export LENGTH_HRS=$(($LENGTH_HRS+$diffhrs))
            export TIDAL_CONSTANTS_DIR=$COASTAL_ROOT_DIR/Tides/TidalConst
-           export COASTAL_DOMAIN_GR3=$PARMnwm/coastal/$COASTAL_DOMAIN/hgrid.gr3
+           export COASTAL_DOMAIN_GR3=$DATAexec/hgrid.gr3
 
            python $USHnwm/wrf_hydro_workflow_dev/coastal/Tides/makeOceanTide.py >> $DATAlogs/regrid_stofs.{PDY}${cyc}.log 2>&1
            export LENGTH_HRS=${old_length_hrs}

@@ -80,7 +80,7 @@ nwm_coastal_initial_discharge() {
    fi
 
   export NWM_ANA_DIR=${nwm_ana_dir}
-  cp ${PARMnwm}/coastal/$COASTAL_DOMAIN/nwmReaches.csv $DATAexec
+#  cp ${PARMnwm}/coastal/$COASTAL_DOMAIN/nwmReaches.csv $DATAexec
 
   python -u $USHnwm/wrf_hydro_workflow_dev/coastal/makeDischarge.py >> $DATAlogs/${nwm_cycle}.${PDY}${cyc}.log 2>&1
 

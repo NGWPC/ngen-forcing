@@ -39,12 +39,14 @@ nwm_coastal_update_params() {
   PDY=${1:0:8}
   cyc=${1:8}
   coastal_domain=$2
-  export LENGTH_HRS=$3
-  local _hotstartfile=$4
+  local _nwm_domain=$3
+  export LENGTH_HRS=$4
+  local _hotstartfile=$5
+  local _domain_path=$6
 
   local _cold_restart=0
   coastal_param=$DATAexec/param.nml
-  cp ${PARMnwm}/coastal/$coastal_domain/param.nml $coastal_param
+  cp ${PARMnwm}/coastal/${_nwm_domain}/param.nml $coastal_param
 
   if [[ "$_hotstartfile" == "" ]]; then
 	  _cold_restart=1
@@ -205,15 +207,15 @@ nwm_coastal_update_params() {
 
 
 # COPY STATIC FILES
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/hgrid.gr3 $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/hgrid.ll $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/manning.gr3 $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/vgrid.in $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/bctides.in $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/windrot_geo2proj.gr3 $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/hgrid.utm $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/hgrid.cpp $DATAexec
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/elev.ic $DATAexec
+ln -sf ${_domain_path}/hgrid.gr3 $DATAexec
+ln -sf ${_domain_path}/hgrid.ll $DATAexec
+ln -sf ${_domain_path}/manning.gr3 $DATAexec
+ln -sf ${PARMnwm}/coastal/${_nwm_domain}/vgrid.in $DATAexec
+ln -sf ${_domain_path}/bctides.in $DATAexec
+ln -sf ${_domain_path}/windrot_geo2proj.gr3 $DATAexec
+ln -sf ${PARMnwm}/coastal/${_nwm_domain}/hgrid.utm $DATAexec
+ln -sf ${_domain_path}/hgrid.cpp $DATAexec
+ln -sf ${_domain_path}/elev.ic $DATAexec
 #cpfs ${PARMnwm}/coastal/${coastal_domain}/hgrid.gr3 $DATAexec
 #cpfs ${PARMnwm}/coastal/${coastal_domain}/hgrid.ll $DATAexec
 #cpfs ${PARMnwm}/coastal/${coastal_domain}/manning.gr3 $DATAexec
@@ -226,23 +228,25 @@ ln -sf ${PARMnwm}/coastal/${coastal_domain}/elev.ic $DATAexec
 # ln -sf %ECF_HOME%/coastal/${coastal_domain}/tvd.prop $DATAexec
 
 
-if [[ -f ${PARMnwm}/coastal/${coastal_domain}/station.in ]]; then
-    ln -sf ${PARMnwm}/coastal/${coastal_domain}/station.in $DATAexec
+if [[ -f ${_domain_path}/station.in ]]; then
+    ln -sf ${_domain_path}/station.in $DATAexec
     #cpfs ${PARMnwm}/coastal/${coastal_domain}/station.in $DATAexec
 fi
 
-ln -sf ${PARMnwm}/coastal/${coastal_domain}/element_areas.txt $DATAexec
+ln -sf ${_domain_path}/element_areas.txt $DATAexec
+ln -sf ${_domain_path}/nwmReaches.csv $DATAexec
+ln -sf ${_domain_path}/open_bnds_hgrid.nc $DATAexec
 
 mkdir -p $DATAexec/sflux
-for f in ${PARMnwm}/coastal/${coastal_domain}/sflux/*; do
+for f in ${PARMnwm}/coastal/${_nwm_domain}/sflux/*; do
   cp $f $DATAexec/sflux/
 done
 
 #cp --no-preserve=mode -r ${PARMnwm}/coastal/${coastal_domain}/sflux $DATAexec
 #
 #for the elevation correction
-if [[ -f ${PARMnwm}/coastal/${coastal_domain}/elevation_correction.csv ]]; then
-      ln -sf ${PARMnwm}/coastal/${coastal_domain}/elevation_correction.csv $DATAexec
+if [[ -f ${PARMnwm}/coastal/${_nwm_domain}/elevation_correction.csv ]]; then
+      ln -sf ${PARMnwm}/coastal/${_nwm_domain}/elevation_correction.csv $DATAexec
 fi
 
 }

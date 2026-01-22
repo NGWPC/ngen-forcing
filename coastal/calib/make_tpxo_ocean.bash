@@ -15,15 +15,14 @@ make_tpxo_ocean() {
    export LENGTH_HRS=$2
    export OTPSnc_DIR=$3
    export NGEN_FORCING_DIR=$4
-   export SCHISM_PARM_DIR=$5
-   export COASTAL_DOMAIN=$6
-   export TIME_STEP_IN_SECS=$7
+   export SCHISM_BOUNDARY_FILE=$5
+   export TIME_STEP_IN_SECS=$6
 
 #   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/contrib/software/gcc/8.5.0/lib64:/contrib/software/netcdf/4.7.4/lib
 
    export END_DATETIME=$(${USHnwm}/utils/advance_time.sh $PDY$cyc $LENGTH_HRS)
    python $NGEN_FORCING_DIR/coastal/tidal/tpxo_to_open_bnds_hgrid/make_otps_input.py \
-	  $SCHISM_PARM_DIR/prvi/open_bnds_hgrid.nc \
+	  $SCHISM_BOUNDARY_FILE \
 	  $PDY$cyc $END_DATETIME $TIME_STEP_IN_SECS  \
 	  $DATAexec/otps_lat_lon_time.txt
 
@@ -39,7 +38,7 @@ make_tpxo_ocean() {
 
    python $NGEN_FORCING_DIR/coastal/tidal/tpxo_to_open_bnds_hgrid/otps_to_open_bnds_hgrid.py  \
 	  ./otps_out.txt                                                               \
-          $SCHISM_PARM_DIR/$COASTAL_DOMAIN/open_bnds_hgrid.nc                          \
+	  $SCHISM_BOUNDARY_FILE                          \
 	  ./elev2D.th.nc
 
    local _correction_file=$DATAexec/elevation_correction.csv

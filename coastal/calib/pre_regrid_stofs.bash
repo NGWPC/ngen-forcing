@@ -32,7 +32,6 @@ pre_nwm_coastal_regrid_estofs() {
 
    start_date=${PDY}
    start_hour=${cyc}
-   #estofs_data=$DATAexec/estofs.t${start_hour}z.fields.cwl.nc
    estofs_data=$DATAexec/stofs_2d_glo.t${start_hour}z.fields.cwl.nc
    output_file=$DATAexec/elev2D.th.nc
 
@@ -89,8 +88,6 @@ pre_nwm_coastal_regrid_estofs() {
        #cpfs $estofs_file $estofs_data
 
        hgrid_file=$DATAexec/open_bnds_hgrid.nc
-       ln -sf ${PARMnwm}/coastal/$COASTAL_DOMAIN/open_bnds_hgrid.nc $hgrid_file
-       #cpfs ${PARMnwm}/coastal/$COASTAL_DOMAIN/open_bnds_hgrid.nc $hgrid_file
 
        export ESTOFS_INPUT_FILE=$estofs_data
        export OPEN_BNDS_HGRID_FILE=$hgrid_file

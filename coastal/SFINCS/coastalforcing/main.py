@@ -195,7 +195,11 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
     start_iso = _parse_utc(cfg['start_time'])
     run_folder_name = f"{cfg['coastal_model']}_{start_iso}"
     sim_dir = _normpath(sim_root, run_folder_name)
+    region = domain_info['domain'][0]['region']
+    nwm_domain = region if region == 'hawaii' or region == 'prvi' else 'conus' 
     Path(sim_dir).mkdir(parents=True, exist_ok=True)
+
+    domain_path = domain_info['domain'][0]['path']
 
     dts = datetime.strptime(_parse_utc(cfg['start_time']), "%Y-%m-%dT%H-%M-%SZ")
     dte = datetime.strptime(_parse_utc(cfg['end_time']), "%Y-%m-%dT%H-%M-%SZ")
@@ -221,6 +225,8 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
       schcfg.write(f"export METEO_SOURCE={cfg['meteo_source'].upper()}\n")
       schcfg.write(f"export COASTAL_WORK_DIR={sim_dir}\n")
       schcfg.write(f"export RAW_DOWNLOAD_DIR={raw_download_dir}\n")
+      schcfg.write(f"export NWM_DOMAIN={nwm_domain}\n")
+      schcfg.write(f"export DOMAIN_PATH={domain_path}\n")
 
 
 # ---- Main ----
@@ -245,9 +251,6 @@ def main():
 
     validate_config(cfg)
 
-    nwm_domain = cfg['domain_file'] if cfg['domain_file'] == 'hawaii' or cfg['domain_file'] == 'prvi' else \
-                 'conus' 
-
     # Load domain info and normalize base path relative to the domain YAML
     domain_file = f"domain_lists/{cfg['coastal_model']}/{cfg['domain_file']}.yaml"
     with open(domain_file) as f:
@@ -256,6 +259,8 @@ def main():
     # Resolve the domain path relative to the YAML’s folder
     domain_yaml_dir = os.path.dirname(os.path.abspath(domain_file))
     raw_domain_path = domain_info['domain'][0]['path']
+    region = domain_info['domain'][0]['region']
+    nwm_domain = region if region == 'hawaii' or region == 'prvi' else 'conus' 
 
     # 🔧 Sanitize Windows-style separators for POSIX
     raw_domain_path_sanitized = raw_domain_path.replace('\\', '/')

@@ -25,7 +25,5 @@ source ./update_param.bash
 
 export RESTART_WRITE_HR=2
 
-nwm_coastal_update_params ${STARTPDY}${STARTCYC} $COASTAL_DOMAIN $FCST_LENGTH_HRS $HOT_START_FILE 
-
-
-
+nwm_coastal_update_params ${STARTPDY}${STARTCYC} $COASTAL_DOMAIN $NWM_DOMAIN \
+	$FCST_LENGTH_HRS "$HOT_START_FILE" $DOMAIN_PATH

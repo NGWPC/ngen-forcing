@@ -22,7 +22,7 @@ pre_nwm_coastal() {
    export NWM_CYCLE=forecast
    export WRF_HYDRO_ROOT=$DATAexec/nwm_output
 
-   nwm_coastal_initial_discharge ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS $COASTAL_DOMAIN $NWM_CHROUT_DIR
+   nwm_coastal_initial_discharge ${STARTPDY}${STARTCYC} $FCST_LENGTH_HRS $NWM_DOMAIN $NWM_CHROUT_DIR
 
    nwm_coastal_combine_sink_source
 
@@ -30,12 +30,15 @@ pre_nwm_coastal() {
 
    nwm_coastal_merge_source_sink "" "forecast" "forecast"
 
-   export NSCRIBES=2
+   #export NSCRIBES=2
 
    #create offline partition
-   create_offline_partition $NPROCS "${NSCRIBES}"
+   #create_offline_partition $NPROCS "${NSCRIBES}"
    #cpfs ${EXECnwm}/pschism_wcoss2_NO_PARMETIS_TVD-VL .
    #cpfs ${EXECnwm}/pschism_mistral_NOPM_VL .
+   cp ${EXECnwm}/metis_prep ./
+   cp ${EXECnwm}/gpmetis ./
+  ./metis_prep ./hgrid.gr3 ./vgrid.in
    cp ${EXECnwm}/pschism_wcoss2_NO_PARMETIS_TVD-VL.openmpi .
 
 }
