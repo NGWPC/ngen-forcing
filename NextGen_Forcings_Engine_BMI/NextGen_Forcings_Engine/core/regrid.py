@@ -1616,14 +1616,14 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                if 0 < input_forcings.cycleFreq < 60:
+                if 0 < input_forcings.cycle_freq < 60:
                     time_str = (
                         f"{input_forcings.fcst_min1}-{input_forcings.fcst_min2} min acc fcst"
                         if grib_var == "APCP"
                         else f"{input_forcings.fcst_min2} min fcst"
                     )
                     sub_rem = int(input_forcings.fcst_min1) % 60
-                    sub_id = int(sub_rem / input_forcings.cycleFreq)
+                    sub_id = int(sub_rem / input_forcings.cycle_freq)
                 else:
                     time_str = (
                         f"{input_forcings.fcst_hour1}-{input_forcings.fcst_hour2} hour acc fcst"
@@ -1719,7 +1719,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                     var_tmp = None
                     if mpi_config.rank == 0:
                         try:
-                            if 0 < input_forcings.cycleFreq < 60:
+                            if 0 < input_forcings.cycle_freq < 60:
                                 var_tmp = id_tmp.variables["HGT_surface"][sub_id]
                             else:
                                 var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
@@ -1793,7 +1793,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                     var_tmp = None
                     if mpi_config.rank == 0:
                         try:
-                            if 0 < input_forcings.cycleFreq < 60:
+                            if 0 < input_forcings.cycle_freq < 60:
                                 var_tmp = id_tmp.variables["HGT_surface"][sub_id]
                             else:
                                 var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
@@ -1942,7 +1942,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                     var_tmp = None
                     if mpi_config.rank == 0:
                         try:
-                            if 0 < input_forcings.cycleFreq < 60:
+                            if 0 < input_forcings.cycle_freq < 60:
                                 var_tmp = id_tmp.variables["HGT_surface"][sub_id]
                             else:
                                 var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
@@ -2038,7 +2038,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                     try:
-                        if 0 < input_forcings.cycleFreq < 60:
+                        if 0 < input_forcings.cycle_freq < 60:
                             var_tmp = id_tmp.variables[
                                 input_forcings.netcdf_var_names[force_count]
                             ][sub_id, :, :]
@@ -2148,7 +2148,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                     try:
-                        if 0 < input_forcings.cycleFreq < 60:
+                        if 0 < input_forcings.cycle_freq < 60:
                             var_tmp = id_tmp.variables[
                                 input_forcings.netcdf_var_names[force_count]
                             ][sub_id, :, :]
@@ -2257,7 +2257,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                     try:
-                        if 0 < input_forcings.cycleFreq < 60:
+                        if 0 < input_forcings.cycle_freq < 60:
                             var_tmp_elem = id_tmp.variables[
                                 input_forcings.netcdf_var_names[force_count]
                             ][sub_id, :, :]
@@ -2368,7 +2368,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                     try:
-                        if 0 < input_forcings.cycleFreq < 60:
+                        if 0 < input_forcings.cycle_freq < 60:
                             var_tmp = id_tmp.variables[
                                 input_forcings.netcdf_var_names[force_count]
                             ][sub_id, :, :]
