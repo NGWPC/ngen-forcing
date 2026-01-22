@@ -2,8 +2,6 @@
 
 import datetime
 import logging
-import os
-import traceback
 from contextlib import contextmanager
 from functools import lru_cache
 from time import time
@@ -13,7 +11,6 @@ import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import rioxarray as rxr
 import s3fs
 import xarray as xr
 from dotenv import find_dotenv, load_dotenv
@@ -192,23 +189,25 @@ class BaseProcessor:
 
         :return: Computed Dataset
         """
-        with self.timing_block("computing dataset"):
-            return self.sliced_ds.compute().rio.write_crs(self.src_crs)
-
-    def process(self, current_time) -> xr.Dataset:
-        """Process forcing data for the given configuration and geospatial metadata."""
-        self.current_time = current_time
         final_ds = None
-        with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
-            with dask.config.set(scheduler=executor):
-                if self.mpi_config.rank == 0:
-                    final_ds = self.aws_ds.sel(time=self.current_time_datetime)
 
+        with self.timing_block("computing dataset"):
+            with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
+                with dask.config.set(scheduler=executor):
+                    if self.mpi_config.rank == 0:
+                        final_ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
+                        # final_ds= final_ds.rio.clip(self.gdf.geometry.values,all_touched=True)
         self.mpi_config.comm.barrier()
         final_ds = self.mpi_config.comm.bcast(final_ds, root=0)
 
+        return final_ds
+
+    def process(self, current_time: str) -> xr.Dataset:
+        """Process forcing data for the given configuration and geospatial metadata."""
+        self.current_time = current_time
+        final_ds = self.aws_ds.sel(time=self.current_time_datetime)
         # if self.mpi_config.rank == 0:
-        #     self.plot_precip(final_ds)
+        # self.plot_precip(final_ds)
         # self.write_sum_tif()
         return final_ds
 
@@ -351,8 +350,6 @@ class AORCAlaskaProcessor(AORCConusProcessor):
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     load_dotenv(find_dotenv())
-
-                    LOG.debug(os.environ["AWS_ACCESS_KEY_ID"])
                     s3 = s3fs.S3FileSystem()
                     with s3.open(self.url(date)) as f:
                         ds = xr.open_dataset(f, engine="h5netcdf")
@@ -361,7 +358,6 @@ class AORCAlaskaProcessor(AORCConusProcessor):
                             self.slice_ds(ds, date, date + np.timedelta64(1, "h"))
                         )
             except Exception as e:
-                LOG.debug(traceback.format_exc())
                 LOG.critical(
                     f"Error opening {self.dataset_name} data from {self.url(date)}: {e}\n"
                 )
