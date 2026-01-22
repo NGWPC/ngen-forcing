@@ -4,7 +4,9 @@ import hashlib
 import os
 import sys
 import traceback
+from contextlib import contextmanager
 from datetime import datetime, timedelta
+from time import monotonic, time
 
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -20,7 +22,6 @@ except ImportError:
     import ESMF
 
 import logging
-import time
 
 import dask
 import dask.delayed
@@ -54,6 +55,20 @@ NETCDF = "NETCDF"
 GRIB2 = "GRIB2"
 
 next_file_number = 0
+
+
+@contextmanager
+def timing_block(step_str: str):
+    """Context manager for timing code execution.
+
+        Args:
+            step_str: Description of the step being timed.
+    with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
+    """
+    start = time()
+    yield
+    end = time()
+    LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
 
 def mkfilename():
@@ -5333,813 +5348,853 @@ def regrid_custom_hourly_netcdf(
     :param mpi_config:
     :return:
     """
-    # Flag to jump to different regridding function soley for AORC AWS data
-    if config_options.aws:
-        regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
-        return
-
-    # If the expected file is missing, this means we are allowing missing files, simply
-    # exit out of this routine as the regridded fields have already been set to NDV.
-    if not os.path.isfile(input_forcings.file_in2):
-        return
-
-    # Check to see if the regrid complete flag for this
-    # output time step is true. This entails the necessary
-    # inputs have already been regridded and we can move on.
-    if input_forcings.regridComplete:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = (
-                "No Custom Hourly NetCDF regridding required for this timestep."
+    with timing_block("Regrid AORC AWS"):
+        # Flag to jump to different regridding function soley for AORC AWS data
+        if config_options.aws:
+            regrid_aorc_aws(
+                input_forcings, config_options, wrf_hydro_geo_meta, mpi_config
             )
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        return
+            return
 
-    # Open the input NetCDF file containing necessary data.
-    id_tmp = ioMod.open_netcdf_forcing(
-        input_forcings.file_in2, config_options, mpi_config, open_on_all_procs=True
-    )
+    with timing_block("Regrid Custom Hourly NetCDF Forcing Data"):
+        # If the expected file is missing, this means we are allowing missing files, simply
+        # exit out of this routine as the regridded fields have already been set to NDV.
+        if not os.path.isfile(input_forcings.file_in2):
+            return
 
-    fill_values = {
-        "TMP": 288.0,
-        "SPFH": 0.005,
-        "PRES": 101300.0,
-        "APCP": 0,
-        "UGRD": 1.0,
-        "VGRD": 1.0,
-        "DSWRF": 80.0,
-        "DLWRF": 310.0,
-    }
+        # Check to see if the regrid complete flag for this
+        # output time step is true. This entails the necessary
+        # inputs have already been regridded and we can move on.
+        if input_forcings.regridComplete:
+            if mpi_config.rank == 0:
+                config_options.statusMsg = (
+                    "No Custom Hourly NetCDF regridding required for this timestep."
+                )
+                err_handler.log_msg(
+                    config_options, mpi_config, True
+                )  # log at debug level
+            return
 
-    config_options.statusMsg = "Regrid Custom Hourly NetCDF Forcing Variables"
-    err_handler.log_msg(config_options, mpi_config)
-
-    for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
-        if mpi_config.rank == 0:
-            config_options.statusMsg = (
-                "Processing Custom NetCDF Forcing Variable: " + nc_var
-            )
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        calc_regrid_flag = check_regrid_status(
-            id_tmp,
-            force_count,
-            input_forcings,
-            config_options,
-            wrf_hydro_geo_meta,
-            mpi_config,
+        # Open the input NetCDF file containing necessary data.
+        id_tmp = ioMod.open_netcdf_forcing(
+            input_forcings.file_in2, config_options, mpi_config, open_on_all_procs=True
         )
 
-        if calc_regrid_flag:
-            calculate_weights(
+        fill_values = {
+            "TMP": 288.0,
+            "SPFH": 0.005,
+            "PRES": 101300.0,
+            "APCP": 0,
+            "UGRD": 1.0,
+            "VGRD": 1.0,
+            "DSWRF": 80.0,
+            "DLWRF": 310.0,
+        }
+
+        config_options.statusMsg = "Regrid Custom Hourly NetCDF Forcing Variables"
+        err_handler.log_msg(config_options, mpi_config)
+
+        for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
+            if mpi_config.rank == 0:
+                config_options.statusMsg = (
+                    "Processing Custom NetCDF Forcing Variable: " + nc_var
+                )
+                err_handler.log_msg(
+                    config_options, mpi_config, True
+                )  # log at debug level
+            calc_regrid_flag = check_regrid_status(
                 id_tmp,
                 force_count,
                 input_forcings,
                 config_options,
-                mpi_config,
                 wrf_hydro_geo_meta,
+                mpi_config,
             )
 
-            # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
-            if 23 in config_options.input_forcings:
-                input_forcings.regridded_mask_AORC = input_forcings.regridded_mask
-                if config_options.grid_type == "unstructured":
-                    input_forcings.regridded_mask_elem_AORC = (
-                        input_forcings.regridded_mask_elem
-                    )
+            if calc_regrid_flag:
+                calculate_weights(
+                    id_tmp,
+                    force_count,
+                    input_forcings,
+                    config_options,
+                    mpi_config,
+                    wrf_hydro_geo_meta,
+                )
 
-            # Read in the RAP height field, which is used for downscaling purposes.
-            if "HGT_surface" in id_tmp.variables.keys():
-                if config_options.grid_type == "gridded":
-                    # Regrid the height variable.
-                    if mpi_config.rank == 0:
-                        var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
-                    else:
-                        var_tmp = None
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    var_sub_tmp = mpi_config.scatter_array(
-                        input_forcings, var_tmp, config_options
-                    )
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    try:
-                        input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to place NetCDF elevation data into the ESMF field object: "
-                            + str(err)
+                # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
+                if 23 in config_options.input_forcings:
+                    input_forcings.regridded_mask_AORC = input_forcings.regridded_mask
+                    if config_options.grid_type == "unstructured":
+                        input_forcings.regridded_mask_elem_AORC = (
+                            input_forcings.regridded_mask_elem
                         )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
 
-                    if mpi_config.rank == 0:
-                        config_options.statusMsg = (
-                            "Regridding elevation data to the WRF-Hydro domain."
-                        )
-                        err_handler.log_msg(
-                            config_options, mpi_config, True
-                        )  # log at debug level
-                    try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                        )
-                    except ValueError as ve:
-                        config_options.errMsg = (
-                            "Unable to regrid elevation data to the WRF-Hydro domain "
-                            "using ESMF: " + str(ve)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                # Read in the RAP height field, which is used for downscaling purposes.
+                if "HGT_surface" in id_tmp.variables.keys():
+                    if config_options.grid_type == "gridded":
+                        # Regrid the height variable.
+                        if mpi_config.rank == 0:
+                            var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
+                        else:
+                            var_tmp = None
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    # Set any pixel cells outside the input domain to the global missing value.
-                    try:
-                        input_forcings.esmf_field_out.data[
-                            np.where(input_forcings.regridded_mask == 0)
-                        ] = config_options.globalNdv
-                    except (ValueError, ArithmeticError) as npe:
-                        config_options.errMsg = (
-                            "Unable to compute mask on elevation data: " + str(npe)
+                        var_sub_tmp = mpi_config.scatter_array(
+                            input_forcings, var_tmp, config_options
                         )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    try:
-                        input_forcings.height[:, :] = input_forcings.esmf_field_out.data
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to extract ESMF regridded elevation data to a local "
-                            "array: " + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                elif config_options.grid_type == "unstructured":
-                    # Regrid the height variable.
-                    if mpi_config.rank == 0:
-                        var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
-                    else:
-                        var_tmp = None
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    var_sub_tmp = mpi_config.scatter_array(
-                        input_forcings, var_tmp, config_options
-                    )
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    try:
-                        input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to place NetCDF elevation data into the ESMF field object: "
-                            + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    if mpi_config.rank == 0:
-                        config_options.statusMsg = (
-                            "Regridding elevation data to the WRF-Hydro domain."
-                        )
-                        err_handler.log_msg(
-                            config_options, mpi_config, True
-                        )  # log at debug level
-                    try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                        )
-                    except ValueError as ve:
-                        config_options.errMsg = (
-                            "Unable to regrid elevation data to the WRF-Hydro domain "
-                            "using ESMF: " + str(ve)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    # Set any pixel cells outside the input domain to the global missing value.
-                    try:
-                        input_forcings.esmf_field_out.data[
-                            np.where(input_forcings.regridded_mask == 0)
-                        ] = config_options.globalNdv
-                    except (ValueError, ArithmeticError) as npe:
-                        config_options.errMsg = (
-                            "Unable to compute mask on elevation data: " + str(npe)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    try:
-                        input_forcings.height[:] = input_forcings.esmf_field_out.data
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to extract ESMF regridded elevation data to a local "
-                            "array: " + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    # Regrid the height variable.
-                    if mpi_config.rank == 0:
-                        var_tmp_elem = id_tmp.variables["HGT_surface"][0, :, :]
-                    else:
-                        var_tmp_elem = None
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    var_sub_tmp_elem = mpi_config.scatter_array(
-                        input_forcings, var_tmp_elem, config_options
-                    )
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    try:
-                        input_forcings.esmf_field_in_elem.data[:, :] = var_sub_tmp_elem
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to place NetCDF elevation data into the ESMF field object: "
-                            + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-                    if mpi_config.rank == 0:
-                        config_options.statusMsg = (
-                            "Regridding elevation data to the WRF-Hydro domain."
-                        )
-                        err_handler.log_msg(
-                            config_options, mpi_config, True
-                        )  # log at debug level
-                    try:
-                        input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
-                                input_forcings.esmf_field_in_elem,
-                                input_forcings.esmf_field_out_elem,
+                        try:
+                            input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to place NetCDF elevation data into the ESMF field object: "
+                                + str(err)
                             )
-                        )
-                    except ValueError as ve:
-                        config_options.errMsg = (
-                            "Unable to regrid elevation data to the WRF-Hydro domain "
-                            "using ESMF: " + str(ve)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    # Set any pixel cells outside the input domain to the global missing value.
-                    try:
-                        input_forcings.esmf_field_out_elem.data[
-                            np.where(input_forcings.regridded_mask_elem == 0)
-                        ] = config_options.globalNdv
-                    except (ValueError, ArithmeticError) as npe:
-                        config_options.errMsg = (
-                            "Unable to compute mask on elevation data: " + str(npe)
+                        if mpi_config.rank == 0:
+                            config_options.statusMsg = (
+                                "Regridding elevation data to the WRF-Hydro domain."
+                            )
+                            err_handler.log_msg(
+                                config_options, mpi_config, True
+                            )  # log at debug level
+                        try:
+                            input_forcings.esmf_field_out = input_forcings.regridObj(
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
+                        except ValueError as ve:
+                            config_options.errMsg = (
+                                "Unable to regrid elevation data to the WRF-Hydro domain "
+                                "using ESMF: " + str(ve)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        # Set any pixel cells outside the input domain to the global missing value.
+                        try:
+                            input_forcings.esmf_field_out.data[
+                                np.where(input_forcings.regridded_mask == 0)
+                            ] = config_options.globalNdv
+                        except (ValueError, ArithmeticError) as npe:
+                            config_options.errMsg = (
+                                "Unable to compute mask on elevation data: " + str(npe)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        try:
+                            input_forcings.height[:, :] = (
+                                input_forcings.esmf_field_out.data
+                            )
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to extract ESMF regridded elevation data to a local "
+                                "array: " + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                    elif config_options.grid_type == "unstructured":
+                        # Regrid the height variable.
+                        if mpi_config.rank == 0:
+                            var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
+                        else:
+                            var_tmp = None
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        var_sub_tmp = mpi_config.scatter_array(
+                            input_forcings, var_tmp, config_options
                         )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    try:
-                        input_forcings.height_elem[:] = (
-                            input_forcings.esmf_field_out_elem.data
+                        try:
+                            input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to place NetCDF elevation data into the ESMF field object: "
+                                + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        if mpi_config.rank == 0:
+                            config_options.statusMsg = (
+                                "Regridding elevation data to the WRF-Hydro domain."
+                            )
+                            err_handler.log_msg(
+                                config_options, mpi_config, True
+                            )  # log at debug level
+                        try:
+                            input_forcings.esmf_field_out = input_forcings.regridObj(
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
+                        except ValueError as ve:
+                            config_options.errMsg = (
+                                "Unable to regrid elevation data to the WRF-Hydro domain "
+                                "using ESMF: " + str(ve)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        # Set any pixel cells outside the input domain to the global missing value.
+                        try:
+                            input_forcings.esmf_field_out.data[
+                                np.where(input_forcings.regridded_mask == 0)
+                            ] = config_options.globalNdv
+                        except (ValueError, ArithmeticError) as npe:
+                            config_options.errMsg = (
+                                "Unable to compute mask on elevation data: " + str(npe)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        try:
+                            input_forcings.height[:] = (
+                                input_forcings.esmf_field_out.data
+                            )
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to extract ESMF regridded elevation data to a local "
+                                "array: " + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        # Regrid the height variable.
+                        if mpi_config.rank == 0:
+                            var_tmp_elem = id_tmp.variables["HGT_surface"][0, :, :]
+                        else:
+                            var_tmp_elem = None
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        var_sub_tmp_elem = mpi_config.scatter_array(
+                            input_forcings, var_tmp_elem, config_options
                         )
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to extract ESMF regridded elevation data to a local "
-                            "array: " + str(err)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        try:
+                            input_forcings.esmf_field_in_elem.data[:, :] = (
+                                var_sub_tmp_elem
+                            )
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to place NetCDF elevation data into the ESMF field object: "
+                                + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        if mpi_config.rank == 0:
+                            config_options.statusMsg = (
+                                "Regridding elevation data to the WRF-Hydro domain."
+                            )
+                            err_handler.log_msg(
+                                config_options, mpi_config, True
+                            )  # log at debug level
+                        try:
+                            input_forcings.esmf_field_out_elem = (
+                                input_forcings.regridObj_elem(
+                                    input_forcings.esmf_field_in_elem,
+                                    input_forcings.esmf_field_out_elem,
+                                )
+                            )
+                        except ValueError as ve:
+                            config_options.errMsg = (
+                                "Unable to regrid elevation data to the WRF-Hydro domain "
+                                "using ESMF: " + str(ve)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        # Set any pixel cells outside the input domain to the global missing value.
+                        try:
+                            input_forcings.esmf_field_out_elem.data[
+                                np.where(input_forcings.regridded_mask_elem == 0)
+                            ] = config_options.globalNdv
+                        except (ValueError, ArithmeticError) as npe:
+                            config_options.errMsg = (
+                                "Unable to compute mask on elevation data: " + str(npe)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        try:
+                            input_forcings.height_elem[:] = (
+                                input_forcings.esmf_field_out_elem.data
+                            )
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to extract ESMF regridded elevation data to a local "
+                                "array: " + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                    elif config_options.grid_type == "hydrofabric":
+                        # Regrid the height variable.
+                        if mpi_config.rank == 0:
+                            var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
+                        else:
+                            var_tmp = None
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                        var_sub_tmp = mpi_config.scatter_array(
+                            input_forcings, var_tmp, config_options
                         )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                elif config_options.grid_type == "hydrofabric":
-                    # Regrid the height variable.
-                    if mpi_config.rank == 0:
-                        var_tmp = id_tmp.variables["HGT_surface"][0, :, :]
-                    else:
-                        var_tmp = None
-                    err_handler.check_program_status(config_options, mpi_config)
+                        try:
+                            input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to place NetCDF elevation data into the ESMF field object: "
+                                + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    var_sub_tmp = mpi_config.scatter_array(
-                        input_forcings, var_tmp, config_options
-                    )
-                    err_handler.check_program_status(config_options, mpi_config)
+                        if mpi_config.rank == 0:
+                            config_options.statusMsg = (
+                                "Regridding elevation data to the WRF-Hydro domain."
+                            )
+                            err_handler.log_msg(
+                                config_options, mpi_config, True
+                            )  # log at debug level
+                        try:
+                            input_forcings.esmf_field_out = input_forcings.regridObj(
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
+                        except ValueError as ve:
+                            config_options.errMsg = (
+                                "Unable to regrid elevation data to the WRF-Hydro domain "
+                                "using ESMF: " + str(ve)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                    try:
-                        input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to place NetCDF elevation data into the ESMF field object: "
-                            + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                        # Set any pixel cells outside the input domain to the global missing value.
+                        try:
+                            input_forcings.esmf_field_out.data[
+                                np.where(input_forcings.regridded_mask == 0)
+                            ] = config_options.globalNdv
+                        except (ValueError, ArithmeticError) as npe:
+                            config_options.errMsg = (
+                                "Unable to compute mask on elevation data: " + str(npe)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
 
+                        try:
+                            input_forcings.height[:] = (
+                                input_forcings.esmf_field_out.data
+                            )
+                        except (ValueError, KeyError, AttributeError) as err:
+                            config_options.errMsg = (
+                                "Unable to extract ESMF regridded elevation data to a local "
+                                "array: " + str(err)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                else:
+                    input_forcings.height = None
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
-                            "Regridding elevation data to the WRF-Hydro domain."
+                            f"Unable to locate HGT_surface in: {input_forcings.file_in2}. "
+                            f"Downscaling will not be available."
                         )
-                        err_handler.log_msg(
-                            config_options, mpi_config, True
-                        )  # log at debug level
-                    try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                        )
-                    except ValueError as ve:
-                        config_options.errMsg = (
-                            "Unable to regrid elevation data to the WRF-Hydro domain "
-                            "using ESMF: " + str(ve)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                        err_handler.log_msg(config_options, mpi_config)
 
-                    # Set any pixel cells outside the input domain to the global missing value.
-                    try:
-                        input_forcings.esmf_field_out.data[
-                            np.where(input_forcings.regridded_mask == 0)
-                        ] = config_options.globalNdv
-                    except (ValueError, ArithmeticError) as npe:
-                        config_options.errMsg = (
-                            "Unable to compute mask on elevation data: " + str(npe)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
+                # close netCDF file on non-root ranks
+                if mpi_config.rank != 0:
+                    id_tmp.close()
 
-                    try:
-                        input_forcings.height[:] = input_forcings.esmf_field_out.data
-                    except (ValueError, KeyError, AttributeError) as err:
-                        config_options.errMsg = (
-                            "Unable to extract ESMF regridded elevation data to a local "
-                            "array: " + str(err)
-                        )
-                        err_handler.log_critical(config_options, mpi_config)
-                    err_handler.check_program_status(config_options, mpi_config)
-
-            else:
-                input_forcings.height = None
+            if config_options.grid_type == "gridded":
+                # Regrid the input variables.
+                var_tmp = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Unable to locate HGT_surface in: {input_forcings.file_in2}. "
-                        f"Downscaling will not be available."
-                    )
-                    err_handler.log_msg(config_options, mpi_config)
-
-            # close netCDF file on non-root ranks
-            if mpi_config.rank != 0:
-                id_tmp.close()
-
-        if config_options.grid_type == "gridded":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
-                try:
-                    config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp = mpi_config.scatter_array(
+                    input_forcings, var_tmp, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                    input_forcings.esmf_field_out = input_forcings.regridObj(
+                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out.data[
+                        np.where(input_forcings.regridded_mask == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :, :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
+                        # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
+                        input_forcings.esmf_field_out.data[ind_valid] = (
+                            input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                        )
+                        del ind_valid
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :, :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :, :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-        elif config_options.grid_type == "unstructured":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
+                    input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :, :
+                    ] = input_forcings.esmf_field_out.data
+                except (ValueError, KeyError, AttributeError) as err:
+                    config_options.errMsg = (
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1[
+                        input_forcings.input_map_output[force_count], :, :
+                    ] = input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :, :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+
+            elif config_options.grid_type == "unstructured":
+                # Regrid the input variables.
+                var_tmp = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp = mpi_config.scatter_array(
+                    input_forcings, var_tmp, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                    input_forcings.esmf_field_out = input_forcings.regridObj(
+                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out.data[
+                        np.where(input_forcings.regridded_mask == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
+                        input_forcings.esmf_field_out.data[ind_valid] = (
+                            input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                        )
+                        del ind_valid
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Regrid the input variables.
-            var_tmp_elem = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
+                    input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.esmf_field_out.data
+                except (ValueError, KeyError, AttributeError) as err:
+                    config_options.errMsg = (
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Regrid the input variables.
+                var_tmp_elem = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp_elem = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp_elem = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp_elem = mpi_config.scatter_array(
+                    input_forcings, var_tmp_elem, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in_elem.data[:, :] = var_sub_tmp_elem
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp_elem = mpi_config.scatter_array(
-                input_forcings, var_tmp_elem, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in_elem.data[:, :] = var_sub_tmp_elem
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                    input_forcings.esmf_field_in_elem,
-                    input_forcings.esmf_field_out_elem,
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out_elem.data[
-                    np.where(input_forcings.regridded_mask_elem == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid_elem = np.where(
-                        input_forcings.esmf_field_out_elem.data != fill
+                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
+                        input_forcings.esmf_field_in_elem,
+                        input_forcings.esmf_field_out_elem,
                     )
-                    input_forcings.esmf_field_out_elem.data[ind_valid_elem] = (
-                        input_forcings.esmf_field_out_elem.data[ind_valid_elem] / 3600.0
-                    )
-                    del ind_valid_elem
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out_elem.data[
+                        np.where(input_forcings.regridded_mask_elem == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2_elem[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out_elem.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid_elem = np.where(
+                            input_forcings.esmf_field_out_elem.data != fill
+                        )
+                        input_forcings.esmf_field_out_elem.data[ind_valid_elem] = (
+                            input_forcings.esmf_field_out_elem.data[ind_valid_elem]
+                            / 3600.0
+                        )
+                        del ind_valid_elem
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1_elem[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2_elem[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-        elif config_options.grid_type == "hydrofabric":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
+                    input_forcings.regridded_forcings2_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.esmf_field_out_elem.data
+                except (ValueError, KeyError, AttributeError) as err:
+                    config_options.errMsg = (
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.regridded_forcings2_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+
+            elif config_options.grid_type == "hydrofabric":
+                # Regrid the input variables.
+                var_tmp = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp = id_tmp.variables[nc_var][:].filled(fill)[0, :, :]
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp = mpi_config.scatter_array(
+                    input_forcings, var_tmp, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+                try:
+                    input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            if nc_var == "DSWRF_surface":
-                ind_valid = np.where(input_forcings.esmf_field_out.data < 0.0)
-                input_forcings.esmf_field_out.data[ind_valid] = 0.0
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                    input_forcings.esmf_field_out = input_forcings.regridObj(
+                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
+                except ValueError as ve:
+                    config_options.errMsg = (
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out.data[
+                        np.where(input_forcings.regridded_mask == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
+                        + str(npe)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                if nc_var == "DSWRF_surface":
                     ind_valid = np.where(input_forcings.esmf_field_out.data < 0.0)
                     input_forcings.esmf_field_out.data[ind_valid] = 0.0
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
+                        input_forcings.esmf_field_out.data[ind_valid] = (
+                            input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                        )
+                        ind_valid = np.where(input_forcings.esmf_field_out.data < 0.0)
+                        input_forcings.esmf_field_out.data[ind_valid] = 0.0
+                        del ind_valid
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.esmf_field_out.data
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
-                        + str(npe)
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+        # Close the NetCDF file
+        if mpi_config.rank == 0:
             try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
+                id_tmp.close()
+            except OSError:
                 config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
+                    "Unable to close NetCDF file: " + input_forcings.tmpFile
                 )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                "Unable to close NetCDF file: " + input_forcings.tmpFile
-            )
-            err_handler.err_out(config_options)
+                err_handler.err_out(config_options)
 
 
 def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -7400,11 +7455,11 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    begin = time.monotonic()
+                    begin = monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(
                         input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    end = time.monotonic()
+                    end = monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = "Regridding took {} seconds".format(
                             end - begin
@@ -7470,11 +7525,11 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    begin = time.monotonic()
+                    begin = monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(
                         input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    end = time.monotonic()
+                    end = monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Node Regridding took {} seconds".format(end - begin)
@@ -7539,12 +7594,12 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    begin = time.monotonic()
+                    begin = monotonic()
                     input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
                         input_forcings.esmf_field_in_elem,
                         input_forcings.esmf_field_out_elem,
                     )
-                    end = time.monotonic()
+                    end = monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Element Regridding took {} seconds".format(end - begin)
@@ -7610,11 +7665,11 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    begin = time.monotonic()
+                    begin = monotonic()
                     input_forcings.esmf_field_out = input_forcings.regridObj(
                         input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    end = time.monotonic()
+                    end = monotonic()
                     if mpi_config.rank == 0:
                         config_options.statusMsg = (
                             "Element Regridding took {} seconds".format(end - begin)
@@ -12840,530 +12895,567 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
         "DSWRF": 80.0,
         "DLWRF": 310.0,
     }
+    with timing_block(f"regrid step 1 | {mpi_config.rank}: get dataset"):
+        mpi_config.comm.barrier()
+        id_tmp = config_options.aws_obj
 
-    mpi_config.comm.barrier()
-    with MPICommExecutor(comm=mpi_config.comm, root=0) as executor:
-        with dask.config.set(scheduler=executor):
-            if mpi_config.rank == 0:
-                xmax = np.max(wrf_hydro_geo_meta.lon_bounds)
-                xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
-                ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
-                ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
-                id_tmp = config_options.aws_obj.sel(
-                    x=slice(xmin, xmax), y=slice(ymin, ymax)
-                )
-                id_tmp = id_tmp.compute()
-            else:
-                id_tmp = None
-    mpi_config.comm.barrier()
+        config_options.statusMsg = "Processing Custom NetCDF Forcing Variables"
+        err_handler.log_msg(config_options, mpi_config, True)
 
-    # if mpi_config.rank == 0:
-    #    xmax = np.max(wrf_hydro_geo_meta.lon_bounds)
-    #    xmin = np.min(wrf_hydro_geo_meta.lon_bounds)
-    #    ymax = np.max(wrf_hydro_geo_meta.lat_bounds)
-    #    ymin = np.min(wrf_hydro_geo_meta.lat_bounds)
-    #    id_tmp = config_options.aws_obj.sel(time=config_options.current_time.strftime('%Y-%m-%d %H:%M:%S'),longitude=slice(xmin, xmax),latitude=slice(ymin, ymax))
-    #    id_tmp = id_tmp.compute()
-    # else:
-    #    id_tmp = None
-    # mpi_config.comm.barrier()
-
-    config_options.statusMsg = "Processing Custom NetCDF Forcing Variables"
-    err_handler.log_msg(config_options, mpi_config, True)
-
-    for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
-        if mpi_config.rank == 0:
-            config_options.statusMsg = (
-                "Processing Custom NetCDF Forcing Variable: " + nc_var
-            )
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        calc_regrid_flag = check_regrid_status(
-            id_tmp,
-            force_count,
-            input_forcings,
-            config_options,
-            wrf_hydro_geo_meta,
-            mpi_config,
-        )
-
-        if calc_regrid_flag:
-            calculate_weights(
-                id_tmp,
-                force_count,
-                input_forcings,
-                config_options,
-                mpi_config,
-                wrf_hydro_geo_meta,
-                lat_var="y",
-                lon_var="x",
-            )
-
-        # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
-        if 23 in config_options.input_forcings:
-            input_forcings.regridded_mask_AORC = input_forcings.regridded_mask
-            if config_options.grid_type == "unstructured":
-                input_forcings.regridded_mask_elem_AORC = (
-                    input_forcings.regridded_mask_elem
-                )
-
-        if config_options.grid_type == "gridded":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
+    with timing_block(f"regrid step 2 | {mpi_config.rank}: loop over variables"):
+        for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
             if mpi_config.rank == 0:
                 config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
+                    "Processing Custom NetCDF Forcing Variable: " + nc_var
                 )
                 err_handler.log_msg(
                     config_options, mpi_config, True
                 )  # log at debug level
-                try:
+            with timing_block(
+                f"regrid step 2.1 | {mpi_config.rank}: check regrid status"
+            ):
+                calc_regrid_flag = check_regrid_status(
+                    id_tmp,
+                    force_count,
+                    input_forcings,
+                    config_options,
+                    wrf_hydro_geo_meta,
+                    mpi_config,
+                )
+
+            with timing_block(
+                f"regrid step 2.2 | {mpi_config.rank}: calculate weights"
+            ):
+                if calc_regrid_flag:
+                    calculate_weights(
+                        id_tmp,
+                        force_count,
+                        input_forcings,
+                        config_options,
+                        mpi_config,
+                        wrf_hydro_geo_meta,
+                        lat_var="y",
+                        lon_var="x",
+                    )
+
+            with timing_block(
+                f"regrid step 2.3 | {mpi_config.rank}: ERA5-interim mask"
+            ):
+                # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
+                if 23 in config_options.input_forcings:
+                    input_forcings.regridded_mask_AORC = input_forcings.regridded_mask
+                    if config_options.grid_type == "unstructured":
+                        input_forcings.regridded_mask_elem_AORC = (
+                            input_forcings.regridded_mask_elem
+                        )
+
+            if config_options.grid_type == "gridded":
+                # Regrid the input variables.
+                var_tmp = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp = mpi_config.scatter_array(
+                    input_forcings, var_tmp, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                    input_forcings.esmf_field_out = input_forcings.regridObj(
+                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out.data[
+                        np.where(input_forcings.regridded_mask == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :, :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
+                        # Flag to set regridded mask for AORC to overlay with ERA5-Interim blend
+                        input_forcings.esmf_field_out.data[ind_valid] = (
+                            input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                        )
+                        del ind_valid
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :, :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :, :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-        elif config_options.grid_type == "unstructured":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
+                    input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :, :
+                    ] = input_forcings.esmf_field_out.data
+                except (ValueError, KeyError, AttributeError) as err:
+                    config_options.errMsg = (
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1[
+                        input_forcings.input_map_output[force_count], :, :
+                    ] = input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :, :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+
+            elif config_options.grid_type == "unstructured":
+                # Regrid the input variables.
+                var_tmp = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp = mpi_config.scatter_array(
+                    input_forcings, var_tmp, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                    input_forcings.esmf_field_out = input_forcings.regridObj(
+                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
                     )
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out.data[
+                        np.where(input_forcings.regridded_mask == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
+                        input_forcings.esmf_field_out.data[ind_valid] = (
+                            input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                        )
+                        del ind_valid
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Regrid the input variables.
-            var_tmp_elem = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
+                    input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.esmf_field_out.data
+                except (ValueError, KeyError, AttributeError) as err:
+                    config_options.errMsg = (
+                        "Unable to place local ESMF regridded data into local array: "
+                        + str(err)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.regridded_forcings2[
+                        input_forcings.input_map_output[force_count], :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Regrid the input variables.
+                var_tmp_elem = None
+                fill = fill_values.get(
+                    input_forcings.grib_vars[force_count], config_options.globalNdv
+                )
+                if mpi_config.rank == 0:
                     config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
+                        "Regridding Custom netCDF input variable: " + nc_var
                     )
                     err_handler.log_msg(
                         config_options, mpi_config, True
                     )  # log at debug level
-                    var_tmp_elem = id_tmp[nc_var].to_masked_array().filled(fill)
-                except Exception as err:
+                    try:
+                        config_options.statusMsg = (
+                            f"Using {fill} to replace missing values in input"
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                        var_tmp_elem = id_tmp[nc_var].to_masked_array().filled(fill)
+                    except Exception as err:
+                        config_options.errMsg = (
+                            "Unable to extract "
+                            + nc_var
+                            + " from: "
+                            + input_forcings.file_in2
+                            + " ("
+                            + str(err)
+                            + ")"
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                var_sub_tmp_elem = mpi_config.scatter_array(
+                    input_forcings, var_tmp_elem, config_options
+                )
+                err_handler.check_program_status(config_options, mpi_config)
+
+                try:
+                    input_forcings.esmf_field_in_elem.data[:, :] = var_sub_tmp_elem
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
-                        + str(err)
-                        + ")"
+                        "Unable to place local array into local ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
-            var_sub_tmp_elem = mpi_config.scatter_array(
-                input_forcings, var_tmp_elem, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in_elem.data[:, :] = var_sub_tmp_elem
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                    input_forcings.esmf_field_in_elem,
-                    input_forcings.esmf_field_out_elem,
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out_elem.data[
-                    np.where(input_forcings.regridded_mask_elem == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
                 try:
-                    ind_valid_elem = np.where(
-                        input_forcings.esmf_field_out_elem.data != fill
+                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
+                        input_forcings.esmf_field_in_elem,
+                        input_forcings.esmf_field_out_elem,
                     )
-                    input_forcings.esmf_field_out_elem.data[ind_valid_elem] = (
-                        input_forcings.esmf_field_out_elem.data[ind_valid_elem] / 3600.0
-                    )
-                    del ind_valid_elem
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
+                except ValueError as ve:
                     config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
+                        "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                        + str(ve)
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
+
+                # Set any pixel cells outside the input domain to the global missing value.
+                try:
+                    input_forcings.esmf_field_out_elem.data[
+                        np.where(input_forcings.regridded_mask_elem == 0)
+                    ] = fill
+                except (ValueError, ArithmeticError) as npe:
+                    config_options.errMsg = (
+                        "Unable to calculate mask from input Custom netCDF regridded forcings: "
                         + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2_elem[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out_elem.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # Convert the hourly precipitation total to a rate of mm/s
+                if nc_var == "APCP_surface":
+                    try:
+                        ind_valid_elem = np.where(
+                            input_forcings.esmf_field_out_elem.data != fill
+                        )
+                        input_forcings.esmf_field_out_elem.data[ind_valid_elem] = (
+                            input_forcings.esmf_field_out_elem.data[ind_valid_elem]
+                            / 3600.0
+                        )
+                        del ind_valid_elem
+                    except (
+                        ValueError,
+                        ArithmeticError,
+                        AttributeError,
+                        KeyError,
+                    ) as npe:
+                        config_options.errMsg = (
+                            "Unable to run NDV search on Custom netCDF precipitation: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1_elem[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2_elem[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
-
-        elif config_options.grid_type == "hydrofabric":
-            # Regrid the input variables.
-            var_tmp = None
-            fill = fill_values.get(
-                input_forcings.grib_vars[force_count], config_options.globalNdv
-            )
-            if mpi_config.rank == 0:
-                config_options.statusMsg = (
-                    "Regridding Custom netCDF input variable: " + nc_var
-                )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
                 try:
-                    config_options.statusMsg = (
-                        f"Using {fill} to replace missing values in input"
-                    )
-                    err_handler.log_msg(
-                        config_options, mpi_config, True
-                    )  # log at debug level
-                    var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
-                except Exception as err:
+                    input_forcings.regridded_forcings2_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.esmf_field_out_elem.data
+                except (ValueError, KeyError, AttributeError) as err:
                     config_options.errMsg = (
-                        "Unable to extract "
-                        + nc_var
-                        + " from: "
-                        + input_forcings.file_in2
-                        + " ("
+                        "Unable to place local ESMF regridded data into local array: "
                         + str(err)
-                        + ")"
-                    )
-                    err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            var_sub_tmp = mpi_config.scatter_array(
-                input_forcings, var_tmp, config_options
-            )
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local array into local ESMF field: " + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
-                )
-            except ValueError as ve:
-                config_options.errMsg = (
-                    "Unable to regrid input Custom netCDF forcing variables using ESMF: "
-                    + str(ve)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Set any pixel cells outside the input domain to the global missing value.
-            try:
-                input_forcings.esmf_field_out.data[
-                    np.where(input_forcings.regridded_mask == 0)
-                ] = fill
-            except (ValueError, ArithmeticError) as npe:
-                config_options.errMsg = (
-                    "Unable to calculate mask from input Custom netCDF regridded forcings: "
-                    + str(npe)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
-
-            # Convert the hourly precipitation total to a rate of mm/s
-            if nc_var == "APCP_surface":
-                try:
-                    ind_valid = np.where(input_forcings.esmf_field_out.data != fill)
-                    input_forcings.esmf_field_out.data[ind_valid] = (
-                        input_forcings.esmf_field_out.data[ind_valid] / 3600.0
-                    )
-                    ind_valid = np.where(input_forcings.esmf_field_out.data < 0.0)
-                    input_forcings.esmf_field_out.data[ind_valid] = 0.0
-                    del ind_valid
-                except (ValueError, ArithmeticError, AttributeError, KeyError) as npe:
-                    config_options.errMsg = (
-                        "Unable to run NDV search on Custom netCDF precipitation: "
-                        + str(npe)
                     )
                     err_handler.log_critical(config_options, mpi_config)
                 err_handler.check_program_status(config_options, mpi_config)
 
-            try:
-                input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.esmf_field_out.data
-            except (ValueError, KeyError, AttributeError) as err:
-                config_options.errMsg = (
-                    "Unable to place local ESMF regridded data into local array: "
-                    + str(err)
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+                # If we are on the first timestep, set the previous regridded field to be
+                # the latest as there are no states for time 0.
+                if config_options.current_output_step == 1:
+                    input_forcings.regridded_forcings1_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ] = input_forcings.regridded_forcings2_elem[
+                        input_forcings.input_map_output[force_count], :
+                    ]
+                err_handler.check_program_status(config_options, mpi_config)
 
-            # If we are on the first timestep, set the previous regridded field to be
-            # the latest as there are no states for time 0.
-            if config_options.current_output_step == 1:
-                input_forcings.regridded_forcings1[
-                    input_forcings.input_map_output[force_count], :
-                ] = input_forcings.regridded_forcings2[
-                    input_forcings.input_map_output[force_count], :
-                ]
-            err_handler.check_program_status(config_options, mpi_config)
+            elif config_options.grid_type == "hydrofabric":
+                with timing_block(
+                    f"regrid step 2.4 | {mpi_config.rank}: get fill value"
+                ):
+                    # Regrid the input variables.
+                    var_tmp = None
+                    fill = fill_values.get(
+                        input_forcings.grib_vars[force_count], config_options.globalNdv
+                    )
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                "Unable to close NetCDF file: " + input_forcings.tmpFile
-            )
-            err_handler.err_out(config_options)
+                if mpi_config.rank == 0:
+                    with timing_block(
+                        f"regrid step 2.5.1 | {mpi_config.rank}: regrid messages"
+                    ):
+                        config_options.statusMsg = (
+                            "Regridding Custom netCDF input variable: " + nc_var
+                        )
+                        err_handler.log_msg(
+                            config_options, mpi_config, True
+                        )  # log at debug level
+                    try:
+                        with timing_block(
+                            f"regrid step 2.5.2 | {mpi_config.rank}: messages2"
+                        ):
+                            config_options.statusMsg = (
+                                f"Using {fill} to replace missing values in input"
+                            )
+                            err_handler.log_msg(
+                                config_options, mpi_config, True
+                            )  # log at debug level
+                        with timing_block(
+                            f"regrid step 2.5.3 | {mpi_config.rank}: fill missing"
+                        ):
+                            var_tmp = id_tmp[nc_var].to_masked_array().filled(fill)
+
+                    except Exception as err:
+                        with timing_block(
+                            f"regrid step 2.5.4 | {mpi_config.rank}: extract error"
+                        ):
+                            config_options.errMsg = f"Unable to extract {nc_var} from: {input_forcings.file_in2} ({str(err)})"
+                            err_handler.log_critical(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.5.5 | {mpi_config.rank}: check program status"
+                ):
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.6 | {mpi_config.rank}: scatter input variable"
+                ):
+                    var_sub_tmp = mpi_config.scatter_array(
+                        input_forcings, var_tmp, config_options
+                    )
+                    err_handler.check_program_status(config_options, mpi_config)
+                with timing_block(
+                    f"regrid step 2.7 | {mpi_config.rank}: place local array into local ESMF field"
+                ):
+                    try:
+                        input_forcings.esmf_field_in.data[:, :] = var_sub_tmp
+                    except (ValueError, KeyError, AttributeError) as err:
+                        config_options.errMsg = (
+                            "Unable to place local array into local ESMF field: "
+                            + str(err)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.8 | {mpi_config.rank}: regrid input variable ESMF"
+                ):
+                    try:
+                        input_forcings.esmf_field_out = input_forcings.regridObj(
+                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        )
+                    except ValueError as ve:
+                        config_options.errMsg = (
+                            "Unable to regrid input Custom netCDF forcing variables using ESMF: "
+                            + str(ve)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.9 | {mpi_config.rank}: set pixels outside input domain to missing value"
+                ):
+                    # Set any pixel cells outside the input domain to the global missing value.
+                    try:
+                        input_forcings.esmf_field_out.data[
+                            np.where(input_forcings.regridded_mask == 0)
+                        ] = fill
+                    except (ValueError, ArithmeticError) as npe:
+                        config_options.errMsg = (
+                            "Unable to calculate mask from input Custom netCDF regridded forcings: "
+                            + str(npe)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.10 | {mpi_config.rank}: convert hourly precipitation to mm/s"
+                ):
+                    # Convert the hourly precipitation total to a rate of mm/s
+                    if nc_var == "APCP_surface":
+                        try:
+                            ind_valid = np.where(
+                                input_forcings.esmf_field_out.data != fill
+                            )
+                            input_forcings.esmf_field_out.data[ind_valid] = (
+                                input_forcings.esmf_field_out.data[ind_valid] / 3600.0
+                            )
+                            ind_valid = np.where(
+                                input_forcings.esmf_field_out.data < 0.0
+                            )
+                            input_forcings.esmf_field_out.data[ind_valid] = 0.0
+                            del ind_valid
+                        except (
+                            ValueError,
+                            ArithmeticError,
+                            AttributeError,
+                            KeyError,
+                        ) as npe:
+                            config_options.errMsg = (
+                                "Unable to run NDV search on Custom netCDF precipitation: "
+                                + str(npe)
+                            )
+                            err_handler.log_critical(config_options, mpi_config)
+                        err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.11 | {mpi_config.rank}: place regridded data into local array"
+                ):
+                    try:
+                        input_forcings.regridded_forcings2[
+                            input_forcings.input_map_output[force_count], :
+                        ] = input_forcings.esmf_field_out.data
+                    except (ValueError, KeyError, AttributeError) as err:
+                        config_options.errMsg = (
+                            "Unable to place local ESMF regridded data into local array: "
+                            + str(err)
+                        )
+                        err_handler.log_critical(config_options, mpi_config)
+                    err_handler.check_program_status(config_options, mpi_config)
+
+                with timing_block(
+                    f"regrid step 2.12 | {mpi_config.rank}: update previous regridded field for first timestep"
+                ):
+                    # If we are on the first timestep, set the previous regridded field to be
+                    # the latest as there are no states for time 0.
+                    if config_options.current_output_step == 1:
+                        input_forcings.regridded_forcings1[
+                            input_forcings.input_map_output[force_count], :
+                        ] = input_forcings.regridded_forcings2[
+                            input_forcings.input_map_output[force_count], :
+                        ]
+                    err_handler.check_program_status(config_options, mpi_config)
 
 
 def check_regrid_status(
@@ -13812,10 +13904,10 @@ def load_weight_file(
 
     err_handler.check_program_status(config_options, mpi_config)
     try:
-        begin = time.monotonic()
+        begin = monotonic()
         regrid = ESMF.RegridFromFile(field_in, field_out, weight_file)
         setattr(input_forcings, target_object_attr_name, regrid)
-        end = time.monotonic()
+        end = monotonic()
     except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
         config_options.errMsg = (
             f"Unable to load cached ESMF{msg_augment}weight file: " + str(esmf_error)
@@ -13864,7 +13956,7 @@ def make_regrid(
 
     err_handler.check_program_status(config_options, mpi_config)
     try:
-        begin = time.monotonic()
+        begin = monotonic()
         regrid = (
             ESMF.Regrid(
                 field_in,
@@ -13877,7 +13969,7 @@ def make_regrid(
             ),
         )
         setattr(input_forcings, target_object_attr_name, regrid)
-        end = time.monotonic()
+        end = monotonic()
     except (RuntimeError, ImportError, ESMF.ESMPyException) as esmf_error:
         config_options.errMsg = (
             f"RANK: {mpi_config.rank}: Failed: {start_msg}. Unable to regrid input data from ESMF: "
@@ -13901,8 +13993,10 @@ def execute_regrid(
     weight_file: str,
     element_mode: bool,
 ) -> None:
-    """`input_forcings.esmf_field_out` or `input_forcings.esmf_field_out_elem` is modified in-place.
-    On error, weight file is deleted from disk."""
+    """Input_forcings.esmf_field_out` or `input_forcings.esmf_field_out_elem` is modified in-place.
+
+    On error, weight file is deleted from disk.
+    """
     if not element_mode:
         field_in = input_forcings.esmf_field_in
         field_out = input_forcings.esmf_field_out
