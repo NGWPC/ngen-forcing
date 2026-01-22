@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-##SBATCH --job-name=sing_schism  #job name
-##SBATCH -N 1                     #number of nodes to use
-##SBATCH --partition=compute      #the patition
-##SBATCH --ntasks-per-node=18     #numebr of cores per node
-##SBATCH --exclusive
+#SBATCH --job-name=sing_schism  #job name
+#SBATCH -N 1                     #number of nodes to use
+#SBATCH --partition=compute      #the patition
+#SBATCH --ntasks-per-node=18     #numebr of cores per node
+#SBATCH --exclusive
 
 export NODES=1          #this must match the number of nodes defined above by slurm
-export NCORES=4
+export NCORES=18
 export NPROCS=$((NODES*NCORES))
 
 set -x
