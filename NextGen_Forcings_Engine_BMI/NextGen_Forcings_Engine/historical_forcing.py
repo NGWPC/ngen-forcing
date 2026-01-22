@@ -212,14 +212,18 @@ class BaseProcessor:
         # self.write_sum_tif()
         return final_ds
 
+    @property
+    @lru_cache
+    def gdf(self):
+        """Load and cache the geospatial dataframe."""
+        gdf = gpd.read_file(self.config_options.geopackage, layer="divides")
+        return gdf.to_crs(self.src_crs)
+
     def plot_precip(self, ds: xr.Dataset):
         """Plot precipitation field for the current time step."""
         qmesh = ds[self.precip_variable].plot()
+        self.gdf.plot(ax=qmesh.axes, facecolor="none", edgecolor="black")
 
-        gdf = gpd.read_file(self.config_options.geopackage, layer="divides")
-        gdf.to_crs(self.src_crs).plot(
-            ax=qmesh.axes, facecolor="none", edgecolor="black"
-        )
         plt.title(f"Precipitation at {str(ds.time.values)}")
         plt.savefig(
             f"{self.precip_variable}_{str(ds.time.values)}_{self.mpi_config.rank}.png"
@@ -228,9 +232,9 @@ class BaseProcessor:
 
     def write_sum_tif(self):
         """Write precip sum raster."""
-        self.aws_ds[self.precip_variable].sum("time").rio.to_raster(
-            f"{self.precip_variable}_sum.tif"
-        )
+        self.aws_ds[self.precip_variable].sum("time").rio.write_crs(
+            self.src_crs
+        ).rio.to_raster(f"{self.precip_variable}_sum.tif")
 
 
 class AORCConusProcessor(BaseProcessor):
