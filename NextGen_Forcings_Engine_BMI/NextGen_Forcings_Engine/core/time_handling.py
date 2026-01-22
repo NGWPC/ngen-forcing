@@ -4660,15 +4660,15 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # current_input_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
     current_input_min = int(dt_tmp.seconds / 60.0)
     # Calculate the previous file to process.
-    min_since_last_output = current_input_min % input_forcings.cycleFreq
+    min_since_last_output = current_input_min % input_forcings.cycle_freq
     if min_since_last_output == 0:
-        min_since_last_output = input_forcings.cycleFreq
+        min_since_last_output = input_forcings.cycle_freq
     prev_input_date = d_current - datetime.timedelta(seconds=min_since_last_output * 60)
     input_forcings.fcst_date1 = prev_input_date
-    if min_since_last_output == input_forcings.cycleFreq:
+    if min_since_last_output == input_forcings.cycle_freq:
         min_until_next_output = 0
     else:
-        min_until_next_output = input_forcings.cycleFreq - min_since_last_output
+        min_until_next_output = input_forcings.cycle_freq - min_since_last_output
     next_input_date = d_current + datetime.timedelta(seconds=min_until_next_output * 60)
     input_forcings.fcst_date2 = next_input_date
     dt_tmp = next_input_date - current_input_cycle
@@ -4678,7 +4678,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         next_input_forecast_hour = 1
     hr_flag = 0
 
-    if 0 < input_forcings.cycleFreq % 60 < 60:
+    if 0 < input_forcings.cycle_freq % 60 < 60:
         if next_input_forecast_hour > 1 and next_input_date.minute == 0:
             next_input_forecast_hour = next_input_forecast_hour - 1
             hr_flag = 1
@@ -4700,7 +4700,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     input_forcings.fcst_hour1 = prev_input_forecast_hour
     if prev_input_forecast_hour == 0:
         prev_input_forecast_hour = 1
-    if 0 < input_forcings.cycleFreq % 60 < 60:
+    if 0 < input_forcings.cycle_freq % 60 < 60:
         prev_input_forecast_min = (prev_input_forecast_hour - 1) * 60 + int(
             dt_tmp.seconds / 60.0
         ) % 60
@@ -4787,7 +4787,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         if (
             input_forcings.file_in1 != tmp_file1
             or input_forcings.file_in2 != tmp_file2
-            or (config_options.output_freq <= input_forcings.cycleFreq <= 60)
+            or (config_options.output_freq <= input_forcings.cycle_freq <= 60)
         ):
             if config_options.current_output_step == 1:
                 input_forcings.regridded_forcings1 = input_forcings.regridded_forcings1
