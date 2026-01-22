@@ -113,9 +113,10 @@ class BaseProcessor:
     def timing_block(self, step_str: str):
         """Context manager for timing code execution.
 
-            Args:
-                step_str: Description of the step being timed.
+        Args:
+            step_str: Description of the step being timed.
         with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
+
         """
         start = time()
         yield
