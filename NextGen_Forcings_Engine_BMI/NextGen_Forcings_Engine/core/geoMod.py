@@ -1,4 +1,5 @@
 import math
+from time import time
 
 import numpy as np
 
@@ -1212,161 +1213,105 @@ class GeoMetaWrfHydro:
         for this particular processor.
         :return:
         """
-        # Flag to see if user specified an unstructured mesh hydrofabric file
+        max_retries = 5
+        retry_delay = 2
+
         if ConfigOptions.geogrid is not None:
-            # Open the geogrid file and extract necessary information
-            # to create ESMF fields.
+            # Phase 1: Rank 0 extracts all needed global data
             if MpiConfig.rank == 0:
+                for attempt in range(max_retries):
+                    try:
+                        idTmp = Dataset(ConfigOptions.geogrid, 'r')
+                        
+                        # Extract everything we need in one go
+                        self.nx_global = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
+                        self.ny_global = self.nx_global
+                        
+                        if ConfigOptions.aws:
+                            self.lat_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:, 1]
+                            self.lon_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:, 0]
+                        
+                        # Store these for later broadcast/scatter
+                        elementcoords_global = idTmp.variables[ConfigOptions.elemcoords_var][:].data
+                        element_ids_global = idTmp.variables[ConfigOptions.element_id_var][:].data
+                        
+                        heights_global = None
+                        if ConfigOptions.hgt_var is not None:
+                            heights_global = idTmp.variables[ConfigOptions.hgt_var][:].data
+                        
+                        slopes_global = None
+                        slp_azi_global = None
+                        if ConfigOptions.slope_var is not None:
+                            slopes_global = idTmp.variables[ConfigOptions.slope_var][:].data
+                            slp_azi_global = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data
+                        
+                        idTmp.close()
+                        break
+                    except Exception as e:
+                        if attempt < max_retries - 1:
+                            LOG.warning(f"Failed to open mesh file (attempt {attempt + 1}/{max_retries}): {e}")
+                            time.sleep(retry_delay)
+                        else:
+                            LOG.critical(f"Failed to open mesh file: {ConfigOptions.geogrid}")
+                            raise
+            else:
+                elementcoords_global = None
+                element_ids_global = None
+                heights_global = None
+                slopes_global = None
+                slp_azi_global = None
+
+            # Broadcast dimensions
+            self.nx_global = MpiConfig.broadcast_parameter(self.nx_global, ConfigOptions, param_type=int)
+            self.ny_global = MpiConfig.broadcast_parameter(self.ny_global, ConfigOptions, param_type=int)
+
+            MpiConfig.comm.barrier()
+
+            # Phase 2: Create ESMF Mesh (collective operation with retry)
+            for attempt in range(max_retries):
                 try:
-                    idTmp = Dataset(ConfigOptions.geogrid, "r")
-                except Exception as e:
-                    ConfigOptions.errMsg = (
-                        "Unable to open the unstructured mesh file: "
-                        + ConfigOptions.geogrid
+                    self.esmf_grid = ESMF.Mesh(
+                        filename=ConfigOptions.geogrid, 
+                        filetype=ESMF.FileFormat.ESMFMESH
                     )
-                    raise Exception
-
-                try:
-                    self.nx_global = idTmp.variables[
-                        ConfigOptions.elemcoords_var
-                    ].shape[0]
+                    break
                 except Exception as e:
-                    ConfigOptions.errMsg = (
-                        "Unable to extract X dimension size in " + ConfigOptions.geogrid
-                    )
-                    raise Exception
+                    if attempt < max_retries - 1:
+                        if MpiConfig.rank == 0:
+                            LOG.warning(f"ESMF Mesh creation failed (attempt {attempt + 1}/{max_retries}): {e}")
+                        MpiConfig.comm.barrier()
+                        time.sleep(retry_delay)
+                    else:
+                        ConfigOptions.errMsg = f"Unable to create ESMF Mesh: {ConfigOptions.geogrid}"
+                        raise
 
-                try:
-                    self.ny_global = idTmp.variables[
-                        ConfigOptions.elemcoords_var
-                    ].shape[0]
-                except Exception as e:
-                    ConfigOptions.errMsg = (
-                        "Unable to extract Y dimension size in " + ConfigOptions.geogrid
-                    )
-                    raise Exception
-
-                # Flag to grab entire array for AWS slicing
-                if ConfigOptions.aws:
-                    self.lat_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][
-                        :, 1
-                    ]
-                    self.lon_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][
-                        :, 0
-                    ]
-
-            # MpiConfig.comm.barrier()
-
-            # Broadcast global dimensions to the other processors.
-            self.nx_global = MpiConfig.broadcast_parameter(
-                self.nx_global, ConfigOptions, param_type=int
-            )
-            self.ny_global = MpiConfig.broadcast_parameter(
-                self.ny_global, ConfigOptions, param_type=int
-            )
-
-            # MpiConfig.comm.barrier()
-
-            if MpiConfig.rank == 0:
-                # Close the geogrid file
-                try:
-                    idTmp.close()
-                except Exception as e:
-                    ConfigOptions.errMsg = (
-                        "Unable to close geogrid Mesh file: " + ConfigOptions.geogrid
-                    )
-                    raise Exception
-
-            try:
-                # Removed argument coord_sys=ESMF.CoordSys.SPH_DEG since we are always reading from a file
-                # From ESMF documentation
-                # If you create a mesh from a file (like NetCDF/ESMF-Mesh), coord_sys is ignored. The mesh’s coordinate system should be embedded in the file or inferred.
-                self.esmf_grid = ESMF.Mesh(
-                    filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH
-                )
-            except Exception as e:
-                ConfigOptions.errMsg = (
-                    "Unable to create ESMF Mesh from geogrid file: "
-                    + ConfigOptions.geogrid
-                )
-                raise Exception
-
-            # MpiConfig.comm.barrier()
-
-            # Obtain the local boundaries for this processor.
+            # Get processor bounds
             self.get_processor_bounds(ConfigOptions)
 
-            # Place the local lat/lon grid slices from the parent geogrid file into
-            # the ESMF lat/lon grids that have already been seperated by processors.
-            try:
-                self.latitude_grid = self.esmf_grid.coords[1][1]
-                varSubTmp = None
-                varTmp = None
-            except Exception as e:
-                ConfigOptions.errMsg = (
-                    "Unable to subset node latitudes from ESMF Mesh object"
-                )
-                raise Exception
-            try:
-                self.longitude_grid = self.esmf_grid.coords[1][0]
-                varSubTmp = None
-                varTmp = None
-            except Exception as e:
-                ConfigOptions.errMsg = (
-                    "Unable to subset node longitudes from ESMF Mesh object"
-                )
+            # Extract local coordinates from ESMF mesh
+            self.latitude_grid = self.esmf_grid.coords[1][1]
+            self.longitude_grid = self.esmf_grid.coords[1][0]
 
-            idTmp = Dataset(ConfigOptions.geogrid, "r")
+            # Phase 3: Broadcast global arrays and compute local indices
+            elementcoords_global = MpiConfig.comm.bcast(elementcoords_global, root=0)
+            element_ids_global = MpiConfig.comm.bcast(element_ids_global, root=0)
+            
+            # Each rank computes its own local indices
+            pet_elementcoords = np.column_stack([self.longitude_grid, self.latitude_grid])
+            _, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
 
-            # Get lat and lon global variables for pet extraction of indices
-            elementcoords_global = idTmp.variables[ConfigOptions.elemcoords_var][:].data
+            self.element_ids = element_ids_global[pet_element_inds]
+            self.element_ids_global = element_ids_global
 
-            # Find the corresponding local indices to slice global heights and slope
-            # variables that are based on the partitioning on the unstructured mesh
-            pet_elementcoords = np.empty((len(self.latitude_grid), 2), dtype=float)
-            pet_elementcoords[:, 0] = self.longitude_grid
-            pet_elementcoords[:, 1] = self.latitude_grid
-
-            distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(
-                pet_elementcoords
-            )
-
-            # reset variables to free up memory
-            elementcoords_global = None
-            pet_elementcoords = None
-            distance = None
-
-            u, c = np.unique(pet_element_inds, return_counts=True)
-
-            # Read in a scatter the mesh node elevation, which is used for downscaling if available
+            # Broadcast and extract height/slope data
             if ConfigOptions.hgt_var is not None:
-                self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[
-                    pet_element_inds
-                ]
+                heights_global = MpiConfig.comm.bcast(heights_global, root=0)
+                self.height = heights_global[pet_element_inds]
 
-            if (
-                ConfigOptions.slope_var is not None
-                and ConfigOptions.slp_azi_var is not None
-            ):
-                self.slope = idTmp.variables[ConfigOptions.slope_var][:].data[
-                    pet_element_inds
-                ]
-                self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[
-                    pet_element_inds
-                ]
+            if ConfigOptions.slope_var is not None:
+                slopes_global = MpiConfig.comm.bcast(slopes_global, root=0)
+                slp_azi_global = MpiConfig.comm.bcast(slp_azi_global, root=0)
+                self.slope = slopes_global[pet_element_inds]
+                self.slp_azi = slp_azi_global[pet_element_inds]
 
-            self.element_ids = idTmp.variables[ConfigOptions.element_id_var][:].data[
-                pet_element_inds
-            ]
-
-            self.element_ids_global = idTmp.variables[ConfigOptions.element_id_var][
-                :
-            ].data
-
-            # save indices where mesh was partition for future scatter functions
             self.mesh_inds = pet_element_inds
-
-            # reset variables to free up memory
-            pet_element_inds = None
-
-            idTmp.close()

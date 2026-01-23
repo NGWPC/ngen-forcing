@@ -4638,15 +4638,11 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
-    if (
-        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
-    ) / 60.0 > input_horizon:
-        config_options.errMsg = (
-            "User has specified a forecast horizon "
-            + "that is greater than the maximum allowed hours of: "
-            + str(input_horizon)
-        )
-        err_handler.log_critical(config_options, mpi_config)
+
+    if not config_options.ana_flag:
+        if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > input_horizon:
+            config_options.errMsg = f"Config file ForecastInputHorizons exceeds maximum allowed hours of: {str(input_horizon)}"
+            err_handler.log_critical(config_options, mpi_config)
 
     # err_handler.check_program_status(config_options, mpi_config)
     # d_current = d_current + datetime.timedelta(seconds=input_forcings.currentFcstOffset * 60.0 * 60.0)
