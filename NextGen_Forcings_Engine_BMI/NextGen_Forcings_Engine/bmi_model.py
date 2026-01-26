@@ -1257,11 +1257,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             )
             arr = np.ascontiguousarray(arr)
 
-        # Ensure dtype is float64 (C double)
-        if arr.dtype != np.float64:
-            LOG.warning(
-                f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
-            )
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
             if arr.dtype != np.int32:
