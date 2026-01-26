@@ -61,9 +61,9 @@ next_file_number = 0
 def timing_block(step_str: str):
     """Context manager for timing code execution.
 
-        Args:
-            step_str: Description of the step being timed.
-    with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
+    Args:
+        step_str: Description of the step being timed.
+
     """
     start = time()
     yield

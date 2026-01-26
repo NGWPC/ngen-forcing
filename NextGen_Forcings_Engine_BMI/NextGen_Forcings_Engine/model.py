@@ -37,14 +37,14 @@ LOG = logging.getLogger(MODULE_NAME)
 def timing_block(step_str: str):
     """Context manager for timing code execution.
 
-        Args:
-            step_str: Description of the step being timed.
-    with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
+    Args:
+        step_str: Description of the step being timed.
+
     """
     start = time()
     yield
     end = time()
-    LOG.info(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+    LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
 
 def time_function(func):
@@ -454,52 +454,51 @@ class NWMv3ForcingEngineModel:
                         config_options, output_obj.outDate, mpi_config
                     )
 
-                if force_key in [12, 21, 27] and config_options.aws is None:
-                    # Calculate the previous and next input cycle files from the inputs.
-                    input_forcings.calc_neighbor_files(
-                        config_options, output_obj.outDate, mpi_config
-                    )
-                    err_handler.check_program_status(config_options, mpi_config)
-                else:
-                    # Flag to indicate the AWS .zarr AORC method
-                    if force_key == 12:
-                        if self.source_data_processor is None:
-                            self.source_data_processor = AORCConusProcessor(
-                                config_options, mpi_config, wrf_hydro_geo_meta
-                            )
-                    elif force_key == 21:
-                        if self.source_data_processor is None:
-                            self.source_data_processor = AORCAlaskaProcessor(
-                                config_options, mpi_config, wrf_hydro_geo_meta
-                            )
-
-                    # Flag to indicate the AWS .zarr NWMv3 Forcing file method
-                    # Which grabs the entire timeseries based on s3 bucket organizations
-
-                    # Added separate processing path for CONUS NWM retrospective data
-                    # TODO: Expand functionality for oCONUS domains (different zarr structure)
-                    elif force_key == 27:
-                        if self.source_data_processor is None:
-                            if config_options.nwm_domain == "CONUS":
-                                self.source_data_processor = NWMV3ConusProcessor(
+                if force_key in [12, 21, 27]:
+                    if config_options.aws is None:
+                        # Calculate the previous and next input cycle files from the inputs.
+                        input_forcings.calc_neighbor_files(
+                            config_options, output_obj.outDate, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
+                    else:
+                        # Flag to indicate the AWS .zarr AORC method
+                        if force_key == 12:
+                            if self.source_data_processor is None:
+                                self.source_data_processor = AORCConusProcessor(
                                     config_options, mpi_config, wrf_hydro_geo_meta
                                 )
-                            elif config_options.nwm_domain in [
-                                "Hawaii",
-                                "PR",
-                                "Alaska",
-                            ]:
-                                self.source_data_processor = NWMV3OConusProcessor(
+                        elif force_key == 21:
+                            if self.source_data_processor is None:
+                                self.source_data_processor = AORCAlaskaProcessor(
                                     config_options, mpi_config, wrf_hydro_geo_meta
                                 )
-                            else:
-                                raise ValueError(
-                                    f"Unsupported domain type ({config_options.nwm_domain} for forcing type: {force_key} )"
-                                )
 
-                    config_options.aws_obj = self.source_data_processor.process(
-                        config_options.current_time
-                    )
+                        # Flag to indicate the AWS .zarr NWMv3 Forcing file method
+                        elif force_key == 27:
+                            if self.source_data_processor is None:
+                                if config_options.nwm_domain == "CONUS":
+                                    self.source_data_processor = NWMV3ConusProcessor(
+                                        config_options, mpi_config, wrf_hydro_geo_meta
+                                    )
+                                elif config_options.nwm_domain in [
+                                    "Hawaii",
+                                    "PR",
+                                    "Alaska",
+                                ]:
+                                    self.source_data_processor = NWMV3OConusProcessor(
+                                        config_options, mpi_config, wrf_hydro_geo_meta
+                                    )
+                                else:
+                                    raise ValueError(
+                                        f"Unsupported domain type ({config_options.nwm_domain} for forcing type: {force_key} )"
+                                    )
+
+                        config_options.aws_obj = (
+                            self.source_data_processor.process_historical_data(
+                                config_options.current_time
+                            )
+                        )
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
