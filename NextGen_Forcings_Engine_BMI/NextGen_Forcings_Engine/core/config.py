@@ -2091,6 +2091,10 @@ class ConfigOptions:
             return "{source}/{domain}/zarr/forcing/{var}.zarr"
         elif self.nwm_domain in ["Hawaii", "PR", "Alaska"]:
             return "{source}/{domain}/zarr/forcing.zarr"
+        else:
+            raise ValueError(
+                f"Unknown domain. Expected 'CONUS', 'Hawaii', 'PR', or 'Alaska'; received: '{self.nwm_domain}'"
+            )
 
     @property
     def use_data_at_current_time(self):
