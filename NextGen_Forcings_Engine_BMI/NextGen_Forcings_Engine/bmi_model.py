@@ -770,17 +770,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
-
-        # I don't think this is valid. The logic falls through when you have 1 catchment. Seems to run fine without this check. -MD
-        # if (
-        #     self._wrf_hydro_geo_meta.nx_local < 2
-        #     or self._wrf_hydro_geo_meta.ny_local < 2
-        # ):
-        #     self._job_meta.errMsg = (
-        #         "You have specified too many cores for your WRF-Hydro grid. "
-        #         "Local grid Must have x/y dimension size of 2."
-        #     )
-        #     err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+        if (
+            self._wrf_hydro_geo_meta.nx_local < 2
+            or self._wrf_hydro_geo_meta.ny_local < 2
+        ):
+            self._job_meta.errMsg = (
+                "You have specified too many cores for your WRF-Hydro grid. "
+                "Local grid Must have x/y dimension size of 2."
+            )
+            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # Initialize our output object, which includes local slabs from the output grid.
