@@ -2,7 +2,9 @@
 
 import datetime
 import logging
+import os
 from contextlib import contextmanager
+from datetime import timedelta
 from functools import lru_cache
 from time import time
 
@@ -85,11 +87,6 @@ class BaseProcessor:
         return self.reprojected_box.bounds[3]
 
     @property
-    def current_time_datetime(self):
-        """Datetime object for the current time step."""
-        return np.datetime64(self.current_time)
-
-    @property
     def xmax(self) -> float:
         """Maximum longitude from geospatial metadata."""
         return np.max(self.wrf_hydro_geo_meta.lon_bounds)
@@ -115,7 +112,6 @@ class BaseProcessor:
 
         Args:
             step_str: Description of the step being timed.
-        with MPICommExecutor(comm=MpiConfig.comm, root=0) as executor:
 
         """
         start = time()
@@ -123,34 +119,13 @@ class BaseProcessor:
         end = time()
         LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
-    def slice_ds(
-        self, ds: xr.Dataset, start_time: np.datetime64, end_time: np.datetime64
-    ) -> xr.Dataset:
-        """Subset dataset to spatial and temporal bounds.
-
-        :return: Sliced Dataset
-        """
-        with self.timing_block("slicing dataset"):
-            sliced_ds = ds.sel(
-                {
-                    self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
-                    self.y_label: slice(self.reprojected_ymin, self.reprojected_ymax),
-                    self.time_label: slice(start_time, end_time),
-                }
-            )
-            if sliced_ds[self.x_label].size == 0 or sliced_ds[self.y_label].size == 0:
-                raise ValueError(
-                    "Unable to find data for the specified input dataset, domain, and catchment locations. Check that the dataset is supported for the given domain"
-                )
-        return sliced_ds
-
     @property
     def time_min(self) -> np.datetime64:
         """Calculate minimum time for forecast window.
 
         :return: Minimum time as np.datetime64
         """
-        return np.datetime64(self.config_options.b_date_proc)
+        return np.datetime64(self.config_options.b_date_proc) + np.timedelta64(1, "h")
 
     @property
     def dates(self):
@@ -184,33 +159,94 @@ class BaseProcessor:
         )
 
     @property
+    def gage_id(self) -> str:
+        """Return gage id from geospatial dataframe."""
+        return str(self.config_options.geopackage).split("_")[-1].split(".")[0]
+
+    @property
+    def nc_path(self) -> str:
+        """Construct file path for cached netcdf files."""
+        return f"/tmp/{self.dataset_name}_{self.gage_id}_{self.current_time_str}_{self.end_time_str}.nc"
+
+    @property
+    def end_time_datetime(self):
+        """Datetime object for the end time step."""
+        return self.start_end_dates.get(self.current_time)
+
+    @property
+    def end_time_str(self):
+        """String representation of the end time step."""
+        return self.end_time_datetime.strftime("%Y%m%d%H")
+
+    @property
+    def current_time_str(self):
+        """String representation of the current time step."""
+        return self.current_time.strftime("%Y%m%d%H")
+
+    def update_dates(
+        self, start_date: datetime, end_date: datetime, end: datetime
+    ) -> tuple[datetime, datetime]:
+        """Update start and end dates for caching."""
+        start_date = end_date + timedelta(hours=1)
+        end_date = start_date + self.cache_size
+        if end_date > end:
+            end_date = end
+        return start_date, end_date
+
+    @property
     @lru_cache
-    def aws_ds(self) -> xr.Dataset:
-        """Materialize lazy dask arrays into memory.
+    def start_end_dates(self) -> list[np.datetime64]:
+        """Generate list of start dates for caching."""
+        start_end_dates = {}
+        for start, end in self.year_start_stop_dict.values():
+            start_date = start
+            end_date = start_date + self.cache_size
+            if end_date > end:
+                end_date = end
+            while end_date <= end:
+                start_end_dates[start_date] = end_date
+                if end_date == end:
+                    break
+                start_date, end_date = self.update_dates(start_date, end_date, end)
+        return start_end_dates
 
-        :return: Computed Dataset
-        """
-        final_ds = None
+    def process_historical_data(self, current_time: str) -> xr.Dataset:
+        """Process forcing data for the given configuration and geospatial metadata."""
+        self.current_time = current_time
+        if self.current_time in self.start_end_dates.keys():
+            self.computed_ds = self.compute_ds()
+        ds = self.computed_ds.sel(time=self.current_time)
 
+        # if self.mpi_config.rank==0:
+        #     self.plot_precip(ds)
+        #     self.write_sum_tif(self.computed_ds)
+        return ds
+
+    @property
+    @lru_cache
+    def s3_lazy_ds(self):
+        """Lazy load dataset from S3."""
+        year_datasets = {}
+        for year in self.years:
+            year_datasets[year] = xr.open_zarr(
+                self.url(year),
+                storage_options={"anon": True},
+            )
+        return year_datasets
+
+    def compute_ds(self) -> xr.Dataset:
+        """Materialize lazy dask arrays into memory."""
+        ds = None
         with self.timing_block("computing dataset"):
             with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
                 with dask.config.set(scheduler=executor):
                     if self.mpi_config.rank == 0:
-                        final_ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
-                        # final_ds= final_ds.rio.clip(self.gdf.geometry.values,all_touched=True)
+                        ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
-        final_ds = self.mpi_config.comm.bcast(final_ds, root=0)
-
-        return final_ds
-
-    def process(self, current_time: str) -> xr.Dataset:
-        """Process forcing data for the given configuration and geospatial metadata."""
-        self.current_time = current_time
-        final_ds = self.aws_ds.sel(time=self.current_time_datetime)
-        # if self.mpi_config.rank == 0:
-        # self.plot_precip(final_ds)
-        # self.write_sum_tif()
-        return final_ds
+        ds = self.mpi_config.comm.bcast(ds, root=0)
+        if self.mpi_config.rank == 0:
+            ds.to_netcdf(self.nc_path)
+        return ds
 
     @property
     @lru_cache
@@ -230,15 +266,48 @@ class BaseProcessor:
         )
         plt.clf()
 
-    def write_sum_tif(self):
+    def write_sum_tif(self, ds: xr.Dataset):
         """Write precip sum raster."""
-        self.aws_ds[self.precip_variable].sum("time").rio.write_crs(
-            self.src_crs
-        ).rio.to_raster(f"{self.precip_variable}_sum.tif")
+        ds[self.precip_variable].sum("time").rio.write_crs(self.src_crs).rio.to_raster(
+            f"{self.precip_variable}_sum.tif"
+        )
+
+    @property
+    @lru_cache
+    def number_of_catchments(self) -> int:
+        """Return number of catchments in the geospatial dataframe."""
+        return len(self.gdf)
+
+    @property
+    @lru_cache
+    def cache_size(self) -> np.timedelta64:
+        """Determine cache size based on number of catchments."""
+        return np.timedelta64(round(24 * 365 * 20 / self.number_of_catchments), "h")
+
+    def slice_ds(
+        self, ds: xr.Dataset, start_time: np.datetime64, end_time: np.datetime64
+    ) -> xr.Dataset:
+        """Subset dataset to spatial and temporal bounds.
+
+        :return: Sliced Dataset
+        """
+        with self.timing_block("slicing dataset"):
+            sliced_ds = ds.sel(
+                {
+                    self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
+                    self.y_label: slice(self.reprojected_ymin, self.reprojected_ymax),
+                    self.time_label: slice(start_time, end_time),
+                }
+            )
+            if sliced_ds[self.x_label].size == 0 or sliced_ds[self.y_label].size == 0:
+                raise ValueError(
+                    "Unable to find data for the specified input dataset, domain, and catchment locations. Check that the dataset is supported for the given domain"
+                )
+        return sliced_ds
 
 
 class AORCConusProcessor(BaseProcessor):
-    """Processor for AORC data."""
+    """Processor for CONUS AORC data."""
 
     def __init__(
         self,
@@ -276,30 +345,30 @@ class AORCConusProcessor(BaseProcessor):
 
     @property
     def sliced_ds(self) -> xr.Dataset:
-        """Open dataset.
+        """Sliced dataset.
 
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
-        datasets = []
-        for year, (start_date, end_date) in self.year_start_stop_dict.items():
-            try:
+        try:
+            if os.path.exists(self.nc_path):
+                with self.timing_block(f"opening local dataset {self.nc_path}"):
+                    return xr.open_dataset(self.nc_path)
+            else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    ds = xr.open_zarr(self.url(year), storage_options={"anon": True})
-                    datasets.append(self.slice_ds(ds, start_date, end_date))
-            except Exception as e:
-                LOG.critical(
-                    f"Error opening {self.dataset_name} data from {self.url(year)}: {e}\n"
-                )
-                raise e
-        return (
-            xr.concat(datasets, dim="time")
-            .rename({self.x_label: "x", self.y_label: "y"})
-            .rio.write_crs(self.src_crs)
-        )
+                    return self.slice_ds(
+                        self.s3_lazy_ds[self.current_time.year],
+                        self.current_time,
+                        self.end_time_datetime,
+                    ).rename({self.x_label: "x", self.y_label: "y"})
+        except Exception as e:
+            LOG.critical(
+                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
+            )
+            raise e
 
 
-class AORCAlaskaProcessor(AORCConusProcessor):
+class AORCAlaskaProcessor(BaseProcessor):
     """Processor for AORC Alaska data."""
 
     def __init__(
@@ -354,7 +423,6 @@ class AORCAlaskaProcessor(AORCConusProcessor):
                     s3 = s3fs.S3FileSystem()
                     with s3.open(self.url(date)) as f:
                         ds = xr.open_dataset(f, engine="h5netcdf")
-                        print(ds)
                         datasets.append(
                             self.slice_ds(ds, date, date + np.timedelta64(1, "h"))
                         )
@@ -488,17 +556,22 @@ class NWMV3OConusProcessor(NWMV3Processor):
 
     @property
     def sliced_ds(self) -> xr.Dataset:
-        """Open dataset.
+        """Sliced dataset.
 
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
         try:
-            with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                ds = xr.open_zarr(self.url(), storage_options={"anon": True})
-                return self.slice_ds(ds, self.time_min, self.time_max).rename(
-                    {self.x_label: "x", self.y_label: "y"}
-                )
+            if os.path.exists(self.nc_path):
+                with self.timing_block(f"opening local dataset {self.nc_path}"):
+                    return xr.open_dataset(self.nc_path)
+            else:
+                with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                    return self.slice_ds(
+                        self.s3_lazy_ds[self.current_time.year],
+                        self.current_time,
+                        self.end_time_datetime,
+                    ).rename({self.x_label: "x", self.y_label: "y"})
         except Exception as e:
             LOG.critical(
                 f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
