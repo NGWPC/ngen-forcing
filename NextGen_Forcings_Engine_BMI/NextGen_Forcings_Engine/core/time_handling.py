@@ -387,7 +387,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
                         + " not found. Will not use in final layering."
                     )
                     err_handler.log_warning(config_options, mpi_config)
-    # err_handler.check_program_status(config_options, mpi_config)
+    err_handler.check_program_status(config_options, mpi_config)
 
     # If the file is missing, set the local slab of arrays to missing.
     if not os.path.exists(input_forcings.file_in2):
