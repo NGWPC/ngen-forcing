@@ -99,9 +99,11 @@ def check_program_status(ConfigOptions, MpiConfig, rank_0_reduce: bool = True, a
 
     if MpiConfig.rank != 0 or rank_0_reduce:
         any_error = MpiConfig.comm.reduce(ConfigOptions.errFlag)
+    else:
+        any_error = None
 
     if MpiConfig.rank == 0 or any_rank_abort:
-        if ConfigOptions.errFlag:
+        if ConfigOptions.errFlag or any_error:
             # print("any_error: ", any_error, type(any_error), flush=True)
             stack = traceback.format_stack()[:-1]
             for frame in stack:
