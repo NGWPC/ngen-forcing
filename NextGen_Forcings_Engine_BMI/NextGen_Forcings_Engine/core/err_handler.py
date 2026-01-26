@@ -79,7 +79,7 @@ def check_program_status(ConfigOptions, MpiConfig):
     # Reduce version:
     any_error = MpiConfig.comm.reduce(ConfigOptions.errFlag)
     if MpiConfig.rank == 0:
-        if ConfigOptions.errFlag:
+        if ConfigOptions.errFlag or any_error:
             # print("any_error: ", any_error, type(any_error), flush=True)
             stack = traceback.format_stack()[:-1]
             for frame in stack:
