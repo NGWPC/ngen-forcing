@@ -17,7 +17,7 @@ class supplemental_precip:
         self.keyValue = None
         self.inDir = None
         self.enforce = None
-        self.productName = None
+        self.product_name = None
         self.file_type = None
         self.nx_global = None
         self.ny_global = None
@@ -99,7 +99,7 @@ class supplemental_precip:
             14: "Custom_Freq_Supp_Pcp",
             15: "NBM_CORE_PR_APCP",
         }
-        self.productName = product_names[self.keyValue]
+        self.product_name = product_names[self.keyValue]
 
         ## DEFINED IN CONFIG
         # product_types = {
@@ -247,7 +247,7 @@ class supplemental_precip:
         #    find_neighbor_files[self.keyValue](self,ConfigOptions,dCurrent,MpiConfig)
         # except TypeError:
         #    ConfigOptions.errMsg = "Unable to execute find_neighbor_files for " \
-        #                           "supplemental precipitation: " + self.productName
+        #                           "supplemental precipitation: " + self.product_name
         #    raise
         # except:
         #    raise
@@ -287,7 +287,7 @@ class supplemental_precip:
         #    regrid_inputs[self.keyValue](self,ConfigOptions,MpiConfig)
         # except:
         #    ConfigOptions.errMsg = "Unable to execute regrid_inputs for " + \
-        #        "input forcing: " + self.productName
+        #        "input forcing: " + self.product_name
         #    raise
 
     def temporal_interpolate_inputs(self, ConfigOptions, MpiConfig):
@@ -313,7 +313,7 @@ class supplemental_precip:
         #    temporal_interpolate_inputs[self.timeInterpOpt](self,ConfigOptions,MpiConfig)
         # except:
         #    ConfigOptions.errMsg = "Unable to execute temporal_interpolate_inputs " + \
-        #        " for input forcing: " + self.productName
+        #        " for input forcing: " + self.product_name
         #    raise
 
 
