@@ -41,6 +41,7 @@ from ..esmf_utils import (
     esmf_regrid_retry,
     esmf_regridfromfile_retry,
     esmf_regridobj_call_retry,
+    assert_path_exists_retry,
 )
 
 import dask
@@ -9189,8 +9190,7 @@ def load_weight_file(
     element_mode: bool,
 ) -> None:
     """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place."""
-    if not os.path.exists(weight_file):
-        raise FileNotFoundError(f"MPI rank {mpi_config.rank} could not find weight file: {weight_file})")
+    assert_path_exists_retry(mpi_config, config_options, err_handler, weight_file)
 
     if not element_mode:
         msg_augment = " "
