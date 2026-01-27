@@ -29,8 +29,10 @@ dependencies = [
     "s3fs",
     "scipy",
     "shapely~=2.1.2",
-    "xarray",
-    "zarr"
+    "xarray[complete]==2025.12.0",
+    "zarr",
+    "rioxarray",
+    "python-dotenv"
 ]
 
 dynamic = ["version"]

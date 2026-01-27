@@ -1,32 +1,70 @@
 import datetime
+import logging
 import os
+from contextlib import contextmanager
+from time import time
 
-import dask
-import dask.delayed
 import numpy as np
 import pandas as pd
-import s3fs
-import xarray as xr
-import zarr
-import time
-import dask.array as da
-# from mpi4py.futures import MPIPoolExecutor
-from mpi4py.futures import MPICommExecutor
 
-from .core import bias_correction
-from .core import disaggregateMod
-from .core import downscale
-from .core import err_handler
-from .core import layeringMod
-from .models import nwm_proc
-from .models import aorc_proc
-
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
+    bias_correction,
+    disaggregateMod,
+    downscale,
+    err_handler,
+    layeringMod,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+    GeoMetaWrfHydro,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing import (
+    AORCAlaskaProcessor,
+    AORCConusProcessor,
+    NWMV3ConusProcessor,
+    NWMV3OConusProcessor,
+)
 from nextgen_forcings_ewts import MODULE_NAME
 
-import logging
 LOG = logging.getLogger(MODULE_NAME)
 
-class NWMv3_Forcing_Engine_model:
+
+@contextmanager
+def timing_block(step_str: str):
+    """Context manager for timing code execution.
+
+    Args:
+        step_str: Description of the step being timed.
+
+    """
+    start = time()
+    yield
+    end = time()
+    LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+
+
+def time_function(func):
+    """Measure the execution time of a function."""
+
+    def wrapper(*args, **kwargs):
+        with timing_block(f"Executing {func.__name__}"):
+            result = func(*args, **kwargs)
+            return result
+
+    return wrapper
+
+
+class NWMv3ForcingEngineModel:
+    """NextGen Forcings Engine BMI model class for NWMv3 forcings."""
+
+    def __init__(self):
+        """Initialize the NWMv3 Forcing Engine Model."""
+        self.source_data_processor = None
+
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
     # def __init__(self):
     #    super(ngen_model, self).__init__()
@@ -36,9 +74,18 @@ class NWMv3_Forcing_Engine_model:
     # def aws_obj(files):
     #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
-    def run(self, model: dict, future_time: float, ConfigOptions, wrfHydroGeoMeta, inputForcingMod, suppPcpMod, MpiConfig, OutputObj):
-        """
-        Executes the full forcings engine BMI pipeline for a given future timestep.
+    def run(
+        self,
+        model: dict,
+        future_time: float,
+        config_options: ConfigOptions,
+        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        input_forcing_mod: dict,
+        supp_pcp_mod: dict,
+        mpi_config: MpiConfig,
+        output_obj: OutputObj,
+    ) -> None:
+        """Execute the full forcings engine BMI pipeline for a given future timestep.
 
         This method updates the `model` state dictionary with atmospheric forcings computed from
         available input datasets. It handles initialization, AWS Zarr loading, regridding, temporal
@@ -67,314 +114,658 @@ class NWMv3_Forcing_Engine_model:
 
         :param model: The model state dictionary that will be updated with new forcing data.
         :param future_time: The number of seconds into the future to advance the model.
-        :param ConfigOptions: Configuration object containing all model options, flags, and paths.
-        :param wrfHydroGeoMeta: Geospatial metadata needed for regridding and interpolation.
-        :param inputForcingMod: Dictionary of initialized input forcing modules indexed by forcing key.
-        :param suppPcpMod: Dictionary of supplemental precipitation modules indexed by key.
-        :param MpiConfig: Object containing MPI communication settings such as rank and communicator.
-        :param OutputObj: Output object that stores the generated atmospheric forcing arrays.
+        :param config_options: Configuration object containing all model options, flags, and paths.
+        :param wrf_hydro_geo_meta: Geospatial metadata needed for regridding and interpolation.
+        :param input_forcing_mod: Dictionary of initialized input forcing modules indexed by forcing key.
+        :param supp_pcp_mod: Dictionary of supplemental precipitation modules indexed by key.
+        :param mpi_config: Object containing MPI communication settings such as rank and communicator.
+        :param output_obj: Output object that stores the generated atmospheric forcing arrays.
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
+        (
+            future_time,
+            config_options,
+        ) = self.determine_forecast(
+            future_time,
+            config_options,
+        )
+        (
+            config_options,
+            input_forcing_mod,
+            mpi_config,
+        ) = self.adjust_precip(
+            config_options,
+            input_forcing_mod,
+            mpi_config,
+        )
+        (
+            config_options,
+            mpi_config,
+        ) = self.log_forecast(
+            config_options,
+            mpi_config,
+        )
+        (
+            future_time,
+            config_options,
+            wrf_hydro_geo_meta,
+            input_forcing_mod,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+            input_forcings,
+        ) = self.loop_through_forcing_products(
+            future_time,
+            config_options,
+            wrf_hydro_geo_meta,
+            input_forcing_mod,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+        )
+        (
+            config_options,
+            wrf_hydro_geo_meta,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+        ) = self.process_suplemental_precip(
+            config_options,
+            wrf_hydro_geo_meta,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+            input_forcings,
+        )
+        (
+            config_options,
+            wrf_hydro_geo_meta,
+            mpi_config,
+            output_obj,
+        ) = self.write_output(
+            config_options,
+            wrf_hydro_geo_meta,
+            mpi_config,
+            output_obj,
+        )
+        (
+            model,
+            config_options,
+            wrf_hydro_geo_meta,
+            output_obj,
+        ) = self.update_dict(
+            model,
+            config_options,
+            wrf_hydro_geo_meta,
+            output_obj,
+        )
 
+        ## Update BMI model time index to next iteration
+        config_options.bmi_time_index += 1
+
+    @time_function
+    def determine_forecast(
+        self,
+        future_time: float,
+        config_options: ConfigOptions,
+    ):
+        """Determine the forecast for the given future time and configuration."""
         # Assign the future time to the configuration
-        ConfigOptions.bmi_time = future_time
-        disaggregate_fun = disaggregateMod.disaggregate_factory(ConfigOptions)
+        config_options.bmi_time = future_time
+        self.disaggregate_fun = disaggregateMod.disaggregate_factory(config_options)
 
         # Calculate current time stamp based on operational configuration
-        if ConfigOptions.ana_flag:
+        if config_options.ana_flag:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
-            if ConfigOptions.input_forcings[0] in [20, 22]:
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 7200.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 7200.0], dtype=float), 's')[0]
-                ConfigOptions.future_time = future_time
+            if config_options.input_forcings[0] in [20, 22]:
+                config_options.current_fcst_cycle = (
+                    config_options.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 7200.0], dtype=float), "s"
+                    )[0]
+                )
+                config_options.current_time = (
+                    config_options.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 7200.0], dtype=float), "s"
+                    )[0]
+                )
+                config_options.future_time = future_time
             else:
                 # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
-                ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 3600.0], dtype=float), 's')[0]
-                ConfigOptions.current_time = ConfigOptions.b_date_proc + pd.TimedeltaIndex(
-                    np.array([future_time - 3600.0], dtype=float), 's')[0]
+                config_options.current_fcst_cycle = (
+                    config_options.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 3600.0], dtype=float), "s"
+                    )[0]
+                )
+                config_options.current_time = (
+                    config_options.b_date_proc
+                    + pd.TimedeltaIndex(
+                        np.array([future_time - 3600.0], dtype=float), "s"
+                    )[0]
+                )
         else:
             # Forecast-only mode — use BMI timestamp as-is
-            ConfigOptions.current_fcst_cycle = ConfigOptions.b_date_proc
-            ConfigOptions.current_time = pd.Timestamp(ConfigOptions.b_date_proc) + pd.to_timedelta(future_time, unit='s')
+            config_options.current_fcst_cycle = config_options.b_date_proc
+            config_options.current_time = pd.Timestamp(
+                config_options.b_date_proc
+            ) + pd.to_timedelta(future_time, unit="s")
 
-        LOG.debug("NextGen Forcings Engine processing meteorological forcings for BMI timestamp")
-        LOG.debug(f"Model.py current time: {ConfigOptions.current_time}")
-        LOG.debug(f"Model.py current fcst cycle: {ConfigOptions.current_fcst_cycle}")
+        LOG.debug(
+            "NextGen Forcings Engine processing meteorological forcings for BMI timestamp"
+        )
+        LOG.debug(f"Model.py current time: {config_options.current_time}")
+        LOG.debug(f"Model.py current fcst cycle: {config_options.current_fcst_cycle}")
 
-        if ConfigOptions.first_fcst_cycle is None:
-            ConfigOptions.first_fcst_cycle = ConfigOptions.current_fcst_cycle
+        if config_options.first_fcst_cycle is None:
+            config_options.first_fcst_cycle = config_options.current_fcst_cycle
 
-        if not ConfigOptions.precip_only_flag:
+        return (
+            future_time,
+            config_options,
+        )
+
+    @time_function
+    def adjust_precip(
+        self,
+        config_options: ConfigOptions,
+        input_forcing_mod: dict,
+        mpi_config: MpiConfig,
+    ):
+        """Adjust precipitation for the given forecast cycle."""
+        if not config_options.precip_only_flag:
             # reset skips if present
-            for forceKey in ConfigOptions.input_forcings:
-                inputForcingMod[forceKey].skip = False
+            for force_key in config_options.input_forcings:
+                input_forcing_mod[force_key].skip = False
 
             # Determine log timestamp
-            if ConfigOptions.ana_flag:
-                log_time = ConfigOptions.b_date_proc
+            if config_options.ana_flag:
+                log_time = config_options.b_date_proc
             else:
-                log_time = ConfigOptions.current_fcst_cycle
+                log_time = config_options.current_fcst_cycle
 
             # Compose a path to a log file, which will contain information about this forecast cycle
             log_filename = (
-                f"LOG_{ConfigOptions.nwmConfig}"
-                f"{'_' if ConfigOptions.nwmConfig != 'long_range' else f'_mem{ConfigOptions.cfsv2EnsMember}_'}"
-                f"{ConfigOptions.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
+                f"LOG_{config_options.nwmConfig}"
+                f"{'_' if config_options.nwmConfig != 'long_range' else f'_mem{config_options.cfsv2EnsMember}_'}"
+                f"{config_options.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
                 ".log"
             )
-            ConfigOptions.logFile = os.path.join(ConfigOptions.scratch_dir, log_filename)
+            config_options.logFile = os.path.join(
+                config_options.scratch_dir, log_filename
+            )
 
             # Initialize logging
             try:
-                err_handler.init_log(ConfigOptions, MpiConfig)
+                err_handler.init_log(config_options, mpi_config)
             except Exception:
-                err_handler.err_out_screen_para(ConfigOptions.errMsg, MpiConfig)
+                err_handler.err_out_screen_para(config_options.errMsg, mpi_config)
 
-            err_handler.check_program_status(ConfigOptions, MpiConfig)
+            err_handler.check_program_status(config_options, mpi_config)
+        return (
+            config_options,
+            input_forcing_mod,
+            mpi_config,
+        )
 
+    @time_function
+    def log_forecast(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+    ):
+        """Log information about the current forecast cycle."""
         # Log information about this forecast cycle
-        if MpiConfig.rank == 0:
-            ConfigOptions.statusMsg = 'XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX'
-            err_handler.log_msg(ConfigOptions, MpiConfig, True)
-            ConfigOptions.statusMsg = 'Processing Forecast Cycle: ' + \
-                                      ConfigOptions.current_fcst_cycle.strftime('%Y-%m-%d %H:%M')
-            err_handler.log_msg(ConfigOptions, MpiConfig, True)
-            ConfigOptions.statusMsg = 'Forecast Cycle Length is: ' + \
-                                      str(ConfigOptions.cycle_length_minutes) + " minutes"
-            err_handler.log_msg(ConfigOptions, MpiConfig, True)
-        # MpiConfig.comm.barrier()
+        if mpi_config.rank == 0:
+            config_options.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+            err_handler.log_msg(config_options, mpi_config, True)
+            config_options.statusMsg = (
+                "Processing Forecast Cycle: "
+                + config_options.current_fcst_cycle.strftime("%Y-%m-%d %H:%M")
+            )
+            err_handler.log_msg(config_options, mpi_config, True)
+            config_options.statusMsg = (
+                "Forecast Cycle Length is: "
+                + str(config_options.cycle_length_minutes)
+                + " minutes"
+            )
+            err_handler.log_msg(config_options, mpi_config, True)
+        # mpi_config.comm.barrier()
 
+        return (
+            config_options,
+            mpi_config,
+        )
+
+    @time_function
+    def loop_through_forcing_products(
+        self,
+        future_time: float,
+        config_options: ConfigOptions,
+        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        input_forcing_mod: dict,
+        supp_pcp_mod: dict,
+        mpi_config: MpiConfig,
+        output_obj: OutputObj,
+    ):
+        """Loop through each forcing product and process it for the current forecast cycle."""
         # Loop through each output timestep. Perform the following functions:
         # 1.) Calculate all necessary input files per user options.
         # 2.) Read in input forcings from GRIB/NetCDF files.
         # 3.) Regrid the forcings, and temporally interpolate.
         # 4.) Downscale.
         # 5.) Layer, and output as necessary.
-        ana_factor = 1 if ConfigOptions.ana_flag is False else 0
+        ana_factor = 1 if config_options.ana_flag is False else 0
         show_message = True
-        if not ConfigOptions.precip_only_flag:
-            if ConfigOptions.grid_type == "gridded":
+        if not config_options.precip_only_flag:
+            if config_options.grid_type == "gridded":
                 # Reset out final grids to missing values.
-                OutputObj.output_local[:, :, :] = ConfigOptions.globalNdv
-            elif ConfigOptions.grid_type == "unstructured":
+                output_obj.output_local[:, :, :] = config_options.globalNdv
+            elif config_options.grid_type == "unstructured":
                 # Reset out final grids to missing values.
-                OutputObj.output_local[:, :] = ConfigOptions.globalNdv
-                OutputObj.output_local_elem[:, :] = ConfigOptions.globalNdv
-            elif ConfigOptions.grid_type == "hydrofabric":
+                output_obj.output_local[:, :] = config_options.globalNdv
+                output_obj.output_local_elem[:, :] = config_options.globalNdv
+            elif config_options.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
-                OutputObj.output_local[:, :] = ConfigOptions.globalNdv
-                OutputObj.output_global[:, :] = ConfigOptions.globalNdv
+                output_obj.output_local[:, :] = config_options.globalNdv
 
             # Increment or initialize output step count
-            if ConfigOptions.current_output_step is None:
-                ConfigOptions.current_output_step = 1
+            if config_options.current_output_step is None:
+                config_options.current_output_step = 1
             else:
-                ConfigOptions.current_output_step += 1
+                config_options.current_output_step += 1
 
             # Optional sub-output timestamp
-            if ConfigOptions.sub_output_hour is not None:
+            if config_options.sub_output_hour is not None:
                 # TODO This is not used
-                subOutDate = ConfigOptions.first_fcst_cycle + datetime.timedelta(hours=ConfigOptions.sub_output_hour)
+                subOutDate = config_options.first_fcst_cycle + datetime.timedelta(
+                    hours=config_options.sub_output_hour
+                )
 
             # Compute the output timestamp for this step
-            if ConfigOptions.ana_flag:
-                OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=ConfigOptions.output_freq * 60)
+            if config_options.ana_flag:
+                output_obj.outDate = (
+                    config_options.current_fcst_cycle
+                    + datetime.timedelta(seconds=config_options.output_freq * 60)
+                )
             else:
-                OutputObj.outDate = ConfigOptions.current_fcst_cycle + datetime.timedelta(seconds=future_time)
+                output_obj.outDate = (
+                    config_options.current_fcst_cycle
+                    + datetime.timedelta(seconds=future_time)
+                )
 
-            ConfigOptions.current_output_date = OutputObj.outDate
+            config_options.current_output_date = output_obj.outDate
 
             # Adjust file_date for AnA if needed
-            file_date = OutputObj.outDate - datetime.timedelta(seconds=ConfigOptions.output_freq * 60) if ConfigOptions.ana_flag else OutputObj.outDate
+            file_date = (
+                output_obj.outDate
+                - datetime.timedelta(seconds=config_options.output_freq * 60)
+                if config_options.ana_flag
+                else output_obj.outDate
+            )
 
             # Compute previous output date (used for downscaling logic)
-            if ConfigOptions.current_output_step == ana_factor:
-                ConfigOptions.prev_output_date = ConfigOptions.current_output_date
+            if config_options.current_output_step == ana_factor:
+                config_options.prev_output_date = config_options.current_output_date
             else:
-                ConfigOptions.prev_output_date = ConfigOptions.current_output_date - datetime.timedelta(seconds=future_time)
+                config_options.prev_output_date = (
+                    config_options.current_output_date
+                    - datetime.timedelta(seconds=future_time)
+                )
 
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
-            if MpiConfig.rank == 0 and show_message:
-                ConfigOptions.statusMsg = '========================================='
-                err_handler.log_msg(ConfigOptions, MpiConfig, True)
-                ConfigOptions.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(ConfigOptions, MpiConfig, True)
+            if mpi_config.rank == 0 and show_message:
+                config_options.statusMsg = "========================================="
+                err_handler.log_msg(config_options, mpi_config, True)
+                config_options.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
+                err_handler.log_msg(config_options, mpi_config, True)
 
-            ConfigOptions.currentForceNum = 0
-            ConfigOptions.currentCustomForceNum = 0
-            LOG.debug(f"ConfigOptions.input_forcings: {ConfigOptions.input_forcings}")
+            config_options.currentForceNum = 0
+            config_options.currentCustomForceNum = 0
+            LOG.debug(f"config_options.input_forcings: {config_options.input_forcings}")
             # Loop over each of the input forcings specified.
-            LOG.debug(f"Model.py forcing loop: {len(ConfigOptions.input_forcings)} forcings configured: {ConfigOptions.input_forcings}")
+            LOG.debug(
+                f"Model.py forcing loop: {len(config_options.input_forcings)} forcings configured: {config_options.input_forcings}"
+            )
 
-            for forceKey in ConfigOptions.input_forcings:
-                LOG.debug(f"forceKey: {forceKey}")
-                LOG.debug(f"ConfigOptions.aws: {ConfigOptions.aws}")
+            for force_key in config_options.input_forcings:
+                LOG.debug(f"force_key: {force_key}")
+                LOG.debug(f"config_options.aws: {config_options.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
-                if forceKey == 23 and 12 in ConfigOptions.input_forcings and 21 in ConfigOptions.input_forcings:
-                    input_forcings = inputForcingMod[forceKey]
+                if (
+                    force_key == 23
+                    and 12 in config_options.input_forcings
+                    and 21 in config_options.input_forcings
+                ):
+                    input_forcings = input_forcing_mod[force_key]
 
                     # These are not used
                     # AORC_mask = input_forcings.regridded_mask_AORC
                     # AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
                 else:
-                    input_forcings = inputForcingMod[forceKey]
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
+                    input_forcings = input_forcing_mod[force_key]
+                    input_forcings.calc_neighbor_files(
+                        config_options, output_obj.outDate, mpi_config
+                    )
 
-                if forceKey in [12, 21, 27] and ConfigOptions.aws is None:
-                    # Calculate the previous and next input cycle files from the inputs.
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
-                    err_handler.check_program_status(ConfigOptions, MpiConfig)
-                else:
-                    # Flag to indicate the AWS .zarr AORC method
-                    if forceKey == 12 or forceKey == 21:
-                        ConfigOptions.aws_obj = aorc_proc.proc_aorc(ConfigOptions, MpiConfig, wrfHydroGeoMeta)
-                    # Flag to indicate the AWS .zarr NWMv3 Forcing file method
-                    # Which grabs the entire timeseries based on s3 bucket organizations
-                    
-                    # Added separate processing path for CONUS NWM retrospective data
-                    # TODO: Expand functionality for oCONUS domains (different zarr structure)
-                    elif forceKey == 27:
-                        ConfigOptions.aws_obj = nwm_proc.proc_nwm(ConfigOptions, MpiConfig)
+                if force_key in [12, 21, 27]:
+                    if config_options.aws is None:
+                        # Calculate the previous and next input cycle files from the inputs.
+                        input_forcings.calc_neighbor_files(
+                            config_options, output_obj.outDate, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
+                    else:
+                        # Flag to indicate the AWS .zarr AORC method
+                        if force_key == 12:
+                            if self.source_data_processor is None:
+                                self.source_data_processor = AORCConusProcessor(
+                                    config_options, mpi_config, wrf_hydro_geo_meta
+                                )
+                        elif force_key == 21:
+                            if self.source_data_processor is None:
+                                self.source_data_processor = AORCAlaskaProcessor(
+                                    config_options, mpi_config, wrf_hydro_geo_meta
+                                )
+
+                        # Flag to indicate the AWS .zarr NWMv3 Forcing file method
+                        elif force_key == 27:
+                            if self.source_data_processor is None:
+                                if config_options.nwm_domain == "CONUS":
+                                    self.source_data_processor = NWMV3ConusProcessor(
+                                        config_options, mpi_config, wrf_hydro_geo_meta
+                                    )
+                                elif config_options.nwm_domain in [
+                                    "Hawaii",
+                                    "PR",
+                                    "Alaska",
+                                ]:
+                                    self.source_data_processor = NWMV3OConusProcessor(
+                                        config_options, mpi_config, wrf_hydro_geo_meta
+                                    )
+                                else:
+                                    raise ValueError(
+                                        f"Unsupported domain type ({config_options.nwm_domain} for forcing type: {force_key} )"
+                                    )
+
+                        config_options.aws_obj = (
+                            self.source_data_processor.process_historical_data(
+                                config_options.current_time
+                            )
+                        )
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
-                    LOG.debug(f"Breaking loop for forceKey {forceKey}")
+                    LOG.debug(f"Breaking loop for force_key {force_key}")
                     break
                 # Regrid forcings.
-                input_forcings.regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                input_forcings.regrid_inputs(
+                    config_options, wrf_hydro_geo_meta, mpi_config
+                )
+                err_handler.check_program_status(config_options, mpi_config)
 
                 # Run check on regridded fields for reasonable values that are not missing values.
-                err_handler.check_forcing_bounds(ConfigOptions, input_forcings, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                err_handler.check_forcing_bounds(
+                    config_options, input_forcings, mpi_config
+                )
+                err_handler.check_program_status(config_options, mpi_config)
 
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
                 if input_forcings.rstFlag == 1:
-                    if input_forcings.regridded_forcings1 is not None and input_forcings.regridded_forcings2 is not None:
+                    if (
+                        input_forcings.regridded_forcings1 is not None
+                        and input_forcings.regridded_forcings2 is not None
+                    ):
                         # Set the forcings back to reflect we just regridded the previous set of inputs, not the next.
-                        if ConfigOptions.grid_type == 'gridded':
-                            input_forcings.regridded_forcings1[:, :, :] = input_forcings.regridded_forcings2[:, :, :]
-                        elif ConfigOptions.grid_type == 'unstructured':
-                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
-                            input_forcings.regridded_forcings1_elem[:, :] = input_forcings.regridded_forcings2_elem[:, :]
-                        elif ConfigOptions.grid_type == 'hydrofabric':
-                            input_forcings.regridded_forcings1[:, :] = input_forcings.regridded_forcings2[:, :]
+                        if config_options.grid_type == "gridded":
+                            input_forcings.regridded_forcings1[:, :, :] = (
+                                input_forcings.regridded_forcings2[:, :, :]
+                            )
+                        elif config_options.grid_type == "unstructured":
+                            input_forcings.regridded_forcings1[:, :] = (
+                                input_forcings.regridded_forcings2[:, :]
+                            )
+                            input_forcings.regridded_forcings1_elem[:, :] = (
+                                input_forcings.regridded_forcings2_elem[:, :]
+                            )
+                        elif config_options.grid_type == "hydrofabric":
+                            input_forcings.regridded_forcings1[:, :] = (
+                                input_forcings.regridded_forcings2[:, :]
+                            )
                     # Re-calculate the neighbor files.
-                    input_forcings.calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
-                    err_handler.check_program_status(ConfigOptions, MpiConfig)
+                    input_forcings.calc_neighbor_files(
+                        config_options, output_obj.outDate, mpi_config
+                    )
+                    err_handler.check_program_status(config_options, mpi_config)
 
                     # Regrid the forcings for the end of the window.
-                    input_forcings.regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                    err_handler.check_program_status(ConfigOptions, MpiConfig)
+                    input_forcings.regrid_inputs(
+                        config_options, wrf_hydro_geo_meta, mpi_config
+                    )
+                    err_handler.check_program_status(config_options, mpi_config)
 
                     input_forcings.rstFlag = 0
 
                 # Run temporal interpolation on the grids.
-                input_forcings.temporal_interpolate_inputs(ConfigOptions, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                input_forcings.temporal_interpolate_inputs(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
                 # Run bias correction.
-                bias_correction.run_bias_correction(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                bias_correction.run_bias_correction(
+                    input_forcings, config_options, wrf_hydro_geo_meta, mpi_config
+                )
+                err_handler.check_program_status(config_options, mpi_config)
 
                 # Run downscaling on grids for this output timestep.
-                downscale.run_downscaling(input_forcings, ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                downscale.run_downscaling(
+                    input_forcings, config_options, wrf_hydro_geo_meta, mpi_config
+                )
+                err_handler.check_program_status(config_options, mpi_config)
 
                 # Layer in forcings from this product.
-                layeringMod.layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig)
-                err_handler.check_program_status(ConfigOptions, MpiConfig)
+                layeringMod.layer_final_forcings(
+                    output_obj, input_forcings, config_options, mpi_config
+                )
+                err_handler.check_program_status(config_options, mpi_config)
 
-                ConfigOptions.currentForceNum += 1
+                config_options.currentForceNum += 1
 
-                if forceKey == 10:
-                    ConfigOptions.currentCustomForceNum += 1
+                if force_key == 10:
+                    config_options.currentCustomForceNum += 1
 
-                LOG.debug(f"End of loop for forceKey {forceKey}")
+                LOG.debug(f"End of loop for force_key {force_key}")
 
             # Process supplemental precipitation if we specified in the configuration file.
-            if ConfigOptions.number_supp_pcp > 0:
-                for suppPcpKey in ConfigOptions.supp_precip_forcings:
-                    if suppPcpKey != 13:
+            if config_options.number_supp_pcp > 0:
+                for supp_pcp_key in config_options.supp_precip_forcings:
+                    if supp_pcp_key != 13:
                         # Like with input forcings, calculate the neighboring files to use.
-                        suppPcpMod[suppPcpKey].calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
-                        err_handler.check_program_status(ConfigOptions, MpiConfig)
+                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
+                            config_options, output_obj.outDate, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
 
                         # Regrid the supplemental precipitation.
-                        suppPcpMod[suppPcpKey].regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                        err_handler.check_program_status(ConfigOptions, MpiConfig)
+                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
+                            config_options, wrf_hydro_geo_meta, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                        if suppPcpMod[suppPcpKey].regridded_precip1 is not None \
-                                and suppPcpMod[suppPcpKey].regridded_precip2 is not None:
+                        if (
+                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
+                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
+                        ):
                             # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(ConfigOptions, suppPcpMod[suppPcpKey], MpiConfig, wrfHydroGeoMeta)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            err_handler.check_supp_pcp_bounds(
+                                config_options,
+                                supp_pcp_mod[supp_pcp_key],
+                                mpi_config,
+                                wrf_hydro_geo_meta,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
-                            disaggregate_fun(input_forcings, suppPcpMod[suppPcpKey], ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            self.disaggregate_fun(
+                                input_forcings,
+                                supp_pcp_mod[supp_pcp_key],
+                                config_options,
+                                mpi_config,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
                             # Run temporal interpolation on the grids.
-                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
+                                config_options, mpi_config
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
                             # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(OutputObj, suppPcpMod[suppPcpKey],
-                                                                   ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            layeringMod.layer_supplemental_forcing(
+                                output_obj,
+                                supp_pcp_mod[supp_pcp_key],
+                                config_options,
+                                mpi_config,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
             # Call the output routines
             #   adjust date for AnA if necessary
-            if ConfigOptions.ana_flag:
-                OutputObj.outDate = file_date
+            if config_options.ana_flag:
+                output_obj.outDate = file_date
 
                 ################ Commenting this out to bypass NWM forcing file output functionality #########
-                # OutputObj.output_final_ldasin(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                # err_handler.check_program_status(ConfigOptions, MpiConfig)
+                # output_obj.output_final_ldasin(config_options, wrf_hydro_geo_meta, mpi_config)
+                # err_handler.check_program_status(config_options, mpi_config)
                 ##############################################################################################
 
-        if ConfigOptions.customSuppPcpFreq is not None:
+        return (
+            future_time,
+            config_options,
+            wrf_hydro_geo_meta,
+            input_forcing_mod,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+            input_forcings,
+        )
+
+    @time_function
+    def process_suplemental_precip(
+        self,
+        config_options: ConfigOptions,
+        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        supp_pcp_mod: dict,
+        mpi_config: MpiConfig,
+        output_obj: OutputObj,
+        input_forcings: dict,
+    ):
+        """Process supplemental precipitation for the current forecast cycle."""
+        if config_options.customSuppPcpFreq is not None:
             # Process supplemental precipitation if we specified in the configuration file.
-            if ConfigOptions.number_supp_pcp > 0:
-                for suppPcpKey in ConfigOptions.supp_precip_forcings:
-                    if suppPcpKey == 14:
+            if config_options.number_supp_pcp > 0:
+                for supp_pcp_key in config_options.supp_precip_forcings:
+                    if supp_pcp_key == 14:
                         # Like with input forcings, calculate the neighboring files to use.
-                        suppPcpMod[suppPcpKey].calc_neighbor_files(ConfigOptions, OutputObj.outDate, MpiConfig)
-                        err_handler.check_program_status(ConfigOptions, MpiConfig)
+                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
+                            config_options, output_obj.outDate, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
 
                         # Regrid the supplemental precipitation.
-                        suppPcpMod[suppPcpKey].regrid_inputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-                        err_handler.check_program_status(ConfigOptions, MpiConfig)
+                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
+                            config_options, wrf_hydro_geo_meta, mpi_config
+                        )
+                        err_handler.check_program_status(config_options, mpi_config)
 
-                        if suppPcpMod[suppPcpKey].regridded_precip1 is not None \
-                                and suppPcpMod[suppPcpKey].regridded_precip2 is not None:
+                        if (
+                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
+                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
+                        ):
                             # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(ConfigOptions, suppPcpMod[suppPcpKey], MpiConfig, wrfHydroGeoMeta)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            err_handler.check_supp_pcp_bounds(
+                                config_options,
+                                supp_pcp_mod[supp_pcp_key],
+                                mpi_config,
+                                wrf_hydro_geo_meta,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
-                            disaggregate_fun(input_forcings, suppPcpMod[suppPcpKey], ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            self.disaggregate_fun(
+                                input_forcings,
+                                supp_pcp_mod[supp_pcp_key],
+                                config_options,
+                                mpi_config,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
                             # Run temporal interpolation on the grids.
-                            suppPcpMod[suppPcpKey].temporal_interpolate_inputs(ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
+                                config_options, mpi_config
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
                             # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(OutputObj, suppPcpMod[suppPcpKey],
-                                                                   ConfigOptions, MpiConfig)
-                            err_handler.check_program_status(ConfigOptions, MpiConfig)
+                            layeringMod.layer_supplemental_forcing(
+                                output_obj,
+                                supp_pcp_mod[supp_pcp_key],
+                                config_options,
+                                mpi_config,
+                            )
+                            err_handler.check_program_status(config_options, mpi_config)
 
-        # Now loop through Forcings Engine output object 
-        # and flatten the 2D forcing array and append to 
+        return (
+            config_options,
+            wrf_hydro_geo_meta,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+        )
+
+    @time_function
+    def write_output(
+        self,
+        config_options: ConfigOptions,
+        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        mpi_config: MpiConfig,
+        output_obj: OutputObj,
+    ):
+        """Write the output for the current forecast cycle."""
+        # If user requests output for given domain, then call
+        # the I/O module to update opened netcdf file with forcing fields
+        if (
+            config_options.forcing_output == 1
+            or config_options.grid_type == "hydrofabric"
+        ):
+            output_obj.gather_global_outputs(
+                config_options, wrf_hydro_geo_meta, mpi_config
+            )
+        return (
+            config_options,
+            wrf_hydro_geo_meta,
+            mpi_config,
+            output_obj,
+        )
+
+        """##################Step 6: flatten and update dict##########################################################################"""
+
+    @time_function
+    def update_dict(
+        self,
+        model: dict,
+        config_options: ConfigOptions,
+        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        output_obj: OutputObj,
+    ):
+        """Flatten the Forcings Engine output object and update the BMI dictionary."""
+        # Now loop through Forcings Engine output object
+        # and flatten the 2D forcing array and append to
         # the BMI object to advertise to BMIinterface
         # 0.) U-Wind (m/s)
         # 1.) V-Wind (m/s)
@@ -385,27 +776,51 @@ class NWMv3_Forcing_Engine_model:
         # 6.) Surface pressure (Pa)
         # 7.) Surface incoming shortwave radiation flux (W/m^2)
         # 8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
-        if ConfigOptions.include_lqfrac == 1:
-            variables = ['U2D', 'V2D', 'LWDOWN', 'RAINRATE', 'T2D', 'Q2D', 'PSFC', 'SWDOWN', 'LQFRAC']
+
+        if config_options.include_lqfrac == 1:
+            variables = [
+                "U2D",
+                "V2D",
+                "LWDOWN",
+                "RAINRATE",
+                "T2D",
+                "Q2D",
+                "PSFC",
+                "SWDOWN",
+                "LQFRAC",
+            ]
         else:
-            variables = ['U2D', 'V2D', 'LWDOWN', 'RAINRATE', 'T2D', 'Q2D', 'PSFC', 'SWDOWN']
-
-        # If user requests output for given domain, then call
-        # the I/O module to update opened netcdf file with forcing fields
-        if ConfigOptions.forcing_output == 1 or ConfigOptions.grid_type == "hydrofabric":
-            OutputObj.gather_global_outputs(ConfigOptions, wrfHydroGeoMeta, MpiConfig)
-
-        if ConfigOptions.grid_type == "gridded":
+            variables = [
+                "U2D",
+                "V2D",
+                "LWDOWN",
+                "RAINRATE",
+                "T2D",
+                "Q2D",
+                "PSFC",
+                "SWDOWN",
+            ]
+        if config_options.grid_type == "gridded":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local[count, :, :].flatten()
-        elif ConfigOptions.grid_type == "unstructured":
+                model[variable + "_ELEMENT"] = output_obj.output_local[
+                    count, :, :
+                ].flatten()
+        elif config_options.grid_type == "unstructured":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_local_elem[count, :].flatten()
-                model[variable + '_NODE'] = OutputObj.output_local[count, :].flatten()
-        elif ConfigOptions.grid_type == "hydrofabric":
+                model[variable + "_ELEMENT"] = output_obj.output_local_elem[
+                    count, :
+                ].flatten()
+                model[variable + "_NODE"] = output_obj.output_local[count, :].flatten()
+        elif config_options.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + '_ELEMENT'] = OutputObj.output_global[count, :].flatten()
-                model['CAT-ID'] = wrfHydroGeoMeta.element_ids_global
+                model[variable + "_ELEMENT"] = output_obj.output_global[
+                    count, :
+                ].flatten()
+                model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
 
-        ## Update BMI model time index to next iteration
-        ConfigOptions.bmi_time_index += 1
+        return (
+            model,
+            config_options,
+            wrf_hydro_geo_meta,
+            output_obj,
+        )
