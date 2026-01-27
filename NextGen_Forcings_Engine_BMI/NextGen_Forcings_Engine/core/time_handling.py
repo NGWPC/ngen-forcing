@@ -2367,7 +2367,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
         prev_cfs_date = next_cfs_date
 
     # Calculate expected file paths.
-    if input_forcings.fileType == "GRIB2":
+    if input_forcings.file_type == "GRIB2":
         input_forcings.file_ext = ".grb2"
 
     tmp_file1 = (
@@ -2730,7 +2730,7 @@ def find_hourly_mrms_radar_neighbors(
     date_path2 = supplemental_precip.pcp_date2.strftime("%Y%m%d")
     hour1 = supplemental_precip.pcp_date1.strftime("%H")
     hour2 = supplemental_precip.pcp_date2.strftime("%H")
-    gz_ext = ".gz" if supplemental_precip.fileType != NETCDF else ""
+    gz_ext = ".gz" if supplemental_precip.file_type != NETCDF else ""
 
     # Calculate expected file paths.
     # TODO: Update for keyValue 6 and 10
@@ -2784,7 +2784,7 @@ def find_hourly_mrms_radar_neighbors(
             + supplemental_precip.pcp_date1.strftime("%H")
             + "0000"
             + supplemental_precip.file_ext
-            + (".gz" if supplemental_precip.fileType != NETCDF else "")
+            + (".gz" if supplemental_precip.file_type != NETCDF else "")
         )
         tmp_rqi_file2 = (
             supplemental_precip.inDir
@@ -2797,7 +2797,7 @@ def find_hourly_mrms_radar_neighbors(
             + supplemental_precip.pcp_date2.strftime("%H")
             + "0000"
             + supplemental_precip.file_ext
-            + (".gz" if supplemental_precip.fileType != NETCDF else "")
+            + (".gz" if supplemental_precip.file_type != NETCDF else "")
         )
 
         # elif supplemental_precip.keyValue == 5:
@@ -2805,12 +2805,12 @@ def find_hourly_mrms_radar_neighbors(
         #       "MRMS_EXP_RadarQualityIndex_00.00_" + \
         #       supplemental_precip.pcp_date1.strftime('%Y%m%d') + \
         #       "-" + supplemental_precip.pcp_date1.strftime('%H') + \
-        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.file_type != NETCDF else '')
         #   tmp_rqi_file2 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
         #       "MRMS_EXP_RadarQualityIndex_00.00_" + \
         #       supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
         #       "-" + supplemental_precip.pcp_date2.strftime('%H') + \
-        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.fileType != NETCDF else '')
+        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.file_type != NETCDF else '')
 
         # Accounting for potentially missing RQI files - KSL
         # Original code required RQI files, but according to readme, this should only be necessary if using original NWM-Hydro domain
@@ -3405,7 +3405,7 @@ def _find_ak_ext_ana_precip_stage4(
         stage4_in_dir = None
 
     # Calculate expected file paths.
-    tmp_file_ext = ".grb2" if supplemental_precip.fileType == "GRIB2" else ".grb2.nc"
+    tmp_file_ext = ".grb2" if supplemental_precip.file_type == "GRIB2" else ".grb2.nc"
     if stage4_in_dir and supplemental_precip.keyValue == 11:
         tmp_file1 = f"{stage4_in_dir}/st4_ak.{supplemental_precip.pcp_date1.strftime('%Y%m%d%H.06h')}{tmp_file_ext}"
         # if d_current_epoch%six_hr_sec == 0:
@@ -3567,7 +3567,7 @@ def _find_conus_ext_ana_precip_stage4(
         stage4_in_dir = None
 
     # Calculate expected file paths.
-    tmp_file_ext = ".grb2" if supplemental_precip.fileType == "GRIB2" else ".grb2.nc"
+    tmp_file_ext = ".grb2" if supplemental_precip.file_type == "GRIB2" else ".grb2.nc"
     if stage4_in_dir and supplemental_precip.keyValue == 12:
         tmp_file1 = f"{stage4_in_dir}/st4_conus.{supplemental_precip.pcp_date1.strftime('%Y%m%d%H.01h')}{tmp_file_ext}"
         # if d_current_epoch%six_hr_sec == 0:
@@ -4524,7 +4524,7 @@ def find_hourly_mrms_precip_flag(
         + supplemental_precip.pcp_date1.strftime("%H")
         + "0000"
         + supplemental_precip.file_ext
-        + (".gz" if supplemental_precip.fileType != NETCDF else ""),
+        + (".gz" if supplemental_precip.file_type != NETCDF else ""),
     )
 
     if mpi_config.rank == 0:
@@ -4934,7 +4934,7 @@ def find_custom_freq_neighbors(
             "MRMS_PrecipRate_00.00_"
             + supplemental_precip.pcp_date1.strftime("%Y%m%d-%H%M%S")
             + supplemental_precip.file_ext
-            + (".gz" if supplemental_precip.fileType != NETCDF else "")
+            + (".gz" if supplemental_precip.file_type != NETCDF else "")
         )
         tmp_file2 = (
             supplemental_precip.inDir
@@ -4944,7 +4944,7 @@ def find_custom_freq_neighbors(
             "MRMS_PrecipRate_00.00_"
             + supplemental_precip.pcp_date2.strftime("%Y%m%d-%H%M%S")
             + supplemental_precip.file_ext
-            + (".gz" if supplemental_precip.fileType != NETCDF else "")
+            + (".gz" if supplemental_precip.file_type != NETCDF else "")
         )
 
         tmp_rqi_file1 = tmp_rqi_file2 = ""

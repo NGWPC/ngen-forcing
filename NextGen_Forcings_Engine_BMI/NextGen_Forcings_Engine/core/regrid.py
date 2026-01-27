@@ -473,7 +473,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
 
     id_tmp = None
     try:
-        if supplemental_precip.fileType != NETCDF:
+        if supplemental_precip.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -1038,7 +1038,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
 
     id_tmp = None
     try:
-        if supplemental_precip.fileType != NETCDF:
+        if supplemental_precip.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -1606,7 +1606,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         config_options.statusMsg = "Regrid CONUS HRRR"
         err_handler.log_msg(config_options, mpi_config)
 
-        if input_forcings.fileType != NETCDF:
+        if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
@@ -2535,7 +2535,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     try:
         config_options.statusMsg = "Regrid CONUS RAP"
         err_handler.log_msg(config_options, mpi_config)
-        if input_forcings.fileType != NETCDF:
+        if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -3473,7 +3473,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     try:
         config_options.statusMsg = "Regrid CFSv2"
         err_handler.log_msg(config_options, mpi_config)
-        if input_forcings.fileType != NETCDF:
+        if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -6864,7 +6864,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             )
             err_handler.check_program_status(config_options, mpi_config)
         else:
-            if input_forcings.fileType != NETCDF:
+            if input_forcings.file_type != NETCDF:
                 fields = []
                 for force_count, grib_var in enumerate(input_forcings.grib_vars):
                     if mpi_config.rank == 0:
@@ -7779,7 +7779,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     try:
         config_options.statusMsg = "Regridding NAM nest data"
         err_handler.log_msg(config_options, mpi_config)
-        if input_forcings.fileType != NETCDF:
+        if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -8642,7 +8642,7 @@ def regrid_mrms_hourly(
         config_options.statusMsg = "Rrgrid MRMS"
         err_handler.log_msg(config_options, mpi_config)
 
-        if supplemental_precip.fileType != NETCDF:
+        if supplemental_precip.file_type != NETCDF:
             # Unzip MRMS files to temporary locations.
             ioMod.unzip_file(
                 supplemental_precip.file_in2, mrms_tmp_grib2, config_options, mpi_config
@@ -9815,7 +9815,7 @@ def regrid_hourly_wrf_arw(
         config_options.statusMsg = "Regrid WRF-ARW nest data"
         err_handler.log_msg(config_options, mpi_config)
 
-        if input_forcings.fileType != NETCDF:
+        if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -10731,7 +10731,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
         config_options.statusMsg = "Regrid ARW"
         err_handler.log_msg(config_options, mpi_config)
 
-        if supplemental_precip.fileType != NETCDF:
+        if supplemental_precip.file_type != NETCDF:
             # These files shouldn't exist. If they do, remove them.
             if mpi_config.rank == 0:
                 if os.path.isfile(arw_tmp_nc):

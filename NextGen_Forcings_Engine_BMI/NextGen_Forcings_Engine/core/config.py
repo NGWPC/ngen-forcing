@@ -1700,11 +1700,11 @@ class ConfigOptions:
                     len(self.supp_precip_file_types), self.number_supp_pcp
                 )
             )
-        for fileType in self.supp_precip_file_types:
-            if fileType not in ["GRIB1", "GRIB2", "NETCDF"]:
+        for file_type in self.supp_precip_file_types:
+            if file_type not in ["GRIB1", "GRIB2", "NETCDF"]:
                 err_out_screen(
                     'Invalid SuppForcing file type "{}" specified. '
-                    "Only GRIB1, GRIB2, and NETCDF are supported".format(fileType)
+                    "Only GRIB1, GRIB2, and NETCDF are supported".format(file_type)
                 )
 
         if self.number_supp_pcp > 0:

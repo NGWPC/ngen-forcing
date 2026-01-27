@@ -18,7 +18,7 @@ class supplemental_precip:
         self.inDir = None
         self.enforce = None
         self.productName = None
-        self.fileType = None
+        self.file_type = None
         self.nx_global = None
         self.ny_global = None
         self.nx_local = None
@@ -109,12 +109,12 @@ class supplemental_precip:
         #     4: "GRIB2",
         #     5: "GRIB2"
         # }
-        # self.fileType = product_types[self.keyValue]
-        if self.fileType == "GRIB1":
+        # self.file_type = product_types[self.keyValue]
+        if self.file_type == "GRIB1":
             self.file_ext = ".grb"
-        elif self.fileType == "GRIB2":
+        elif self.file_type == "GRIB2":
             self.file_ext = ".grib2"
-        elif self.fileType == "NETCDF":
+        elif self.file_type == "NETCDF":
             self.file_ext = ".nc"
 
         grib_vars_in = {
@@ -344,7 +344,7 @@ def initDict(ConfigOptions, GeoMetaWrfHydro):
         ]
 
         InputDict[supp_pcp_key].inDir = ConfigOptions.supp_precip_dirs[supp_pcp_tmp]
-        InputDict[supp_pcp_key].fileType = ConfigOptions.supp_precip_file_types[
+        InputDict[supp_pcp_key].file_type = ConfigOptions.supp_precip_file_types[
             supp_pcp_tmp
         ]
         InputDict[supp_pcp_key].define_product()
