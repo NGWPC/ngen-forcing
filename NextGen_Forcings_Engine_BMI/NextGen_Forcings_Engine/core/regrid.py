@@ -1,5 +1,6 @@
 """Regridding module file for regridding input forcing files."""
 
+import functools
 import hashlib
 import os
 import sys
@@ -22,6 +23,16 @@ except ImportError:
     import ESMF
 
 import logging
+
+from ..esmf_utils import (
+    esmf_field_retry,
+    esmf_grid_retry,
+    esmf_mesh_retry,
+    esmf_regrid_retry,
+    esmf_regridfromfile_retry,
+    esmf_regridobj_call_retry,
+    assert_path_exists_retry,
+)
 
 import dask
 import dask.delayed
@@ -123,6 +134,13 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     :param mpi_config:
     :return:
     """
+    esmf_grid_retry_partial = functools.partial(
+        esmf_grid_retry, mpi_config, config_options, err_handler
+    )
+    esmf_mesh_retry_partial = functools.partial(
+        esmf_mesh_retry, mpi_config, config_options, err_handler
+    )
+
     ds = None
 
     try:
@@ -185,7 +203,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             if config_options.grid_type == "gridded":
                 try:
                     # noinspection PyTypeChecker
-                    input_forcings.esmf_grid_in = ESMF.Grid(
+                    input_forcings.esmf_grid_in = esmf_grid_retry_partial(
                         np.array([input_forcings.ny_global, input_forcings.nx_global]),
                         staggerloc=ESMF.StaggerLoc.CENTER,
                         coord_sys=ESMF.CoordSys.SPH_DEG,
@@ -228,11 +246,11 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 err_handler.check_program_status(config_options, mpi_config)
             elif config_options.grid_type == "unstructured":
                 try:
-                    input_forcings.esmf_grid_in = ESMF.Mesh(
+                    input_forcings.esmf_grid_in = esmf_mesh_retry_partial(
                         filename=config_options.geogrid,
                         filetype=ESMF.FileFormat.ESMFMESH,
                     )
-                    input_forcings.esmf_grid_in_elem = ESMF.Mesh(
+                    input_forcings.esmf_grid_in_elem = esmf_mesh_retry_partial(
                         filename=config_options.geogrid,
                         filetype=ESMF.FileFormat.ESMFMESH,
                     )
@@ -260,7 +278,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 err_handler.check_program_status(config_options, mpi_config)
             elif config_options.grid_type == "hydrofabric":
                 try:
-                    input_forcings.esmf_grid_in = ESMF.Mesh(
+                    input_forcings.esmf_grid_in = esmf_mesh_retry_partial(
                         filename=config_options.geogrid,
                         filetype=ESMF.FileFormat.ESMFMESH,
                     )
@@ -446,6 +464,10 @@ def _regrid_ak_ext_ana_pcp_stage4(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_precip.file_in1):
@@ -699,7 +721,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -765,7 +788,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -831,7 +855,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
 
             try:
                 supplemental_precip.esmf_field_out_elem = (
-                    supplemental_precip.regridObj_elem(
+                    esmf_regridobj_call_retry_partial(
+                        supplemental_precip.regridObj_elem,
                         supplemental_precip.esmf_field_in_elem,
                         supplemental_precip.esmf_field_out_elem,
                     )
@@ -899,7 +924,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -1011,6 +1037,10 @@ def _regrid_conus_ext_ana_pcp_stage4(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_precip.file_in1):
@@ -1264,7 +1294,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -1330,7 +1361,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -1396,7 +1428,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
 
             try:
                 supplemental_precip.esmf_field_out_elem = (
-                    supplemental_precip.regridObj_elem(
+                    esmf_regridobj_call_retry_partial(
+                        supplemental_precip.regridObj_elem,
                         supplemental_precip.esmf_field_in_elem,
                         supplemental_precip.esmf_field_out_elem,
                     )
@@ -1464,7 +1497,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -1579,6 +1613,10 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -1769,8 +1807,12 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -1843,8 +1885,12 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -1914,7 +1960,8 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         )  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -1992,8 +2039,12 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -2106,8 +2157,10 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -2216,8 +2269,10 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -2325,9 +2380,12 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -2436,8 +2494,10 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -2511,6 +2571,10 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -2698,8 +2762,12 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -2769,8 +2837,12 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -2840,7 +2912,8 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         )  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -2915,8 +2988,12 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -3009,8 +3086,10 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -3122,8 +3201,10 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -3234,9 +3315,12 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -3349,8 +3433,10 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -3446,6 +3532,10 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -3635,8 +3725,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                         )  # log at debug level
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -3710,8 +3804,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                         )  # log at debug level
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -3785,7 +3883,8 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -3864,8 +3963,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                         )  # log at debug level
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -4016,8 +4119,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     err_handler.check_program_status(config_options, mpi_config)
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -4176,8 +4283,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     err_handler.check_program_status(config_options, mpi_config)
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -4338,7 +4449,8 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -4500,8 +4612,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     err_handler.check_program_status(config_options, mpi_config)
 
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -4589,6 +4705,10 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     ## Flag to jump to different regridding module for AWS NWM Forcing data
     if config_options.aws:
         regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
@@ -4691,8 +4811,10 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -4764,8 +4886,10 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -4836,7 +4960,8 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
+                input_forcings.esmf_field_out_elem = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj_elem,
                     input_forcings.esmf_field_in_elem,
                     input_forcings.esmf_field_out_elem,
                 )
@@ -4910,8 +5035,10 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -4963,6 +5090,10 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # Check to see if the regrid complete flag for this
     # output time step is true. This entails the necessary
     # inputs have already been regridded and we can move on.
@@ -5070,8 +5201,10 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -5143,8 +5276,10 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -5215,7 +5350,8 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
+                input_forcings.esmf_field_out_elem = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj_elem,
                     input_forcings.esmf_field_in_elem,
                     input_forcings.esmf_field_out_elem,
                 )
@@ -5293,8 +5429,10 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -5348,6 +5486,10 @@ def regrid_custom_hourly_netcdf(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     with timing_block("Regrid AORC AWS"):
         # Flag to jump to different regridding function soley for AORC AWS data
         if config_options.aws:
@@ -5462,9 +5604,12 @@ def regrid_custom_hourly_netcdf(
                                 config_options, mpi_config, True
                             )  # log at debug level
                         try:
-                            input_forcings.esmf_field_out = input_forcings.regridObj(
-                                input_forcings.esmf_field_in,
-                                input_forcings.esmf_field_out,
+                            input_forcings.esmf_field_out = (
+                                esmf_regridobj_call_retry_partial(
+                                    input_forcings.regridObj,
+                                    input_forcings.esmf_field_in,
+                                    input_forcings.esmf_field_out,
+                                )
                             )
                         except ValueError as ve:
                             config_options.errMsg = (
@@ -5529,9 +5674,12 @@ def regrid_custom_hourly_netcdf(
                                 config_options, mpi_config, True
                             )  # log at debug level
                         try:
-                            input_forcings.esmf_field_out = input_forcings.regridObj(
-                                input_forcings.esmf_field_in,
-                                input_forcings.esmf_field_out,
+                            input_forcings.esmf_field_out = (
+                                esmf_regridobj_call_retry_partial(
+                                    input_forcings.regridObj,
+                                    input_forcings.esmf_field_in,
+                                    input_forcings.esmf_field_out,
+                                )
                             )
                         except ValueError as ve:
                             config_options.errMsg = (
@@ -5598,7 +5746,8 @@ def regrid_custom_hourly_netcdf(
                             )  # log at debug level
                         try:
                             input_forcings.esmf_field_out_elem = (
-                                input_forcings.regridObj_elem(
+                                esmf_regridobj_call_retry_partial(
+                                    input_forcings.regridObj_elem,
                                     input_forcings.esmf_field_in_elem,
                                     input_forcings.esmf_field_out_elem,
                                 )
@@ -5666,9 +5815,12 @@ def regrid_custom_hourly_netcdf(
                                 config_options, mpi_config, True
                             )  # log at debug level
                         try:
-                            input_forcings.esmf_field_out = input_forcings.regridObj(
-                                input_forcings.esmf_field_in,
-                                input_forcings.esmf_field_out,
+                            input_forcings.esmf_field_out = (
+                                esmf_regridobj_call_retry_partial(
+                                    input_forcings.regridObj,
+                                    input_forcings.esmf_field_in,
+                                    input_forcings.esmf_field_out,
+                                )
                             )
                         except ValueError as ve:
                             config_options.errMsg = (
@@ -5764,8 +5916,10 @@ def regrid_custom_hourly_netcdf(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -5881,8 +6035,10 @@ def regrid_custom_hourly_netcdf(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -5996,9 +6152,12 @@ def regrid_custom_hourly_netcdf(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -6115,8 +6274,10 @@ def regrid_custom_hourly_netcdf(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -6207,6 +6368,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in1):
@@ -6346,8 +6511,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -6465,8 +6632,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -6587,7 +6756,8 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
+                input_forcings.esmf_field_out_elem = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj_elem,
                     input_forcings.esmf_field_in_elem,
                     input_forcings.esmf_field_out_elem,
                 )
@@ -6710,8 +6880,10 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -6795,6 +6967,10 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -7093,8 +7269,12 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     )  # log at debug level
                 if config_options.grid_type == "gridded":
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -7118,8 +7298,12 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
                 elif config_options.grid_type == "unstructured":
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -7141,7 +7325,8 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -7181,8 +7366,12 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     err_handler.check_program_status(config_options, mpi_config)
                 elif config_options.grid_type == "hydrofabric":
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -7456,8 +7645,10 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     )  # log at debug level
                 try:
                     begin = monotonic()
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                     end = monotonic()
                     if mpi_config.rank == 0:
@@ -7526,8 +7717,10 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     )  # log at debug level
                 try:
                     begin = monotonic()
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                     end = monotonic()
                     if mpi_config.rank == 0:
@@ -7595,9 +7788,12 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     )  # log at debug level
                 try:
                     begin = monotonic()
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                     end = monotonic()
                     if mpi_config.rank == 0:
@@ -7666,8 +7862,10 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     )  # log at debug level
                 try:
                     begin = monotonic()
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                     end = monotonic()
                     if mpi_config.rank == 0:
@@ -7756,6 +7954,10 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     :param config_options:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -7928,8 +8130,12 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -7991,8 +8197,12 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -8054,7 +8264,8 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                         )  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -8121,8 +8332,12 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -8215,8 +8430,10 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -8304,8 +8521,10 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -8392,9 +8611,12 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -8482,8 +8704,10 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -8561,6 +8785,10 @@ def regrid_mrms_hourly(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # Do we want to use MRMS data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
         if mpi_config.rank == 0:
@@ -8778,9 +9006,12 @@ def regrid_mrms_hourly(
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-                        supplemental_precip.esmf_field_in,
-                        supplemental_precip.esmf_field_out,
+                    supplemental_precip.esmf_field_out = (
+                        esmf_regridobj_call_retry_partial(
+                            supplemental_precip.regridObj,
+                            supplemental_precip.esmf_field_in,
+                            supplemental_precip.esmf_field_out,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid MRMS RQI field: " + str(
@@ -8851,9 +9082,12 @@ def regrid_mrms_hourly(
                         config_options, mpi_config, True
                     )  # log at debug level
                 try:
-                    supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-                        supplemental_precip.esmf_field_in,
-                        supplemental_precip.esmf_field_out,
+                    supplemental_precip.esmf_field_out = (
+                        esmf_regridobj_call_retry_partial(
+                            supplemental_precip.regridObj,
+                            supplemental_precip.esmf_field_in,
+                            supplemental_precip.esmf_field_out,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = "Unable to regrid MRMS RQI field: " + str(
@@ -8924,7 +9158,8 @@ def regrid_mrms_hourly(
                     )  # log at debug level
                 try:
                     supplemental_precip.esmf_field_out_elem = (
-                        supplemental_precip.regridObj_elem(
+                        esmf_regridobj_call_retry_partial(
+                            supplemental_precip.regridObj_elem,
                             supplemental_precip.esmf_field_in_elem,
                             supplemental_precip.esmf_field_out_elem,
                         )
@@ -9035,7 +9270,8 @@ def regrid_mrms_hourly(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -9162,7 +9398,8 @@ def regrid_mrms_hourly(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -9289,7 +9526,8 @@ def regrid_mrms_hourly(
 
             try:
                 supplemental_precip.esmf_field_out_elem = (
-                    supplemental_precip.regridObj_elem(
+                    esmf_regridobj_call_retry_partial(
+                        supplemental_precip.regridObj_elem,
                         supplemental_precip.esmf_field_in_elem,
                         supplemental_precip.esmf_field_out_elem,
                     )
@@ -9419,7 +9657,8 @@ def regrid_mrms_hourly(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -9556,6 +9795,10 @@ def regrid_mrms_precip_flag(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_precip.file_in2):
@@ -9644,8 +9887,10 @@ def regrid_mrms_precip_flag(
     err_handler.check_program_status(config_options, mpi_config)
 
     try:
-        supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-            supplemental_precip.esmf_field_in, supplemental_precip.esmf_field_out
+        supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+            supplemental_precip.regridObj,
+            supplemental_precip.esmf_field_in,
+            supplemental_precip.esmf_field_out,
         )
     except ValueError as ve:
         config_options.errMsg = "Unable to regrid MRMS PrecipFlag: " + str(ve)
@@ -9722,11 +9967,10 @@ def regrid_mrms_precip_flag(
         err_handler.check_program_status(config_options, mpi_config)
 
         try:
-            supplemental_precip.esmf_field_out_elem = (
-                supplemental_precip.regridObj_elem(
-                    supplemental_precip.esmf_field_in_elem,
-                    supplemental_precip.esmf_field_out_elem,
-                )
+            supplemental_precip.esmf_field_out_elem = esmf_regridobj_call_retry_partial(
+                supplemental_precip.regridObj_elem,
+                supplemental_precip.esmf_field_in_elem,
+                supplemental_precip.esmf_field_out_elem,
             )
         except ValueError as ve:
             config_options.errMsg = "Unable to regrid MRMS PrecipFlag: " + str(ve)
@@ -9791,6 +10035,10 @@ def regrid_hourly_wrf_arw(
     :param config_options:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.isfile(input_forcings.file_in2):
@@ -9973,8 +10221,12 @@ def regrid_hourly_wrf_arw(
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -10037,8 +10289,12 @@ def regrid_hourly_wrf_arw(
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -10102,7 +10358,8 @@ def regrid_hourly_wrf_arw(
                         )  # log at debug level
                     try:
                         input_forcings.esmf_field_out_elem = (
-                            input_forcings.regridObj_elem(
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj_elem,
                                 input_forcings.esmf_field_in_elem,
                                 input_forcings.esmf_field_out_elem,
                             )
@@ -10171,8 +10428,12 @@ def regrid_hourly_wrf_arw(
                             config_options, mpi_config, True
                         )  # log at debug level
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -10265,8 +10526,10 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -10378,8 +10641,10 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -10490,9 +10755,12 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -10605,8 +10873,10 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -10708,6 +10978,10 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_precip.file_in1):
@@ -10853,7 +11127,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -10945,7 +11220,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -11037,7 +11313,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
 
             try:
                 supplemental_precip.esmf_field_out_elem = (
-                    supplemental_precip.regridObj_elem(
+                    esmf_regridobj_call_retry_partial(
+                        supplemental_precip.regridObj_elem,
                         supplemental_precip.esmf_field_in_elem,
                         supplemental_precip.esmf_field_out_elem,
                     )
@@ -11131,7 +11408,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
+                supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    supplemental_precip.regridObj,
                     supplemental_precip.esmf_field_in,
                     supplemental_precip.esmf_field_out,
                 )
@@ -11213,6 +11491,10 @@ def regrid_sbcv2_liquid_water_fraction(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
     if not os.path.exists(supplemental_forcings.file_in1):
@@ -11289,7 +11571,8 @@ def regrid_sbcv2_liquid_water_fraction(
         err_handler.check_program_status(config_options, mpi_config)
 
         try:
-            supplemental_forcings.esmf_field_out = supplemental_forcings.regridObj(
+            supplemental_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                supplemental_forcings.regridObj,
                 supplemental_forcings.esmf_field_in,
                 supplemental_forcings.esmf_field_out,
             )
@@ -11370,7 +11653,8 @@ def regrid_sbcv2_liquid_water_fraction(
         err_handler.check_program_status(config_options, mpi_config)
 
         try:
-            supplemental_forcings.esmf_field_out = supplemental_forcings.regridObj(
+            supplemental_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                supplemental_forcings.regridObj,
                 supplemental_forcings.esmf_field_in,
                 supplemental_forcings.esmf_field_out,
             )
@@ -11453,7 +11737,8 @@ def regrid_sbcv2_liquid_water_fraction(
 
         try:
             supplemental_forcings.esmf_field_out_elem = (
-                supplemental_forcings.regridObj_elem(
+                esmf_regridobj_call_retry_partial(
+                    supplemental_forcings.regridObj_elem,
                     supplemental_forcings.esmf_field_in_elem,
                     supplemental_forcings.esmf_field_out_elem,
                 )
@@ -11533,7 +11818,8 @@ def regrid_sbcv2_liquid_water_fraction(
         err_handler.check_program_status(config_options, mpi_config)
 
         try:
-            supplemental_forcings.esmf_field_out = supplemental_forcings.regridObj(
+            supplemental_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                supplemental_forcings.regridObj,
                 supplemental_forcings.esmf_field_in,
                 supplemental_forcings.esmf_field_out,
             )
@@ -11596,6 +11882,10 @@ def regrid_hourly_nbm(
     :param mpi_config:
     :return:
     """
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # Do we want to use NBM data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
         if mpi_config.rank == 0:
@@ -11822,7 +12112,8 @@ def regrid_hourly_nbm(
                             )  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = (
-                                forcings_or_precip.regridObj(
+                                esmf_regridobj_call_retry_partial(
+                                    forcings_or_precip.regridObj,
                                     forcings_or_precip.esmf_field_in,
                                     forcings_or_precip.esmf_field_out,
                                 )
@@ -11893,7 +12184,8 @@ def regrid_hourly_nbm(
                             )  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = (
-                                forcings_or_precip.regridObj(
+                                esmf_regridobj_call_retry_partial(
+                                    forcings_or_precip.regridObj,
                                     forcings_or_precip.esmf_field_in,
                                     forcings_or_precip.esmf_field_out,
                                 )
@@ -11964,7 +12256,8 @@ def regrid_hourly_nbm(
                             )  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out = (
-                                forcings_or_precip.regridObj(
+                                esmf_regridobj_call_retry_partial(
+                                    forcings_or_precip.regridObj,
                                     forcings_or_precip.esmf_field_in,
                                     forcings_or_precip.esmf_field_out,
                                 )
@@ -12032,7 +12325,8 @@ def regrid_hourly_nbm(
                             )  # log at debug level
                         try:
                             forcings_or_precip.esmf_field_out_elem = (
-                                forcings_or_precip.regridObj_elem(
+                                esmf_regridobj_call_retry_partial(
+                                    forcings_or_precip.regridObj_elem,
                                     forcings_or_precip.esmf_field_in_elem,
                                     forcings_or_precip.esmf_field_out_elem,
                                 )
@@ -12109,8 +12403,10 @@ def regrid_hourly_nbm(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(
-                    forcings_or_precip.esmf_field_in, forcings_or_precip.esmf_field_out
+                forcings_or_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    forcings_or_precip.regridObj,
+                    forcings_or_precip.esmf_field_in,
+                    forcings_or_precip.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = f"Unable to regrid NBM {tag}: " + str(ve)
@@ -12208,8 +12504,10 @@ def regrid_hourly_nbm(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(
-                    forcings_or_precip.esmf_field_in, forcings_or_precip.esmf_field_out
+                forcings_or_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    forcings_or_precip.regridObj,
+                    forcings_or_precip.esmf_field_in,
+                    forcings_or_precip.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = f"Unable to regrid NBM {tag}: " + str(ve)
@@ -12306,8 +12604,10 @@ def regrid_hourly_nbm(
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                forcings_or_precip.esmf_field_out = forcings_or_precip.regridObj(
-                    forcings_or_precip.esmf_field_in, forcings_or_precip.esmf_field_out
+                forcings_or_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    forcings_or_precip.regridObj,
+                    forcings_or_precip.esmf_field_in,
+                    forcings_or_precip.esmf_field_out,
                 )
             except ValueError as ve:
                 config_options.errMsg = f"Unable to regrid NBM {tag}: " + str(ve)
@@ -12405,7 +12705,8 @@ def regrid_hourly_nbm(
 
             try:
                 forcings_or_precip.esmf_field_out_elem = (
-                    forcings_or_precip.regridObj_elem(
+                    esmf_regridobj_call_retry_partial(
+                        forcings_or_precip.regridObj_elem,
                         forcings_or_precip.esmf_field_in_elem,
                         forcings_or_precip.esmf_field_out_elem,
                     )
@@ -12496,6 +12797,10 @@ def regrid_hourly_nbm(
 @static_vars(last_file=None)
 def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """Regrid NDFD forcing data to the WRF-Hydro domain."""
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     # Check to see if the regrid complete flag for this
     # output time step is true. This entails the necessary
     # inputs have already been regridded and we can move on.
@@ -12726,13 +13031,18 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
 
             try:
-                input_forcings.esmf_field_out = input_forcings.regridObj(
-                    input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                    input_forcings.regridObj,
+                    input_forcings.esmf_field_in,
+                    input_forcings.esmf_field_out,
                 )
                 if config_options.grid_type == "unstructured":
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
             except ValueError as ve:
                 config_options.errMsg = (
@@ -12885,6 +13195,10 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
 def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """Regrid AORC AWS forcing data to the WRF-Hydro domain."""
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     fill_values = {
         "TMP": 288.0,
         "SPFH": 0.005,
@@ -12998,8 +13312,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -13115,8 +13431,10 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out = input_forcings.regridObj(
-                        input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                    input_forcings.esmf_field_out = esmf_regridobj_call_retry_partial(
+                        input_forcings.regridObj,
+                        input_forcings.esmf_field_in,
+                        input_forcings.esmf_field_out,
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -13230,9 +13548,12 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
-                    input_forcings.esmf_field_out_elem = input_forcings.regridObj_elem(
-                        input_forcings.esmf_field_in_elem,
-                        input_forcings.esmf_field_out_elem,
+                    input_forcings.esmf_field_out_elem = (
+                        esmf_regridobj_call_retry_partial(
+                            input_forcings.regridObj_elem,
+                            input_forcings.esmf_field_in_elem,
+                            input_forcings.esmf_field_out_elem,
+                        )
                     )
                 except ValueError as ve:
                     config_options.errMsg = (
@@ -13372,8 +13693,12 @@ def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                     f"regrid step 2.8 | {mpi_config.rank}: regrid input variable ESMF"
                 ):
                     try:
-                        input_forcings.esmf_field_out = input_forcings.regridObj(
-                            input_forcings.esmf_field_in, input_forcings.esmf_field_out
+                        input_forcings.esmf_field_out = (
+                            esmf_regridobj_call_retry_partial(
+                                input_forcings.regridObj,
+                                input_forcings.esmf_field_in,
+                                input_forcings.esmf_field_out,
+                            )
                         )
                     except ValueError as ve:
                         config_options.errMsg = (
@@ -13473,11 +13798,15 @@ def check_regrid_status(
     :param mpi_config:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(
+        esmf_field_retry, mpi_config, config_options, err_handler
+    )
+
     # If the destination ESMF field hasn't been created, create it here.
     if not input_forcings.esmf_field_out:
         if config_options.grid_type == "gridded":
             try:
-                input_forcings.esmf_field_out = ESMF.Field(
+                input_forcings.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     name=input_forcings.product_name + "FORCING_REGRIDDED",
                 )
@@ -13492,7 +13821,7 @@ def check_regrid_status(
 
         elif config_options.grid_type == "unstructured":
             try:
-                input_forcings.esmf_field_out = ESMF.Field(
+                input_forcings.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.NODE,
                     name=input_forcings.product_name + "FORCING_REGRIDDED",
@@ -13506,7 +13835,7 @@ def check_regrid_status(
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                input_forcings.esmf_field_out_elem = ESMF.Field(
+                input_forcings.esmf_field_out_elem = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
                     name=input_forcings.product_name + "FORCING_REGRIDDED",
@@ -13521,7 +13850,7 @@ def check_regrid_status(
                 err_handler.log_critical(config_options, mpi_config)
         elif config_options.grid_type == "hydrofabric":
             try:
-                input_forcings.esmf_field_out = ESMF.Field(
+                input_forcings.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
                     name=input_forcings.product_name + "FORCING_REGRIDDED",
@@ -13634,11 +13963,15 @@ def check_supp_pcp_regrid_status(
     :param mpi_config:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(
+        esmf_field_retry, mpi_config, config_options, err_handler
+    )
+
     # If the destination ESMF field hasn't been created, create it here.
     if not supplemental_precip.esmf_field_out:
         if config_options.grid_type == "gridded":
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
                 )
@@ -13652,7 +13985,7 @@ def check_supp_pcp_regrid_status(
                 err_handler.err_out(config_options)
         elif config_options.grid_type == "unstructured":
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.NODE,
                     name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
@@ -13667,7 +14000,7 @@ def check_supp_pcp_regrid_status(
                 err_handler.err_out(config_options)
 
             try:
-                supplemental_precip.esmf_field_out_elem = ESMF.Field(
+                supplemental_precip.esmf_field_out_elem = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
                     name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
@@ -13683,7 +14016,7 @@ def check_supp_pcp_regrid_status(
 
         elif config_options.grid_type == "hydrofabric":
             try:
-                supplemental_precip.esmf_field_out = ESMF.Field(
+                supplemental_precip.esmf_field_out = esmf_field_retry_partial(
                     wrf_hydro_geo_meta.esmf_grid,
                     meshloc=ESMF.MeshLoc.ELEMENT,
                     name=supplemental_precip.product_name + "SUPP_PCP_REGRIDDED",
@@ -13883,10 +14216,7 @@ def load_weight_file(
     element_mode: bool,
 ) -> None:
     """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place."""
-    if not os.path.exists(weight_file):
-        raise FileNotFoundError(
-            f"MPI rank {mpi_config.rank} could not find weight file: {weight_file})"
-        )
+    assert_path_exists_retry(mpi_config, config_options, err_handler, weight_file)
 
     if not element_mode:
         msg_augment = " "
@@ -13905,7 +14235,9 @@ def load_weight_file(
     err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = monotonic()
-        regrid = ESMF.RegridFromFile(field_in, field_out, weight_file)
+        regrid = esmf_regridfromfile_retry(
+            mpi_config, config_options, err_handler, field_in, field_out, weight_file
+        )
         setattr(input_forcings, target_object_attr_name, regrid)
         end = monotonic()
     except (IOError, ValueError, ESMF.ESMPyException) as esmf_error:
@@ -13957,16 +14289,17 @@ def make_regrid(
     err_handler.check_program_status(config_options, mpi_config)
     try:
         begin = monotonic()
-        regrid = (
-            ESMF.Regrid(
-                field_in,
-                field_out,
-                src_mask_values=np.array([0, config_options.globalNdv]),
-                regrid_method=regrid_method,
-                extrap_method=extrap_method,
-                unmapped_action=ESMF.UnmappedAction.IGNORE,
-                filename=weight_file,
-            ),
+        regrid = esmf_regrid_retry(
+            mpi_config,
+            config_options,
+            err_handler,
+            field_in,
+            field_out,
+            src_mask_values=np.array([0, config_options.globalNdv]),
+            regrid_method=regrid_method,
+            extrap_method=extrap_method,
+            unmapped_action=ESMF.UnmappedAction.IGNORE,
+            filename=weight_file,
         )
         setattr(input_forcings, target_object_attr_name, regrid)
         end = monotonic()
@@ -14052,6 +14385,13 @@ def calculate_weights(
     :param force_count:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(
+        esmf_field_retry, mpi_config, config_options, err_handler
+    )
+    esmf_grid_retry_partial = functools.partial(
+        esmf_grid_retry, mpi_config, config_options, err_handler
+    )
+
     config_options.statusMsg = "Calculate Weights"
     err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
@@ -14124,7 +14464,7 @@ def calculate_weights(
 
     try:
         # noinspection PyTypeChecker
-        input_forcings.esmf_grid_in = ESMF.Grid(
+        input_forcings.esmf_grid_in = esmf_grid_retry_partial(
             np.array([input_forcings.ny_global, input_forcings.nx_global]),
             staggerloc=ESMF.StaggerLoc.CENTER,
             coord_sys=ESMF.CoordSys.SPH_DEG,
@@ -14334,9 +14674,8 @@ def calculate_weights(
     if config_options.grid_type == "gridded":
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in,
-                name=input_forcings.product_name + "_NATIVE",
+            input_forcings.esmf_field_in = esmf_field_retry_partial(
+                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14348,9 +14687,8 @@ def calculate_weights(
     if config_options.grid_type == "unstructured":
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in,
-                name=input_forcings.product_name + "_NATIVE",
+            input_forcings.esmf_field_in = esmf_field_retry_partial(
+                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14361,7 +14699,7 @@ def calculate_weights(
 
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in_elem = ESMF.Field(
+            input_forcings.esmf_field_in_elem = esmf_field_retry_partial(
                 input_forcings.esmf_grid_in,
                 name=input_forcings.product_name + "_NATIVE_ELEMENT",
             )
@@ -14375,9 +14713,8 @@ def calculate_weights(
     elif config_options.grid_type == "hydrofabric":
         # Create a ESMF field to hold the incoming data.
         try:
-            input_forcings.esmf_field_in = ESMF.Field(
-                input_forcings.esmf_grid_in,
-                name=input_forcings.product_name + "_NATIVE",
+            input_forcings.esmf_field_in = esmf_field_retry_partial(
+                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14495,6 +14832,19 @@ def calculate_supp_pcp_weights(
     :param config_options:
     :return:
     """
+    esmf_field_retry_partial = functools.partial(
+        esmf_field_retry, mpi_config, config_options, err_handler
+    )
+    esmf_grid_retry_partial = functools.partial(
+        esmf_grid_retry, mpi_config, config_options, err_handler
+    )
+    esmf_regrid_retry_partial = functools.partial(
+        esmf_regrid_retry, mpi_config, config_options, err_handler
+    )
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+
     ndims = 0
     if mpi_config.rank == 0:
         ncvar = id_tmp.variables[supplemental_precip.netcdf_var_names[0]]
@@ -14560,7 +14910,7 @@ def calculate_supp_pcp_weights(
 
     try:
         # noinspection PyTypeChecker
-        supplemental_precip.esmf_grid_in = ESMF.Grid(
+        supplemental_precip.esmf_grid_in = esmf_grid_retry_partial(
             np.array([supplemental_precip.ny_global, supplemental_precip.nx_global]),
             staggerloc=ESMF.StaggerLoc.CENTER,
             coord_sys=ESMF.CoordSys.SPH_DEG,
@@ -14691,7 +15041,7 @@ def calculate_supp_pcp_weights(
 
     if config_options.grid_type == "gridded":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(
             supplemental_precip.esmf_grid_in,
             name=supplemental_precip.product_name + "_NATIVE",
         )
@@ -14725,7 +15075,7 @@ def calculate_supp_pcp_weights(
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj = ESMF.Regrid(
+        supplemental_precip.regridObj = esmf_regrid_retry_partial(
             supplemental_precip.esmf_field_in,
             supplemental_precip.esmf_field_out,
             src_mask_values=np.array([0]),
@@ -14735,8 +15085,10 @@ def calculate_supp_pcp_weights(
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
-        supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-            supplemental_precip.esmf_field_in, supplemental_precip.esmf_field_out
+        supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+            supplemental_precip.regridObj,
+            supplemental_precip.esmf_field_in,
+            supplemental_precip.esmf_field_out,
         )
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[
             :
@@ -14744,7 +15096,7 @@ def calculate_supp_pcp_weights(
 
     elif config_options.grid_type == "unstructured":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(
             supplemental_precip.esmf_grid_in,
             name=supplemental_precip.product_name + "_NATIVE",
         )
@@ -14779,7 +15131,7 @@ def calculate_supp_pcp_weights(
         # mpi_config.comm.barrier()
 
         if supplemental_precip.regridOpt == 1:
-            supplemental_precip.regridObj = ESMF.Regrid(
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(
                 supplemental_precip.esmf_field_in,
                 supplemental_precip.esmf_field_out,
                 src_mask_values=np.array([0]),
@@ -14787,7 +15139,7 @@ def calculate_supp_pcp_weights(
                 unmapped_action=ESMF.UnmappedAction.IGNORE,
             )
         elif supplemental_precip.regridOpt == 2:
-            supplemental_precip.regridObj = ESMF.Regrid(
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(
                 supplemental_precip.esmf_field_in,
                 supplemental_precip.esmf_field_out,
                 src_mask_values=np.array([0]),
@@ -14797,15 +15149,17 @@ def calculate_supp_pcp_weights(
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
-        supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-            supplemental_precip.esmf_field_in, supplemental_precip.esmf_field_out
+        supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+            supplemental_precip.regridObj,
+            supplemental_precip.esmf_field_in,
+            supplemental_precip.esmf_field_out,
         )
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[
             :
         ]
 
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in_elem = ESMF.Field(
+        supplemental_precip.esmf_field_in_elem = esmf_field_retry_partial(
             supplemental_precip.esmf_grid_in,
             name=supplemental_precip.product_name + "_NATIVE",
         )
@@ -14841,7 +15195,7 @@ def calculate_supp_pcp_weights(
         supplemental_precip.esmf_field_in_elem.data[:] = var_sub_tmp_elem
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj_elem = ESMF.Regrid(
+        supplemental_precip.regridObj_elem = esmf_regrid_retry_partial(
             supplemental_precip.esmf_field_in_elem,
             supplemental_precip.esmf_field_out_elem,
             src_mask_values=np.array([0]),
@@ -14851,7 +15205,8 @@ def calculate_supp_pcp_weights(
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
-        supplemental_precip.esmf_field_out_elem = supplemental_precip.regridObj_elem(
+        supplemental_precip.esmf_field_out_elem = esmf_regridobj_call_retry_partial(
+            supplemental_precip.regridObj_elem,
             supplemental_precip.esmf_field_in_elem,
             supplemental_precip.esmf_field_out_elem,
         )
@@ -14861,7 +15216,7 @@ def calculate_supp_pcp_weights(
 
     elif config_options.grid_type == "hydrofabric":
         # Create a ESMF field to hold the incoming data.
-        supplemental_precip.esmf_field_in = ESMF.Field(
+        supplemental_precip.esmf_field_in = esmf_field_retry_partial(
             supplemental_precip.esmf_grid_in,
             name=supplemental_precip.product_name + "_NATIVE",
         )
@@ -14896,7 +15251,7 @@ def calculate_supp_pcp_weights(
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
         if supplemental_precip.regridOpt == 2:
-            supplemental_precip.regridObj = ESMF.Regrid(
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(
                 supplemental_precip.esmf_field_in,
                 supplemental_precip.esmf_field_out,
                 src_mask_values=np.array([0]),
@@ -14905,7 +15260,7 @@ def calculate_supp_pcp_weights(
                 extrap_method=ESMF.ExtrapMethod.NEAREST_STOD,
             )
         elif supplemental_precip.regridOpt == 1:
-            supplemental_precip.regridObj = ESMF.Regrid(
+            supplemental_precip.regridObj = esmf_regrid_retry_partial(
                 supplemental_precip.esmf_field_in,
                 supplemental_precip.esmf_field_out,
                 src_mask_values=np.array([0]),
@@ -14916,8 +15271,10 @@ def calculate_supp_pcp_weights(
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
-        supplemental_precip.esmf_field_out = supplemental_precip.regridObj(
-            supplemental_precip.esmf_field_in, supplemental_precip.esmf_field_out
+        supplemental_precip.esmf_field_out = esmf_regridobj_call_retry_partial(
+            supplemental_precip.regridObj,
+            supplemental_precip.esmf_field_in,
+            supplemental_precip.esmf_field_out,
         )
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[
             :

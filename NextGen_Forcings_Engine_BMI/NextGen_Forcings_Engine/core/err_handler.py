@@ -57,14 +57,25 @@ def err_out_screen_para(err_msg: str, MpiConfig, exc: BaseException | None = Non
     sys.exit(1)
 
 
-def check_program_status(ConfigOptions, MpiConfig):
-    """Check the error statuses for each processor in the program.
-
+def check_program_status(
+    ConfigOptions, MpiConfig, rank_0_reduce: bool = True, any_rank_abort: bool = False
+):
+    """
     Generic function to check the err statuses for each processor in the program.
     If any flags come back, gracefully exit the program.
     :param ConfigOptions:
     :param MpiConfig:
+    :param rank_0_reduce: (default = True)
+        If True, then rank 0 will call MPI reduce(), causing it to block waiting for other ranks to send their exceptions.
+        This should be set to False only for special cases that may experience deadlocks without it, such as certain ESMF calls.
+    :param any_rank_abort: (default = False)
+        If True, then any rank calling this may log its own error message and call MPI Abort() itself, not only rank 0.
+        This should be set to True only for special cases that may experience deadlocks without it, such as certain ESMF calls.
     :return:
+
+    NOTE: when rank_0_reduce is set to False, rank 0 will not receive error flags from other ranks.
+    So in this case, any_rank_abort must be set to True, so that each rank can be responsible for
+    checking its own flag and calling Abort() as needed.
     """
     # Sync up processors to ensure everyone is on the same page.
     # MpiConfig.comm.barrier()
@@ -80,18 +91,38 @@ def check_program_status(ConfigOptions, MpiConfig):
     #     assert data is None
 
     # Reduce version:
-    any_error = MpiConfig.comm.reduce(ConfigOptions.errFlag)
-    if MpiConfig.rank == 0:
+
+    # Non-0 ranks should always call reduce since they send information and do not block.
+    # By default, rank 0 should call reduce to collect the exceptions from the other ranks,
+    # but there are special known conditions that can cause rank 0 to deadlock here,
+    # so, optionally, rank 0 can skip the reduce call, and check only its own message.
+    # Whenever that option is used, the any_rank_abort option must also be used.
+
+    if (not rank_0_reduce) and (not any_rank_abort):
+        raise ValueError(
+            f"When rank_0_reduce is Falsy, any_rank_abort must be Truthy, but both are Falsy."
+        )
+
+    if MpiConfig.rank != 0 or rank_0_reduce:
+        any_error = MpiConfig.comm.reduce(ConfigOptions.errFlag)
+    else:
+        any_error = None
+
+    if MpiConfig.rank == 0 or any_rank_abort:
         if ConfigOptions.errFlag or any_error:
             # print("any_error: ", any_error, type(any_error), flush=True)
             stack = traceback.format_stack()[:-1]
             for frame in stack:
                 LOG.error(frame)
-            MpiConfig.comm.Abort()
+            MpiConfig.comm.Abort(1)
             sys.exit(1)
 
     # Sync up processors.
-    # MpiConfig.comm.barrier()
+    # When this is enabled, then all ranks wait for rank 0 to evaluate the
+    # collected error flags and call Abort() as appropriate, before continuing.
+    # When this is not enabled, then non-0 ranks may continue execution after sending
+    # their error flag, since non-0 ranks do not block on reduce().
+    MpiConfig.comm.barrier()
 
 
 def init_log(ConfigOptions, MpiConfig):
@@ -178,14 +209,17 @@ def err_out(ConfigOptions):
     sys.exit(1)
 
 
-def log_error(ConfigOptions, MpiConfig):
-    """Log an error message to the log file.
-
+def log_error(ConfigOptions, MpiConfig, msg: str = None):
+    """
     Function to log an error message to the log file.
     :param ConfigOptions:
     :param MpiConfig:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.errMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.errMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = (
             "Unable to obtain a logger object for: " + ConfigOptions.logFile
@@ -207,14 +241,17 @@ def log_error(ConfigOptions, MpiConfig):
     ConfigOptions.errFlag = 1
 
 
-def log_critical(ConfigOptions, MpiConfig):
-    """Log a critical error message to the log file without exiting.
-
+def log_critical(ConfigOptions, MpiConfig, msg: str = None):
+    """
     Function for logging an error message without exiting without a
     non-zero exit status.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.errMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.errMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = (
             "Unable to obtain a logger object for: " + ConfigOptions.logFile
@@ -240,13 +277,16 @@ def log_critical(ConfigOptions, MpiConfig):
     ConfigOptions.errFlag = 1
 
 
-def log_warning(ConfigOptions, MpiConfig):
-    """Log a warning message to the log file.
-
+def log_warning(ConfigOptions, MpiConfig, msg: str = None):
+    """
     Function to log warning messages to the log file.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.statusMsg in-place before sending log call.
     :return:
     """
+    if msg is not None:
+        ConfigOptions.statusMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = (
             "Unable to obtain a logger object for: " + ConfigOptions.logFile
@@ -267,13 +307,22 @@ def log_warning(ConfigOptions, MpiConfig):
         )
 
 
-def log_msg(ConfigOptions, MpiConfig, debug: bool = False):
-    """Log an informational message to the log file.
-
+def log_msg(ConfigOptions, MpiConfig, debug: bool = False, msg: str = None):
+    """
     Function to log INFO messages to a specified log file.
     :param ConfigOptions:
+    :param msg: Optional error message string, overrides current value for ConfigOptions.statusMsg in-place before sending log call.
     :return:
     """
+    if not isinstance(debug, bool):
+        raise TypeError(f"Expected type bool for debug, got type: {type(debug)}")
+    if msg is not None:
+        if not isinstance(msg, str):
+            raise TypeError(
+                f"Expected type str or NoneType for msg, got type: {type(msg)}"
+            )
+        ConfigOptions.statusMsg = msg
+
     if not LOG.hasHandlers():
         ConfigOptions.errMsg = (
             "log_msg: Unable to obtain a logger object for: " + ConfigOptions.logFile
