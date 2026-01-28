@@ -9,6 +9,8 @@ import geopandas as gpd  # kept if you plan to use later
 from shapely.affinity import rotate
 from shapely.geometry import box
 import pandas as pd
+import netCDF4 as nc
+from netCDF4 import  num2date, date2num
 from .glofs_sfincs import build_bzs_from_glofs_legacy
 from .mateo_sfincs import write_sfincs_meteo_from_nwm
 
@@ -1143,3 +1145,18 @@ class DataProcessor:
             print(f"[tpxo] wrote bzs  → {bzs_path} (nt={tgt.size}, npts={npts}, dt={out_dt_seconds}s)")
         '''
 
+    def process_schism(self):
+        if self.model != "schism":
+            print(f"[process] Model '{self.model}' not implemented yet.")
+            return
+        else:
+            if self.domain_info['domain'][0]['name'] == 'prvi' and self.meteo == "nwm_retro":
+              path = os.path.join(self.raw_root, "meteo", "nwm_retro")
+              retro_files = os.listdir(path)
+              for f in retro_files:
+                  if f.endswith('.LDASIN_DOMAIN1'):
+                      ncfile = path + '/' + f
+                      with nc.Dataset(ncfile, mode="r+") as dataset:
+                          validtimevar = dataset.variables['valid_time']
+                          correct_validtime = datetime.strptime( f, "%Y%m%d%H.LDASIN_DOMAIN1") 
+                          validtimevar[:] = date2num([ correct_validtime ], validtimevar.units)

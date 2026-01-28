@@ -1,31 +1,41 @@
 # Need these for BMI
 # This is needed for get_var_bytes
+import gc
 import hashlib
 import os
-import gc
-from pathlib import Path
-
-import netCDF4 as nc
-# import data_tools
-# Basic utilities
-import numpy as np
-import pandas as pd
-# Configuration file functionality
-import yaml
-from bmipy import Bmi
-# Import MPI Python module
-from mpi4py import MPI
-
-from .bmi_grid import GridType, Grid
-from .core import err_handler, geoMod, suppPrecipMod, ioMod, config, parallel, forcingInputMod
-from .model import NWMv3_Forcing_Engine_model
-
-from NextGen_Forcings_Engine_BMI import esmf_creation
-from NextGen_Forcings_Engine_BMI import forcing_extraction
 
 # time debugging
 import time
 from collections import defaultdict
+from pathlib import Path
+
+import netCDF4 as nc
+
+# import data_tools
+# Basic utilities
+import numpy as np
+import pandas as pd
+
+# Configuration file functionality
+import yaml
+from bmipy import Bmi
+
+# Import MPI Python module
+from mpi4py import MPI
+
+from NextGen_Forcings_Engine_BMI import esmf_creation, forcing_extraction
+
+from .bmi_grid import Grid, GridType
+from .core import (
+    config,
+    err_handler,
+    forcingInputMod,
+    geoMod,
+    ioMod,
+    parallel,
+    suppPrecipMod,
+)
+from .model import NWMv3ForcingEngineModel
 
 # Import BMI grid functions to advertise grid features
 # Here is the model we want to run
@@ -33,7 +43,6 @@ from collections import defaultdict
 ###### NWMv3.0 Forcings Engine modules ######
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
-import shapely
 try:
     import esmpy as ESMF
 except ImportError:
@@ -41,28 +50,31 @@ except ImportError:
 
 
 from typing import Any
+
 from numpy.typing import NDArray
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
-if ESMF.version_compare('8.7.0', ESMF.__version__) < 0:
+if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
-from nextgen_forcings_ewts import configure_logging, MODULE_NAME
+import logging
+
+from nextgen_forcings_ewts import MODULE_NAME, configure_logging
+
 configure_logging()
 
-import logging
+
 LOG = logging.getLogger(MODULE_NAME)
 
+
 class UnknownBMIVariable(RuntimeError):
-    """
-    Custom exception raised when an unknown BMI variable is encountered.
-    """
+    """Custom exception raised when an unknown BMI variable is encountered."""
+
     pass
 
 
 class NWMv3_Forcing_Engine_BMI_model(Bmi):
-    """
-    This class defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
+    """Defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
 
     It includes methods for initializing the model, updating it, accessing model variables,
     and managing model configuration. This class is responsible for interacting with
@@ -82,11 +94,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         The MPI communicator.
     var_array_lengths : int
         Length of the variable arrays.
+
     """
 
     def __init__(self):
-        """
-        Create a model that is ready for initialization.
+        """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
@@ -105,7 +117,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self.cfg_bmi = None
         self._job_meta = None
         self._mpi_meta = None
-        self._WrfHydroGeoMeta = None
+        self._wrf_hydro_geo_meta = None
         self._grid_type = None
         self._grids = None
         self._grid_map = None
@@ -114,8 +126,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self._var_name_map_long_first = None
         self._var_name_map_short_first = None
         self._var_units_map = None
-        self._inputForcingMod = None
-        self._suppPcpMod = None
+        self._input_forcing_mod = None
+        self._supp_pcp_mod = None
         self._model_parameters_list = []
 
         # Diagnostic timing setup
@@ -128,11 +140,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # Required, static attributes of the model
     # ----------------------------------------------
     _att_map = {
-        'model_name': 'NWMv3.0 Forcings Engine BMI Python',
-        'version': '1.0',
-        'author_name': 'Jason Ducker',
-        'grid_type': 'unstructured&uniform_rectilinear',
-        'time_units': 'seconds',
+        "model_name": "NWMv3.0 Forcings Engine BMI Python",
+        "version": "1.0",
+        "author_name": "Jason Ducker",
+        "grid_type": "unstructured&uniform_rectilinear",
+        "time_units": "seconds",
     }
 
     # ---------------------------------------------
@@ -157,7 +169,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def initialize(self, config_file: str, output_path: str | None = None) -> None:
-        """
+        """Initialize the model using a configuration file.
+
         This function is part of the BMI (Basic Model Interface) specification and is automatically
         invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
         which sets additional parameters such as `b_date`, `geogrid`, and `output_path`.
@@ -169,23 +182,25 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
-
-
-        LOG.info('---------------------------')
+        LOG.info("---------------------------")
         LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
             LOG.critical("No BMI initialize configuration provided, nothing to do...")
-            raise RuntimeError("No BMI initialize configuration provided, nothing to do...")
+            raise RuntimeError(
+                "No BMI initialize configuration provided, nothing to do..."
+            )
 
         bmi_cfg_file = Path(config_file).resolve()
         if not bmi_cfg_file.is_file():
             LOG.critical(f"Config file {bmi_cfg_file} not found, nothing to do...")
-            raise RuntimeError(f"Config file {bmi_cfg_file} not found, nothing to do...")
+            raise RuntimeError(
+                f"Config file {bmi_cfg_file} not found, nothing to do..."
+            )
 
         LOG.info(f"Reading config file: {bmi_cfg_file}")
-        with bmi_cfg_file.open('r') as fp:
+        with bmi_cfg_file.open("r") as fp:
             cfg = yaml.safe_load(fp)
 
         self.cfg_bmi = self._parse_config(cfg)
@@ -196,24 +211,24 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Parse the configuration options
         try:
-            self._job_meta.read_config(self.cfg_bmi)
+            self._job_meta.validate_config(self.cfg_bmi)
         except KeyboardInterrupt as e:
-            err_handler.err_out_screen('User keyboard interrupt', e)
+            err_handler.err_out_screen("User keyboard interrupt", e)
         except ImportError as e:
-            err_handler.err_out_screen('Missing Python packages', e)
+            err_handler.err_out_screen("Missing Python packages", e)
         except InterruptedError as e:
-            err_handler.err_out_screen('External kill signal detected', e)
+            err_handler.err_out_screen("External kill signal detected", e)
         except Exception as e:
-            err_handler.err_out_screen('Unhandled exception', e)
+            err_handler.err_out_screen("Unhandled exception", e)
 
         # Set NWM version and config, if provided in the config
-        if self.cfg_bmi.get('NWM_VERSION') is not None:
-            self._job_meta.nwmVersion = self.cfg_bmi['NWM_VERSION']
+        if self.cfg_bmi.get("NWM_VERSION") is not None:
+            self._job_meta.nwmVersion = self.cfg_bmi["NWM_VERSION"]
 
         # Place NWM configuration (if provided by the user). This will be placed into the final
         # output files as a global attribute.
-        if self.cfg_bmi.get('NWM_CONFIG') is not None:
-            self._job_meta.nwmConfig = self.cfg_bmi['NWM_CONFIG']
+        if self.cfg_bmi.get("NWM_CONFIG") is not None:
+            self._job_meta.nwmConfig = self.cfg_bmi["NWM_CONFIG"]
 
         # Initialize MPI communication
         self._mpi_meta = parallel.MpiConfig()
@@ -223,28 +238,34 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
 
-        #LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
-        #Call ESMF mesh creation process
+        # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
+        # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
             esmf_creation.create_mesh(self._job_meta)
         self._mpi_meta.comm.Barrier()
 
-        #Call forcing_extraction process
-        if self._job_meta.nwmConfig not in ['AORC', 'NWM']:
+        # Call forcing_extraction process
+        if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
             forcing_extraction.retrieve_forcing(self._job_meta)
 
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
         # grid boundaries, and ESMF grid objects/fields to be used
         # in regridding.
-        self._WrfHydroGeoMeta = geoMod.GeoMetaWrfHydro()
+        self._wrf_hydro_geo_meta = geoMod.GeoMetaWrfHydro()
 
-        if self._job_meta.grid_type == 'gridded':
-            self._WrfHydroGeoMeta.initialize_destination_geo_gridded(self._job_meta, self._mpi_meta)
-        elif self._job_meta.grid_type == 'unstructured':
-            self._WrfHydroGeoMeta.initialize_destination_geo_unstructured(self._job_meta, self._mpi_meta)
-        elif self._job_meta.grid_type == 'hydrofabric':
-            self._WrfHydroGeoMeta.initialize_destination_geo_hydrofabric(self._job_meta, self._mpi_meta)
+        if self._job_meta.grid_type == "gridded":
+            self._wrf_hydro_geo_meta.initialize_destination_geo_gridded(
+                self._job_meta, self._mpi_meta
+            )
+        elif self._job_meta.grid_type == "unstructured":
+            self._wrf_hydro_geo_meta.initialize_destination_geo_unstructured(
+                self._job_meta, self._mpi_meta
+            )
+        elif self._job_meta.grid_type == "hydrofabric":
+            self._wrf_hydro_geo_meta.initialize_destination_geo_hydrofabric(
+                self._job_meta, self._mpi_meta
+            )
         else:
             self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured, hydrofabric) in the config."
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
@@ -261,8 +282,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # Flag here to indicate whether or not the NWM operational configuration
             # will support a BMI field for liquid fraction of precipitation
             if self._job_meta.include_lqfrac == 1:
-                self._output_var_names = ['U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT', 'Q2D_ELEMENT',
-                                          'PSFC_ELEMENT', 'RAINRATE_ELEMENT', 'LQFRAC_ELEMENT']
+                self._output_var_names = [
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                    "LQFRAC_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -270,34 +300,65 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
-                                            'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
+                self._var_name_units_map = {
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                    "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
+                }
 
-                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2-dimensional grid
-                self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
-                self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
-                self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
-                self.grid_1._size = len(self._WrfHydroGeoMeta.latitude_grid.flatten())
-                self.grid_1._spacing = (self._WrfHydroGeoMeta.dx_meters, self._WrfHydroGeoMeta.dy_meters)
-                self.grid_1._units = 'm'
+                self.grid_1: Grid = Grid(
+                    1, 2, GridType.uniform_rectilinear
+                )  # Grid 1 is a 2-dimensional grid
+                self.grid_1._grid_y = self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                self.grid_1._grid_x = self._wrf_hydro_geo_meta.longitude_grid.flatten()
+                self.grid_1._shape = self._wrf_hydro_geo_meta.latitude_grid.shape
+                self.grid_1._size = len(
+                    self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                )
+                self.grid_1._spacing = (
+                    self._wrf_hydro_geo_meta.dx_meters,
+                    self._wrf_hydro_geo_meta.dy_meters,
+                )
+                self.grid_1._units = "m"
                 self.grid_1._origin = None
 
                 self._grids = [self.grid_1]
 
-                self._grid_map = {'U2D_ELEMENT': self.grid_1, 'V2D_ELEMENT': self.grid_1, 'LWDOWN_ELEMENT': self.grid_1,
-                                  'SWDOWN_ELEMENT': self.grid_1, 'T2D_ELEMENT': self.grid_1, 'Q2D_ELEMENT': self.grid_1, 'PSFC_ELEMENT': self.grid_1,
-                                  'RAINRATE_ELEMENT': self.grid_1, 'LQFRAC_ELEMENT': self.grid_1}
+                self._grid_map = {
+                    "U2D_ELEMENT": self.grid_1,
+                    "V2D_ELEMENT": self.grid_1,
+                    "LWDOWN_ELEMENT": self.grid_1,
+                    "SWDOWN_ELEMENT": self.grid_1,
+                    "T2D_ELEMENT": self.grid_1,
+                    "Q2D_ELEMENT": self.grid_1,
+                    "PSFC_ELEMENT": self.grid_1,
+                    "RAINRATE_ELEMENT": self.grid_1,
+                    "LQFRAC_ELEMENT": self.grid_1,
+                }
 
             else:
-                self._output_var_names = ['U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT', 'Q2D_ELEMENT',
-                                          'PSFC_ELEMENT', 'RAINRATE_ELEMENT']
+                self._output_var_names = [
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -305,29 +366,51 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
+                self._var_name_units_map = {
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                }
 
-                self.grid_1: Grid = Grid(1, 2, GridType.uniform_rectilinear)  # Grid 1 is a 2-dimensional grid
-                self.grid_1._grid_y = self._WrfHydroGeoMeta.latitude_grid.flatten()
-                self.grid_1._grid_x = self._WrfHydroGeoMeta.longitude_grid.flatten()
-                self.grid_1._shape = self._WrfHydroGeoMeta.latitude_grid.shape
-                self.grid_1._size = len(self._WrfHydroGeoMeta.latitude_grid.flatten())
-                self.grid_1._spacing = (self._WrfHydroGeoMeta.dx_meters, self._WrfHydroGeoMeta.dy_meters)
-                self.grid_1._units = 'm'
+                self.grid_1: Grid = Grid(
+                    1, 2, GridType.uniform_rectilinear
+                )  # Grid 1 is a 2-dimensional grid
+                self.grid_1._grid_y = self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                self.grid_1._grid_x = self._wrf_hydro_geo_meta.longitude_grid.flatten()
+                self.grid_1._shape = self._wrf_hydro_geo_meta.latitude_grid.shape
+                self.grid_1._size = len(
+                    self._wrf_hydro_geo_meta.latitude_grid.flatten()
+                )
+                self.grid_1._spacing = (
+                    self._wrf_hydro_geo_meta.dx_meters,
+                    self._wrf_hydro_geo_meta.dy_meters,
+                )
+                self.grid_1._units = "m"
                 self.grid_1._origin = None
 
                 self._grids = [self.grid_1]
 
-                self._grid_map = {'U2D_ELEMENT': self.grid_1, 'V2D_ELEMENT': self.grid_1, 'LWDOWN_ELEMENT': self.grid_1,
-                                  'SWDOWN_ELEMENT': self.grid_1, 'T2D_ELEMENT': self.grid_1, 'Q2D_ELEMENT': self.grid_1, 'PSFC_ELEMENT': self.grid_1,
-                                  'RAINRATE_ELEMENT': self.grid_1}
+                self._grid_map = {
+                    "U2D_ELEMENT": self.grid_1,
+                    "V2D_ELEMENT": self.grid_1,
+                    "LWDOWN_ELEMENT": self.grid_1,
+                    "SWDOWN_ELEMENT": self.grid_1,
+                    "T2D_ELEMENT": self.grid_1,
+                    "Q2D_ELEMENT": self.grid_1,
+                    "PSFC_ELEMENT": self.grid_1,
+                    "RAINRATE_ELEMENT": self.grid_1,
+                }
 
         elif self._grid_type == "unstructured":
             # Flag here to indicate whether or not the NWM operational configuration
@@ -336,9 +419,26 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # ---------------------------------------------
                 # Output variable names (CSDMS standard names)
                 # ---------------------------------------------
-                self._output_var_names = ['U2D_NODE', 'V2D_NODE', 'LWDOWN_NODE', 'SWDOWN_NODE', 'T2D_NODE', 'Q2D_NODE', 'PSFC_NODE', 'RAINRATE_NODE',
-                                          'LQFRAC_NODE', 'U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT',
-                                          'Q2D_ELEMENT', 'PSFC_ELEMENT', 'RAINRATE_ELEMENT', 'LQFRAC_ELEMENT']
+                self._output_var_names = [
+                    "U2D_NODE",
+                    "V2D_NODE",
+                    "LWDOWN_NODE",
+                    "SWDOWN_NODE",
+                    "T2D_NODE",
+                    "Q2D_NODE",
+                    "PSFC_NODE",
+                    "RAINRATE_NODE",
+                    "LQFRAC_NODE",
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                    "LQFRAC_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -346,51 +446,99 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'U2D_NODE': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_NODE': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_NODE': ['2-m Air Temperature', 'K'],
-                                            'Q2D_NODE': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_NODE': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_NODE': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_NODE': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_NODE': ['Surface Precipitation Rate', 'mm/s'],
-                                            'LQFRAC_NODE': ['Liquid Fraction of Precipitation', '%'],
-                                            'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
-                                            'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
+                self._var_name_units_map = {
+                    "U2D_NODE": ["10-m U-component of wind", "m/s"],
+                    "V2D_NODE": ["10-m V-component of wind", "m/s"],
+                    "T2D_NODE": ["2-m Air Temperature", "K"],
+                    "Q2D_NODE": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_NODE": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_NODE": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_NODE": ["Surface Pressure", "Pa"],
+                    "RAINRATE_NODE": ["Surface Precipitation Rate", "mm/s"],
+                    "LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"],
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                    "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
+                }
 
-                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
-                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_2: Grid = Grid(
+                    2, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
+                self.grid_3: Grid = Grid(
+                    3, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
-                self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
+                self.grid_2._grid_y = self._wrf_hydro_geo_meta.latitude_grid_elem
+                self.grid_2._grid_x = self._wrf_hydro_geo_meta.longitude_grid_elem
 
-                self.grid_3._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_3._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_3._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_3._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_2._size = len(self._WrfHydroGeoMeta.latitude_grid_elem)
-                self.grid_3._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_2._size = len(self._wrf_hydro_geo_meta.latitude_grid_elem)
+                self.grid_3._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_2, self.grid_3]
 
-                self._grid_map = {'U2D_ELEMENT': self.grid_2, 'V2D_ELEMENT': self.grid_2, 'LWDOWN_ELEMENT': self.grid_2,
-                                  'SWDOWN_ELEMENT': self.grid_2, 'T2D_ELEMENT': self.grid_2, 'Q2D_ELEMENT': self.grid_2, 'PSFC_ELEMENT': self.grid_2,
-                                  'RAINRATE_ELEMENT': self.grid_2, 'LQFRAC_ELEMENT': self.grid_2, 'U2D_NODE': self.grid_3, 'V2D_NODE': self.grid_3,
-                                  'LWDOWN_NODE': self.grid_3, 'SWDOWN_NODE': self.grid_3, 'T2D_NODE': self.grid_3, 'Q2D_NODE': self.grid_3,
-                                  'PSFC_NODE': self.grid_3, 'RAINRATE_NODE': self.grid_3, 'LQFRAC_NODE': self.grid_3}
+                self._grid_map = {
+                    "U2D_ELEMENT": self.grid_2,
+                    "V2D_ELEMENT": self.grid_2,
+                    "LWDOWN_ELEMENT": self.grid_2,
+                    "SWDOWN_ELEMENT": self.grid_2,
+                    "T2D_ELEMENT": self.grid_2,
+                    "Q2D_ELEMENT": self.grid_2,
+                    "PSFC_ELEMENT": self.grid_2,
+                    "RAINRATE_ELEMENT": self.grid_2,
+                    "LQFRAC_ELEMENT": self.grid_2,
+                    "U2D_NODE": self.grid_3,
+                    "V2D_NODE": self.grid_3,
+                    "LWDOWN_NODE": self.grid_3,
+                    "SWDOWN_NODE": self.grid_3,
+                    "T2D_NODE": self.grid_3,
+                    "Q2D_NODE": self.grid_3,
+                    "PSFC_NODE": self.grid_3,
+                    "RAINRATE_NODE": self.grid_3,
+                    "LQFRAC_NODE": self.grid_3,
+                }
             else:
                 # ---------------------------------------------
                 # Output variable names (CSDMS standard names)
                 # ---------------------------------------------
-                self._output_var_names = ['U2D_NODE', 'V2D_NODE', 'LWDOWN_NODE', 'SWDOWN_NODE', 'T2D_NODE', 'Q2D_NODE', 'PSFC_NODE', 'RAINRATE_NODE',
-                                          'U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT', 'Q2D_ELEMENT',
-                                          'PSFC_ELEMENT', 'RAINRATE_ELEMENT']
+                self._output_var_names = [
+                    "U2D_NODE",
+                    "V2D_NODE",
+                    "LWDOWN_NODE",
+                    "SWDOWN_NODE",
+                    "T2D_NODE",
+                    "Q2D_NODE",
+                    "PSFC_NODE",
+                    "RAINRATE_NODE",
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -398,42 +546,73 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'U2D_NODE': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_NODE': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_NODE': ['2-m Air Temperature', 'K'],
-                                            'Q2D_NODE': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_NODE': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_NODE': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_NODE': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_NODE': ['Surface Precipitation Rate', 'mm/s'],
-                                            'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
+                self._var_name_units_map = {
+                    "U2D_NODE": ["10-m U-component of wind", "m/s"],
+                    "V2D_NODE": ["10-m V-component of wind", "m/s"],
+                    "T2D_NODE": ["2-m Air Temperature", "K"],
+                    "Q2D_NODE": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_NODE": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_NODE": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_NODE": ["Surface Pressure", "Pa"],
+                    "RAINRATE_NODE": ["Surface Precipitation Rate", "mm/s"],
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                }
 
-                self.grid_2: Grid = Grid(2, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
-                self.grid_3: Grid = Grid(3, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_2: Grid = Grid(
+                    2, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
+                self.grid_3: Grid = Grid(
+                    3, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_2._grid_y = self._WrfHydroGeoMeta.latitude_grid_elem
-                self.grid_2._grid_x = self._WrfHydroGeoMeta.longitude_grid_elem
+                self.grid_2._grid_y = self._wrf_hydro_geo_meta.latitude_grid_elem
+                self.grid_2._grid_x = self._wrf_hydro_geo_meta.longitude_grid_elem
 
-                self.grid_3._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_3._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_3._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_3._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_2._size = len(self._WrfHydroGeoMeta.latitude_grid_elem)
-                self.grid_3._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_2._size = len(self._wrf_hydro_geo_meta.latitude_grid_elem)
+                self.grid_3._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_2, self.grid_3]
 
-                self._grid_map = {'U2D_ELEMENT': self.grid_2, 'V2D_ELEMENT': self.grid_2, 'LWDOWN_ELEMENT': self.grid_2,
-                                  'SWDOWN_ELEMENT': self.grid_2, 'T2D_ELEMENT': self.grid_2, 'Q2D_ELEMENT': self.grid_2, 'PSFC_ELEMENT': self.grid_2,
-                                  'RAINRATE_ELEMENT': self.grid_2, 'U2D_NODE': self.grid_3, 'V2D_NODE': self.grid_3, 'LWDOWN_NODE': self.grid_3,
-                                  'SWDOWN_NODE': self.grid_3, 'T2D_NODE': self.grid_3, 'Q2D_NODE': self.grid_3, 'PSFC_NODE': self.grid_3,
-                                  'RAINRATE_NODE': self.grid_3}
+                self._grid_map = {
+                    "U2D_ELEMENT": self.grid_2,
+                    "V2D_ELEMENT": self.grid_2,
+                    "LWDOWN_ELEMENT": self.grid_2,
+                    "SWDOWN_ELEMENT": self.grid_2,
+                    "T2D_ELEMENT": self.grid_2,
+                    "Q2D_ELEMENT": self.grid_2,
+                    "PSFC_ELEMENT": self.grid_2,
+                    "RAINRATE_ELEMENT": self.grid_2,
+                    "U2D_NODE": self.grid_3,
+                    "V2D_NODE": self.grid_3,
+                    "LWDOWN_NODE": self.grid_3,
+                    "SWDOWN_NODE": self.grid_3,
+                    "T2D_NODE": self.grid_3,
+                    "Q2D_NODE": self.grid_3,
+                    "PSFC_NODE": self.grid_3,
+                    "RAINRATE_NODE": self.grid_3,
+                }
 
         elif self._grid_type == "hydrofabric":
             # Flag here to indicate whether or not the NWM operational configuration
@@ -442,8 +621,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # ---------------------------------------------
                 # Output variable names (CSDMS standard names)
                 # ---------------------------------------------
-                self._output_var_names = ['CAT-ID', 'U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT', 'Q2D_ELEMENT',
-                                          'PSFC_ELEMENT', 'RAINRATE_ELEMENT', 'LQFRAC_ELEMENT']
+                self._output_var_names = [
+                    "CAT-ID",
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                    "LQFRAC_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -451,35 +640,63 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'CAT-ID': ['Catchment ID', ''],
-                                            'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s'],
-                                            'LQFRAC_ELEMENT': ['Liquid Fraction of Precipitation', '%']}
+                self._var_name_units_map = {
+                    "CAT-ID": ["Catchment ID", ""],
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                    "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
+                }
 
-                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_4: Grid = Grid(
+                    4, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_4._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_4._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_4._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_4._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_4]
 
-                self._grid_map = {'CAT-ID': self.grid_4, 'U2D_ELEMENT': self.grid_4, 'V2D_ELEMENT': self.grid_4, 'LWDOWN_ELEMENT': self.grid_4,
-                                  'SWDOWN_ELEMENT': self.grid_4, 'T2D_ELEMENT': self.grid_4, 'Q2D_ELEMENT': self.grid_4, 'PSFC_ELEMENT': self.grid_4,
-                                  'RAINRATE_ELEMENT': self.grid_4, 'LQFRAC_ELEMENT': self.grid_4}
+                self._grid_map = {
+                    "CAT-ID": self.grid_4,
+                    "U2D_ELEMENT": self.grid_4,
+                    "V2D_ELEMENT": self.grid_4,
+                    "LWDOWN_ELEMENT": self.grid_4,
+                    "SWDOWN_ELEMENT": self.grid_4,
+                    "T2D_ELEMENT": self.grid_4,
+                    "Q2D_ELEMENT": self.grid_4,
+                    "PSFC_ELEMENT": self.grid_4,
+                    "RAINRATE_ELEMENT": self.grid_4,
+                    "LQFRAC_ELEMENT": self.grid_4,
+                }
             else:
                 # ---------------------------------------------
                 # Output variable names (CSDMS standard names)
                 # ---------------------------------------------
-                self._output_var_names = ['CAT-ID', 'U2D_ELEMENT', 'V2D_ELEMENT', 'LWDOWN_ELEMENT', 'SWDOWN_ELEMENT', 'T2D_ELEMENT', 'Q2D_ELEMENT',
-                                          'PSFC_ELEMENT', 'RAINRATE_ELEMENT']
+                self._output_var_names = [
+                    "CAT-ID",
+                    "U2D_ELEMENT",
+                    "V2D_ELEMENT",
+                    "LWDOWN_ELEMENT",
+                    "SWDOWN_ELEMENT",
+                    "T2D_ELEMENT",
+                    "Q2D_ELEMENT",
+                    "PSFC_ELEMENT",
+                    "RAINRATE_ELEMENT",
+                ]
 
                 # ------------------------------------------------------
                 # Create a Python dictionary that maps CSDMS Standard
@@ -487,52 +704,86 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # This is going to get long,
                 #     since the input variable names could come from any forcing...
                 # ------------------------------------------------------
-                self._var_name_units_map = {'CAT-ID': ['Catchment ID', ''],
-                                            'U2D_ELEMENT': ['10-m U-component of wind', 'm/s'],
-                                            'V2D_ELEMENT': ['10-m V-component of wind', 'm/s'],
-                                            'T2D_ELEMENT': ['2-m Air Temperature', 'K'],
-                                            'Q2D_ELEMENT': ['2-m Specific Humidity', 'kg/kg'],
-                                            'LWDOWN_ELEMENT': ['Surface downward long-wave radiation flux', 'W/m^2'],
-                                            'SWDOWN_ELEMENT': ['Surface downward short-wave radiation flux', 'W/m^2'],
-                                            'PSFC_ELEMENT': ['Surface Pressure', 'Pa'],
-                                            'RAINRATE_ELEMENT': ['Surface Precipitation Rate', 'mm/s']}
+                self._var_name_units_map = {
+                    "CAT-ID": ["Catchment ID", ""],
+                    "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
+                    "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
+                    "T2D_ELEMENT": ["2-m Air Temperature", "K"],
+                    "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
+                    "LWDOWN_ELEMENT": [
+                        "Surface downward long-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "SWDOWN_ELEMENT": [
+                        "Surface downward short-wave radiation flux",
+                        "W/m^2",
+                    ],
+                    "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
+                    "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
+                }
 
-                self.grid_4: Grid = Grid(4, 2, GridType.unstructured)  # Grid 1 is a 2-dimensional grid
+                self.grid_4: Grid = Grid(
+                    4, 2, GridType.unstructured
+                )  # Grid 1 is a 2-dimensional grid
 
-                self.grid_4._grid_y = self._WrfHydroGeoMeta.latitude_grid
-                self.grid_4._grid_x = self._WrfHydroGeoMeta.longitude_grid
+                self.grid_4._grid_y = self._wrf_hydro_geo_meta.latitude_grid
+                self.grid_4._grid_x = self._wrf_hydro_geo_meta.longitude_grid
 
-                self.grid_4._size = len(self._WrfHydroGeoMeta.latitude_grid)
+                self.grid_4._size = len(self._wrf_hydro_geo_meta.latitude_grid)
 
                 self._grids = [self.grid_4]
 
-                self._grid_map = {'CAT-ID': self.grid_4, 'U2D_ELEMENT': self.grid_4, 'V2D_ELEMENT': self.grid_4, 'LWDOWN_ELEMENT': self.grid_4,
-                                  'SWDOWN_ELEMENT': self.grid_4, 'T2D_ELEMENT': self.grid_4, 'Q2D_ELEMENT': self.grid_4, 'PSFC_ELEMENT': self.grid_4,
-                                  'RAINRATE_ELEMENT': self.grid_4}
+                self._grid_map = {
+                    "CAT-ID": self.grid_4,
+                    "U2D_ELEMENT": self.grid_4,
+                    "V2D_ELEMENT": self.grid_4,
+                    "LWDOWN_ELEMENT": self.grid_4,
+                    "SWDOWN_ELEMENT": self.grid_4,
+                    "T2D_ELEMENT": self.grid_4,
+                    "Q2D_ELEMENT": self.grid_4,
+                    "PSFC_ELEMENT": self.grid_4,
+                    "RAINRATE_ELEMENT": self.grid_4,
+                }
 
         # ----- Create some lookup tabels from the long variable names --------#
-        self._var_name_map_long_first = {long_name: self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
-        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]: long_name for long_name in self._var_name_units_map.keys()}
-        self._var_units_map = {long_name: self._var_name_units_map[long_name][1] for long_name in self._var_name_units_map.keys()}
+        self._var_name_map_long_first = {
+            long_name: self._var_name_units_map[long_name][0]
+            for long_name in self._var_name_units_map.keys()
+        }
+        self._var_name_map_short_first = {
+            self._var_name_units_map[long_name][0]: long_name
+            for long_name in self._var_name_units_map.keys()
+        }
+        self._var_units_map = {
+            long_name: self._var_name_units_map[long_name][1]
+            for long_name in self._var_name_units_map.keys()
+        }
 
         if self._job_meta.spatial_meta is not None:
             try:
-                self._WrfHydroGeoMeta.initialize_geospatial_metadata(self._job_meta, self._mpi_meta)
+                self._wrf_hydro_geo_meta.initialize_geospatial_metadata(
+                    self._job_meta, self._mpi_meta
+                )
             except Exception as e:
                 err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
-        if self._WrfHydroGeoMeta.nx_local < 2 or self._WrfHydroGeoMeta.ny_local < 2:
-            self._job_meta.errMsg = "You have specified too many cores for your WRF-Hydro grid. " \
-                                    "Local grid Must have x/y dimension size of 2."
+        if (
+            self._wrf_hydro_geo_meta.nx_local < 2
+            or self._wrf_hydro_geo_meta.ny_local < 2
+        ):
+            self._job_meta.errMsg = (
+                "You have specified too many cores for your WRF-Hydro grid. "
+                "Local grid Must have x/y dimension size of 2."
+            )
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # Initialize our output object, which includes local slabs from the output grid.
         try:
-            self._OutputObj = ioMod.OutputObj(self._job_meta, self._WrfHydroGeoMeta)
+            self._output_obj = ioMod.OutputObj(self._job_meta, self._wrf_hydro_geo_meta)
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -543,7 +794,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # In addition, input ESMF grid objects will be created to hold data for
         # downscaling and regridding purposes.
         try:
-            self._inputForcingMod = forcingInputMod.initDict(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
+            self._input_forcing_mod = forcingInputMod.init_dict(
+                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
+            )
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -551,39 +804,51 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # If we have specified supplemental precipitation products, initialize
         # the supp class.
         if self._job_meta.number_supp_pcp > 0:
-            self._suppPcpMod = suppPrecipMod.initDict(self._job_meta, self._WrfHydroGeoMeta)
+            self._supp_pcp_mod = suppPrecipMod.initDict(
+                self._job_meta, self._wrf_hydro_geo_meta
+            )
         else:
-            self._suppPcpMod = None
+            self._supp_pcp_mod = None
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # ------------- Initialize the parameters, inputs and outputs ----------#
         for parm in self._model_parameters_list:
             self._values[self._var_name_map_short_first[parm]] = self.cfg_bmi[parm]
 
-        if self._job_meta.grid_type == 'gridded':
+        if self._job_meta.grid_type == "gridded":
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 2D arrays from the gridded domain
-            self._varsize = len(np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten())
+            self._varsize = len(
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            )
 
             for model_output in self.get_output_var_names():
                 self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
-        elif self._job_meta.grid_type == 'unstructured':
+        elif self._job_meta.grid_type == "unstructured":
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 1D arrays from the unstructured domain
-            self._varsize = len(np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten())
-            self._varsize_elem = len(np.zeros(self._WrfHydroGeoMeta.latitude_grid_elem.shape).flatten())
+            self._varsize = len(
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            )
+            self._varsize_elem = len(
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid_elem.shape).flatten()
+            )
 
             for model_output in self.get_output_var_names():
                 if "ELEMENT" in model_output:
-                    self._values[model_output] = np.zeros(self._varsize_elem, dtype=float)
+                    self._values[model_output] = np.zeros(
+                        self._varsize_elem, dtype=float
+                    )
                 else:
                     self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
-        elif self._job_meta.grid_type == 'hydrofabric':
+        elif self._job_meta.grid_type == "hydrofabric":
             # -----------------------------------------------------------------------#
             # Get the size of the flattened 1D arrays from the hydrofabric domain
-            self._varsize = len(np.zeros(self._WrfHydroGeoMeta.latitude_grid.shape).flatten())
+            self._varsize = len(
+                np.zeros(self._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            )
             for model_output in self.get_output_var_names():
                 self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
@@ -591,26 +856,32 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
 
         # Set initial time and step
-        self._values['current_model_time'] = self.cfg_bmi['initial_time']
-        self._values['time_step_size'] = self.cfg_bmi['time_step_seconds']
+        self._values["current_model_time"] = self.cfg_bmi["initial_time"]
+        self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
 
         # Initialize the Forcings Engine model
-        self._model = NWMv3_Forcing_Engine_model()
+        self._model = NWMv3ForcingEngineModel()
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values['CAT-ID'] = self._WrfHydroGeoMeta.element_ids_global
-
+            self._values["CAT-ID"] = self._wrf_hydro_geo_meta.element_ids_global
 
         self._configure_output_path(output_path)
 
-    def initialize_with_params(self, config_file: str, b_date: str = None, geogrid: str = None, output_path: str = None) -> None:
-        """
+    def initialize_with_params(
+        self,
+        config_file: str,
+        b_date: str = None,
+        geogrid: str = None,
+        output_path: str = None,
+    ) -> None:
+        """Initialize the NWMv3 Forcings Engine model with additional job metadata parameters.
+
         This function **must be called by the user** to fully initialize the NWMv3 Forcings Engine model,
         including both core model setup and additional job metadata configuration (such as b_date, geogrid, and output path).
 
         It performs the following:
-        - Sets up job metadata (b_date, geogrid) by calling `ConfigOptions`.
+        - Sets up job metadata (b_date, geogrid) by calling `config_options`.
         - Calls the `initialize()` function to handle core model setup (reading the config file,
           initializing basic model attributes like MPI, grids, etc.).
         - Handles additional configuration options, such as determining the output path
@@ -625,56 +896,59 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param output_path: The output path for model results. If omitted, a default path will be generated.
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
-        # Set the job metadata parameters (b_date, geogrid) using ConfigOptions
-        self._job_meta = config.ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
+        # Set the job metadata parameters (b_date, geogrid) using config_options
+        self._job_meta = config.ConfigOptions(
+            self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid
+        )
 
         # Now that _job_meta is set, call initialize() to set up the core model
         self.initialize(config_file, output_path=output_path)
 
-
     def _configure_output_path(self, output_path: str | None = None) -> None:
-        """
-        Sets the output path and initializes the output NetCDF file if forcing output is enabled.
+        """Set the output path and initializes the output NetCDF file if forcing output is enabled.
+
         This is safe to call once after model initialization.
 
         :param output_path: Optional override path.
         """
-        
         gpkg_key = self._job_meta.geopackage
-        time_key = str(time.time()).replace('.','')
+        time_key = str(time.time()).replace(".", "")
         gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
         time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
-       
-        if self._output_configured or self._OutputObj is None:
+
+        if self._output_configured or self._output_obj is None:
             return  # Already configured or no output object to configure
 
         if self._job_meta.forcing_output == 1:
             ext = {
-                'gridded': 'GRIDDED',
-                'hydrofabric': 'HYDROFABRIC',
-                'unstructured': 'MESH',
+                "gridded": "GRIDDED",
+                "hydrofabric": "HYDROFABRIC",
+                "unstructured": "MESH",
             }.get(self._job_meta.grid_type)
 
             if ext is None:
                 raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
 
             if output_path:
-                self._OutputObj.outPath = output_path
+                self._output_obj.outPath = output_path
             else:
                 filename = (
-                        f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_" +
-                        pd.Timestamp(self._job_meta.b_date_proc).strftime('%Y%m%d%H%M') +
-                        ".nc"
+                    f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_"
+                    + pd.Timestamp(self._job_meta.b_date_proc).strftime("%Y%m%d%H%M")
+                    + ".nc"
                 )
-                self._OutputObj.outPath = os.path.join(self._job_meta.scratch_dir, filename)
+                self._output_obj.outPath = os.path.join(
+                    self._job_meta.scratch_dir, filename
+                )
 
-            self._OutputObj.init_forcing_file(self._job_meta, self._WrfHydroGeoMeta, self._mpi_meta)
+            self._output_obj.init_forcing_file(
+                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
+            )
             self._output_configured = True
 
     # ------------------------------------------------------------
     def update(self):
-        """
-        Update the model by advancing one time step.
+        """Update the model by advancing one time step.
 
         This method increments the current model time by the time step size
         and then updates the model state by calling the `update_until` method
@@ -683,12 +957,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: None
         """
         # Run the model to the next timestep
-        self.update_until(self._values['current_model_time'] + self._values["time_step_size"])
+        self.update_until(
+            self._values["current_model_time"] + self._values["time_step_size"]
+        )
 
     # ------------------------------------------------------------
     def update_until(self, future_time: float):
-        """
-        Update the model to a specified future time.
+        """Update the model to a specified future time.
 
         This method updates the model by running time steps until the
         `future_time` is reached. If the `future_time` is different from the
@@ -697,28 +972,47 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         :param future_time: The target time to update the model to.
         :return: None
-        """
 
+        """
         # Method for running the model on the initial time if the model has not been run,
         # and the future time is the same as the initial time.
 
-        if self._values["current_model_time"] == future_time == self.cfg_bmi["initial_time"]:
-            self._model.run(self._values, future_time, self._job_meta, self._WrfHydroGeoMeta,
-                            self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
+        if (
+            self._values["current_model_time"]
+            == future_time
+            == self.cfg_bmi["initial_time"]
+        ):
+            self._model.run(
+                self._values,
+                future_time,
+                self._job_meta,
+                self._wrf_hydro_geo_meta,
+                self._input_forcing_mod,
+                self._supp_pcp_mod,
+                self._mpi_meta,
+                self._output_obj,
+            )
         else:
             # Start a while loop to iterate the model time step by step until the
             # current model time reaches or exceeds the future_time.
-            while self._values['current_model_time'] < future_time:
+            while self._values["current_model_time"] < future_time:
                 # Advance the model time by the defined time step size.
-                self._values['current_model_time'] += self._values['time_step_size']
+                self._values["current_model_time"] += self._values["time_step_size"]
                 # Run the model for the new current time and update the state.
-                self._model.run(self._values, self._values['current_model_time'], self._job_meta, self._WrfHydroGeoMeta,
-                                self._inputForcingMod, self._suppPcpMod, self._mpi_meta, self._OutputObj)
+                self._model.run(
+                    self._values,
+                    self._values["current_model_time"],
+                    self._job_meta,
+                    self._wrf_hydro_geo_meta,
+                    self._input_forcing_mod,
+                    self._supp_pcp_mod,
+                    self._mpi_meta,
+                    self._output_obj,
+                )
 
     # ------------------------------------------------------------
     def finalize(self):
-        """
-        Finalize the model, performing necessary cleanup tasks.
+        """Finalize the model, performing necessary cleanup tasks.
 
         This method cleans up any temporary files created during the model run,
         including files in the scratch directory. It also forces the destruction
@@ -726,12 +1020,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         after the model has finished running.
 
         :return: None
-        """
 
+        """
         # Force destruction of ESMF objects
-        self._WrfHydroGeoMeta = None
-        self._inputForcingMod = None
-        self._suppPcpMod = None
+        self._wrf_hydro_geo_meta = None
+        self._input_forcing_mod = None
+        self._supp_pcp_mod = None
         self._model = None
 
         # Try moving this after all of the ESMF and model bits have
@@ -749,7 +1043,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
                 if not filename.startswith(".nfs"):
                     file_path = os.path.join(self._job_meta.scratch_dir, filename)
-                    if os.path.isfile(file_path) and filename[0:23] != "NextGen_Forcings_Engine":
+                    if (
+                        os.path.isfile(file_path)
+                        and filename[0:23] != "NextGen_Forcings_Engine"
+                    ):
                         os.remove(file_path)
                     elif os.path.isdir(file_path):
                         os.rmdir(file_path)
@@ -761,8 +1058,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # -------------------------------------------------------------------
 
     def get_attribute(self, att_name):
-        """
-        Retrieve an attribute from the model's attribute map.
+        """Retrieve an attribute from the model's attribute map.
 
         This method searches the `_att_map` dictionary for the specified attribute name
         and returns its value. If the attribute is not found, an error message is printed.
@@ -773,15 +1069,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         try:
             return self._att_map[att_name.lower()]
         except Exception as e:
-            LOG.error(f'Could not find attribute: {att_name} - {e}')
+            LOG.error(f"Could not find attribute: {att_name} - {e}")
 
     # --------------------------------------------------------
     # Note: These are currently variables needed from other
     #       components vs. those read from files or GUI.
     # --------------------------------------------------------
     def get_input_var_names(self):
-        """
-        Get the list of input variable names.
+        """Get the list of input variable names.
 
         This method returns the list of input variable names defined in the model.
 
@@ -790,8 +1085,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         return self._input_var_names
 
     def get_output_var_names(self):
-        """
-        Get the list of output variable names.
+        """Get the list of output variable names.
 
         This method returns the list of output variable names defined in the model.
 
@@ -801,19 +1095,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_component_name(self):
-        """
-        Get the name of the component.
+        """Get the name of the component.
 
         This method retrieves the model name using the `get_attribute` method.
 
         :return: The name of the model component.
         """
-        return self.get_attribute('model_name')
+        return self.get_attribute("model_name")
 
     # ------------------------------------------------------------
     def get_input_item_count(self):
-        """
-        Get the count of input variables.
+        """Get the count of input variables.
 
         This method returns the total number of input variables defined in the model.
 
@@ -823,8 +1115,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_output_item_count(self):
-        """
-        Get the count of output variables.
+        """Get the count of output variables.
 
         This method returns the total number of output variables defined in the model.
 
@@ -834,8 +1125,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_value(self, var_name: str, dest: NDArray[Any]) -> NDArray[Any]:
-        """
-        Copy the values of a variable into the provided destination array.
+        """Copy the values of a variable into the provided destination array.
 
         This method copies the values of a specified variable (by its CSDMS Standard Name)
         into the provided destination array (`dest`).
@@ -843,40 +1133,52 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param var_name: The name of the variable whose values are to be retrieved.
         :param dest: The numpy array to store the values of the variable.
         :return: The destination array containing the variable values.
-        """
 
-        #LOG.debug(f"[BMI get_value] Called with var_name: '{var_name}'")
-        #LOG.debug(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
+        """
+        # LOG.debug(f"[BMI get_value] Called with var_name: '{var_name}'")
+        # LOG.debug(f"[BMI get_value] Destination array shape: {dest.shape}, dtype: {dest.dtype}")
 
         if var_name == "grid:count":
-            LOG.debug(f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}")
-            if self._job_meta.grid_type != 'unstructured':
+            LOG.debug(
+                f"[BMI get_value] Special case: 'grid:count', grid_type: {self._job_meta.grid_type}"
+            )
+            if self._job_meta.grid_type != "unstructured":
                 dest[...] = 1
             else:
                 dest[...] = 2
         elif var_name == "grid:ids":
-            LOG.debug(f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}")
-            if self._job_meta.grid_type == 'gridded':
+            LOG.debug(
+                f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}"
+            )
+            if self._job_meta.grid_type == "gridded":
                 dest[:] = [self.grid_1.id]
-            elif self._job_meta.grid_type == 'unstructured':
+            elif self._job_meta.grid_type == "unstructured":
                 dest[:] = [self.grid_2.id, self.grid_3.id]
-            elif self._job_meta.grid_type == 'hydrofabric':
+            elif self._job_meta.grid_type == "hydrofabric":
                 dest[:] = [self.grid_4.id]
         elif var_name == "grid:ranks":
-            LOG.debug(f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}")
-            if self._job_meta.grid_type == 'gridded':
+            LOG.debug(
+                f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}"
+            )
+            if self._job_meta.grid_type == "gridded":
                 dest[:] = [self.grid_1.rank]
-            elif self._job_meta.grid_type == 'unstructured':
+            elif self._job_meta.grid_type == "unstructured":
                 dest[:] = [self.grid_2.rank, self.grid_3.rank]
-            elif self._job_meta.grid_type == 'hydrofabric':
+            elif self._job_meta.grid_type == "hydrofabric":
                 dest[:] = [self.grid_4.rank]
         else:
             src = self.get_value_ptr(var_name)
-            LOG.debug(f"[BMI get_value] Source array shape: {src.shape}, dtype: {src.dtype}")
+            LOG.debug(
+                f"[BMI get_value] Source array shape: {src.shape}, dtype: {src.dtype}"
+            )
             if dest.shape != src.shape:
-                LOG.warning(f"BMI Shape mismatch! dest.shape = {dest.shape}, src.shape = {src.shape}")
+                LOG.warning(
+                    f"BMI Shape mismatch! dest.shape = {dest.shape}, src.shape = {src.shape}"
+                )
             if dest.dtype != src.dtype:
-                LOG.warning(f"BMI Dtype mismatch! dest.dtype = {dest.dtype}, src.dtype = {src.dtype}")
+                LOG.warning(
+                    f"BMI Dtype mismatch! dest.dtype = {dest.dtype}, src.dtype = {src.dtype}"
+                )
             dest[:] = src
 
         LOG.debug(f"[BMI get_value] Completed assignment for var_name: '{var_name}'")
@@ -885,18 +1187,19 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_value_ptr(self, var_name: str) -> NDArray[Any]:
-        """
-        Get a reference to the values of a variable.
+        """Get a reference to the values of a variable.
 
         This method returns a reference to the values of the specified variable,
         allowing direct access to the array without copying.
 
         :param var_name: The name of the variable whose values are to be retrieved.
         :return: A flattened array containing the values of the variable.
-        """
 
+        """
         # Make sure to return a flattened array
-        if var_name == "grid_1_shape":  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
+        if (
+            var_name == "grid_1_shape"
+        ):  # FIXME cannot expose shape as ptr, because it has to side affect variable construction...
             return self.grid_1.shape
         if var_name == "grid_1_spacing":
             return self.grid_1.spacing
@@ -946,8 +1249,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # LOG.debug(f"[BMI get_value_ptr] Found variable '{var_name}' with shape {arr.shape} and dtype {arr.dtype}")
 
         # Ensure array is C-contiguous
-        if not arr.flags['C_CONTIGUOUS']:
-            LOG.warning(f"[BMI] Array for '{var_name}' is not C-contiguous; making a copy.")
+        if not arr.flags["C_CONTIGUOUS"]:
+            LOG.warning(
+                f"[BMI] Array for '{var_name}' is not C-contiguous; making a copy."
+            )
             arr = np.ascontiguousarray(arr)
 
         # Ensure dtype is float64 (C double), except for CAT-ID
@@ -957,7 +1262,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 LOG.critical(msg)
                 raise RuntimeError(msg)
         elif arr.dtype != np.float64:
-            LOG.warning(f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting.")
+            LOG.warning(
+                f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
+            )
             arr = arr.astype(np.float64)
 
         # Confirm raveling is safe
@@ -968,10 +1275,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             # reset original shape
             arr.shape = shape
         except ValueError as e:
-            LOG.critical("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
-            raise RuntimeError("Cannot flatten array without copying -- " + str(e).split(": ")[-1])
+            LOG.critical(
+                "Cannot flatten array without copying -- " + str(e).split(": ")[-1]
+            )
+            raise RuntimeError(
+                "Cannot flatten array without copying -- " + str(e).split(": ")[-1]
+            )
 
-        #LOG.debug(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
+        # LOG.debug(f"[BMI get_value_ptr] Returning ravelled array for variable '{var_name}'")
         return arr.ravel()
 
     # -------------------------------------------------------------------
@@ -980,8 +1291,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
     def get_var_name(self, long_var_name):
-        """
-        Get the short name of the variable corresponding to the long variable name.
+        """Get the short name of the variable corresponding to the long variable name.
 
         :param long_var_name: The long variable name as defined in the model.
         :return: The corresponding short name of the variable.
@@ -990,8 +1300,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_var_units(self, long_var_name):
-        """
-        Get the units of the variable corresponding to the long variable name.
+        """Get the units of the variable corresponding to the long variable name.
 
         :param long_var_name: The long variable name as defined in the model.
         :return: The units of the variable.
@@ -1000,8 +1309,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_var_type(self, var_name: str) -> str:
-        """
-        Get the data type of a variable.
+        """Get the data type of a variable.
 
         :param var_name: The name of the variable as defined in the model.
 
@@ -1011,8 +1319,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_var_grid(self, name):
-        """
-        Get the grid associated with a variable.
+        """Get the grid associated with a variable.
 
         :param name: The name of the variable.
 
@@ -1034,8 +1341,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_var_itemsize(self, name):
-        """
-        Get the item size (in bytes) of a variable.
+        """Get the item size (in bytes) of a variable.
 
         This function retrieves the memory size (in bytes) for each element of the variable
         specified by the `name` parameter.
@@ -1047,8 +1353,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_var_location(self, name):
-        """
-        Get the location of a variable in the grid.
+        """Get the location of a variable in the grid.
 
         This function determines the location of a variable (whether it's at a "face"
         or "node" in the grid) based on its name. It assumes that variables with
@@ -1068,8 +1373,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_var_rank(self, long_var_name):
-        """
-        Get the rank of a variable.
+        """Get the rank of a variable.
 
         This function retrieves the rank (number of dimensions) of a variable
         specified by its long name. Currently, it returns a constant value of
@@ -1082,8 +1386,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # -------------------------------------------------------------------
     def get_start_time(self) -> float:
-        """
-        Get the model's start time.
+        """Get the model's start time.
 
         This function returns the start time of the model, which is used for
         time stepping in the simulation.
@@ -1095,59 +1398,54 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # -------------------------------------------------------------------
 
     def get_end_time(self) -> float:
-        """
-        Get the model's end time.
+        """Get the model's end time.
 
         This function returns the end time of the model, which is used to
         determine the duration of the simulation.
 
         :return: The end time of the model.
-        """
 
+        """
         return self._end_time
 
         # -------------------------------------------------------------------
 
     def get_current_time(self) -> float:
-        """
-        Get the current time of the model.
+        """Get the current time of the model.
 
         This function returns the current model time, which is updated after
         each time step in the simulation.
 
         :return: The current time of the model.
         """
-        return self._values['current_model_time']
+        return self._values["current_model_time"]
 
     # -------------------------------------------------------------------
     def get_time_step(self) -> float:
-        """
-        Get the model's time step size.
+        """Get the model's time step size.
 
         This function returns the time step size used for advancing the model
         from one time to the next.
 
         :return: The time step size of the model.
         """
-        return self._values['time_step_size']
+        return self._values["time_step_size"]
 
     # -------------------------------------------------------------------
     def get_time_units(self) -> str:
-        """
-        Get the units of time for the model.
+        """Get the units of time for the model.
 
         This function retrieves the units of time used in the model, typically
         provided during model initialization.
 
         :return: The units of time for the model (e.g., "seconds").
         """
-        return self.get_attribute('time_units')
+        return self.get_attribute("time_units")
 
         # -------------------------------------------------------------------
 
     def set_value(self, var_name: str, values: NDArray[Any]):
-        """
-        Set model values for the provided BMI variable.
+        """Set model values for the provided BMI variable.
 
         This function sets the values for a model variable. If the variable
         is special (e.g., 'bmi_mpi_comm'), it handles those cases specifically.
@@ -1156,15 +1454,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param var_name: Name of the variable for which to set values.
         :param values: The new values to assign to the variable.
         """
-        if var_name == 'bmi_mpi_comm':
+        if var_name == "bmi_mpi_comm":
             self._comm = values[0]
         else:
             self._values[var_name][:] = values
 
     # ------------------------------------------------------------
-    def set_value_at_indices(self, var_name: str, indices: NDArray[np.int_], src: NDArray[Any]):
-        """
-        Set model values for the provided BMI variable at particular indices.
+    def set_value_at_indices(
+        self, var_name: str, indices: NDArray[np.int_], src: NDArray[Any]
+    ):
+        """Set model values for the provided BMI variable at particular indices.
 
         This function allows setting the values of a variable at specific indices
         rather than for the entire variable.
@@ -1180,8 +1479,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_var_nbytes(self, var_name) -> int:
-        """
-        Get the number of bytes required for a variable.
+        """Get the number of bytes required for a variable.
 
         This function retrieves the number of bytes used by a variable in memory.
         It is useful for understanding the memory requirements of the model.
@@ -1192,9 +1490,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         return self.get_value_ptr(var_name).nbytes
 
     # ------------------------------------------------------------
-    def get_value_at_indices(self, var_name: str, dest: NDArray[Any], indices: NDArray[np.int_]) -> NDArray[Any]:
-        """
-        Get values at particular indices.
+    def get_value_at_indices(
+        self, var_name: str, dest: NDArray[Any], indices: NDArray[np.int_]
+    ) -> NDArray[Any]:
+        """Get values at particular indices.
 
         This function retrieves the values of a variable at specific indices and
         stores them in the provided destination array.
@@ -1211,12 +1510,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         return dest
 
     # JG Note: remaining grid funcs do not apply for type 'scalar'
-    #   Yet all functions in the BMI must be implemented 
-    #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
+    #   Yet all functions in the BMI must be implemented
+    #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html
     # ------------------------------------------------------------
     def get_grid_edge_count(self, grid_id: int) -> int:
-        """
-        Retrieves the number of edges for the specified grid.
+        """Retrieve the number of edges for the specified grid.
 
         This function accesses the grid and counts the number of unique edges
         based on the element connection data. It is not implemented for grid_id = 1.
@@ -1225,12 +1523,17 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: The number of edges in the grid.
         :raises NotImplementedError: If grid_id is 1, the function raises an error.
         :raises ValueError: If an unexpected error occurs.
+
         """
         for _ in self._grids:
             if grid_id != 1:
                 mesh = nc.Dataset(self._job_meta.geogrid)
-                elem_conn = mesh.variables[self._job_meta.elemconn_var][:]  # Element connectivity
-                numelem_conn = mesh.variables[self._job_meta.numelemconn_var][:]  # Number of element connections
+                elem_conn = mesh.variables[self._job_meta.elemconn_var][
+                    :
+                ]  # Element connectivity
+                numelem_conn = mesh.variables[self._job_meta.numelemconn_var][
+                    :
+                ]  # Number of element connections
                 mesh.close()
 
                 mesh_edge_first_node = []
@@ -1244,7 +1547,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         mesh_edge_second_node.append(elem_conn[i, loop + 1])
                         loop += 1
                         if loop + 1 == numelem_conn[i]:
-                            mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
+                            mesh_edge_first_node.append(
+                                elem_conn[i, numelem_conn[i] - 1]
+                            )
                             mesh_edge_second_node.append(elem_conn[i, 0])
 
                 # Create edge node pairs
@@ -1267,15 +1572,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return edge_count
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_edge_count is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_edge_count is not implemented for grid_id 1"
+                )
 
         # If no valid grid is found, raise an exception or handle accordingly.
         raise ValueError("No valid grid found to calculate edge count.")
 
     # ------------------------------------------------------------
-    def get_grid_edge_nodes(self, grid_id: int, edge_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
-        """
-        Retrieves the edge nodes for the specified grid.
+    def get_grid_edge_nodes(
+        self, grid_id: int, edge_nodes: NDArray[np.int_]
+    ) -> NDArray[np.int_]:
+        """Retrieve the edge nodes for the specified grid.
 
         This function retrieves the edge nodes for a grid by accessing the grid's
         element connectivity data and deduplicating the edges. It returns the edge
@@ -1303,7 +1611,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         mesh_edge_second_node.append(elem_conn[i, loop + 1])
                         loop += 1
                         if loop + 1 == numelem_conn[i]:
-                            mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
+                            mesh_edge_first_node.append(
+                                elem_conn[i, numelem_conn[i] - 1]
+                            )
                             mesh_edge_second_node.append(elem_conn[i, 0])
 
                 # Create a 2D numpy array for edge nodes with shape (N, 2)
@@ -1327,14 +1637,15 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return edge_nodes
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_edge_nodes is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_edge_nodes is not implemented for grid_id 1"
+                )
 
         raise Exception("Unexpected error in retrieving edge nodes")
 
     # ------------------------------------------------------------
     def get_grid_face_count(self, grid_id: int) -> int:
-        """
-        Retrieves the number of faces for the specified grid.
+        """Retrieve the number of faces for the specified grid.
 
         This function accesses the grid and counts the number of faces based on the face coordinates
         in the grid's data. The grid must not be of type 1, as this function is not implemented for that case.
@@ -1352,15 +1663,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return face_count
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_face_count is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_face_count is not implemented for grid_id 1"
+                )
 
         # If the loop doesn't return, raise an exception indicating grid ID not found.
         raise ValueError("Grid ID not found in _grids.")
 
     # ------------------------------------------------------------
-    def get_grid_face_edges(self, grid_id: int, face_edges: NDArray[np.int_]) -> NDArray[np.int_]:
-        """
-        Retrieves the face edges for a specific grid, given its ID.
+    def get_grid_face_edges(
+        self, grid_id: int, face_edges: NDArray[np.int_]
+    ) -> NDArray[np.int_]:
+        """Retrieve the face edges for a specific grid, given its ID.
 
         This function checks the grid type and retrieves the face edges by reading the
         connectivity data from the geogrid. If grid_id is 1, this function raises a
@@ -1389,7 +1703,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         mesh_edge_second_node.append(elem_conn[i, loop + 1])
                         loop += 1
                         if loop + 1 == numelem_conn[i]:
-                            mesh_edge_first_node.append(elem_conn[i, numelem_conn[i] - 1])
+                            mesh_edge_first_node.append(
+                                elem_conn[i, numelem_conn[i] - 1]
+                            )
                             mesh_edge_second_node.append(elem_conn[i, 0])
 
                 edge_nodes = np.empty((len(mesh_edge_first_node), 2), dtype=int)
@@ -1413,15 +1729,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return face_edges
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_face_edges is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_face_edges is not implemented for grid_id 1"
+                )
 
         # If the loop doesn't return, raise an exception indicating an unexpected error
         raise Exception("Unexpected error in retrieving face edges.")
 
     # ------------------------------------------------------------
-    def get_grid_face_nodes(self, grid_id: int, face_nodes: NDArray[np.int_]) -> NDArray[np.int_]:
-        """
-        Retrieves the nodes connected to faces for a specific grid, given its ID.
+    def get_grid_face_nodes(
+        self, grid_id: int, face_nodes: NDArray[np.int_]
+    ) -> NDArray[np.int_]:
+        """Retrieve the nodes connected to faces for a specific grid, given its ID.
 
         This function accesses the grid's connectivity data and retrieves the nodes connected
         to the faces of the grid. If grid_id is 1, this function raises a NotImplementedError.
@@ -1449,15 +1768,16 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         index += 1
                 return face_nodes
             else:
-                raise NotImplementedError("get_grid_face_nodes is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_face_nodes is not implemented for grid_id 1"
+                )
 
         # If the loop doesn't return, raise an exception indicating an unexpected error
         raise Exception("Unexpected error in retrieving face nodes.")
 
     # ------------------------------------------------------------
     def get_grid_node_count(self, grid_id: int) -> int:
-        """
-        Retrieves the number of nodes for the specified grid.
+        """Retrieve the number of nodes for the specified grid.
 
         This function accesses the grid and counts the number of nodes based on the node coordinates
         in the grid's data. The grid must not be of type 1, as this function is not implemented for that case.
@@ -1476,15 +1796,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return node_count
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_node_count is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_node_count is not implemented for grid_id 1"
+                )
 
         # If the loop doesn't return within the for loop, raise an exception
         raise ValueError("Grid ID not found in _grids.")
 
     # ------------------------------------------------------------
-    def get_grid_nodes_per_face(self, grid_id: int, nodes_per_face: NDArray[np.int_]) -> NDArray[np.int_]:
-        """
-        Retrieves the number of nodes connected to each face in the specified grid, given its ID.
+    def get_grid_nodes_per_face(
+        self, grid_id: int, nodes_per_face: NDArray[np.int_]
+    ) -> NDArray[np.int_]:
+        """Retrieve the number of nodes connected to each face in the specified grid, given its ID.
 
         This function accesses the grid's connectivity data and retrieves the number of nodes connected to
         each face. If grid_id is 1, this function raises a NotImplementedError.
@@ -1506,15 +1829,18 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 return nodes_per_face
             else:
                 # Raise NotImplementedError if grid_id is 1.
-                raise NotImplementedError("get_grid_nodes_per_face is not implemented for grid_id 1")
+                raise NotImplementedError(
+                    "get_grid_nodes_per_face is not implemented for grid_id 1"
+                )
 
         # If the loop doesn't return, raise an exception indicating an unexpected error
         raise Exception("Unexpected error in retrieving nodes per face.")
 
     # ------------------------------------------------------------
-    def get_grid_origin(self, grid_id: int, origin: NDArray[np.float64]) -> NDArray[np.float64]:
-        """
-        Retrieves the origin coordinates for the specified grid.
+    def get_grid_origin(
+        self, grid_id: int, origin: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
+        """Retrieve the origin coordinates for the specified grid.
 
         This function accesses the grid and returns its origin coordinates, such as the minimum x, y, and z values.
 
@@ -1531,8 +1857,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_rank(self, grid_id: int) -> int:
-        """
-        Retrieves the rank of the specified grid.
+        """Retrieve the rank of the specified grid.
 
         This function accesses the grid and returns its rank, which typically represents the number of dimensions.
 
@@ -1547,8 +1872,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_shape(self, grid_id: int, shape: NDArray[np.int_]) -> NDArray[np.int_]:
-        """
-        Retrieves the shape (dimensions) of the specified grid.
+        """Retrieve the shape (dimensions) of the specified grid.
 
         This function accesses the grid and returns its shape (size in each dimension) as a numpy array.
 
@@ -1565,8 +1889,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_size(self, grid_id: int) -> int:
-        """
-        Retrieves the size (total number of elements) of the specified grid.
+        """Retrieve the size (total number of elements) of the specified grid.
 
         This function accesses the grid and returns its total number of elements.
 
@@ -1580,9 +1903,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         raise ValueError(f"get_grid_size: grid_id {grid_id} unknown")
 
     # ------------------------------------------------------------
-    def get_grid_spacing(self, grid_id: int, spacing: NDArray[np.float64]) -> NDArray[np.float64]:
-        """
-        Retrieves the spacing (distance between grid points) for the specified grid.
+    def get_grid_spacing(
+        self, grid_id: int, spacing: NDArray[np.float64]
+    ) -> NDArray[np.float64]:
+        """Retrieve the spacing (distance between grid points) for the specified grid.
 
         This function accesses the grid and returns its spacing values, typically representing the distance between adjacent grid points.
 
@@ -1600,8 +1924,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # ------------------------------------------------------------
 
     def get_grid_type(self, grid_id: int) -> str:
-        """
-        Retrieves the type of the specified grid.
+        """Retrieve the type of the specified grid.
 
         This function accesses the grid and returns its type, which could be 'gridded', 'unstructured', etc.
 
@@ -1616,8 +1939,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_x(self, grid_id: int, x: NDArray[np.float64]) -> NDArray[np.float64]:
-        """
-        Retrieves the x-coordinates (longitude or grid points) for the specified grid.
+        """Retrieve the x-coordinates (longitude or grid points) for the specified grid.
 
         This function accesses the grid and returns its x-coordinates in a numpy array.
 
@@ -1628,7 +1950,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         for grid in self._grids:
             if grid_id == grid.id:
-                if self._grid_type == 'gridded':
+                if self._grid_type == "gridded":
                     x[:] = np.unique(grid.grid_x)
                 else:
                     x[:] = grid.grid_x
@@ -1637,8 +1959,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_y(self, grid_id: int, y: NDArray[np.float64]) -> NDArray[np.float64]:
-        """
-        Retrieves the y-coordinates (latitude or grid points) for the specified grid.
+        """Retrieve the y-coordinates (latitude or grid points) for the specified grid.
 
         This function accesses the grid and returns its y-coordinates in a numpy array.
 
@@ -1649,7 +1970,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         for grid in self._grids:
             if grid_id == grid.id:
-                if self._grid_type == 'gridded':
+                if self._grid_type == "gridded":
                     y[:] = np.unique(grid.grid_y)
                 else:
                     y[:] = grid.grid_y
@@ -1658,8 +1979,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
     # ------------------------------------------------------------
     def get_grid_z(self, grid_id: int, z: NDArray[np.float64]) -> NDArray[np.float64]:
-        """
-        Retrieves the z-coordinates (depth or grid points) for the specified grid.
+        """Retrieve the z-coordinates (depth or grid points) for the specified grid.
 
         This function accesses the grid and returns its z-coordinates in a numpy array.
 
@@ -1670,7 +1990,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         """
         for grid in self._grids:
             if grid_id == grid.id:
-                if self._grid_type == 'gridded':
+                if self._grid_type == "gridded":
                     z[:] = np.unique(grid.grid_z)
                 else:
                     z[:] = grid.grid_z
@@ -1683,9 +2003,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
     # ------------------------------------------------------------
 
-    def _parse_config(self, cfg):
-        """
-        Parses the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
+    def _parse_config(self, cfg: dict) -> dict:
+        """Parse the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
 
         This function processes specific keys in the configuration dictionary:
         - Converts path-like strings to `PosixPath` objects.
@@ -1697,10 +2016,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
         :return: The updated configuration dictionary with appropriately parsed values.
         """
-        #LOG.debug(f"Entering _parse_config with cfg type: {type(cfg)}")
+        # LOG.debug(f"Entering _parse_config with cfg type: {type(cfg)}")
         if isinstance(cfg, str):
-            LOG.error(f"Received string data (raw CSV) instead of dictionary: {cfg[:200]}...")
-            raise TypeError("Expected dictionary in _parse_config, but got a raw CSV string.")
+            LOG.error(
+                f"Received string data (raw CSV) instead of dictionary: {cfg[:200]}..."
+            )
+            raise TypeError(
+                "Expected dictionary in _parse_config, but got a raw CSV string."
+            )
 
         # if not isinstance(cfg, dict):
         #     raise TypeError(f"[ERROR] Expected dictionary in _parse_config, got {type(cfg)} with contents: {cfg}")
@@ -1708,7 +2031,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         for key, val in cfg.items():
             # LOG.debug(f"Processing key: {key}, value type: {type(val)}, value: {val}")
             # Convert all path strings to PosixPath objects
-            if any([key.endswith(x) for x in ['_dir', '_path', '_file', '_files']]):
+            if any([key.endswith(x) for x in ["_dir", "_path", "_file", "_files"]]):
                 if (val is not None) and (val != "None"):
                     if isinstance(val, list):
                         temp_list = []
@@ -1721,26 +2044,53 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     cfg[key] = None
 
             # Convert Dates to pandas Datetime indices
-            elif key.endswith('_date'):
+            elif key.endswith("_date"):
                 if isinstance(val, list):
                     temp_list = []
                     for elem in val:
-                        temp_list.append(pd.to_datetime(elem, format='%d/%m/%Y'))
+                        temp_list.append(pd.to_datetime(elem, format="%d/%m/%Y"))
                     cfg[key] = temp_list
                 else:
-                    cfg[key] = pd.to_datetime(val, format='%d/%m/%Y')
+                    cfg[key] = pd.to_datetime(val, format="%d/%m/%Y")
 
             # Configure NWMv3.0 input configurations to what the ConfigClass expects
             # Flag for variables that need a list of integers
-            elif (key in ['InputForcings', 'InputMandatory', 'ForecastInputHorizons', 'ForecastInputOffsets', 'IgnoredBorderWidths', 'RegridOpt',
-                          'TemperatureDownscaling', 'ShortwaveDownscaling', 'PressureDownscaling', 'PrecipDownscaling', 'HumidityDownscaling',
-                          'TemperatureBiasCorrection', 'PressureBiasCorrection', 'HumidityBiasCorrection', 'WindBiasCorrection', 'SwBiasCorrection',
-                          'LwBiasCorrection', 'PrecipBiasCorrection', 'SuppPcp', 'RegridOptSuppPcp', 'SuppPcpTemporalInterpolation',
-                          'SuppPcpMandatory', 'SuppPcpInputOffsets', 'custom_input_fcst_freq']):
+            elif key in [
+                "InputForcings",
+                "InputMandatory",
+                "ForecastInputHorizons",
+                "ForecastInputOffsets",
+                "IgnoredBorderWidths",
+                "RegridOpt",
+                "TemperatureDownscaling",
+                "ShortwaveDownscaling",
+                "PressureDownscaling",
+                "PrecipDownscaling",
+                "HumidityDownscaling",
+                "TemperatureBiasCorrection",
+                "PressureBiasCorrection",
+                "HumidityBiasCorrection",
+                "WindBiasCorrection",
+                "SwBiasCorrection",
+                "LwBiasCorrection",
+                "PrecipBiasCorrection",
+                "SuppPcp",
+                "RegridOptSuppPcp",
+                "SuppPcpTemporalInterpolation",
+                "SuppPcpMandatory",
+                "SuppPcpInputOffsets",
+                "custom_input_fcst_freq",
+            ]:
                 cfg[key] = val
 
             # Flag for variables that need to be a list of strings
-            elif key in ['InputForcingDirectories', 'InputForcingTypes', 'DownscalingParamDirs', 'SuppPcpForcingTypes', 'SuppPcpDirectories']:
+            elif key in [
+                "InputForcingDirectories",
+                "InputForcingTypes",
+                "DownscalingParamDirs",
+                "SuppPcpForcingTypes",
+                "SuppPcpDirectories",
+            ]:
                 cfg[key] = val
             else:
                 pass

@@ -1,28 +1,30 @@
 import math
 
 import numpy as np
-from netCDF4 import Dataset
-from scipy import spatial
 
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
 import shapely
+from netCDF4 import Dataset
+from scipy import spatial
+
 try:
     import esmpy as ESMF
 except ImportError:
     import ESMF
 
 import logging
+
 from nextgen_forcings_ewts import MODULE_NAME
+
 LOG = logging.getLogger(MODULE_NAME)
 
+
 class GeoMetaWrfHydro:
-    """
-    Abstract class for handling information about the WRF-Hydro domain
-    we are processing forcings too.
-    """
+    """Abstract class for handling information about the WRF-Hydro domain we are processing forcings too."""
 
     def __init__(self):
+        """Initialize GeoMetaWrfHydro class variables."""
         self.nx_global = None
         self.ny_global = None
         self.nx_global_elem = None
@@ -69,27 +71,27 @@ class GeoMetaWrfHydro:
         self.spatial_global_atts = None
 
     def get_processor_bounds(self, ConfigOptions):
-        """
-        Calculate the local grid boundaries for this processor.
+        """Calculate the local grid boundaries for this processor.
+
         ESMF operates under the hood and the boundary values
         are calculated within the ESMF software.
         :return:
         """
-        if ConfigOptions.grid_type == 'gridded':
+        if ConfigOptions.grid_type == "gridded":
             self.x_lower_bound = self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][1]
             self.x_upper_bound = self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][1]
             self.y_lower_bound = self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][0]
             self.y_upper_bound = self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][0]
             self.nx_local = self.x_upper_bound - self.x_lower_bound
             self.ny_local = self.y_upper_bound - self.y_lower_bound
-        elif ConfigOptions.grid_type == 'unstructured':
+        elif ConfigOptions.grid_type == "unstructured":
             self.nx_local = len(self.esmf_grid.coords[0][1])
             self.ny_local = len(self.esmf_grid.coords[0][1])
             self.nx_local_elem = len(self.esmf_grid.coords[1][1])
             self.ny_local_elem = len(self.esmf_grid.coords[1][1])
             # LOG.debug("ESMF Mesh nx local node is " + str(self.nx_local))
             # LOG.debug("ESMF Mesh nx local elem is " + str(self.nx_local_elem))
-        elif ConfigOptions.grid_type == 'hydrofabric':
+        elif ConfigOptions.grid_type == "hydrofabric":
             self.nx_local = len(self.esmf_grid.coords[1][1])
             self.ny_local = len(self.esmf_grid.coords[1][1])
             # self.nx_local_poly = len(self.esmf_poly_coords)
@@ -102,7 +104,8 @@ class GeoMetaWrfHydro:
         # LOG.debug("WRF-HYDRO LOCAL Y BOUND 2 = " + str(self.y_upper_bound))
 
     def initialize_destination_geo_gridded(self, ConfigOptions, MpiConfig):
-        """
+        """Initialize GeoMetaWrfHydro class variables.
+
         Initialization function to initialize ESMF through ESMPy,
         calculate the global parameters of the WRF-Hydro grid
         being processed to, along with the local parameters
@@ -113,85 +116,124 @@ class GeoMetaWrfHydro:
         # to create ESMF fields.
         if MpiConfig.rank == 0:
             try:
-                idTmp = Dataset(ConfigOptions.geogrid, 'r')
+                idTmp = Dataset(ConfigOptions.geogrid, "r")
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to open the WRF-Hydro geogrid file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to open the WRF-Hydro geogrid file: "
+                    + ConfigOptions.geogrid
+                )
                 raise Exception
             if idTmp.variables[ConfigOptions.lat_var].ndim == 3:
                 try:
                     self.nx_global = idTmp.variables[ConfigOptions.lat_var].shape[2]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract X dimension size from latitude variable in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract X dimension size from latitude variable in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.ny_global = idTmp.variables[ConfigOptions.lat_var].shape[1]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract Y dimension size from latitude in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract Y dimension size from latitude in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.dx_meters = idTmp.DX
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract DX global attribute in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract DX global attribute in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.dy_meters = idTmp.DY
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract DY global attribute in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract DY global attribute in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
             elif idTmp.variables[ConfigOptions.lat_var].ndim == 2:
                 try:
                     self.nx_global = idTmp.variables[ConfigOptions.lat_var].shape[1]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract X dimension size from latitude variable in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract X dimension size from latitude variable in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.ny_global = idTmp.variables[ConfigOptions.lat_var].shape[0]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract Y dimension size from latitude in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract Y dimension size from latitude in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.dx_meters = idTmp.variables[ConfigOptions.lon_var].dx
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract DX global attribute in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract DX global attribute in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.dy_meters = idTmp.variables[ConfigOptions.lat_var].dy
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract DY global attribute in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract DY global attribute in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
             else:
                 try:
                     self.nx_global = idTmp.variables[ConfigOptions.lon_var].shape[0]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract X dimension size from longitude variable in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract X dimension size from longitude variable in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
                     self.ny_global = idTmp.variables[ConfigOptions.lat_var].shape[0]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract Y dimension size from latitude in: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract Y dimension size from latitude in: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
                 if ConfigOptions.input_forcings[0] != 23:
                     try:
                         self.dx_meters = idTmp.variables[ConfigOptions.lon_var].dx
                     except Exception as e:
-                        ConfigOptions.errMsg = "Unable to extract dx metadata attribute in: " + ConfigOptions.geogrid
+                        ConfigOptions.errMsg = (
+                            "Unable to extract dx metadata attribute in: "
+                            + ConfigOptions.geogrid
+                        )
                         raise Exception
 
                     try:
                         self.dy_meters = idTmp.variables[ConfigOptions.lat_var].dy
                     except Exception as e:
-                        ConfigOptions.errMsg = "Unable to extract dy metadata attribute in: " + ConfigOptions.geogrid
+                        ConfigOptions.errMsg = (
+                            "Unable to extract dy metadata attribute in: "
+                            + ConfigOptions.geogrid
+                        )
                         raise Exception
                 else:
-                    # Manually input the grid spacing since ERA5-Interim does not 
+                    # Manually input the grid spacing since ERA5-Interim does not
                     # internally have this geospatial information within the netcdf file
                     self.dx_meters = 31000
                     self.dy_meters = 31000
@@ -199,19 +241,32 @@ class GeoMetaWrfHydro:
         # MpiConfig.comm.barrier()
 
         # Broadcast global dimensions to the other processors.
-        self.nx_global = MpiConfig.broadcast_parameter(self.nx_global, ConfigOptions, param_type=int)
-        self.ny_global = MpiConfig.broadcast_parameter(self.ny_global, ConfigOptions, param_type=int)
-        self.dx_meters = MpiConfig.broadcast_parameter(self.dx_meters, ConfigOptions, param_type=float)
-        self.dy_meters = MpiConfig.broadcast_parameter(self.dy_meters, ConfigOptions, param_type=float)
+        self.nx_global = MpiConfig.broadcast_parameter(
+            self.nx_global, ConfigOptions, param_type=int
+        )
+        self.ny_global = MpiConfig.broadcast_parameter(
+            self.ny_global, ConfigOptions, param_type=int
+        )
+        self.dx_meters = MpiConfig.broadcast_parameter(
+            self.dx_meters, ConfigOptions, param_type=float
+        )
+        self.dy_meters = MpiConfig.broadcast_parameter(
+            self.dy_meters, ConfigOptions, param_type=float
+        )
 
         # MpiConfig.comm.barrier()
 
         try:
-            self.esmf_grid = ESMF.Grid(np.array([self.ny_global, self.nx_global]),
-                                       staggerloc=ESMF.StaggerLoc.CENTER,
-                                       coord_sys=ESMF.CoordSys.SPH_DEG)
+            self.esmf_grid = ESMF.Grid(
+                np.array([self.ny_global, self.nx_global]),
+                staggerloc=ESMF.StaggerLoc.CENTER,
+                coord_sys=ESMF.CoordSys.SPH_DEG,
+            )
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to create ESMF grid for WRF-Hydro geogrid: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to create ESMF grid for WRF-Hydro geogrid: "
+                + ConfigOptions.geogrid
+            )
             raise Exception
 
         # MpiConfig.comm.barrier()
@@ -256,7 +311,9 @@ class GeoMetaWrfHydro:
             varSubTmp = None
             varTmp = None
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to subset latitude from geogrid file into ESMF object"
+            ConfigOptions.errMsg = (
+                "Unable to subset latitude from geogrid file into ESMF object"
+            )
             raise Exception
 
         # MpiConfig.comm.barrier()
@@ -291,15 +348,20 @@ class GeoMetaWrfHydro:
             varSubTmp = None
             varTmp = None
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to subset longitude from geogrid file into ESMF object"
+            ConfigOptions.errMsg = (
+                "Unable to subset longitude from geogrid file into ESMF object"
+            )
             raise Exception
 
         # MpiConfig.comm.barrier()
 
-        if ConfigOptions.cosalpha_var is not None and ConfigOptions.sinalpha_var is not None:
+        if (
+            ConfigOptions.cosalpha_var is not None
+            and ConfigOptions.sinalpha_var is not None
+        ):
             # Scatter the COSALPHA,SINALPHA grids to the processors.
             if MpiConfig.rank == 0:
-                if (idTmp.variables[ConfigOptions.cosalpha_var].ndim == 3):
+                if idTmp.variables[ConfigOptions.cosalpha_var].ndim == 3:
                     varTmp = idTmp.variables[ConfigOptions.cosalpha_var][0, :, :]
                 else:
                     varTmp = idTmp.variables[ConfigOptions.cosalpha_var][:, :]
@@ -348,7 +410,10 @@ class GeoMetaWrfHydro:
             varSubTmp = None
             varTmp = None
 
-        if ConfigOptions.cosalpha_var is not None and ConfigOptions.sinalpha_var is not None:
+        if (
+            ConfigOptions.cosalpha_var is not None
+            and ConfigOptions.sinalpha_var is not None
+        ):
             # Calculate the slope from the domain using elevation on the WRF-Hydro domain. This will
             # be used for downscaling purposes.
             if MpiConfig.rank == 0:
@@ -369,8 +434,10 @@ class GeoMetaWrfHydro:
             self.slp_azi = slp_azi_sub[:, :]
             slp_azi_tmp = None
 
-        elif ConfigOptions.slope_var is not None and ConfigOptions.slope_azimuth_var is not None:
-
+        elif (
+            ConfigOptions.slope_var is not None
+            and ConfigOptions.slope_azimuth_var is not None
+        ):
             if MpiConfig.rank == 0:
                 if idTmp.variables[ConfigOptions.slope_var].ndim == 3:
                     varTmp = idTmp.variables[ConfigOptions.slope_var][0, :, :]
@@ -399,7 +466,9 @@ class GeoMetaWrfHydro:
             # Calculate the slope from the domain using elevation of the gridded model and other approximations
             if MpiConfig.rank == 0:
                 try:
-                    slopeTmp, slp_azi_tmp = self.calc_slope_gridded(idTmp, ConfigOptions)
+                    slopeTmp, slp_azi_tmp = self.calc_slope_gridded(
+                        idTmp, ConfigOptions
+                    )
                 except Exception:
                     raise Exception
             else:
@@ -420,7 +489,9 @@ class GeoMetaWrfHydro:
             try:
                 idTmp.close()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to close geogrid file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to close geogrid file: " + ConfigOptions.geogrid
+                )
                 raise Exception
 
         # Reset temporary variables to free up memory
@@ -429,7 +500,8 @@ class GeoMetaWrfHydro:
         varTmp = None
 
     def initialize_geospatial_metadata(self, ConfigOptions, MpiConfig):
-        """
+        """Initialize GeoMetaWrfHydro class variables.
+
         Function that will read in crs/x/y geospatial metadata and coordinates
         from the optional geospatial metadata file IF it was specified by the user in
         the configuration file.
@@ -441,93 +513,149 @@ class GeoMetaWrfHydro:
         if MpiConfig.rank == 0:
             # Open the geospatial metadata file.
             try:
-                idTmp = Dataset(ConfigOptions.spatial_meta, 'r')
+                idTmp = Dataset(ConfigOptions.spatial_meta, "r")
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to open spatial metadata file: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to open spatial metadata file: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
 
             # Make sure the expected variables are present in the file.
-            if 'crs' not in idTmp.variables.keys():
-                ConfigOptions.errMsg = "Unable to locate crs variable in: " + ConfigOptions.spatial_meta
+            if "crs" not in idTmp.variables.keys():
+                ConfigOptions.errMsg = (
+                    "Unable to locate crs variable in: " + ConfigOptions.spatial_meta
+                )
                 raise Exception
-            if 'x' not in idTmp.variables.keys():
-                ConfigOptions.errMsg = "Unable to locate x variable in: " + ConfigOptions.spatial_meta
+            if "x" not in idTmp.variables.keys():
+                ConfigOptions.errMsg = (
+                    "Unable to locate x variable in: " + ConfigOptions.spatial_meta
+                )
                 raise Exception
-            if 'y' not in idTmp.variables.keys():
-                ConfigOptions.errMsg = "Unable to locate y variable in: " + ConfigOptions.spatial_meta
+            if "y" not in idTmp.variables.keys():
+                ConfigOptions.errMsg = (
+                    "Unable to locate y variable in: " + ConfigOptions.spatial_meta
+                )
                 raise Exception
             # Extract names of variable attributes from each of the input geospatial variables. These
             # can change, so we are making this as flexible as possible to accomodate future changes.
             try:
-                crs_att_names = idTmp.variables['crs'].ncattrs()
+                crs_att_names = idTmp.variables["crs"].ncattrs()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract crs attribute names from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract crs attribute names from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             try:
-                x_coord_att_names = idTmp.variables['x'].ncattrs()
+                x_coord_att_names = idTmp.variables["x"].ncattrs()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract x attribute names from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract x attribute names from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             try:
-                y_coord_att_names = idTmp.variables['y'].ncattrs()
+                y_coord_att_names = idTmp.variables["y"].ncattrs()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract y attribute names from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract y attribute names from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             # Extract attribute values
             try:
-                self.x_coord_atts = {item: idTmp.variables['x'].getncattr(item) for item in x_coord_att_names}
+                self.x_coord_atts = {
+                    item: idTmp.variables["x"].getncattr(item)
+                    for item in x_coord_att_names
+                }
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract x coordinate attributes from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract x coordinate attributes from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             try:
-                self.y_coord_atts = {item: idTmp.variables['y'].getncattr(item) for item in y_coord_att_names}
+                self.y_coord_atts = {
+                    item: idTmp.variables["y"].getncattr(item)
+                    for item in y_coord_att_names
+                }
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract y coordinate attributes from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract y coordinate attributes from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             try:
-                self.crs_atts = {item: idTmp.variables['crs'].getncattr(item) for item in crs_att_names}
+                self.crs_atts = {
+                    item: idTmp.variables["crs"].getncattr(item)
+                    for item in crs_att_names
+                }
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract crs coordinate attributes from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract crs coordinate attributes from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
 
             # Extract global attributes
             try:
                 global_att_names = idTmp.ncattrs()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract global attribute names from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract global attribute names from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
             try:
-                self.spatial_global_atts = {item: idTmp.getncattr(item) for item in global_att_names}
+                self.spatial_global_atts = {
+                    item: idTmp.getncattr(item) for item in global_att_names
+                }
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract global attributes from: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to extract global attributes from: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
 
             # Extract x/y coordinate values
-            if len(idTmp.variables['x'].shape) == 1:
+            if len(idTmp.variables["x"].shape) == 1:
                 try:
-                    self.x_coords = idTmp.variables['x'][:].data
+                    self.x_coords = idTmp.variables["x"][:].data
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract x coordinate values from: " + ConfigOptions.spatial_meta
+                    ConfigOptions.errMsg = (
+                        "Unable to extract x coordinate values from: "
+                        + ConfigOptions.spatial_meta
+                    )
                     raise Exception
                 try:
-                    self.y_coords = idTmp.variables['y'][:].data
+                    self.y_coords = idTmp.variables["y"][:].data
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract y coordinate values from: " + ConfigOptions.spatial_meta
+                    ConfigOptions.errMsg = (
+                        "Unable to extract y coordinate values from: "
+                        + ConfigOptions.spatial_meta
+                    )
                     raise Exception
                 # Check to see if the Y coordinates are North-South. If so, flip them.
                 if self.y_coords[1] < self.y_coords[0]:
                     self.y_coords[:] = np.flip(self.y_coords[:], axis=0)
 
-            if len(idTmp.variables['x'].shape) == 2:
+            if len(idTmp.variables["x"].shape) == 2:
                 try:
-                    self.x_coords = idTmp.variables['x'][:, :].data
+                    self.x_coords = idTmp.variables["x"][:, :].data
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract x coordinate values from: " + ConfigOptions.spatial_meta
+                    ConfigOptions.errMsg = (
+                        "Unable to extract x coordinate values from: "
+                        + ConfigOptions.spatial_meta
+                    )
                     raise Exception
                 try:
-                    self.y_coords = idTmp.variables['y'][:, :].data
+                    self.y_coords = idTmp.variables["y"][:, :].data
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract y coordinate values from: " + ConfigOptions.spatial_meta
+                    ConfigOptions.errMsg = (
+                        "Unable to extract y coordinate values from: "
+                        + ConfigOptions.spatial_meta
+                    )
                     raise Exception
                 # Check to see if the Y coordinates are North-South. If so, flip them.
                 if self.y_coords[1, 0] > self.y_coords[0, 0]:
@@ -537,13 +665,17 @@ class GeoMetaWrfHydro:
             try:
                 idTmp.close()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to close spatial metadata file: " + ConfigOptions.spatial_meta
+                ConfigOptions.errMsg = (
+                    "Unable to close spatial metadata file: "
+                    + ConfigOptions.spatial_meta
+                )
                 raise Exception
 
         # MpiConfig.comm.barrier()
 
     def calc_slope(self, idTmp, ConfigOptions):
-        """
+        """Calculate slope grids needed for incoming shortwave radiation downscaling.
+
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program.
         :param idTmp:
@@ -554,30 +686,45 @@ class GeoMetaWrfHydro:
         try:
             sinaGrid = idTmp.variables[ConfigOptions.sinalpha_var][0, :, :]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract SINALPHA from: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract SINALPHA from: " + ConfigOptions.geogrid
+            )
             raise
 
         try:
             cosaGrid = idTmp.variables[ConfigOptions.cosalpha_var][0, :, :]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract COSALPHA from: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract COSALPHA from: " + ConfigOptions.geogrid
+            )
             raise
 
         try:
             heightDest = idTmp.variables[ConfigOptions.hgt_var][0, :, :]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract HGT_M from: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract HGT_M from: " + ConfigOptions.geogrid
+            )
             raise
 
         # Ensure cosa/sina are correct dimensions
         if sinaGrid.shape[0] != self.ny_global or sinaGrid.shape[1] != self.nx_global:
-            ConfigOptions.errMsg = "SINALPHA dimensions mismatch in: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "SINALPHA dimensions mismatch in: " + ConfigOptions.geogrid
+            )
             raise Exception
         if cosaGrid.shape[0] != self.ny_global or cosaGrid.shape[1] != self.nx_global:
-            ConfigOptions.errMsg = "COSALPHA dimensions mismatch in: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "COSALPHA dimensions mismatch in: " + ConfigOptions.geogrid
+            )
             raise Exception
-        if heightDest.shape[0] != self.ny_global or heightDest.shape[1] != self.nx_global:
-            ConfigOptions.errMsg = "HGT_M dimension mismatch in: " + ConfigOptions.geogrid
+        if (
+            heightDest.shape[0] != self.ny_global
+            or heightDest.shape[1] != self.nx_global
+        ):
+            ConfigOptions.errMsg = (
+                "HGT_M dimension mismatch in: " + ConfigOptions.geogrid
+            )
             raise Exception
 
         # Establish constants
@@ -613,19 +760,25 @@ class GeoMetaWrfHydro:
         ipDiff[indOrig] = xGrid[indIp1] - xGrid[indIm1]
         jpDiff[indOrig] = yGrid[indJp1] - yGrid[indJm1]
 
-        toposlpx[indOrig] = ((heightDest[indIp1] - heightDest[indIm1]) * msftx * rdx) / ipDiff[indOrig]
-        toposlpy[indOrig] = ((heightDest[indJp1] - heightDest[indJm1]) * msfty * rdy) / jpDiff[indOrig]
+        toposlpx[indOrig] = (
+            (heightDest[indIp1] - heightDest[indIm1]) * msftx * rdx
+        ) / ipDiff[indOrig]
+        toposlpy[indOrig] = (
+            (heightDest[indJp1] - heightDest[indJm1]) * msfty * rdy
+        ) / jpDiff[indOrig]
         hx[indOrig] = toposlpx[indOrig]
         hy[indOrig] = toposlpy[indOrig]
         slopeOut[indOrig] = np.arctan((hx[indOrig] ** 2 + hy[indOrig] ** 2) ** 0.5)
-        slopeOut[np.where(slopeOut < 1E-4)] = 0.0
-        slp_azi[np.where(slopeOut < 1E-4)] = 0.0
-        indValidTmp = np.where(slopeOut >= 1E-4)
+        slopeOut[np.where(slopeOut < 1e-4)] = 0.0
+        slp_azi[np.where(slopeOut < 1e-4)] = 0.0
+        indValidTmp = np.where(slopeOut >= 1e-4)
         slp_azi[indValidTmp] = np.arctan2(hx[indValidTmp], hy[indValidTmp]) + math.pi
         indValidTmp = np.where(cosaGrid >= 0.0)
         slp_azi[indValidTmp] = slp_azi[indValidTmp] - np.arcsin(sinaGrid[indValidTmp])
         indValidTmp = np.where(cosaGrid < 0.0)
-        slp_azi[indValidTmp] = slp_azi[indValidTmp] - (math.pi - np.arcsin(sinaGrid[indValidTmp]))
+        slp_azi[indValidTmp] = slp_azi[indValidTmp] - (
+            math.pi - np.arcsin(sinaGrid[indValidTmp])
+        )
 
         # Reset temporary arrays to None to free up memory
         toposlpx = None
@@ -650,33 +803,52 @@ class GeoMetaWrfHydro:
         return slopeOut, slp_azi
 
     def calc_slope_gridded(self, idTmp, ConfigOptions):
-        """
+        """Calculate slope grids needed for incoming shortwave radiation downscaling.
+
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program. This calculates the slopes for grid cells
         :param idTmp:
         :param ConfigOptions:
         :return:
         """
-        idTmp = Dataset(ConfigOptions.geogrid, 'r')
+        idTmp = Dataset(ConfigOptions.geogrid, "r")
 
         try:
             lons = idTmp.variables[ConfigOptions.lon_var][:]
             lats = idTmp.variables[ConfigOptions.lat_var][:]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract gridded coordinates in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract gridded coordinates in " + ConfigOptions.geogrid
+            )
             raise Exception
         try:
-            dx = np.empty((idTmp.variables[ConfigOptions.lat_var].shape[0], idTmp.variables[ConfigOptions.lon_var].shape[0]), dtype=float)
-            dy = np.empty((idTmp.variables[ConfigOptions.lat_var].shape[0], idTmp.variables[ConfigOptions.lon_var].shape[0]), dtype=float)
+            dx = np.empty(
+                (
+                    idTmp.variables[ConfigOptions.lat_var].shape[0],
+                    idTmp.variables[ConfigOptions.lon_var].shape[0],
+                ),
+                dtype=float,
+            )
+            dy = np.empty(
+                (
+                    idTmp.variables[ConfigOptions.lat_var].shape[0],
+                    idTmp.variables[ConfigOptions.lon_var].shape[0],
+                ),
+                dtype=float,
+            )
             dx[:] = idTmp.variables[ConfigOptions.lon_var].dx
             dy[:] = idTmp.variables[ConfigOptions.lat_var].dy
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract dx and dy distances in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract dx and dy distances in " + ConfigOptions.geogrid
+            )
             raise Exception
         try:
             heights = idTmp.variables[ConfigOptions.hgt_var][:]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract heights of grid cells in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract heights of grid cells in " + ConfigOptions.geogrid
+            )
             raise Exception
 
         idTmp.close()
@@ -686,10 +858,10 @@ class GeoMetaWrfHydro:
         # on a spherical grid
         dz_init = np.diff(heights, axis=0)
         dz = np.empty(dx.shape, dtype=float)
-        dz[0:dz_init.shape[0], 0:dz_init.shape[1]] = dz_init
-        dz[dz_init.shape[0]:, :] = dz_init[-1, :]
+        dz[0 : dz_init.shape[0], 0 : dz_init.shape[1]] = dz_init
+        dz[dz_init.shape[0] :, :] = dz_init[-1, :]
 
-        slope = dz / np.sqrt((dx ** 2) + (dy ** 2))
+        slope = dz / np.sqrt((dx**2) + (dy**2))
         slp_azi = (180 / np.pi) * np.arctan(dx / dy)
 
         # Reset temporary arrays to None to free up memory
@@ -703,7 +875,8 @@ class GeoMetaWrfHydro:
         return slope, slp_azi
 
     def initialize_destination_geo_unstructured(self, ConfigOptions, MpiConfig):
-        """
+        """Initialize GeoMetaWrfHydro class variables.
+
         Initialization function to initialize ESMF through ESMPy,
         calculate the global parameters of the WRF-Hydro grid
         being processed to, along with the local parameters
@@ -714,33 +887,48 @@ class GeoMetaWrfHydro:
         # to create ESMF fields.
         if MpiConfig.rank == 0:
             try:
-                idTmp = Dataset(ConfigOptions.geogrid, 'r')
+                idTmp = Dataset(ConfigOptions.geogrid, "r")
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to open the unstructured mesh file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to open the unstructured mesh file: "
+                    + ConfigOptions.geogrid
+                )
                 raise Exception
 
             try:
                 self.nx_global = idTmp.variables[ConfigOptions.nodecoords_var].shape[0]
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                )
                 raise Exception
 
             try:
                 self.ny_global = idTmp.variables[ConfigOptions.nodecoords_var].shape[0]
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                )
                 raise Exception
 
             try:
-                self.nx_global_elem = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
+                self.nx_global_elem = idTmp.variables[
+                    ConfigOptions.elemcoords_var
+                ].shape[0]
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                )
                 raise Exception
 
             try:
-                self.ny_global_elem = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
+                self.ny_global_elem = idTmp.variables[
+                    ConfigOptions.elemcoords_var
+                ].shape[0]
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                )
                 raise Exception
 
             # Flag to grab entire array for AWS slicing
@@ -751,10 +939,18 @@ class GeoMetaWrfHydro:
         # MpiConfig.comm.barrier()
 
         # Broadcast global dimensions to the other processors.
-        self.nx_global = MpiConfig.broadcast_parameter(self.nx_global, ConfigOptions, param_type=int)
-        self.ny_global = MpiConfig.broadcast_parameter(self.ny_global, ConfigOptions, param_type=int)
-        self.nx_global_elem = MpiConfig.broadcast_parameter(self.nx_global_elem, ConfigOptions, param_type=int)
-        self.ny_global_elem = MpiConfig.broadcast_parameter(self.ny_global_elem, ConfigOptions, param_type=int)
+        self.nx_global = MpiConfig.broadcast_parameter(
+            self.nx_global, ConfigOptions, param_type=int
+        )
+        self.ny_global = MpiConfig.broadcast_parameter(
+            self.ny_global, ConfigOptions, param_type=int
+        )
+        self.nx_global_elem = MpiConfig.broadcast_parameter(
+            self.nx_global_elem, ConfigOptions, param_type=int
+        )
+        self.ny_global_elem = MpiConfig.broadcast_parameter(
+            self.ny_global_elem, ConfigOptions, param_type=int
+        )
 
         # MpiConfig.comm.barrier()
 
@@ -763,16 +959,22 @@ class GeoMetaWrfHydro:
             try:
                 idTmp.close()
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to close geogrid Mesh file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to close geogrid Mesh file: " + ConfigOptions.geogrid
+                )
                 raise Exception
 
         try:
             # Removed argument coord_sys=ESMF.CoordSys.SPH_DEG since we are always reading from a file
             # From ESMF documentation
             # If you create a mesh from a file (like NetCDF/ESMF-Mesh), coord_sys is ignored. The mesh’s coordinate system should be embedded in the file or inferred.
-            self.esmf_grid = ESMF.Mesh(filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
+            self.esmf_grid = ESMF.Mesh(
+                filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH
+            )
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to create ESMF Mesh from geogrid file: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to create ESMF Mesh from geogrid file: " + ConfigOptions.geogrid
+            )
             raise Exception
 
         # MpiConfig.comm.barrier()
@@ -788,7 +990,9 @@ class GeoMetaWrfHydro:
             varSubTmp = None
             varTmp = None
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to subset node latitudes from ESMF Mesh object"
+            ConfigOptions.errMsg = (
+                "Unable to subset node latitudes from ESMF Mesh object"
+            )
             raise Exception
         try:
             self.longitude_grid = self.esmf_grid.coords[0][0]
@@ -796,10 +1000,12 @@ class GeoMetaWrfHydro:
             varSubTmp = None
             varTmp = None
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to subset XLONG_M from geogrid file into ESMF Mesh object"
+            ConfigOptions.errMsg = (
+                "Unable to subset XLONG_M from geogrid file into ESMF Mesh object"
+            )
             raise Exception
 
-        idTmp = Dataset(ConfigOptions.geogrid, 'r')
+        idTmp = Dataset(ConfigOptions.geogrid, "r")
 
         # Get lat and lon global variables for pet extraction of indices
         nodecoords_global = idTmp.variables[ConfigOptions.nodecoords_var][:].data
@@ -814,8 +1020,12 @@ class GeoMetaWrfHydro:
         pet_elementcoords[:, 0] = self.longitude_grid_elem
         pet_elementcoords[:, 1] = self.latitude_grid_elem
 
-        distance, pet_node_inds = spatial.KDTree(nodecoords_global).query(pet_nodecoords)
-        distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
+        distance, pet_node_inds = spatial.KDTree(nodecoords_global).query(
+            pet_nodecoords
+        )
+        distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(
+            pet_elementcoords
+        )
 
         # reset variables to free up memory
         nodecoords_global = None
@@ -825,7 +1035,7 @@ class GeoMetaWrfHydro:
         distance = None
 
         # Not accepting cosalpha and sinalpha at this time for unstructured meshes, only
-        # accepting the pre-calculated slope and slope azmiuth variables if available, 
+        # accepting the pre-calculated slope and slope azmiuth variables if available,
         # otherwise calculate slope from height estimates
         # if(ConfigOptions.cosalpha_var != None and ConfigOptions.sinalpha_var != None):
         # self.cosa_grid = idTmp.variables[ConfigOptions.cosalpha_var][:].data[pet_node_inds]
@@ -833,28 +1043,42 @@ class GeoMetaWrfHydro:
         # slopeTmp, slp_azi_tmp = self.calc_slope(idTmp,ConfigOptions)
         # self.slope = slope_node_Tmp[pet_node_inds]
         # self.slp_azi = slp_azi_node_tmp[pet_node_inds]
-        if ConfigOptions.slope_var is not None and ConfigOptions.slp_azi_var is not None:
+        if (
+            ConfigOptions.slope_var is not None
+            and ConfigOptions.slp_azi_var is not None
+        ):
             self.slope = idTmp.variables[ConfigOptions.slope_var][:].data[pet_node_inds]
-            self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[pet_node_inds]
-            self.slope_elem = idTmp.variables[ConfigOptions.slope_var_elem][:].data[pet_element_inds]
-            self.slp_azi_elem = idTmp.variables[ConfigOptions.slope_azimuth_var_elem][:].data[pet_element_inds]
+            self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[
+                pet_node_inds
+            ]
+            self.slope_elem = idTmp.variables[ConfigOptions.slope_var_elem][:].data[
+                pet_element_inds
+            ]
+            self.slp_azi_elem = idTmp.variables[ConfigOptions.slope_azimuth_var_elem][
+                :
+            ].data[pet_element_inds]
 
             # Read in a scatter the mesh node elevation, which is used for downscaling purposes
             self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[pet_node_inds]
             # Read in a scatter the mesh element elevation, which is used for downscaling purposes.
-            self.height_elem = idTmp.variables[ConfigOptions.hgt_elem_var][:].data[pet_element_inds]
+            self.height_elem = idTmp.variables[ConfigOptions.hgt_elem_var][:].data[
+                pet_element_inds
+            ]
 
         elif ConfigOptions.hgt_var is not None:
-
             # Read in a scatter the mesh node elevation, which is used for downscaling purposes
             self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[pet_node_inds]
 
             # Read in a scatter the mesh element elevation, which is used for downscaling purposes.
-            self.height_elem = idTmp.variables[ConfigOptions.hgt_elem_var][:].data[pet_element_inds]
+            self.height_elem = idTmp.variables[ConfigOptions.hgt_elem_var][:].data[
+                pet_element_inds
+            ]
 
             # Calculate the slope from the domain using elevation on the WRF-Hydro domain. This will
             # be used for downscaling purposes.
-            slope_node_Tmp, slp_azi_node_tmp, slope_elem_Tmp, slp_azi_elem_tmp = self.calc_slope_unstructured(idTmp, ConfigOptions)
+            slope_node_Tmp, slp_azi_node_tmp, slope_elem_Tmp, slp_azi_elem_tmp = (
+                self.calc_slope_unstructured(idTmp, ConfigOptions)
+            )
 
             self.slope = slope_node_Tmp[pet_node_inds]
             slope_node_Tmp = None
@@ -872,56 +1096,70 @@ class GeoMetaWrfHydro:
         self.mesh_inds = pet_node_inds
         self.mesh_inds_elem = pet_element_inds
 
-        # reset variables to free up memory        
+        # reset variables to free up memory
         pet_node_inds = None
         pet_element_inds = None
 
     def calc_slope_unstructured(self, idTmp, ConfigOptions):
-        """
+        """Calculate slope grids needed for incoming shortwave radiation downscaling.
+
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program. This calculates the slopes for both nodes and elements
         :param idTmp:
         :param ConfigOptions:
         :return:
         """
-
-        idTmp = Dataset(ConfigOptions.geogrid, 'r')
+        idTmp = Dataset(ConfigOptions.geogrid, "r")
 
         try:
             node_lons = idTmp.variables[ConfigOptions.nodecoords_var][:][:, 0]
             node_lats = idTmp.variables[ConfigOptions.nodecoords_var][:][:, 1]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract node coordinates in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract node coordinates in " + ConfigOptions.geogrid
+            )
             raise Exception
         try:
             elem_lons = idTmp.variables[ConfigOptions.elemcoords_var][:][:, 0]
             elem_lats = idTmp.variables[ConfigOptions.elemcoords_var][:][:, 1]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract element coordinates in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract element coordinates in " + ConfigOptions.geogrid
+            )
             raise Exception
         try:
             elem_conn = idTmp.variables[ConfigOptions.elemconn_var][:][:, 0]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract element connectivity in " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract element connectivity in " + ConfigOptions.geogrid
+            )
             raise Exception
         try:
             node_heights = idTmp.variables[ConfigOptions.hgt_var][:]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract HGT_M from: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract HGT_M from: " + ConfigOptions.geogrid
+            )
             raise
 
         if node_heights.shape[0] != self.ny_global:
-            ConfigOptions.errMsg = "HGT_M dimension mismatch in: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "HGT_M dimension mismatch in: " + ConfigOptions.geogrid
+            )
             raise Exception
 
         try:
             elem_heights = idTmp.variables[ConfigOptions.hgt_elem_var][:]
         except Exception as e:
-            ConfigOptions.errMsg = "Unable to extract HGT_M_ELEM from: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "Unable to extract HGT_M_ELEM from: " + ConfigOptions.geogrid
+            )
             raise
 
         if elem_heights.shape[0] != len(elem_lons):
-            ConfigOptions.errMsg = "HGT_M_ELEM dimension mismatch in: " + ConfigOptions.geogrid
+            ConfigOptions.errMsg = (
+                "HGT_M_ELEM dimension mismatch in: " + ConfigOptions.geogrid
+            )
             raise Exception
 
         idTmp.close()
@@ -936,7 +1174,7 @@ class GeoMetaWrfHydro:
         dz = np.diff(node_heights)
         dz = np.append(dz, dz[-1])
 
-        slope_nodes = dz / np.sqrt((dx ** 2) + (dy ** 2))
+        slope_nodes = dz / np.sqrt((dx**2) + (dy**2))
         slp_azi_nodes = (180 / np.pi) * np.arctan(dx / dy)
 
         # calculate element coordinate distances in meters
@@ -949,7 +1187,7 @@ class GeoMetaWrfHydro:
         dz = np.diff(elem_heights)
         dz = np.append(dz, dz[-1])
 
-        slope_elem = dz / np.sqrt((dx ** 2) + (dy ** 2))
+        slope_elem = dz / np.sqrt((dx**2) + (dy**2))
         slp_azi_elem = (180 / np.pi) * np.arctan(dx / dy)
 
         # Reset temporary arrays to None to free up memory
@@ -966,7 +1204,8 @@ class GeoMetaWrfHydro:
         return slope_nodes, slp_azi_nodes, slope_elem, slp_azi_elem
 
     def initialize_destination_geo_hydrofabric(self, ConfigOptions, MpiConfig):
-        """
+        """Initialize GeoMetaWrfHydro class variables.
+
         Initialization function to initialize ESMF through ESMPy,
         calculate the global parameters of the WRF-Hydro grid
         being processed to, along with the local parameters
@@ -975,38 +1214,56 @@ class GeoMetaWrfHydro:
         """
         # Flag to see if user specified an unstructured mesh hydrofabric file
         if ConfigOptions.geogrid is not None:
-
             # Open the geogrid file and extract necessary information
             # to create ESMF fields.
             if MpiConfig.rank == 0:
                 try:
-                    idTmp = Dataset(ConfigOptions.geogrid, 'r')
+                    idTmp = Dataset(ConfigOptions.geogrid, "r")
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to open the unstructured mesh file: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to open the unstructured mesh file: "
+                        + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
-                    self.nx_global = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
+                    self.nx_global = idTmp.variables[
+                        ConfigOptions.elemcoords_var
+                    ].shape[0]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract X dimension size in " + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 try:
-                    self.ny_global = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
+                    self.ny_global = idTmp.variables[
+                        ConfigOptions.elemcoords_var
+                    ].shape[0]
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to extract Y dimension size in " + ConfigOptions.geogrid
+                    )
                     raise Exception
 
                 # Flag to grab entire array for AWS slicing
                 if ConfigOptions.aws:
-                    self.lat_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][:, 1]
-                    self.lon_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][:, 0]
+                    self.lat_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][
+                        :, 1
+                    ]
+                    self.lon_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:][
+                        :, 0
+                    ]
 
             # MpiConfig.comm.barrier()
 
             # Broadcast global dimensions to the other processors.
-            self.nx_global = MpiConfig.broadcast_parameter(self.nx_global, ConfigOptions, param_type=int)
-            self.ny_global = MpiConfig.broadcast_parameter(self.ny_global, ConfigOptions, param_type=int)
+            self.nx_global = MpiConfig.broadcast_parameter(
+                self.nx_global, ConfigOptions, param_type=int
+            )
+            self.ny_global = MpiConfig.broadcast_parameter(
+                self.ny_global, ConfigOptions, param_type=int
+            )
 
             # MpiConfig.comm.barrier()
 
@@ -1015,16 +1272,23 @@ class GeoMetaWrfHydro:
                 try:
                     idTmp.close()
                 except Exception as e:
-                    ConfigOptions.errMsg = "Unable to close geogrid Mesh file: " + ConfigOptions.geogrid
+                    ConfigOptions.errMsg = (
+                        "Unable to close geogrid Mesh file: " + ConfigOptions.geogrid
+                    )
                     raise Exception
 
             try:
                 # Removed argument coord_sys=ESMF.CoordSys.SPH_DEG since we are always reading from a file
                 # From ESMF documentation
                 # If you create a mesh from a file (like NetCDF/ESMF-Mesh), coord_sys is ignored. The mesh’s coordinate system should be embedded in the file or inferred.
-                self.esmf_grid = ESMF.Mesh(filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH)
+                self.esmf_grid = ESMF.Mesh(
+                    filename=ConfigOptions.geogrid, filetype=ESMF.FileFormat.ESMFMESH
+                )
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to create ESMF Mesh from geogrid file: " + ConfigOptions.geogrid
+                ConfigOptions.errMsg = (
+                    "Unable to create ESMF Mesh from geogrid file: "
+                    + ConfigOptions.geogrid
+                )
                 raise Exception
 
             # MpiConfig.comm.barrier()
@@ -1039,16 +1303,20 @@ class GeoMetaWrfHydro:
                 varSubTmp = None
                 varTmp = None
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to subset node latitudes from ESMF Mesh object"
+                ConfigOptions.errMsg = (
+                    "Unable to subset node latitudes from ESMF Mesh object"
+                )
                 raise Exception
             try:
                 self.longitude_grid = self.esmf_grid.coords[1][0]
                 varSubTmp = None
                 varTmp = None
             except Exception as e:
-                ConfigOptions.errMsg = "Unable to subset node longitudes from ESMF Mesh object"
+                ConfigOptions.errMsg = (
+                    "Unable to subset node longitudes from ESMF Mesh object"
+                )
 
-            idTmp = Dataset(ConfigOptions.geogrid, 'r')
+            idTmp = Dataset(ConfigOptions.geogrid, "r")
 
             # Get lat and lon global variables for pet extraction of indices
             elementcoords_global = idTmp.variables[ConfigOptions.elemcoords_var][:].data
@@ -1059,7 +1327,9 @@ class GeoMetaWrfHydro:
             pet_elementcoords[:, 0] = self.longitude_grid
             pet_elementcoords[:, 1] = self.latitude_grid
 
-            distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
+            distance, pet_element_inds = spatial.KDTree(elementcoords_global).query(
+                pet_elementcoords
+            )
 
             # reset variables to free up memory
             elementcoords_global = None
@@ -1070,15 +1340,28 @@ class GeoMetaWrfHydro:
 
             # Read in a scatter the mesh node elevation, which is used for downscaling if available
             if ConfigOptions.hgt_var is not None:
-                self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[pet_element_inds]
+                self.height = idTmp.variables[ConfigOptions.hgt_var][:].data[
+                    pet_element_inds
+                ]
 
-            if ConfigOptions.slope_var is not None and ConfigOptions.slp_azi_var is not None:
-                self.slope = idTmp.variables[ConfigOptions.slope_var][:].data[pet_element_inds]
-                self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[pet_element_inds]
+            if (
+                ConfigOptions.slope_var is not None
+                and ConfigOptions.slp_azi_var is not None
+            ):
+                self.slope = idTmp.variables[ConfigOptions.slope_var][:].data[
+                    pet_element_inds
+                ]
+                self.slp_azi = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data[
+                    pet_element_inds
+                ]
 
-            self.element_ids = idTmp.variables[ConfigOptions.element_id_var][:].data[pet_element_inds]
+            self.element_ids = idTmp.variables[ConfigOptions.element_id_var][:].data[
+                pet_element_inds
+            ]
 
-            self.element_ids_global = idTmp.variables[ConfigOptions.element_id_var][:].data
+            self.element_ids_global = idTmp.variables[ConfigOptions.element_id_var][
+                :
+            ].data
 
             # save indices where mesh was partition for future scatter functions
             self.mesh_inds = pet_element_inds
