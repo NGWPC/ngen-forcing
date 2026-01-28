@@ -47,7 +47,7 @@ def retrieve_forcing(cfg: 'ConfigOptions'):
     forcing_ana_src = {5: "CONUS/get_conus_HRRR_AnA.py",
                        6: "CONUS/get_conus_RAP_AnA.py",
                        13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
-                       14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico.py",
+                       14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico_AnA.py",
                        19: "Alaska/get_Alaska_HRRR.py",
                        20: "Alaska/get_Alaska_HRRR_AnA.py",
                        "supp1": "CONUS/get_conus_MRMS_Radar.py",
