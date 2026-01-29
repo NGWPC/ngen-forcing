@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=sing_mpi  #job name
 #SBATCH -N 2                     #number of nodes to use
-#SBATCH --partition=compute      #the patition
+#SBATCH --partition=c5n-18xlarge #the patition
 #SBATCH --ntasks-per-node=18     #numebr of cores per node
 #SBATCH --exclusive
 
@@ -50,25 +50,25 @@ export FI_OFI_RXM_SAR_LIMIT=3145728
 export FI_MR_CACHE_MAX_COUNT=0
 export FI_EFA_RECVWIN_SIZE=65536
 
+export NFS_MOUNT=/ngen-test
 # User specific aliases and functions
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+__conda_setup="$($NFS_MOUNT/ngen-app/conda/bin/conda 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-        . "/opt/conda/etc/profile.d/conda.sh"
+    if [ -f "$NFS_MOUNT/ngen-app/conda/etc/profile.d/conda.sh" ]; then
+        . "$NFS_MOUNT/ngen-app/conda/etc/profile.d/conda.sh"
     else
-        export PATH="/opt/conda/bin:$PATH"
+        export PATH="$NFS_MOUNT/ngen-app/conda/bin:$PATH"
     fi
 fi
 unset __conda_setup
 # <<< conda initialize <<<
 #
 
-export NFS_MOUNT=/efs
-export PATH=/opt/conda/bin:${PATH}
+export PATH=$NFS_MOUNT/ngen-app/conda/bin:${PATH}
 export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
@@ -77,8 +77,7 @@ SIF_PATH=/ngencerf-app/singularity/ngen-coastal.sif
 
 conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
-export LD_LIBRARY_PATH=/opt/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
-
+export LD_LIBRARY_PATH=$NFS_MOUNT/ngen-app/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
@@ -97,7 +96,7 @@ else
 fi
 
 export MPICOMMAND2="mpiexec -n ${NPROCS} "
-export MPICOMMAND3="mpiexec -n 4 "
+export MPICOMMAND3="mpiexec -n ${NPROCS} "
 
 declare -A coastal_domain_to_inland_domain=( \
 	   [prvi]="domain_puertorico" \
