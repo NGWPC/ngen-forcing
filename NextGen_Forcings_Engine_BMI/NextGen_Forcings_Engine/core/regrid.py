@@ -8,6 +8,7 @@ import traceback
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from time import monotonic, time
+from pathlib import Path
 
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -489,8 +490,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
 
     file_name = f"STAGEIV_AK_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    stage4_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    stage4_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     lat_var = "latitude"
     lon_var = "longitude"
@@ -1063,8 +1063,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
     # be created through the wgrib2 process.
     file_name = f"STAGEIV_CONUS_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    stage4_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    stage4_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     lat_var = "latitude"
     lon_var = "longitude"
@@ -1640,8 +1639,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     # Create a path for a temporary NetCDF file
     file_name = f"HRRR_CONUS_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    input_forcings.tmpFile = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     id_tmp = None
     try:
@@ -2596,8 +2594,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     # Create a path for a temporary NetCDF file
     file_name = f"RAP_CONUS_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    input_forcings.tmpFile = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -3562,8 +3559,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     # Create a path for a temporary NetCDF file
     file_name = f"CFSv2_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    input_forcings.tmpFile = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -6995,8 +6991,9 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
-    # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = os.path.join(config_options.scratch_dir, "GFS_TMP.nc")
+    file_uuid = str(mpi_config.uid64)
+    file_name = f"GFS_TMP-{mkfilename()}.nc"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
     err_handler.check_program_status(config_options, mpi_config)
 
     # check / set previous file to see if we're going to reuse
@@ -7982,8 +7979,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     # Create a path for a temporary NetCDF file
     file_name = f"NAM_CONUS_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-
-    input_forcings.tmpFile = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -8833,11 +8829,10 @@ def regrid_mrms_hourly(
     # be created through the wgrib2 process.
 
     file_uuid = str(mpi_config.uid64)
-
-    mrms_tmp_grib2 = f"{config_options.scratch_dir}/{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.grib2"
-    mrms_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.nc"
-    mrms_tmp_rqi_grib2 = f"{config_options.scratch_dir}/{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.grib2"
-    mrms_tmp_rqi_nc = f"{config_options.scratch_dir}/{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.nc"
+    mrms_tmp_grib2 = str(Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.grib2")
+    mrms_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.nc")
+    mrms_tmp_rqi_grib2 = str(Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.grib2")
+    mrms_tmp_rqi_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.nc")
     # mpi_config.comm.barrier()
 
     # If the input paths have been set to None, this means input is missing. We will
@@ -9818,8 +9813,9 @@ def regrid_mrms_precip_flag(
     # Unzip MRMS precip flag file to temporary location.
     file_name = f"_MRMS_PCP_FLAG_TMP_{mkfilename()}"
     file_uuid = str(mpi_config.uid64)
-    mrms_tmp_grib2 = f"{config_options.scratch_dir}/{file_uuid}{file_name}.grib2"
-    mrms_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}{file_name}.nc"
+    mrms_tmp_grib2 = str(Path(config_options.scratch_dir) / f"{file_uuid}{file_name}.grib2")
+    mrms_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}{file_name}.nc")
+
     ioMod.unzip_file(supplemental_precip.file_in2, mrms_tmp_grib2, config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -10060,7 +10056,7 @@ def regrid_hourly_wrf_arw(
 
     file_name = f"ARW_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-    input_forcings.tmpFile = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    input_forcings.tmpFile = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -11006,7 +11002,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
     # be created through the wgrib2 process.
     file_name = f"ARW_PCP_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-    arw_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    arw_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     id_tmp = None
     try:
@@ -11916,7 +11912,7 @@ def regrid_hourly_nbm(
 
     file_name = f"NBM_PCP_TMP-{mkfilename()}.nc"
     file_uuid = str(mpi_config.uid64)
-    nbm_tmp_nc = f"{config_options.scratch_dir}/{file_uuid}_{file_name}"
+    nbm_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     if mpi_config.rank == 0:
         if os.path.isfile(nbm_tmp_nc):
