@@ -95,8 +95,7 @@ else
    exit 1
 fi
 
-export MPICOMMAND2="mpiexec -n ${NPROCS} "
-export MPICOMMAND3="mpiexec -n ${NPROCS} "
+export MPICOMMAND="mpiexec -n ${NPROCS} "
 
 declare -A coastal_domain_to_inland_domain=( \
 	   [prvi]="domain_puertorico" \
@@ -185,7 +184,7 @@ export COASTAL_FORCING_OUTPUT_DIR=$DATAexec/coastal_forcing_output
 export FECPP_JOB_INDEX=0
 export FECPP_JOB_COUNT=1
 
-${MPICOMMAND3} singularity exec -B $BINDINGS \
+${MPICOMMAND} singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
@@ -218,7 +217,7 @@ else
    export SCHISM_OUTPUT_FILE=$DATAexec/elev2D.th.nc
    export OPEN_BNDS_HGRID_FILE=$DATAexec/open_bnds_hgrid.nc
 
-   ${MPICOMMAND3} singularity exec -B $BINDINGS \
+   ${MPICOMMAND} singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
@@ -243,7 +242,7 @@ export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/openmpi/lib64
 export OMPI_ALLOW_RUN_AS_ROOT=1
 export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-${MPICOMMAND2} singularity exec -B $BINDINGS --pwd $COASTAL_WORK_DIR \
+${MPICOMMAND} singularity exec -B $BINDINGS --pwd $COASTAL_WORK_DIR \
          $SIF_PATH \
 	/bin/bash -c "/ngen-app/nwm.v3.0.6/exec/pschism_wcoss2_NO_PARMETIS_TVD-VL.openmpi $NSCRIBES"
 
