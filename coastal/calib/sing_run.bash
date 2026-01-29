@@ -77,7 +77,7 @@ SIF_PATH=/ngencerf-app/singularity/ngen-coastal.sif
 
 conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
-export LD_LIBRARY_PATH=$NFS_MOUNT/ngen-app/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$NFS_MOUNT/ngen-app/conda/lib:${CONDA_ENVS_PATH}/lib:${LD_LIBRARY_PATH:-}
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
