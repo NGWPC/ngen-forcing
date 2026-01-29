@@ -1745,6 +1745,10 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     :param config_options:
     :return:
     """
+
+    DIAG_LOG = "/ngen-app/data/logs/gfs_diagnostics.log"
+
+
     # First calculate how the GFS files are structured based on our current processing date.
     # This will change in the future, and should be modified as the GFS system evolves.
     gfs_out_horizons = [120, 240, 384]
@@ -1772,9 +1776,21 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     # move to 12 hours.
 
     # First find the current GFS forecast cycle that we are using.
-    current_gfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
+
+
+    shift = config_options.current_fcst_cycle.hour % 6
+
+    user_gfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=input_forcings.userCycleOffset * 60.0
     )
+
+    current_gfs_cycle = user_gfs_cycle - datetime.timedelta(hours=shift)
+
+    with open(DIAG_LOG, "a") as diag_log:
+        diag_log.write(
+            f"[{mpi_config.rank}] GFS current_fcst_cycle: {config_options.current_fcst_cycle}, userCycleOffset: {input_forcings.userCycleOffset}, current_gfs_cycle: {current_gfs_cycle}\n"
+        )
+
 
     # Calculate the current forecast hour within this GFS cycle.
     dt_tmp = d_current - current_gfs_cycle
