@@ -31,7 +31,6 @@ class InputForcings:
 
     def __init__(self):
         """Initialize all attributes and objects to None."""
-        self.keyValue = None
         self.inDir = None
         self.enforce = None
         self.paramDir = None
@@ -126,6 +125,12 @@ class InputForcings:
         self.border = None
         self.skip = False
 
+        # Private attrs that have associated @property setter/getter
+        self._keyValue = None
+        self._file_ext = None
+        self._cycle_freq = None
+        self._grib_vars = None
+
     @property
     def product_name(self):
         """Map the forcing key value to the product name."""
@@ -160,116 +165,174 @@ class InputForcings:
         }[self.keyValue]
 
     @property
-    def file_ext(self):
+    def keyValue(self):
+        if self._keyValue is None:
+            raise RuntimeError(f"keyValue has not yet been set")
+        return self._keyValue
+
+    @keyValue.setter
+    def keyValue(self, val):
+        if self._keyValue is not None:
+            raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
+        self._keyValue = val
+
+    @property
+    def file_ext(self) -> str:
         """Map the forcing file type to the file extension."""
-        if self.file_type == "GRIB1":
-            return ".grb"
-        elif self.file_type == "GRIB2":
-            return ".grib2"
-        elif self.file_type == "NETCDF":
-            return ".nc"
-        elif self.file_type == "NETCDF4":
-            return ".nc4"
-        elif self.file_type == "NWM":
-            return ".LDASIN_DOMAIN1"
-        elif self.file_type == "ZARR":
-            return ".zarr"
+        if self._file_ext is None:
+            # First call to getter, initialize
+            if self.file_type == "GRIB1":
+                ext = ".grb"
+            elif self.file_type == "GRIB2":
+                ext = ".grib2"
+            elif self.file_type == "NETCDF":
+                ext = ".nc"
+            elif self.file_type == "NETCDF4":
+                ext = ".nc4"
+            elif self.file_type == "NWM":
+                ext = ".LDASIN_DOMAIN1"
+            elif self.file_type == "ZARR":
+                ext = ".zarr"
+            else:
+                raise ValueError(f"Unexpected file_type: {self.file_type}")
+            self._file_ext = ext
+
+        return self._file_ext
+
+    @file_ext.setter
+    def file_ext(self, val):
+        if val is None:
+            raise TypeError(
+                "Cannot set file_ext to None since that value indicates an uninitialized state"
+            )
+        self._file_ext = val
 
     @property
-    def cycle_freq(self):
+    def cycle_freq(self) -> int:
         """Map the forcing key value to the cycle frequency in minutes."""
-        return {
-            1: 60,
-            2: 180,
-            3: 360,
-            4: 360,
-            5: 60,
-            6: 60,
-            7: 360,
-            8: 1440,
-            9: 360,
-            10: -9999,
-            11: -9999,
-            12: -9999,
-            13: 360,
-            14: 360,
-            15: 360,
-            16: 360,
-            17: 360,
-            18: 1440,
-            19: 180,
-            20: 180,
-            21: -9999,
-            22: 180,
-            23: -9999,
-            24: 60,
-            25: 1440,
-            26: 15,
-            27: -9999,
-        }[self.keyValue]
+        if self._cycle_freq is None:
+            # First call to getter, initialize
+            self._cycle_freq = {
+                1: 60,
+                2: 180,
+                3: 360,
+                4: 360,
+                5: 60,
+                6: 60,
+                7: 360,
+                8: 1440,
+                9: 360,
+                10: -9999,
+                11: -9999,
+                12: -9999,
+                13: 360,
+                14: 360,
+                15: 360,
+                16: 360,
+                17: 360,
+                18: 1440,
+                19: 180,
+                20: 180,
+                21: -9999,
+                22: 180,
+                23: -9999,
+                24: 60,
+                25: 1440,
+                26: 15,
+                27: -9999,
+            }[self.keyValue]
+        return self._cycle_freq
+
+    @cycle_freq.setter
+    def cycle_freq(self, val):
+        if val is None:
+            raise TypeError(
+                "Cannot set cycle_freq to None since that value indicates an uninitialized state"
+            )
+        self._cycle_freq = val
 
     @property
-    def grib_vars(self):
+    def grib_vars(self) -> list[str] | None:
         """Map the forcing key value to the required GRIB variable names."""
-        return {
-            1: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            2: None,
-            3: [
-                "TMP",
-                "SPFH",
-                "UGRD",
-                "VGRD",
-                "PRATE",
-                "DSWRF",
-                "DLWRF",
-                "PRES",
-                "CPOFP",
-            ],
-            4: None,
-            5: [
-                "TMP",
-                "SPFH",
-                "UGRD",
-                "VGRD",
-                "APCP",
-                "DSWRF",
-                "DLWRF",
-                "PRES",
-                "CPOFP",
-            ],
-            6: [
-                "TMP",
-                "SPFH",
-                "UGRD",
-                "VGRD",
-                "APCP",
-                "DSWRF",
-                "DLWRF",
-                "PRES",
-                "FROZR",
-            ],
-            7: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            8: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "PRES"],
-            9: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            10: None,
-            11: None,
-            12: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            13: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            14: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            15: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
-            16: ["DSWRF", "DLWRF"],
-            17: ["DSWRF", "DLWRF"],
-            18: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "PRES"],
-            19: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            20: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            21: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            22: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            23: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            24: ["TMP", "APCP"],
-            25: ["TMP", "WDIR", "WSPD", "APCP"],
-            26: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
-            27: ["T2D", "Q2D", "U2D", "V2D", "RAINRATE", "SWDOWN", "LWDOWN", "PSFC"],
-        }[self.keyValue]
+        if self._grib_vars is None:
+            # First call to getter, initialize
+            self._grib_vars = {
+                1: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                2: None,
+                3: [
+                    "TMP",
+                    "SPFH",
+                    "UGRD",
+                    "VGRD",
+                    "PRATE",
+                    "DSWRF",
+                    "DLWRF",
+                    "PRES",
+                    "CPOFP",
+                ],
+                4: None,
+                5: [
+                    "TMP",
+                    "SPFH",
+                    "UGRD",
+                    "VGRD",
+                    "APCP",
+                    "DSWRF",
+                    "DLWRF",
+                    "PRES",
+                    "CPOFP",
+                ],
+                6: [
+                    "TMP",
+                    "SPFH",
+                    "UGRD",
+                    "VGRD",
+                    "APCP",
+                    "DSWRF",
+                    "DLWRF",
+                    "PRES",
+                    "FROZR",
+                ],
+                7: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                8: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "PRES"],
+                9: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                10: None,
+                11: None,
+                12: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                13: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                14: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                15: ["TMP", "SPFH", "UGRD", "VGRD", "PRATE", "DSWRF", "DLWRF", "PRES"],
+                16: ["DSWRF", "DLWRF"],
+                17: ["DSWRF", "DLWRF"],
+                18: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "PRES"],
+                19: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                20: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                21: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                22: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                23: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                24: ["TMP", "APCP"],
+                25: ["TMP", "WDIR", "WSPD", "APCP"],
+                26: ["TMP", "SPFH", "UGRD", "VGRD", "APCP", "DSWRF", "DLWRF", "PRES"],
+                27: [
+                    "T2D",
+                    "Q2D",
+                    "U2D",
+                    "V2D",
+                    "RAINRATE",
+                    "SWDOWN",
+                    "LWDOWN",
+                    "PSFC",
+                ],
+            }[self.keyValue]
+        return self._grib_vars
+
+    @grib_vars.setter
+    def grib_vars(self, val):
+        if val is None:
+            raise TypeError(
+                "Cannot set grib_vars to None since that value indicates an uninitialized state"
+            )
+        self._grib_vars = val
 
     @property
     def grib_levels(self):
