@@ -9,7 +9,7 @@ export NODES=2          #this must match the number of nodes defined above by sl
 export NCORES=18        #this must match the number of cores per node defined above by slurm
 export NPROCS=$((NODES*NCORES))
 
-set -x
+set -euox pipefail
 
 #load the configuration file
 . ./schism_calib.cfg
