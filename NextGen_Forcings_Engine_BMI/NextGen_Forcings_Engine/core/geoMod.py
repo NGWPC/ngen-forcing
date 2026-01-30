@@ -6,8 +6,12 @@ import numpy as np
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
 import shapely
-from netCDF4 import Dataset
+import netCDF4
 from scipy import spatial
+from . import err_handler
+from .. import esmf_utils
+from .. import nc_utils
+
 
 try:
     import esmpy as ESMF
@@ -117,7 +121,7 @@ class GeoMetaWrfHydro:
         # to create ESMF fields.
         if MpiConfig.rank == 0:
             try:
-                idTmp = Dataset(ConfigOptions.geogrid, "r")
+                idTmp = netCDF4.Dataset(ConfigOptions.geogrid, "r")
             except Exception as e:
                 ConfigOptions.errMsg = (
                     "Unable to open the WRF-Hydro geogrid file: "
@@ -514,7 +518,7 @@ class GeoMetaWrfHydro:
         if MpiConfig.rank == 0:
             # Open the geospatial metadata file.
             try:
-                idTmp = Dataset(ConfigOptions.spatial_meta, "r")
+                idTmp = netCDF4.Dataset(ConfigOptions.spatial_meta, "r")
             except Exception as e:
                 ConfigOptions.errMsg = (
                     "Unable to open spatial metadata file: "
@@ -812,7 +816,7 @@ class GeoMetaWrfHydro:
         :param ConfigOptions:
         :return:
         """
-        idTmp = Dataset(ConfigOptions.geogrid, "r")
+        idTmp = netCDF4.Dataset(ConfigOptions.geogrid, "r")
 
         try:
             lons = idTmp.variables[ConfigOptions.lon_var][:]
@@ -888,7 +892,7 @@ class GeoMetaWrfHydro:
         # to create ESMF fields.
         if MpiConfig.rank == 0:
             try:
-                idTmp = Dataset(ConfigOptions.geogrid, "r")
+                idTmp = netCDF4.Dataset(ConfigOptions.geogrid, "r")
             except Exception as e:
                 ConfigOptions.errMsg = (
                     "Unable to open the unstructured mesh file: "
@@ -1006,7 +1010,7 @@ class GeoMetaWrfHydro:
             )
             raise Exception
 
-        idTmp = Dataset(ConfigOptions.geogrid, "r")
+        idTmp = netCDF4.Dataset(ConfigOptions.geogrid, "r")
 
         # Get lat and lon global variables for pet extraction of indices
         nodecoords_global = idTmp.variables[ConfigOptions.nodecoords_var][:].data
@@ -1110,7 +1114,7 @@ class GeoMetaWrfHydro:
         :param ConfigOptions:
         :return:
         """
-        idTmp = Dataset(ConfigOptions.geogrid, "r")
+        idTmp = netCDF4.Dataset(ConfigOptions.geogrid, "r")
 
         try:
             node_lons = idTmp.variables[ConfigOptions.nodecoords_var][:][:, 0]
@@ -1213,47 +1217,51 @@ class GeoMetaWrfHydro:
         for this particular processor.
         :return:
         """
-        max_retries = 5
-        retry_delay = 2
 
         if ConfigOptions.geogrid is not None:
             # Phase 1: Rank 0 extracts all needed global data
             if MpiConfig.rank == 0:
-                for attempt in range(max_retries):
-                    try:
-                        idTmp = Dataset(ConfigOptions.geogrid, 'r')
-                        
-                        # Extract everything we need in one go
-                        self.nx_global = idTmp.variables[ConfigOptions.elemcoords_var].shape[0]
-                        self.ny_global = self.nx_global
-                        
-                        if ConfigOptions.aws:
-                            self.lat_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:, 1]
-                            self.lon_bounds = idTmp.variables[ConfigOptions.nodecoords_var][:, 0]
-                        
-                        # Store these for later broadcast/scatter
-                        elementcoords_global = idTmp.variables[ConfigOptions.elemcoords_var][:].data
-                        element_ids_global = idTmp.variables[ConfigOptions.element_id_var][:].data
-                        
-                        heights_global = None
-                        if ConfigOptions.hgt_var is not None:
-                            heights_global = idTmp.variables[ConfigOptions.hgt_var][:].data
-                        
-                        slopes_global = None
-                        slp_azi_global = None
-                        if ConfigOptions.slope_var is not None:
-                            slopes_global = idTmp.variables[ConfigOptions.slope_var][:].data
-                            slp_azi_global = idTmp.variables[ConfigOptions.slope_azimuth_var][:].data
-                        
-                        idTmp.close()
-                        break
-                    except Exception as e:
-                        if attempt < max_retries - 1:
-                            LOG.warning(f"Failed to open mesh file (attempt {attempt + 1}/{max_retries}): {e}")
-                            time.sleep(retry_delay)
-                        else:
-                            LOG.critical(f"Failed to open mesh file: {ConfigOptions.geogrid}")
-                            raise
+                try:
+                    idTmp = nc_utils.nc_Dataset_retry(
+                        MpiConfig,
+                        ConfigOptions,
+                        err_handler,
+                        ConfigOptions.geogrid,
+                        "r",
+                    )
+
+                    # Extract everything we need in one go
+                    vars = idTmp.variables
+                    elemcoords = vars[ConfigOptions.elemcoords_var]
+                    self.nx_global = elemcoords.shape[0]
+                    self.ny_global = self.nx_global
+
+                    if ConfigOptions.aws:
+                        nodecoords = vars[ConfigOptions.nodecoords_var]
+                        self.lat_bounds = nodecoords[:, 1]
+                        self.lon_bounds = nodecoords[:, 0]
+
+                    # Store these for later broadcast/scatter
+                    elementcoords_global = elemcoords[:].data
+                    element_ids_global = vars[ConfigOptions.element_id_var][:].data
+
+                    heights_global = None
+                    if ConfigOptions.hgt_var is not None:
+                        heights_global = vars[ConfigOptions.hgt_var][:].data
+                    slopes_global = None
+                    slp_azi_global = None
+                    if ConfigOptions.slope_var is not None:
+                        slopes_global = vars[ConfigOptions.slope_var][:].data
+                        slp_azi_global = vars[ConfigOptions.slope_azimuth_var][:].data
+
+                    idTmp.close()
+
+                except Exception as e:
+                    LOG.critical(
+                        f"Failed to open mesh file: {ConfigOptions.geogrid} "
+                        f"due to {str(e)}"
+                    )
+                    raise
             else:
                 elementcoords_global = None
                 element_ids_global = None
@@ -1262,28 +1270,30 @@ class GeoMetaWrfHydro:
                 slp_azi_global = None
 
             # Broadcast dimensions
-            self.nx_global = MpiConfig.broadcast_parameter(self.nx_global, ConfigOptions, param_type=int)
-            self.ny_global = MpiConfig.broadcast_parameter(self.ny_global, ConfigOptions, param_type=int)
+            self.nx_global = MpiConfig.broadcast_parameter(
+                self.nx_global, ConfigOptions, param_type=int
+            )
+            self.ny_global = MpiConfig.broadcast_parameter(
+                self.ny_global, ConfigOptions, param_type=int
+            )
 
             MpiConfig.comm.barrier()
 
             # Phase 2: Create ESMF Mesh (collective operation with retry)
-            for attempt in range(max_retries):
-                try:
-                    self.esmf_grid = ESMF.Mesh(
-                        filename=ConfigOptions.geogrid, 
-                        filetype=ESMF.FileFormat.ESMFMESH
-                    )
-                    break
-                except Exception as e:
-                    if attempt < max_retries - 1:
-                        if MpiConfig.rank == 0:
-                            LOG.warning(f"ESMF Mesh creation failed (attempt {attempt + 1}/{max_retries}): {e}")
-                        MpiConfig.comm.barrier()
-                        time.sleep(retry_delay)
-                    else:
-                        ConfigOptions.errMsg = f"Unable to create ESMF Mesh: {ConfigOptions.geogrid}"
-                        raise
+            try:
+                self.esmf_grid = esmf_utils.esmf_mesh_retry(
+                    MpiConfig,
+                    ConfigOptions,
+                    err_handler,
+                    filename=ConfigOptions.geogrid,
+                    filetype=ESMF.FileFormat.ESMFMESH,
+                )
+            except Exception as e:
+                LOG.critical(
+                    f"Unable to create ESMF Mesh: {ConfigOptions.geogrid} "
+                    f"due to {str(e)}"
+                )
+                raise
 
             # Get processor bounds
             self.get_processor_bounds(ConfigOptions)
@@ -1295,10 +1305,13 @@ class GeoMetaWrfHydro:
             # Phase 3: Broadcast global arrays and compute local indices
             elementcoords_global = MpiConfig.comm.bcast(elementcoords_global, root=0)
             element_ids_global = MpiConfig.comm.bcast(element_ids_global, root=0)
-            
+
             # Each rank computes its own local indices
-            pet_elementcoords = np.column_stack([self.longitude_grid, self.latitude_grid])
-            _, pet_element_inds = spatial.KDTree(elementcoords_global).query(pet_elementcoords)
+            pet_elementcoords = np.column_stack(
+                [self.longitude_grid, self.latitude_grid]
+            )
+            tree = spatial.KDTree(elementcoords_global)
+            _, pet_element_inds = tree.query(pet_elementcoords)
 
             self.element_ids = element_ids_global[pet_element_inds]
             self.element_ids_global = element_ids_global

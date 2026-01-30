@@ -25,15 +25,15 @@ class GFSDownloader(ForecastDownloader):
 
     def get_download_targets(self, _):
         hourly = range(1, 121)  # 1 through 120
-        every_3h = range(123, 241, 3)  # 123 through 240, step of 3
+        every_3h = range(123, 244, 3)  # 123 through 243, step of 3
         return list(hourly) + list(every_3h)
 
     def build_output_dir(self, d_start, _):
         return os.path.join(
             self.out_dir,
             f"gfs.{d_start.strftime('%Y%m%d')}",
-            d_start.strftime('%H'),
-            "atmos"
+            d_start.strftime("%H"),
+            "atmos",
         )
 
     def build_file_url_and_name(self, d_start, forecast_hour, _):
@@ -42,9 +42,9 @@ class GFSDownloader(ForecastDownloader):
         url = os.path.join(
             self.base_url,
             f"gfs.{d_start.strftime('%Y%m%d')}",
-            d_start.strftime('%H'),
+            d_start.strftime("%H"),
             "atmos",
-            filename
+            filename,
         )
         return url, filename
 
