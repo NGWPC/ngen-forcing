@@ -14,6 +14,28 @@ set -euox pipefail
 #load the configuration file
 . ./schism_calib.cfg
 
+# Check string variables
+for var in STARTPDY STARTCYC COASTAL_DOMAIN METEO_SOURCE COASTAL_WORK_DIR RAW_DOWNLOAD_DIR; do
+    if [[ -z "${!var}" ]]; then
+        echo "ERROR: $var is not defined in config file"
+        exit 1
+    fi
+done
+
+# Check numeric variables
+for var in FCST_LENGTH_HRS; do
+    if [[ -z "${!var}" ]] || ! [[ "${!var}" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: $var must be a positive integer"
+        exit 1
+    fi
+done
+
+# Check YES/NO variables
+if [[ "${USE_TPXO}" != "YES" ]] && [[ "${USE_TPXO}" != "NO" ]]; then
+    echo "ERROR: USE_TPXO must be YES or NO"
+    exit 1
+fi
+
 export NGWPC_COASTAL_PARM_DIR=/ngen-test/coastal/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
