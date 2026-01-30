@@ -36,7 +36,7 @@ if [[ "${USE_TPXO}" != "YES" ]] && [[ "${USE_TPXO}" != "NO" ]]; then
     exit 1
 fi
 
-export NGWPC_COASTAL_PARM_DIR=/ngen-test/coastal/ngwpc-coastal
+export NGWPC_COASTAL_PARM_DIR=$NFS_MOUNT/coastal/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #
@@ -258,7 +258,8 @@ singularity exec -B $BINDINGS \
 	 ./run_sing_coastal_workflow_pre_schism.bash
 
 
-export PATH=/opt/amazon/openmpi/bin:/opt/amazon/efa/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+export PATH=$NFS_MOUNT/openmpi/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+export LD_LIBRARY_PATH=$NFS_MOUNT/openmpi/lib:$LD_LIBRARY_PATH
 
 export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/openmpi/lib64
 export OMPI_ALLOW_RUN_AS_ROOT=1
