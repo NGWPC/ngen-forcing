@@ -1,5 +1,6 @@
 import functools
 import time
+import traceback
 
 import types
 from .core.parallel import MpiConfig
@@ -8,9 +9,10 @@ from .core.config import ConfigOptions
 
 def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep_factor: float):
     """
-    Decorator intended to retry functions in MPI context, that involve collective / barrier calls.
-    For example, ESMF functions like ESMF.Regrid(), which, with default calls to err_handler.check_program_status,
-    may result in deadlocks if one rank fails out and the others don't, without calling MPI Abort() or re-raising the exception.
+    Decorator intended to retry functions in MPI context. In the event of a fail out (after multiple attempts),
+    this decorator will either MPI abort directly, or reraise the final exception.  In order to allow this to
+    be called from only some ranks and not others (such as rank 0 only), this does not call
+    err_handler.check_program_status, since that includes a MPI barrier.
 
     Causes any/all ranks to call their own MPI Abort(), rather than only rank 0 calling MPI Abort().
 
@@ -70,13 +72,9 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
                         # Fail out
                         msg += f" Attempts exceeded limit."
                         if abort:
-                            msg += " Will MPI Abort()."
+                            msg += f" Will MPI Abort(). Traceback:\n{traceback.format_exc()}"
                             err_handler.log_critical(config_options, mpi_config, msg=msg)
-                            # This decorator is intended to be used for functions that make calls to collective / barrier functions,
-                            # So the unusual arguments to check_program_status are used to prevent potential deadlocks.
-                            err_handler.check_program_status(
-                                config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True
-                            )
+                            mpi_config.comm.Abort(1)
                         else:
                             msg += " Reraising exception."
                             err_handler.log_critical(config_options, mpi_config, msg=msg)
@@ -86,9 +84,6 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
                 else:
                     msg = f"func {func.__name__} finished after {attempt} attempts."
                     err_handler.log_msg(config_options, mpi_config, debug=True, msg=msg)
-                    err_handler.check_program_status(
-                        config_options, mpi_config, rank_0_reduce=False, any_rank_abort=True
-                    )
                     return ret
 
         return wrapper
