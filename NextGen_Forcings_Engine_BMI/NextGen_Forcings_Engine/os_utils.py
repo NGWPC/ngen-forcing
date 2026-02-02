@@ -19,7 +19,7 @@ def assert_path_exists_retry(
         raise FileNotFoundError(path)
 
 
-@retry_utils.retry_simple(abort=True, num_retries=3, sleep_start=1, sleep_factor=3)
+@retry_utils.retry_simple(num_retries=3, sleep_start=1, sleep_factor=3)
 def os_remove_retry(
     path: str,
 ):

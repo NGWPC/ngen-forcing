@@ -102,9 +102,7 @@ def retry_w_mpi_context(
     return decorator
 
 
-def retry_simple(
-    abort: bool, num_retries: int, sleep_start: float, sleep_factor: float
-):
+def retry_simple(num_retries: int, sleep_start: float, sleep_factor: float):
     """
     Decorator intended to retry functions in non-MPI context, that do not involve collective / barrier calls.
 
@@ -121,11 +119,11 @@ def retry_simple(
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
             sleep_sec = sleep_start
-            for i in range(num_retries):
+            for i in range(num_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception:
-                    if i == num_retries - 1:
+                    if i == num_retries:
                         raise
                     time.sleep(sleep_sec)
                     sleep_sec *= sleep_factor
