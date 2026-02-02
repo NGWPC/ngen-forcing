@@ -9775,7 +9775,7 @@ def regrid_mrms_hourly(
                 )
                 err_handler.log_critical(config_options, mpi_config)
 
-        if MpiConfig.rank == 0:
+        if mpi_config.rank == 0:
             for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
                 if os.path.isfile(f):
                     try:
@@ -9783,7 +9783,7 @@ def regrid_mrms_hourly(
                     except OSError:
                         config_options.errMsg = f"Unable to remove scratch file: {f}"
                         err_handler.log_critical(config_options, mpi_config)
-        MpiConfig.comm.barrier()
+        mpi_config.comm.barrier()
         err_handler.check_program_status(config_options, mpi_config)
 
 
