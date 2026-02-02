@@ -7,7 +7,6 @@ from .core.config import ConfigOptions
 ### shapely must be imported before ESMF to avoid segfault with shapely 2+
 import shapely
 import esmpy as ESMF
-import os
 
 
 @retry_utils.retry_w_mpi_context(
@@ -94,17 +93,3 @@ def esmf_regridobj_call_retry(
     """Call to provided regridObj (or regridObj_elem) object, wrapped by MPI-aware retry decorator.
     These objects are attrs of class .core.forcingInputMod.input_forcings."""
     return regridObj(*esmf_args, **esmf_kwargs)
-
-
-@retry_utils.retry_w_mpi_context(
-    abort=True, num_retries=3, sleep_start=1, sleep_factor=3
-)
-def assert_path_exists_retry(
-    mpi_config: MpiConfig,
-    config_options: ConfigOptions,
-    err_handler: types.ModuleType,
-    path: str,
-):
-    """Raise FileNotFoundError if the path does not exist. Wrapped by MPI-aware retry decorator."""
-    if not os.path.exists(path):
-        raise FileNotFoundError(path)

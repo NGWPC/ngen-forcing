@@ -7,7 +7,9 @@ from .core.parallel import MpiConfig
 from .core.config import ConfigOptions
 
 
-def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep_factor: float):
+def retry_w_mpi_context(
+    abort: bool, num_retries: int, sleep_start: float, sleep_factor: float
+):
     """
     Decorator intended to retry functions in MPI context. In the event of a fail out (after multiple attempts),
     this decorator will either MPI abort directly, or reraise the final exception.  In order to allow this to
@@ -29,7 +31,6 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
     """
 
     def decorator(func):
-
         @functools.wraps(func)
         def wrapper(
             mpi_config: MpiConfig,
@@ -39,11 +40,17 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
             **kwargs,
         ):
             if not isinstance(mpi_config, MpiConfig):
-                raise TypeError(f"Expected type {MpiConfig} for mpi_config, got: {type(mpi_config)}")
+                raise TypeError(
+                    f"Expected type {MpiConfig} for mpi_config, got: {type(mpi_config)}"
+                )
             if not isinstance(config_options, ConfigOptions):
-                raise TypeError(f"Expected type {ConfigOptions} for config_options, got: {type(config_options)}")
+                raise TypeError(
+                    f"Expected type {ConfigOptions} for config_options, got: {type(config_options)}"
+                )
             if not isinstance(err_handler, types.ModuleType):
-                raise TypeError(f"Expected type {types.ModuleType} for err_handler, got: {type(err_handler)}")
+                raise TypeError(
+                    f"Expected type {types.ModuleType} for err_handler, got: {type(err_handler)}"
+                )
             if num_retries < 0:
                 raise ValueError(f"Expected num_retries >= 0, got: {num_retries}")
 
@@ -73,11 +80,15 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
                         msg += f" Attempts exceeded limit."
                         if abort:
                             msg += f" Will MPI Abort(). Traceback:\n{traceback.format_exc()}"
-                            err_handler.log_critical(config_options, mpi_config, msg=msg)
+                            err_handler.log_critical(
+                                config_options, mpi_config, msg=msg
+                            )
                             mpi_config.comm.Abort(1)
                         else:
                             msg += " Reraising exception."
-                            err_handler.log_critical(config_options, mpi_config, msg=msg)
+                            err_handler.log_critical(
+                                config_options, mpi_config, msg=msg
+                            )
                             e.args = (msg,) + e.args
                             raise e
                         raise RuntimeError("Should not get here.")
@@ -85,6 +96,39 @@ def retry_w_mpi_context(abort: bool, num_retries: int, sleep_start: float, sleep
                     msg = f"func {func.__name__} finished after {attempt} attempts."
                     err_handler.log_msg(config_options, mpi_config, debug=True, msg=msg)
                     return ret
+
+        return wrapper
+
+    return decorator
+
+
+def retry_simple(
+    abort: bool, num_retries: int, sleep_start: float, sleep_factor: float
+):
+    """
+    Decorator intended to retry functions in non-MPI context, that do not involve collective / barrier calls.
+
+    May wrap any function.
+
+    :param abort: If True, on fail-out, system exit without reraising the exeption. If False, on fail-out, reraise the exception of the final attempt.
+    :param num_retries: The number of retries to perform. Must be >= 0.
+    :param sleep_start: The sleep duration in seconds, between the first and second attempts.
+    :param sleep_factor: With each attempt prior to fail-out, the sleep duration is multiplied by this amount.
+    :return: On success, the decorated function returns its normally returned value. On fail-out, either an exception is raised, or system exit is called.
+    """
+
+    def decorator(func):
+        @functools.wraps(func)
+        def wrapper(*args, **kwargs):
+            sleep_sec = sleep_start
+            for i in range(num_retries):
+                try:
+                    return func(*args, **kwargs)
+                except Exception:
+                    if i == num_retries - 1:
+                        raise
+                    time.sleep(sleep_sec)
+                    sleep_sec *= sleep_factor
 
         return wrapper
 

@@ -1230,29 +1230,61 @@ class GeoMetaWrfHydro:
                         "r",
                     )
 
-                    # Extract everything we need in one go
-                    vars = idTmp.variables
-                    elemcoords = vars[ConfigOptions.elemcoords_var]
-                    self.nx_global = elemcoords.shape[0]
-                    self.ny_global = self.nx_global
+                    # Extract everything we need with retries
+                    tmp_vars = idTmp.variables
 
                     if ConfigOptions.aws:
-                        nodecoords = vars[ConfigOptions.nodecoords_var]
-                        self.lat_bounds = nodecoords[:, 1]
-                        self.lon_bounds = nodecoords[:, 0]
+                        nodecoords_data = nc_utils.nc_read_var_retry(
+                            MpiConfig,
+                            ConfigOptions,
+                            err_handler,
+                            tmp_vars[ConfigOptions.nodecoords_var],
+                        )
+                        self.lat_bounds = nodecoords_data[:, 1]
+                        self.lon_bounds = nodecoords_data[:, 0]
 
                     # Store these for later broadcast/scatter
-                    elementcoords_global = elemcoords[:].data
-                    element_ids_global = vars[ConfigOptions.element_id_var][:].data
+                    elementcoords_global = nc_utils.nc_read_var_retry(
+                        MpiConfig,
+                        ConfigOptions,
+                        err_handler,
+                        tmp_vars[ConfigOptions.elemcoords_var],
+                    )
+
+                    self.nx_global = elementcoords_global.shape[0]
+                    self.ny_global = self.nx_global
+
+                    element_ids_global = nc_utils.nc_read_var_retry(
+                        MpiConfig,
+                        ConfigOptions,
+                        err_handler,
+                        tmp_vars[ConfigOptions.element_id_var],
+                    )
 
                     heights_global = None
                     if ConfigOptions.hgt_var is not None:
-                        heights_global = vars[ConfigOptions.hgt_var][:].data
+                        heights_global = nc_utils.nc_read_var_retry(
+                            MpiConfig,
+                            ConfigOptions,
+                            err_handler,
+                            tmp_vars[ConfigOptions.hgt_var],
+                        )
                     slopes_global = None
                     slp_azi_global = None
                     if ConfigOptions.slope_var is not None:
-                        slopes_global = vars[ConfigOptions.slope_var][:].data
-                        slp_azi_global = vars[ConfigOptions.slope_azimuth_var][:].data
+                        slopes_global = nc_utils.nc_read_var_retry(
+                            MpiConfig,
+                            ConfigOptions,
+                            err_handler,
+                            tmp_vars[ConfigOptions.slope_var],
+                        )
+                    if ConfigOptions.slope_azimuth_var is not None:
+                        slp_azi_global = nc_utils.nc_read_var_retry(
+                            MpiConfig,
+                            ConfigOptions,
+                            err_handler,
+                            tmp_vars[ConfigOptions.slope_azimuth_var],
+                        )
 
                     idTmp.close()
 
@@ -1261,6 +1293,10 @@ class GeoMetaWrfHydro:
                         f"Failed to open mesh file: {ConfigOptions.geogrid} "
                         f"due to {str(e)}"
                     )
+                    try:
+                        idTmp.close()
+                    except Exception:
+                        pass
                     raise
             else:
                 elementcoords_global = None
