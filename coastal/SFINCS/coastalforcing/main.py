@@ -205,8 +205,7 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
 
     forecastlength_in_hrs = int( (dte - dts).total_seconds()/3600 )
 
-    here = Path(__file__).resolve().parent
-    raw_download_dir=_normpath(here, cfg['raw_download_dir'])
+    raw_download_dir=_normpath(cfg['raw_download_dir'])
 
     with open( f"{sim_dir}/schism_calib.cfg", "w") as schcfg:
       schcfg.write(f"export STARTPDY={startpdy}\n")
@@ -226,7 +225,7 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
 # ---- Main ----
 
 def main():
-    here = Path(__file__).resolve().parent
+    here = Path.cwd()
 
     if len(sys.argv) > 1:
         config_file = sys.argv[1]
@@ -239,37 +238,28 @@ def main():
     print(f"Using config file: {config_file}")
 
     # Load config (no global chdir)
-    cfg_path = _normpath(here, config_file)
+    cfg_path = _normpath(config_file)
     with open(cfg_path) as f:
         cfg = yaml.safe_load(f)
 
     validate_config(cfg)
 
-    nwm_domain = cfg['domain_file'] if cfg['domain_file'] == 'hawaii' or cfg['domain_file'] == 'prvi' else \
-                 'conus' 
-
     # Load domain info and normalize base path relative to the domain YAML
-    domain_file = f"domain_lists/{cfg['coastal_model']}/{cfg['domain_file']}.yaml"
+    domain_file = f"{cfg['domain_file']}"
     with open(domain_file) as f:
         domain_info = yaml.safe_load(f)
+
+    region = domain_info['domain'][0]['region']
+    nwm_domain = region if region == 'hawaii' or region == 'prvi' else \
+                 'conus' 
 
     # Resolve the domain path relative to the YAML’s folder
     domain_yaml_dir = os.path.dirname(os.path.abspath(domain_file))
     raw_domain_path = domain_info['domain'][0]['path']
 
-    # 🔧 Sanitize Windows-style separators for POSIX
-    raw_domain_path_sanitized = raw_domain_path.replace('\\', '/')
-
-    abs_domain_path = os.path.abspath(
-        os.path.normpath(os.path.join(domain_yaml_dir, raw_domain_path_sanitized))
-    )
-
-    # Save the normalized absolute path back
-    domain_info['domain'][0]['path'] = abs_domain_path
-
     # Ensure it exists
-    if not os.path.isdir(abs_domain_path):
-        raise FileNotFoundError(f"Resolved domain path not found: {abs_domain_path}")
+    if not os.path.isdir(raw_domain_path):
+        raise FileNotFoundError(f"Resolved domain path not found: {raw_domain_path}")
 
     # Download data
     downloader = DataDownloader(
@@ -279,7 +269,7 @@ def main():
         meteo_source=cfg['meteo_source'],
         hydrology_source=cfg['hydrology_source'],
         coastal_water_level_source=cfg['coastal_water_level_source'],
-        raw_download_dir=_normpath(here, cfg['raw_download_dir']),
+        raw_download_dir=_normpath(cfg['raw_download_dir']),
         nwm_domain=nwm_domain,
         domain_info=domain_info
     )
@@ -312,7 +302,7 @@ def main():
         meteo_source=cfg['meteo_source'],
         hydrology_source=cfg['hydrology_source'],
         coastal_water_level_source = cfg['coastal_water_level_source'],
-        raw_download_dir=_normpath(here, cfg['raw_download_dir']),
+        raw_download_dir=_normpath(cfg['raw_download_dir']),
         tpxo_relative_path=cfg.get('tpxo_relative_path', None),
         tpxo_model_control=cfg.get('tpxo_model_control', None),
         tpxo_env=tpxo_env
