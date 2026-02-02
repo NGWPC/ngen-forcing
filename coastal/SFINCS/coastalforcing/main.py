@@ -257,9 +257,21 @@ def main():
     domain_yaml_dir = os.path.dirname(os.path.abspath(domain_file))
     raw_domain_path = domain_info['domain'][0]['path']
 
+    # Sanitize Windows-style separators for POSIX
+    raw_domain_path_sanitized = raw_domain_path.replace('\\', '/')
+
+    abs_domain_path = os.path.abspath(
+        os.path.normpath(os.path.join(domain_yaml_dir, raw_domain_path_sanitized))
+    )
+
+    print(f"abs_domain_path : {abs_domain_path}")
+
+    # Save the normalized absolute path back
+    domain_info['domain'][0]['path'] = abs_domain_path
+
     # Ensure it exists
-    if not os.path.isdir(raw_domain_path):
-        raise FileNotFoundError(f"Resolved domain path not found: {raw_domain_path}")
+    if not os.path.isdir(abs_domain_path):
+        raise FileNotFoundError(f"Resolved domain path not found: {abs_domain_path}")
 
     # Download data
     downloader = DataDownloader(
@@ -273,6 +285,7 @@ def main():
         nwm_domain=nwm_domain,
         domain_info=domain_info
     )
+
     downloader.download_all()
 
     # REORDERED: prepare first, then process
