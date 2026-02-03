@@ -12,13 +12,16 @@ import dask
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
+import obstore
 import pandas as pd
 import s3fs
 import xarray as xr
+import zarr
 from dotenv import find_dotenv, load_dotenv
 from mpi4py.futures import MPICommExecutor
 from pyproj import CRS, Transformer
 from shapely import box, transform
+from zarr.storage import ObjectStore
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
@@ -26,6 +29,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
 
+zarr.config.set({"async.concurrency": 100})
 LOG = logging.getLogger(MODULE_NAME)
 
 
@@ -215,10 +219,14 @@ class BaseProcessor:
         self.current_time = current_time
         if self.current_time in self.start_end_dates.keys():
             self.computed_ds = self.compute_ds()
+        if self.current_time not in self.computed_ds.time.values:
+            raise IndexError(
+                f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
+            )
         ds = self.computed_ds.sel(time=self.current_time)
 
-        # if self.mpi_config.rank==0:
-        #     self.plot_precip(ds)
+        if self.mpi_config.rank == 0:
+            self.plot_precip(ds)
         #     self.write_sum_tif(self.computed_ds)
         return ds
 
@@ -228,10 +236,8 @@ class BaseProcessor:
         """Lazy load dataset from S3."""
         year_datasets = {}
         for year in self.years:
-            year_datasets[year] = xr.open_zarr(
-                self.url(year),
-                storage_options={"anon": True},
-            )
+            object_store = obstore.store.from_url(self.url(year), skip_signature=True)
+            year_datasets[year] = xr.open_zarr(ObjectStore(object_store))
         return year_datasets
 
     def compute_ds(self) -> xr.Dataset:
@@ -327,9 +333,10 @@ class AORCConusProcessor(BaseProcessor):
     @lru_cache
     def src_crs(self):
         """Get source CRS from dataset."""
-        return xr.open_zarr(
-            self.url(self.years[0]), storage_options={"anon": True}
-        ).rio.crs
+        object_store = obstore.store.from_url(
+            self.url(self.years[0]), skip_signature=True
+        )
+        return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
 
     def url(self, year: str) -> str:
         """Generate AORC S3 zarr URL for current year.
@@ -389,9 +396,10 @@ class AORCAlaskaProcessor(BaseProcessor):
     @lru_cache
     def src_crs(self):
         """Get source CRS from dataset."""
-        return xr.open_zarr(
-            self.url(self.years[0]), storage_options={"anon": True}
-        ).rio.crs
+        object_store = obstore.store.from_url(
+            self.url(self.years[0]), skip_signature=True
+        )
+        return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
 
     def url(self, date: datetime) -> str:
         """Generate AORC S3 zarr URL for current year.
@@ -455,16 +463,6 @@ class NWMV3Processor(BaseProcessor):
         self.time_label = "time"
 
     @property
-    @lru_cache
-    def src_crs(self):
-        """Get source CRS from dataset."""
-        return CRS(
-            xr.open_zarr(
-                self.url(self.vars[0]), storage_options={"anon": True}
-            ).crs.attrs["spatial_ref"]
-        )
-
-    @property
     def vars(
         self,
     ) -> list[str]:
@@ -508,6 +506,15 @@ class NWMV3ConusProcessor(NWMV3Processor):
         return url
 
     @property
+    @lru_cache
+    def src_crs(self):
+        """Get source CRS from dataset."""
+        object_store = obstore.store.from_url(
+            self.url(self.vars[0]), skip_signature=True
+        )
+        return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
+
+    @property
     def sliced_ds(self) -> xr.Dataset:
         """Open dataset.
 
@@ -518,7 +525,10 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    ds = xr.open_zarr(self.url(var), storage_options={"anon": True})
+                    object_store = obstore.store.from_url(
+                        self.url(var), skip_signature=True
+                    )
+                    ds = xr.open_zarr(ObjectStore(object_store))
                     datasets.append(self.slice_ds(ds, self.time_min, self.time_max))
             except Exception as e:
                 LOG.critical(
@@ -555,6 +565,15 @@ class NWMV3OConusProcessor(NWMV3Processor):
         return url
 
     @property
+    @lru_cache
+    def src_crs(self):
+        """Get source CRS from dataset."""
+        object_store = obstore.store.from_url(
+            self.url(self.vars[0]), skip_signature=True
+        )
+        return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
+
+    @property
     def sliced_ds(self) -> xr.Dataset:
         """Sliced dataset.
 
@@ -577,3 +596,67 @@ class NWMV3OConusProcessor(NWMV3Processor):
                 f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
             )
             raise e
+
+
+class NWMV3AlaskaProcessor(NWMV3OConusProcessor):
+    """Processor for NWM OCONUS data."""
+
+    def __init__(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+        wrf_hydro_geo_meta: dict,
+    ):
+        """Initialize NWM OCONUS processor."""
+        super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+
+    @property
+    def sliced_ds(self) -> xr.Dataset:
+        """Sliced dataset.
+
+        :return: xarray Dataset
+        :raises Exception: If zarr open fails
+        """
+        try:
+            if os.path.exists(self.nc_path):
+                with self.timing_block(f"opening local dataset {self.nc_path}"):
+                    return xr.open_dataset(self.nc_path)
+            else:
+                with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                    return self.slice_ds(
+                        self.s3_lazy_ds_w_coords[self.current_time.year],
+                        self.current_time,
+                        self.end_time_datetime,
+                    ).rename({self.x_label: "x", self.y_label: "y"})
+        except Exception as e:
+            LOG.critical(
+                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
+            )
+            raise e
+
+    @property
+    @lru_cache
+    def src_crs(self):
+        """Get source CRS from dataset."""
+        return self.geo_grid["crs"].attrs["spatial_ref"]
+
+    @property
+    def geo_grid(self):
+        """Load geogrid metadata."""
+        geo = xr.open_dataset("/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc")
+        return geo
+
+    @property
+    @lru_cache
+    def s3_lazy_ds_w_coords(self):
+        """Lazy load dataset from S3 with coordinates assigned."""
+        year_datasets = {}
+        for year in self.years:
+            object_store = obstore.store.from_url(self.url(), skip_signature=True)
+            ds = xr.open_zarr(ObjectStore(object_store))
+            ds = ds.assign_coords(
+                {"x": self.geo_grid["x"].values, "y": self.geo_grid["y"].values}
+            )
+            ds.rio.write_crs(self.src_crs, inplace=True)
+            year_datasets[year] = ds
+        return year_datasets
