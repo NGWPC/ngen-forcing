@@ -17,7 +17,7 @@ def _glofs_cycle_and_suffix(dt: datetime) -> tuple[str, str]:
 
 def _glofs_filename(short_model: str, dt: datetime) -> str:
     """
-    Build the filename for a given datetime using your breakpoint rule:
+    Build the filename for a given datetime using breakpoint rule:
       - If (YYYY, mm) >= (2024, 9): {short}.{cycle}.{datestr}.fields.{suffix}.nc
       - Else:                        nos.{short}.fields.{suffix}.{datestr}.{cycle}.nc
     """
@@ -83,7 +83,7 @@ def ensure_glofs_local(
     """
     Ensure the GLOFS file for a single datetime exists locally in `outdir`.
     - Checks for an existing file by basename first.
-    - If not present, builds the URL (with your pattern rules) and downloads once.
+    - If not present, builds the URL (with pattern rules) and downloads once.
     - Returns local path on success, or None if download fails.
     """
     url = _glofs_url(access_area, dt, base_url)

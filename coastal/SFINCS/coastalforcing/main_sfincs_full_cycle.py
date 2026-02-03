@@ -47,12 +47,12 @@ def _parse_utc(s: str) -> str:
       - 'YYYY-MM-DDTHH:MM:SSZ'
       - 'YYYY-MM-DDTHH:MM:SS+00:00'
       - 'YYYY-MM-DD HH:MM:SSZ'
-      - 'YYYY-MM-DDTHH-MM-SSZ'  (your legacy format)
-    Return normalized string 'YYYY-MM-DDTHH-MM-SSZ' to preserve your downstream expectations.
+      - 'YYYY-MM-DDTHH-MM-SSZ'  (legacy format)
+    Return normalized string 'YYYY-MM-DDTHH-MM-SSZ' to preserve downstream expectations.
     """
     raw = s.strip()
 
-    # If already in your legacy 'T%H-%M-%SZ' format, accept it
+    # If already in legacy 'T%H-%M-%SZ' format, accept it
     try:
         dt = datetime.strptime(raw, "%Y-%m-%dT%H-%M-%SZ").replace(tzinfo=timezone.utc)
         return dt.strftime("%Y-%m-%dT%H-%M-%SZ")
