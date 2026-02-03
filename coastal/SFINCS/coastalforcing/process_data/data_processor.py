@@ -68,7 +68,7 @@ class DataProcessor:
         self.domain_path = self.domain_info["domain"][0]["path"]
         self.ngen_dis_netcdf = ngen_dis_netcdf
         self.tpxo_env = tpxo_env
-        self.inp_dict = self._get_inp_dict( self.sim_dir) if self.model == 'sfincs' else None
+        # self.inp_dict = self._get_inp_dict( self.sim_dir) if self.model == 'sfincs' else None
 
         '''
         # Coastal products (optional)
@@ -179,15 +179,13 @@ class DataProcessor:
             start_date=self.start_dt,
             end_date=self.end_dt,
             mode="ana",
-            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # <- make this a full path in your environment
-            inp_dict=self.inp_dict,
+            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # full path 
             out_dir=self.sim_dir,                               # where to write sfincs.amu/.amv/.ampr/.amp
             raw_root=self.raw_root,                           # root containing the daily NWM folders
             target_epsg=self.target_epsg,
             buffer_m=2000.0,
             flip_vertical=True,
-        )
-
+        )    
         print("Done:", summary)
 
 
@@ -206,7 +204,7 @@ class DataProcessor:
             start_date=self.start_dt,
             end_date=self.end_dt,
             mode="retro",
-            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # <- make this a full path in your environment
+            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # full path
             out_dir=self.sim_dir,                               # where to write sfincs.amu/.amv/.ampr/.amp
             raw_root=self.raw_root,                           # root containing the daily NWM folders
             target_epsg=self.target_epsg,
