@@ -1078,8 +1078,8 @@ class ConfigOptions:
                 # Read weight file directory (optional)
                 self.weightsDir = cfg_bmi["RegridWeightsDir"]
             except Exception:
-                # Assign the weights directory then to the temporary scratch directory
-                self.weightsDir = self.scratch_dir
+                # Set wieghtsDir to None; this will create regrid object in memory
+                self.weightsDir = None
             if self.weightsDir:
                 # if we do have one specified, make sure it exists
                 if not os.path.exists(self.weightsDir):

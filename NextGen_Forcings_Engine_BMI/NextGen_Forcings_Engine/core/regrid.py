@@ -8,6 +8,8 @@ import traceback
 from contextlib import contextmanager
 from datetime import datetime, timedelta
 from time import monotonic, time
+from pathlib import Path
+from .. import os_utils
 
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -31,7 +33,6 @@ from ..esmf_utils import (
     esmf_regrid_retry,
     esmf_regridfromfile_retry,
     esmf_regridobj_call_retry,
-    assert_path_exists_retry,
 )
 
 import dask
@@ -486,9 +487,10 @@ def _regrid_ak_ext_ana_pcp_stage4(
 
     # Create a path for a temporary NetCDF files that will
     # be created through the wgrib2 process.
-    stage4_tmp_nc = config_options.scratch_dir + "/STAGEIV_TMP-{}.nc".format(
-        mkfilename()
-    )
+
+    file_name = f"STAGEIV_AK_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    stage4_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     lat_var = "latitude"
     lon_var = "longitude"
@@ -507,7 +509,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(stage4_tmp_nc)
+                        os_utils.os_remove_retry(stage4_tmp_nc)
                     except OSError:
                         config_options.errMsg = (
                             f"Unable to remove temporary file: {stage4_tmp_nc}"
@@ -988,7 +990,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
                 config_options.errMsg = f"Unable to close NetCDF file: {stage4_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(stage4_tmp_nc)
+                os_utils.os_remove_retry(stage4_tmp_nc)
             except OSError:
                 config_options.errMsg = f"Unable to remove NetCDF file: {stage4_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
@@ -1059,9 +1061,9 @@ def _regrid_conus_ext_ana_pcp_stage4(
 
     # Create a path for a temporary NetCDF files that will
     # be created through the wgrib2 process.
-    stage4_tmp_nc = config_options.scratch_dir + "/STAGEIV_TMP-{}.nc".format(
-        mkfilename()
-    )
+    file_name = f"STAGEIV_CONUS_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    stage4_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     lat_var = "latitude"
     lon_var = "longitude"
@@ -1080,7 +1082,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(stage4_tmp_nc)
+                        os_utils.os_remove_retry(stage4_tmp_nc)
                     except OSError:
                         config_options.errMsg = (
                             f"Unable to remove temporary file: {stage4_tmp_nc}"
@@ -1565,7 +1567,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
                 config_options.errMsg = f"Unable to close NetCDF file: {stage4_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(stage4_tmp_nc)
+                os_utils.os_remove_retry(stage4_tmp_nc)
             except OSError:
                 config_options.errMsg = f"Unable to remove NetCDF file: {stage4_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
@@ -1635,8 +1637,10 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = (
-        config_options.scratch_dir + "/" + "HRRR_TMP-{}.nc".format(mkfilename())
+    file_name = f"HRRR_CONUS_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
     )
 
     id_tmp = None
@@ -1653,7 +1657,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 )
                 err_handler.log_warning(config_options, mpi_config)
                 try:
-                    os.remove(input_forcings.tmpFile)
+                    os_utils.os_remove_retry(input_forcings.tmpFile)
                 except OSError:
                     config_options.errMsg = (
                         f"Unable to remove temporary file: {input_forcings.tmpFile}"
@@ -2086,7 +2090,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 #         err_handler.log_critical(config_options, mpi_config)
                 #
                 #     try:
-                #         os.remove(input_forcings.tmpFileHeight)
+                #         os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #     except OSError:
                 #         config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #         err_handler.log_critical(config_options, mpi_config)
@@ -2552,7 +2556,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(input_forcings.tmpFile)
+                os_utils.os_remove_retry(input_forcings.tmpFile)
             except OSError:
                 config_options.errMsg = (
                     f"Unable to remove NetCDF file: {input_forcings.tmpFile}"
@@ -2590,9 +2594,12 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = (
-        config_options.scratch_dir + "/" + "RAP_CONUS_TMP-{}.nc".format(mkfilename())
+    file_name = f"RAP_CONUS_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
     )
+
     err_handler.check_program_status(config_options, mpi_config)
 
     id_tmp = None
@@ -2611,7 +2618,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(input_forcings.tmpFile)
+                        os_utils.os_remove_retry(input_forcings.tmpFile)
                     except OSError:
                         config_options.errMsg = (
                             "Unable to remove file: " + input_forcings.tmpFile
@@ -3034,7 +3041,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                 #         err_handler.log_critical(config_options, mpi_config)
                 #
                 #     try:
-                #         os.remove(input_forcings.tmpFileHeight)
+                #         os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #     except OSError:
                 #         config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #         err_handler.log_critical(config_options, mpi_config)
@@ -3513,7 +3520,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(input_forcings.tmpFile)
+                os_utils.os_remove_retry(input_forcings.tmpFile)
             except OSError:
                 config_options.errMsg = (
                     f"Unable to remove NetCDF file: {input_forcings.tmpFile}"
@@ -3554,9 +3561,12 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = os.path.join(
-        config_options.scratch_dir, "CFSv2_TMP-{}.nc".format(mkfilename())
+    file_name = f"CFSv2_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
     )
+
     err_handler.check_program_status(config_options, mpi_config)
 
     id_tmp = None
@@ -3575,7 +3585,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(input_forcings.tmpFile)
+                        os_utils.os_remove_retry(input_forcings.tmpFile)
                     except OSError as err:
                         config_options.errMsg = (
                             "Unable to remove previous temporary file: "
@@ -4012,7 +4022,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                 #
                 # if mpi_config.rank == 0:
                 #     try:
-                #         os.remove(input_forcings.tmpFileHeight)
+                #         os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #     except OSError:
                 #         config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #         err_handler.log_critical(config_options, mpi_config)
@@ -4686,7 +4696,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(input_forcings.tmpFile)
+                os_utils.os_remove_retry(input_forcings.tmpFile)
             except OSError:
                 config_options.errMsg = (
                     f"Unable to remove NetCDF file: {input_forcings.tmpFile}"
@@ -6987,31 +6997,16 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
         return
 
-    # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = os.path.join(config_options.scratch_dir, "GFS_TMP.nc")
-    err_handler.check_program_status(config_options, mpi_config)
+    # Create a temporary NetCDF file name to hold converted GRIB2 data.
+    # Previous non-unique tmp files could cause issues on some file systems
+    # Unclear how beneficial the reuse of tmp files was/is
 
-    # check / set previous file to see if we're going to reuse
-    reuse_prev_file = input_forcings.file_in2 == regrid_gfs.last_file
-    regrid_gfs.last_file = input_forcings.file_in2
-
-    # This file may exist. If it does, and we don't need it again, remove it.....
-    if not reuse_prev_file and mpi_config.rank == 0:
-        if os.path.isfile(input_forcings.tmpFile):
-            config_options.statusMsg = (
-                "Found old temporary file: "
-                + input_forcings.tmpFile
-                + " - Removing....."
-            )
-            err_handler.log_warning(config_options, mpi_config)
-            try:
-                os.remove(input_forcings.tmpFile)
-            except OSError:
-                config_options.errMsg = (
-                    "Unable to remove file: " + input_forcings.tmpFile
-                )
-                err_handler.log_critical(config_options, mpi_config)
-    err_handler.check_program_status(config_options, mpi_config)
+    file_uuid = str(mpi_config.uid64)
+    file_name = f"GFS_TMP-{mkfilename()}.nc"
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
+    )
+    # err_handler.check_program_status(config_options, mpi_config)
 
     # We will process each variable at a time. Unfortunately, wgrib2 makes it a bit
     # difficult to handle forecast strings, otherwise this could be done in one command.
@@ -7027,101 +7022,104 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         config_options.statusMsg = "Regridding 13km GFS Variables."
         err_handler.log_msg(config_options, mpi_config)
 
-        if reuse_prev_file:
-            if mpi_config.rank == 0:
+        if input_forcings.file_type != NETCDF:
+            # This file shouldn't exist.... but if it does (previously failed
+            # execution of the program), remove it.....
+            if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
                 config_options.statusMsg = (
-                    "Reusing previous input file: " + input_forcings.file_in2
+                    "Found old temporary file: "
+                    + input_forcings.tmpFile
+                    + " - Removing....."
                 )
-                err_handler.log_msg(
-                    config_options, mpi_config, True
-                )  # log at debug level
-            id_tmp = ioMod.open_netcdf_forcing(
-                input_forcings.tmpFile, config_options, mpi_config
+                err_handler.log_warning(config_options, mpi_config)
+                try:
+                    os_utils.os_remove_retry(input_forcings.tmpFile)
+                except OSError:
+                    config_options.errMsg = (
+                        "Unable to remove file: " + input_forcings.tmpFile
+                    )
+                    err_handler.log_critical(config_options, mpi_config)
+            err_handler.check_program_status(config_options, mpi_config)
+
+            fields = []
+            for force_count, grib_var in enumerate(input_forcings.grib_vars):
+                if mpi_config.rank == 0:
+                    config_options.statusMsg = (
+                        "Converting 13km GFS Variable: " + grib_var
+                    )
+                    err_handler.log_msg(
+                        config_options, mpi_config, True
+                    )  # log at debug level
+                # Create a temporary NetCDF file from the GRIB2 file.
+                if grib_var == "PRATE":
+                    # By far the most complicated of output variables. We need to calculate
+                    # our 'average' PRATE based on our current hour.
+                    if input_forcings.fcst_hour2 <= 384:
+                        tmp_hr_current = input_forcings.fcst_hour2
+
+                        diff_tmp = tmp_hr_current % 6 if tmp_hr_current % 6 > 0 else 6
+                        tmp_hr_previous = tmp_hr_current - diff_tmp
+
+                    else:
+                        tmp_hr_previous = input_forcings.fcst_hour1
+
+                    fields.append(
+                        ":"
+                        + grib_var
+                        + ":"
+                        + input_forcings.grib_levels[force_count]
+                        + ":"
+                        + str(tmp_hr_previous)
+                        + "-"
+                        + str(input_forcings.fcst_hour2)
+                        + " hour ave fcst:"
+                    )
+                else:
+                    fields.append(
+                        ":"
+                        + grib_var
+                        + ":"
+                        + input_forcings.grib_levels[force_count]
+                        + ":"
+                        + str(input_forcings.fcst_hour2)
+                        + " hour fcst:"
+                    )
+
+            # if calc_regrid_flag:
+            fields.append(":(HGT):(surface):")
+            if WGRIB2_env:
+                cmd = (
+                    '$WGRIB2 -match "('
+                    + "|".join(fields)
+                    + ')" '
+                    + input_forcings.file_in2
+                    + " -netcdf "
+                    + input_forcings.tmpFile
+                )
+            else:
+                cmd = "(" + "|".join(fields) + ")"
+
+            id_tmp = ioMod.open_grib2(
+                input_forcings.file_in2,
+                input_forcings.tmpFile,
+                cmd,
+                config_options,
+                mpi_config,
+                inputVar=None,
+                special_case=False,
             )
             err_handler.check_program_status(config_options, mpi_config)
         else:
-            if input_forcings.file_type != NETCDF:
-                fields = []
-                for force_count, grib_var in enumerate(input_forcings.grib_vars):
-                    if mpi_config.rank == 0:
-                        config_options.statusMsg = (
-                            "Converting 13km GFS Variable: " + grib_var
-                        )
-                        err_handler.log_msg(
-                            config_options, mpi_config, True
-                        )  # log at debug level
-                    # Create a temporary NetCDF file from the GRIB2 file.
-                    if grib_var == "PRATE":
-                        # By far the most complicated of output variables. We need to calculate
-                        # our 'average' PRATE based on our current hour.
-                        if input_forcings.fcst_hour2 <= 384:
-                            tmp_hr_current = input_forcings.fcst_hour2
-
-                            diff_tmp = (
-                                tmp_hr_current % 6 if tmp_hr_current % 6 > 0 else 6
-                            )
-                            tmp_hr_previous = tmp_hr_current - diff_tmp
-
-                        else:
-                            tmp_hr_previous = input_forcings.fcst_hour1
-
-                        fields.append(
-                            ":"
-                            + grib_var
-                            + ":"
-                            + input_forcings.grib_levels[force_count]
-                            + ":"
-                            + str(tmp_hr_previous)
-                            + "-"
-                            + str(input_forcings.fcst_hour2)
-                            + " hour ave fcst:"
-                        )
-                    else:
-                        fields.append(
-                            ":"
-                            + grib_var
-                            + ":"
-                            + input_forcings.grib_levels[force_count]
-                            + ":"
-                            + str(input_forcings.fcst_hour2)
-                            + " hour fcst:"
-                        )
-
-                # if calc_regrid_flag:
-                fields.append(":(HGT):(surface):")
-                if WGRIB2_env:
-                    cmd = (
-                        '$WGRIB2 -match "('
-                        + "|".join(fields)
-                        + ')" '
-                        + input_forcings.file_in2
-                        + " -netcdf "
-                        + input_forcings.tmpFile
-                    )
-                else:
-                    cmd = "(" + "|".join(fields) + ")"
-
-                id_tmp = ioMod.open_grib2(
-                    input_forcings.file_in2,
-                    input_forcings.tmpFile,
-                    cmd,
-                    config_options,
-                    mpi_config,
-                    inputVar=None,
-                    special_case=False,
-                )
-                err_handler.check_program_status(config_options, mpi_config)
-            else:
-                create_link(
-                    "GFS",
-                    input_forcings.file_in2,
-                    input_forcings.tmpFile,
-                    config_options,
-                    mpi_config,
-                )
-                id_tmp = ioMod.open_netcdf_forcing(
-                    input_forcings.tmpFile, config_options, mpi_config
-                )
+            create_link(
+                "GFS",
+                input_forcings.file_in2,
+                input_forcings.tmpFile,
+                config_options,
+                mpi_config,
+            )
+            id_tmp = ioMod.open_netcdf_forcing(
+                input_forcings.tmpFile, config_options, mpi_config
+            )
 
         for force_count, grib_var in enumerate(input_forcings.grib_vars):
             if mpi_config.rank == 0:
@@ -7446,7 +7444,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 #        err_handler.log_critical(config_options, mpi_config)
 
                 #    try:
-                #        os.remove(input_forcings.tmpFileHeight)
+                #        os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #    except OSError:
                 #        config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #        err_handler.log_critical(config_options, mpi_config)
@@ -7934,12 +7932,15 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 )
                 err_handler.log_critical(config_options, mpi_config)
 
-            # DON'T REMOVE THE FILE, IT WILL EITHER BE REUSED or OVERWRITTEN
-            # try:
-            #     os.remove(input_forcings.tmpFile)
-            # except OSError:
-            #     config_options.errMsg = "Unable to remove NetCDF file: " + input_forcings.tmpFile
-            #     err_handler.log_critical(config_options, mpi_config)
+            # reinstituting removal - overwriting can cause issues on some file systems
+            # benefits of reuse seem unclear
+            try:
+                os_utils.os_remove_retry(input_forcings.tmpFile)
+            except OSError:
+                config_options.errMsg = (
+                    "Unable to remove NetCDF file: " + input_forcings.tmpFile
+                )
+                err_handler.log_critical(config_options, mpi_config)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -7972,9 +7973,12 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = (
-        config_options.scratch_dir + "/" + "NAM_NEST_TMP-{}.nc".format(mkfilename())
+    file_name = f"NAM_CONUS_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
     )
+
     err_handler.check_program_status(config_options, mpi_config)
 
     id_tmp = None
@@ -7993,7 +7997,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(input_forcings.tmpFile)
+                        os_utils.os_remove_retry(input_forcings.tmpFile)
                     except OSError:
                         err_handler.err_out(config_options)
             err_handler.check_program_status(config_options, mpi_config)
@@ -8379,7 +8383,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 #         err_handler.log_critical(config_options, mpi_config)
                 #
                 #     try:
-                #         os.remove(input_forcings.tmpFileHeight)
+                #         os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #     except OSError:
                 #         config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #         err_handler.log_critical(config_options, mpi_config)
@@ -8763,7 +8767,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(input_forcings.tmpFile)
+                os_utils.os_remove_retry(input_forcings.tmpFile)
             except OSError:
                 config_options.errMsg = (
                     f"Unable to remove NetCDF file: {input_forcings.tmpFile}"
@@ -8821,17 +8825,21 @@ def regrid_mrms_hourly(
     # 4.) A temporary NetCDF file that stores the RQI grid.
     # Create a path for a temporary NetCDF files that will
     # be created through the wgrib2 process.
-    mrms_tmp_grib2 = config_options.scratch_dir + "/MRMS_PCP_TMP-{}.grib2".format(
-        mkfilename()
+
+    file_uuid = str(mpi_config.uid64)
+    mrms_tmp_grib2 = str(
+        Path(config_options.scratch_dir)
+        / f"{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.grib2"
     )
-    mrms_tmp_nc = config_options.scratch_dir + "/MRMS_PCP_TMP-{}.nc".format(
-        mkfilename()
+    mrms_tmp_nc = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_PCP_TMP-{mkfilename()}.nc"
     )
-    mrms_tmp_rqi_grib2 = config_options.scratch_dir + "/MRMS_RQI_TMP-{}.grib2".format(
-        mkfilename()
+    mrms_tmp_rqi_grib2 = str(
+        Path(config_options.scratch_dir)
+        / f"{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.grib2"
     )
-    mrms_tmp_rqi_nc = config_options.scratch_dir + "/MRMS_RQI_TMP-{}.nc".format(
-        mkfilename()
+    mrms_tmp_rqi_nc = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_MRMS_RQI_TMP-{mkfilename()}.nc"
     )
     # mpi_config.comm.barrier()
 
@@ -9767,19 +9775,15 @@ def regrid_mrms_hourly(
                 )
                 err_handler.log_critical(config_options, mpi_config)
 
-        # Remove all four scratch files on every rank
-        for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
-            if os.path.isfile(f):
-                try:
-                    os.remove(f)
-                # need this to avoid "Unable remove scratch file" error
-                except FileNotFoundError:
-                    pass
-                except OSError:
-                    config_options.errMsg = f"Unable to remove scratch file: {f}"
-                    err_handler.log_critical(config_options, mpi_config)
-
-        # noinspection PyUnreachableCode
+        if mpi_config.rank == 0:
+            for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
+                if os.path.isfile(f):
+                    try:
+                        os_utils.os_remove_retry(f)
+                    except OSError:
+                        config_options.errMsg = f"Unable to remove scratch file: {f}"
+                        err_handler.log_critical(config_options, mpi_config)
+        mpi_config.comm.barrier()
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9811,9 +9815,13 @@ def regrid_mrms_precip_flag(
         return
 
     # Unzip MRMS precip flag file to temporary location.
-    fileno = mkfilename()
-    mrms_tmp_grib2 = config_options.scratch_dir + f"/MRMS_PCP_FLAG_TMP_{fileno}.grib2"
-    mrms_tmp_nc = config_options.scratch_dir + f"/MRMS_PCP_FLAG_TMP_{fileno}.nc"
+    file_name = f"_MRMS_PCP_FLAG_TMP_{mkfilename()}"
+    file_uuid = str(mpi_config.uid64)
+    mrms_tmp_grib2 = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}{file_name}.grib2"
+    )
+    mrms_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}{file_name}.nc")
+
     ioMod.unzip_file(
         supplemental_precip.file_in2, mrms_tmp_grib2, config_options, mpi_config
     )
@@ -10015,7 +10023,7 @@ def regrid_mrms_precip_flag(
             )
             err_handler.log_critical(config_options, mpi_config)
         try:
-            os.remove(mrms_tmp_nc)
+            os_utils.os_remove_retry(mrms_tmp_nc)
         except OSError:
             config_options.errMsg = "Unable to remove NetCDF file: " + mrms_tmp_nc
             err_handler.log_critical(config_options, mpi_config)
@@ -10053,9 +10061,13 @@ def regrid_hourly_wrf_arw(
         return
 
     # Create a path for a temporary NetCDF file
-    input_forcings.tmpFile = (
-        config_options.scratch_dir + "/" + "ARW_TMP-{}.nc".format(mkfilename())
+
+    file_name = f"ARW_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    input_forcings.tmpFile = str(
+        Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}"
     )
+
     err_handler.check_program_status(config_options, mpi_config)
 
     id_tmp = None
@@ -10075,7 +10087,7 @@ def regrid_hourly_wrf_arw(
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(input_forcings.tmpFile)
+                        os_utils.os_remove_retry(input_forcings.tmpFile)
                     except OSError:
                         err_handler.err_out(config_options)
             err_handler.check_program_status(config_options, mpi_config)
@@ -10475,7 +10487,7 @@ def regrid_hourly_wrf_arw(
                 #         err_handler.log_critical(config_options, mpi_config)
                 #
                 #     try:
-                #         os.remove(input_forcings.tmpFileHeight)
+                #         os_utils.os_remove_retry(input_forcings.tmpFileHeight)
                 #     except OSError:
                 #         config_options.errMsg = "Unable to remove temporary file: " + input_forcings.tmpFileHeight
                 #         err_handler.log_critical(config_options, mpi_config)
@@ -10956,7 +10968,7 @@ def regrid_hourly_wrf_arw(
                 )
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(input_forcings.tmpFile)
+                os_utils.os_remove_retry(input_forcings.tmpFile)
             except OSError:
                 config_options.errMsg = (
                     f"Unable to remove NetCDF file: {input_forcings.tmpFile}"
@@ -10998,7 +11010,9 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
 
     # Create a path for a temporary NetCDF files that will
     # be created through the wgrib2 process.
-    arw_tmp_nc = config_options.scratch_dir + "/ARW_PCP_TMP-{}.nc".format(mkfilename())
+    file_name = f"ARW_PCP_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    arw_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
     id_tmp = None
     try:
@@ -11014,7 +11028,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
                     )
                     err_handler.log_warning(config_options, mpi_config)
                     try:
-                        os.remove(arw_tmp_nc)
+                        os_utils.os_remove_retry(arw_tmp_nc)
                     except IOError:
                         err_handler.log_critical(config_options, mpi_config)
             err_handler.check_program_status(config_options, mpi_config)
@@ -11472,7 +11486,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
                 config_options.errMsg = f"Unable to close NetCDF file: {arw_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
             try:
-                os.remove(arw_tmp_nc)
+                os_utils.os_remove_retry(arw_tmp_nc)
             except OSError:
                 config_options.errMsg = f"Unable to remove NetCDF file: {arw_tmp_nc}"
                 err_handler.log_critical(config_options, mpi_config)
@@ -11906,7 +11920,10 @@ def regrid_hourly_nbm(
     if forcings_or_precip.regridComplete:
         return
 
-    nbm_tmp_nc = config_options.scratch_dir + "/NBM_PCP_TMP-{}.nc".format(mkfilename())
+    file_name = f"NBM_PCP_TMP-{mkfilename()}.nc"
+    file_uuid = str(mpi_config.uid64)
+    nbm_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
+
     if mpi_config.rank == 0:
         if os.path.isfile(nbm_tmp_nc):
             config_options.statusMsg = (
@@ -11914,7 +11931,7 @@ def regrid_hourly_nbm(
             )
             err_handler.log_warning(config_options, mpi_config)
             try:
-                os.remove(nbm_tmp_nc)
+                os_utils.os_remove_retry(nbm_tmp_nc)
             except OSError:
                 config_options.errMsg = "Unable to remove file: " + nbm_tmp_nc
                 err_handler.log_critical(config_options, mpi_config)
@@ -12785,7 +12802,7 @@ def regrid_hourly_nbm(
             )
             err_handler.log_critical(config_options, mpi_config)
         try:
-            os.remove(nbm_tmp_nc)
+            os_utils.os_remove_retry(nbm_tmp_nc)
         except OSError:
             config_options.errMsg = (
                 "Unable to remove temporary NBM NetCDF file: " + nbm_tmp_nc
@@ -12842,7 +12859,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     config_options, mpi_config, True
                 )  # log at debug level
                 try:
-                    os.remove(tmp_file)
+                    os_utils.os_remove_retry(tmp_file)
                 except OSError:
                     config_options.errMsg = f"Unable to remove file: {tmp_file}"
                     err_handler.log_critical(config_options, mpi_config)
@@ -13185,7 +13202,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 and os.path.isfile(tmp_file)
             ):
                 try:
-                    os.remove(tmp_file)
+                    os_utils.os_remove_retry(tmp_file)
                 except OSError as e:
                     config_options.errMsg = (
                         f"Unable to remove scratch file {tmp_file}: {e}"
@@ -14216,7 +14233,9 @@ def load_weight_file(
     element_mode: bool,
 ) -> None:
     """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place."""
-    assert_path_exists_retry(mpi_config, config_options, err_handler, weight_file)
+    os_utils.assert_path_exists_retry(
+        mpi_config, config_options, err_handler, weight_file
+    )
 
     if not element_mode:
         msg_augment = " "
@@ -14356,7 +14375,7 @@ def execute_regrid(
             config_options.statusMsg = f"Deleting if exists: {weight_file}"
             err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
             try:
-                os.remove(weight_file)
+                os_utils.os_remove_retry(weight_file)
             except FileNotFoundError:
                 pass
 
@@ -14675,7 +14694,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = esmf_field_retry_partial(
-                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14688,7 +14708,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = esmf_field_retry_partial(
-                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
@@ -14714,7 +14735,8 @@ def calculate_weights(
         # Create a ESMF field to hold the incoming data.
         try:
             input_forcings.esmf_field_in = esmf_field_retry_partial(
-                input_forcings.esmf_grid_in, name=input_forcings.product_name + "_NATIVE"
+                input_forcings.esmf_grid_in,
+                name=input_forcings.product_name + "_NATIVE",
             )
         except ESMF.ESMPyException as esmf_error:
             config_options.errMsg = "Unable to create ESMF field object: " + str(
