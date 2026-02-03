@@ -10,13 +10,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-
 if TYPE_CHECKING:
     from numpy.typing import NDArray
+import logging
 
 from nextgen_forcings_ewts import MODULE_NAME
 
-import logging
 LOG = logging.getLogger(MODULE_NAME)
 
 _error_on_grid_type: bool = False
@@ -26,68 +25,69 @@ def error_on_grid_type(flag: bool = False) -> None:
     """Set the behavior of the module to throw an error on grid functions that are not applicable.
 
     Args:
-        flag (bool): 
+        flag (bool):
             True will enable exceptions to be thrown for access to grid functions that are not applicable to the grid type.
-            
+
             False will attempt to provide reasonable default semantics for returning information from those functions.
 
     Returns:
         None
+
     """
     global _error_on_grid_type
     _error_on_grid_type = flag
 
 
 class GridTypeAccessError(TypeError):
-    """Grid meta data not accessible for grid type"""
+    """Grid meta data not accessible for grid type."""
 
 
 class GridType(str, Enum):
-    """
-        Enumeration of supported BMI grid types (https://bmi.readthedocs.io/en/stable/#get-grid-type)
-    """
-    scalar = "scalar",  # 0 dim
-    points = "points",  # 1 dim
-    vector = "vector",  # 1 dim
-    unstructured = "unstructured",  # 1-N
-    structured_quadrilateral = "structured_quadrilaterl",  # 2 dim
-    rectilinear = "rectilinear",  # 2 dim dx != dy
+    """Enumeration of supported BMI grid types (https://bmi.readthedocs.io/en/stable/#get-grid-type)."""
+
+    scalar = ("scalar",)  # 0 dim
+    points = ("points",)  # 1 dim
+    vector = ("vector",)  # 1 dim
+    unstructured = ("unstructured",)  # 1-N
+    structured_quadrilateral = ("structured_quadrilaterl",)  # 2 dim
+    rectilinear = ("rectilinear",)  # 2 dim dx != dy
     uniform_rectilinear = "uniform_rectilinear"  # 2 dim -- dx = dy
 
 
 class GridUnits(Enum):
-    """
-        Enumeration of supported Grid Units to facilitate framework interactions
-    """
+    """Enumeration of supported Grid Units to facilitate framework interactions."""
+
     none = -1
     m = 0
     km = 1
 
 
 class Grid:
-    """
-        Structure for holding required BMI meta data for any grid intended to be used via BMI
-    """
+    """Structure for holding required BMI meta data for any grid intended to be used via BMI."""
 
-    def __init__(self, id: int, rank: int, type: GridType, units: GridUnits = GridUnits.none):
-        """_summary_
+    def __init__(
+        self, id: int, rank: int, type: GridType, units: GridUnits = GridUnits.none
+    ):
+        """Initialize a Grid instance.
 
         Args:
             id (int): User defined identifier for this grid
             rank (int): The number of dimensions of the grid
             type (GridType): The type of BMI grid this meta data represents
+            units (GridUnits): The units of the grid spacing in each dimension
+
         """
         self._id: int = id
         self._rank: int = rank
         self._size: int = 0
         self._type: GridType = type  # FIXME validate type/rank?
-        self._shape: 'NDArray[np.int32]' = None  # array of size rank
-        self._spacing: 'NDArray[np.float64]' = None  # array of size rank
-        self._origin: 'NDArray[np.float64]' = None  # array of size rank
-        self._grid_x: 'NDArray[np.float64]' = None  # array of size rank
-        self._grid_y: 'NDArray[np.float64]' = None  # array of size rank
-        self._grid_z: 'NDArray[np.float64]' = None  # array of size rank
-        self._units: 'NDArray[np.int16]' = None  # array of size rank
+        self._shape: "NDArray[np.int32]" = None  # array of size rank
+        self._spacing: "NDArray[np.float64]" = None  # array of size rank
+        self._origin: "NDArray[np.float64]" = None  # array of size rank
+        self._grid_x: "NDArray[np.float64]" = None  # array of size rank
+        self._grid_y: "NDArray[np.float64]" = None  # array of size rank
+        self._grid_z: "NDArray[np.float64]" = None  # array of size rank
+        self._units: "NDArray[np.int16]" = None  # array of size rank
 
         if rank == 0:
             # We have to use a 1 dim representation for a scalar cause numpy initialization is weird
@@ -96,14 +96,18 @@ class Grid:
             # np.zeros( () ) gives a scalar wrapped in an array array(0.)
             # This latter is really what we want, but then it is hard to communicate the actual size
             # (as a numerical value...)
-            self._shape = np.zeros((), np.int32)  # note, int32 is important here -- assumed by ngen
+            self._shape = np.zeros(
+                (), np.int32
+            )  # note, int32 is important here -- assumed by ngen
             self._spacing = np.zeros((), np.float64)
             self._origin = np.zeros((), np.float64)
             self._units = np.ones((), dtype=np.int16)
             self._units[()] = units.value
             # self._shape[...] = 1
         else:
-            self._shape = np.zeros(rank, np.int32)  # set the shape rank, with 0 allocated values
+            self._shape = np.zeros(
+                rank, np.int32
+            )  # set the shape rank, with 0 allocated values
             self._spacing = np.zeros(rank, np.float64)
             self._origin = np.zeros(rank, np.float64)
             self._units = np.array([units.value] * rank, dtype=np.int16)
@@ -113,14 +117,15 @@ class Grid:
     # TODO consider restricting resetting of grid values after they have been initialized
 
     @property
-    def units(self) -> 'NDArray[np.int16]':
-        """The grid units, specifically the units of grid spacing in each rank
+    def units(self) -> "NDArray[np.int16]":
+        """The grid units, specifically the units of grid spacing in each rank.
 
         Raises:
             GridTypeAccessError: When error_on_grid_type is toggled on, this exeption is raised when called on a scalar grid.
 
         Returns:
             NDArray[np.int16]: array of GridUnit enum VALUES denoting the grid unit for each rank.
+
         """
         if _error_on_grid_type and self.type == GridType.scalar:
             LOG.error("Scalar has no grid units")
@@ -128,13 +133,13 @@ class Grid:
         return self._units
 
     @units.setter
-    def units(self, units: 'NDArray[np.int16]'):
+    def units(self, units: "NDArray[np.int16]"):
         """Set the grid spacing units for each dimension.
 
         Args:
             units (NDArray[np.int16]): the GridUnit enum VALUES denoting the grid spacing units in each dimension.
-        """
 
+        """
         if self.rank > 0:
             self._units = np.array(units, dtype=np.int16)
             self._units.flags.writeable = False
@@ -146,6 +151,7 @@ class Grid:
 
         Returns:
             int: grid identifier
+
         """
         return self._id
 
@@ -155,15 +161,17 @@ class Grid:
 
         Returns:
             int: Number of dimensions of the grid.
+
         """
         return self._rank
 
     @property
     def size(self) -> int:
-        """The total number of elements in the grid
+        """The total number of elements in the grid.
 
         Returns:
             int: number of grid elements
+
         """
         return self._size
 
@@ -173,15 +181,17 @@ class Grid:
 
         Returns:
             GridType: bmi grid type
+
         """
         return self._type
 
     @property
-    def shape(self) -> 'NDArray[np.int32]':
-        """The shape of the grid (the size of each dimension)
+    def shape(self) -> "NDArray[np.int32]":
+        """The shape of the grid (the size of each dimension).
 
         Returns:
             NDArray[np.int32]: size of each dimension
+
         """
         """
             From the BMI docs:
@@ -195,11 +205,12 @@ class Grid:
         return self._shape
 
     @shape.setter
-    def shape(self, shape: 'NDArray[np.int32]') -> None:
-        """Set the shape of the grid to the provided shape
+    def shape(self, shape: "NDArray[np.int32]") -> None:
+        """Set the shape of the grid to the provided shape.
 
         Args:
             shape (NDArray[np.int32]): the size of each dimension of the grid
+
         """
         # Create a new shape array and replace the old one, make it immutable
         if self.rank > 0:
@@ -208,11 +219,12 @@ class Grid:
         # noop for scalar or grids with rank < 1
 
     @property
-    def spacing(self) -> 'NDArray[np.float64]':
-        """The spacing of the grid
+    def spacing(self) -> "NDArray[np.float64]":
+        """The spacing of the grid.
 
         Returns:
             NDArray[np.float64]: Tuple of size rank with the spacing in each of rank dimensions
+
         """
         if _error_on_grid_type and self.type == GridType.scalar:
             LOG.error("Scalar has no grid spacing")
@@ -220,11 +232,12 @@ class Grid:
         return self._spacing
 
     @spacing.setter
-    def spacing(self, spacing: 'NDArray[np.float64]') -> None:
+    def spacing(self, spacing: "NDArray[np.float64]") -> None:
         """Set the spacing of each grid dimension.
 
         Args:
             spacing (NDArray[np.float64]): Tuple of size rank with the spacing for each dimension
+
         """
         if self.rank > 0:
             self._spacing = np.array(spacing, dtype=np.float64)
@@ -232,11 +245,12 @@ class Grid:
         # noop for scalar or grids with rank < 1
 
     @property
-    def origin(self) -> 'NDArray[np.float64]':
-        """The origin point of the grid
+    def origin(self) -> "NDArray[np.float64]":
+        """The origin point of the grid.
 
         Returns:
             NDArray[np.float64]: Tuple of size rank with the coordinates of the the grid origin
+
         """
         if _error_on_grid_type and self.type == GridType.scalar:
             LOG.error("Scalar has no grid origin")
@@ -244,11 +258,12 @@ class Grid:
         return self._origin
 
     @origin.setter
-    def origin(self, origin: 'NDArray[np.float64]') -> None:
-        """Set the grid origin location
+    def origin(self, origin: "NDArray[np.float64]") -> None:
+        """Set the grid origin location.
 
         Args:
             origin (NDArray[np.float64]): Tuple of size rank with grid origin coordinates.
+
         """
         if self.rank > 0:
             self._origin = np.array(origin, dtype=np.float64)
@@ -256,11 +271,12 @@ class Grid:
         # noop for scalar or grids with rank < 1
 
     @property
-    def grid_x(self) -> 'NDArray[np.float64]':
-        """Coordinates of the x components of the grid
+    def grid_x(self) -> "NDArray[np.float64]":
+        """Coordinates of the x components of the grid.
 
         Returns:
             NDArray[np.float64]: array of cooridnate values in the x direction
+
         """
         return self._grid_x
         # if _error_on_grid_type and self.type == GridType.scalar:
@@ -280,11 +296,12 @@ class Grid:
         #    return np.array((), dtype=np.float64)
 
     @property
-    def grid_y(self) -> 'NDArray[np.float64]':
-        """Coordinates of the y components of the grid
+    def grid_y(self) -> "NDArray[np.float64]":
+        """Coordinates of the y components of the grid.
 
         Returns:
             NDArray[np.float64]: array of coordinate values in the y direction
+
         """
         return self._grid_y
         # if _error_on_grid_type and self.type == GridType.scalar:
@@ -301,11 +318,12 @@ class Grid:
         #    return np.array((), dtype=np.float64)
 
     @property
-    def grid_z(self) -> 'NDArray[np.float64]':
-        """Coordinates of the z components of the grid
+    def grid_z(self) -> "NDArray[np.float64]":
+        """Coordinates of the z components of the grid.
 
         Returns:
             NDArray[np.float64]: array of coordinate values in the z direction
+
         """
         return self._grid_z
         # if _error_on_grid_type and self.type == GridType.scalar:

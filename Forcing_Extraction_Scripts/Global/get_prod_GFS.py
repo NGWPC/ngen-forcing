@@ -32,8 +32,8 @@ class GFSDownloader(ForecastDownloader):
         return os.path.join(
             self.out_dir,
             f"gfs.{d_start.strftime('%Y%m%d')}",
-            d_start.strftime('%H'),
-            "atmos"
+            d_start.strftime("%H"),
+            "atmos",
         )
 
     def build_file_url_and_name(self, d_start, forecast_hour, _):
@@ -42,9 +42,9 @@ class GFSDownloader(ForecastDownloader):
         url = os.path.join(
             self.base_url,
             f"gfs.{d_start.strftime('%Y%m%d')}",
-            d_start.strftime('%H'),
+            d_start.strftime("%H"),
             "atmos",
-            filename
+            filename,
         )
         return url, filename
 
