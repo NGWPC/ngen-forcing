@@ -598,7 +598,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
             raise e
 
 
-class NWMV3AlaskaProcessor(NWMV3OConusProcessor):
+class NWMV3AlaskaProcessor(NWMV3Processor):
     """Processor for NWM OCONUS data."""
 
     def __init__(
@@ -609,6 +609,18 @@ class NWMV3AlaskaProcessor(NWMV3OConusProcessor):
     ):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+
+    def url(self, var: str = None) -> str:
+        """Generate NWM S3 zarr URL.
+
+        :return: NWM S3 zarr URL
+        """
+        url = self.config_options.nwm_url.format(
+            source=self.config_options.nwm_source, domain=self.config_options.nwm_domain
+        )
+        LOG.debug(f"NWM S3 URL: {url}\n")
+
+        return url
 
     @property
     def sliced_ds(self) -> xr.Dataset:
