@@ -93,17 +93,18 @@ class DataProcessor:
         self.domain_path = self.domain_info["domain"][0]["path"]
         domain_epsg = self.domain_info["domain"][0]["epsg"]
 
-        if domain_epsg is not None:
+        if ( self.model == 'sfincs' ):
+          if domain_epsg is not None:
             self.target_epsg = int(domain_epsg)
-        else:
+          else:
             sfgrid = xr.open_dataset(os.path.join(self.domain_path, "sfincs.nc"))
             self.target_epsg = int(sfgrid.attrs.get("epsg", 32614))  # fallback to 32614
             sfgrid.close()
-        print(f"[init] Using target EPSG: {self.target_epsg}")
+          print(f"[init] Using target EPSG: {self.target_epsg}")
 
 
-        self.tpxo_model_control = tpxo_model_control    # e.g. "TPXO/Model_tpxo10_atlas"
-        self.tpxo_relative_path = tpxo_relative_path
+          self.tpxo_model_control = tpxo_model_control    # e.g. "TPXO/Model_tpxo10_atlas"
+          self.tpxo_relative_path = tpxo_relative_path
 
         os.makedirs(self.sim_dir, exist_ok=True)
 
