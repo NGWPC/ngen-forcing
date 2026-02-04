@@ -245,7 +245,7 @@ run_in_container ./run_sing_coastal_workflow_pre_schism.bash
 # We want to use the Open MPI installed in the NFS_MOUNT instead of Conda's Open MPI
 # for running SCHISM
 export PATH=$NFS_MOUNT/openmpi/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
-export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/openmpi/lib64
+export LD_LIBRARY_PATH=$NFS_MOUNT/openmpi/lib
 export OMPI_ALLOW_RUN_AS_ROOT=1
 export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
