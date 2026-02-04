@@ -16,22 +16,22 @@ while :; do
         -s|--start_utcdate)
             shift
             INPUT_DATE_START=$1
-            echo "got option: $INPUT_DATE_START"
+#            echo "got option: $INPUT_DATE_START"
             ;;
         -e|--end_utcdate)
             shift
             INPUT_DATE_END=$1
-            echo "got option: $INPUT_DATE_END"
+#            echo "got option: $INPUT_DATE_END"
             ;;
         -n|--domain)
             shift
             OPTION_DOMAIN=$1
-            echo "got option: $OPTION_DOMAIN"
+#            echo "got option: $OPTION_DOMAIN"
             ;;
         -o|--output)
             shift
             OPTION_DIR=$1
-            echo "got option: $OPTION_DIR"
+#            echo "got option: $OPTION_DIR"
             ;;
         -h|--help)
             usage
@@ -77,8 +77,7 @@ else
     OUTPUT_DIR="$OPTION_DIR"
 fi
 
-pdy=$UTC_DATE_START
-recent_two_month=$(date -d "1 month ago" "+%Y%m")01
+recent_two_month=$(date -d "2 month ago" "+%Y%m")01
 
 #=========================================================
 #  https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/[YYYYMM]/
@@ -131,7 +130,14 @@ declare -A domain_to_lake=( \
 	   [lsofs]="superior" )
 
 for domain in "${DOMAINS[@]}"; do
-     
+   
+   pdy=$UTC_DATE_START
+   echo "domain=$domain"
+   if [[ ! " leofs lmhofs loofs lsofs " =~ " $domain " ]]; then
+      echo "ERROR: Unknown domain : $domain, skipping ..."
+      continue
+   fi
+
    OFSDIR=$OUTPUT_DIR/${domain}
    if [ ! -d "${OFSDIR}" ]; then 
         mkdir -p $OFSDIR
@@ -139,48 +145,52 @@ for domain in "${DOMAINS[@]}"; do
          
    cd $OFSDIR
 
-   #URLBASE=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/
-   URLBASE=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf
+   URLBASE=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/
+   #URLBASE=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf
   while [ $pdy -lt $UTC_DATE_END ]; do
    for cyc in 00 06 12 18; do
+     #pre 202201
+#     if [[ ${pdy} -lt 20220101 && ( $domain == 'lsofs' || $domain == 'loofs' ) ]] ; then
+#         wget -nc --no-check-certificate \
+#         ${URLBASE}/${pdy:0:4}/${pdy:4:2}/glofs.${domain}.fields.nowcast.${pdy}.t${cyc}z.nc
      #pre 202301
+#     elif [ ${pdy} -lt 20230101 ]; then
      if [ ${pdy} -lt 20230101 ]; then
         for i in {000..006}; do 
             wget -nc --no-check-certificate \
-	        ${URLBASE}/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
-	        #${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+	        ${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+	        #${URLBASE}/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
         done
      
      #pre 202403
      elif [ ${pdy} -lt 20240301 ]; then
         for i in {000..006}; do 
             wget -nc --no-check-certificate \
-	        ${URLBASE}/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
-	        #${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+	        ${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
+	        #${URLBASE}/${pdy:0:-2}/nos.${domain}.fields.n${i}.${pdy}.t${cyc}z.nc
         done
         wget -nc --no-check-certificate \
-	        ${URLBASE}/${pdy:0:-2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
-	        #${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
+	        ${URLBASE}/${pdy:0:4}/${pdy:4:2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
+	        #${URLBASE}/${pdy:0:-2}/nos.${domain}.stations.nowcast.${pdy}.t${cyc}z.nc
      else
-#        if [ ${pdy} -lt $recent_two_month ]; then
-#           #URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}
-#	   URL=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/${pdy:0:4}/${pdy:4:2}
-#        else
-#           URL=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/${pdy:0:4}/${pdy:4:2}
-#        fi
+        if [ ${pdy} -lt $recent_two_month ]; then
+           #URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}
+	   URL=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/${pdy:0:4}/${pdy:4:2}
+        else
+           #URL=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/${pdy:0:4}/${pdy:4:2}
+           URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:4}/${pdy:4:2}/${pdy:6:2}
+        fi
 
-        #URL=https://www.ncei.noaa.gov/data/operational-nowcast-and-forecast-hydrodynamic-model-systems-co-ops/access/lake-${domain_to_lake[$domain]}-operational-forecast-system-${domain}/${pdy:0:4}/${pdy:4:2}
-        URL=https://noaa-nos-ofs-pds.s3.amazonaws.com/${domain}/netcdf/${pdy:0:-2}
 	#nowcast station
         wget -nc --no-check-certificate \
 	        ${URL}/${domain}.t${cyc}z.${pdy}.stations.nowcast.nc
 	#nowcast regulargrid and grid
-#        for i in {000..006}; do 
+        for i in {000..006}; do 
 #            wget -nc --no-check-certificate \
 #	        ${URL}/${domain}.t${cyc}z.${pdy}.regulargrid.n${i}.nc
-#            wget -nc --no-check-certificate \
-#	        ${URL}/${domain}.t${cyc}z.${pdy}.fields.n${i}.nc
-#        done
+            wget -nc --no-check-certificate \
+	        ${URL}/${domain}.t${cyc}z.${pdy}.fields.n${i}.nc
+        done
 
 	#forecast station
         wget -nc --no-check-certificate \
