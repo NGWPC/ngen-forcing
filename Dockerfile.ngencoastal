@@ -62,6 +62,7 @@ RUN set -eux && \
         which \
         xz \
         jq \
+        wget \
     && dnf clean all && rm -rf /var/cache/dnf
 
 ## FIXME: replace GNU compilers with Intel compiler ##
