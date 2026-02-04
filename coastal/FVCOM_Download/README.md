@@ -21,21 +21,20 @@ For each of the nowcast or forecast product, there are three type of output file
 - field forecast
 
 # Script Usage
-the script has a help option (-h) for printing usage information.
+The script has a help option (-h) for printing usage information.
 
-Usage: ./download_fvcom.bash [-s <start_utcdate>(yyyymmdd)]  [-e <end_utcdate>(yyyymmdd)] [-n <domain> (one of leofs, lmhofs, loofs, or lsofs)] [-o <output path>]
-        defaults: 
-                <start_utcdate>: current utc day
-                <end_utcdate>: current utc day + 1 day
-                <domain>: all 4 domains
-                <output path>: $ROOT_SHARE/data)
+Usage:download_fvcom.bash [-s <start_utcdate>(yyyymmdd)]  [-e <end_utcdate>(yyyymmdd)] [-n <domain> (one of leofs, lmhofs, loofs, or lsofs)] [-o <output path>]
+        defaults: 
+                <start_utcdate>: current utc day
+                <end_utcdate>: current utc day + 1 day
+                <domain>: all 4 domains
+                <output path>: $ROOT_SHARE/data)
 
-   where <start_utcdate>  is the UTC date such as 20241218, default is the current date
-         <domain> is one of the Great Lakes' domains, one of leofs, lmhofs, loofs, or lsofs, default is to download all domains
-         <output path> the output directory where the downloaded files will be saved. The default value is $ROOT_SHARE/data. ROOT_SHARE is an environmental variable. If the <output path> is not given and the ROOT_SHARE environmental variable is not defined, the script will exit with an error message.
+where -s and -e specifies the start and end UTC date such as 20241218, default start date is the current day, and the default end date is the current day + 1 day. -n specifies the domain(s), it is one of the 4 Great Lakes domains (leofs, lmhofs, loofs, or lsofs). Multiple domains can be specified, each domain name is separated by a space. The -o option specifies the output directory where the downloaded files will be saved. The default value is $ROOT_SHARE/data. ROOT_SHARE is an environmental variable. If the  is not given and the ROOT_SHARE environmental variable is not defined, the script will exit with an error message.
 
 #### Examples ####
 
    ./download_fvcom.bash -s 20241218 -e 20241220 -o ./fvcom_data
    ROOT_SHARE=./fvcom_data ./download_fvcom.bash
    ./download_fvcom.bash -s 20241218 -e 20241220 -n loofs -o ./fvcom_data
+   ./download_fvcom.bash -s 20231213 -e 20231215 -n "loofs lsofs" -o ./fvcom_loofs_lsofs_20231213
