@@ -273,7 +273,8 @@ class BaseProcessor:
                     y-size: {sliced_ds[self.y_label].size} | y-min: {self.reprojected_ymin} | 
                     y-max: {self.reprojected_ymax} | x-min: {self.reprojected_xmin} | 
                     x-max: {self.reprojected_xmax} | ds y-start coord: {ds[self.y_label].values[0]} | 
-                    ds y-end coord: {ds[self.y_label].values[-1]} | Updated"""
+                    ds y-end coord: {ds[self.y_label].values[-1]} | ds x-start coord: {ds[self.x_label].values[0]} | 
+                    ds x-end coord: {ds[self.x_label].values[-1]}"""
                 )
         return sliced_ds
 
