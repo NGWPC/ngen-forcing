@@ -40,7 +40,7 @@ class ForecastDownloader(ABC):
     default_cleanback = 240
     default_lagback = 6
 
-    def __init__(self, out_dir, start_time, lookback_hours, cleanback_hours, lagback_hours, ens_number):
+    def __init__(self, out_dir, start_time, lookback_hours, cleanback_hours, lagback_hours, ens_number, input_horizon=None):
         """
         Initialize downloader with common configuration.
 
@@ -49,6 +49,7 @@ class ForecastDownloader(ABC):
         :param lookback_hours: How many hours back to fetch forecasts
         :param cleanback_hours: How far back to clean old files
         :param lagback_hours: How many hours to lag before starting to fetch
+        :param input_horizon: Maximum forecast hour to downlaod (None = download all available timesteps)
         """
         if lookback_hours <= lagback_hours:
             raise ValueError(
@@ -62,6 +63,7 @@ class ForecastDownloader(ABC):
         self.cleanback_hours = cleanback_hours
         self.lagback_hours = lagback_hours
         self.ens_number = ens_number
+        self.input_horizon = input_horizon
 
         # Current hour, rounded to the top of the hour in UTC
         self.d_now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -106,6 +108,7 @@ class ForecastDownloader(ABC):
         parser.add_argument('--cleanBackHours', type=int, default=cls.default_cleanback)
         parser.add_argument('--lagBackHours', type=int, default=cls.default_lagback)
         parser.add_argument('--ensNumber', type=int, default=None)
+        parser.add_argument('--inputHorizon', type=int, default=None)
         args = parser.parse_args()
 
         print(f"{cls.__name__} args:", vars(args))
@@ -116,7 +119,8 @@ class ForecastDownloader(ABC):
             lookback_hours=args.lookBackHours,
             cleanback_hours=args.cleanBackHours,
             lagback_hours=args.lagBackHours,
-            ens_number=args.ensNumber
+            ens_number=args.ensNumber,
+            input_horizon=args.inputHorizon
         )
 
     def run(self):

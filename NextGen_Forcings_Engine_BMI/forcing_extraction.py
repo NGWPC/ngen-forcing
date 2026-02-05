@@ -141,7 +141,8 @@ def retrieve_forcing(cfg: "ConfigOptions"):
             lookback_hours=look_back_hours + lag_delt if lag_delt else look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
-            ens_number=int(ens_number) if ens_number not in ("", None) else None,
+            ens_number=int(ens_number) if ens_number not in ('', None) else None,
+            input_horizon=input_horizons[i] if input_horizons[i] > 0 else None,
         )
 
         # Run the download
