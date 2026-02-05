@@ -202,16 +202,6 @@ class BaseProcessor:
         # self.write_sum_tif(self.computed_ds)
         return ds
 
-    @property
-    @lru_cache
-    def s3_lazy_ds(self):
-        """Lazy load dataset from S3."""
-        year_datasets = {}
-        for year in self.years:
-            object_store = obstore.store.from_url(self.url(year), skip_signature=True)
-            year_datasets[year] = xr.open_zarr(ObjectStore(object_store))
-        return year_datasets
-
     def compute_ds(self) -> xr.Dataset:
         """Materialize lazy dask arrays into memory."""
         ds = None
@@ -351,6 +341,16 @@ class AORCConusProcessor(BaseProcessor):
                 f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
             )
             raise e
+
+    @property
+    @lru_cache
+    def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
+        """Lazy load dataset from S3."""
+        year_datasets = {}
+        for year in self.years:
+            object_store = obstore.store.from_url(self.url(year), skip_signature=True)
+            year_datasets[year] = xr.open_zarr(ObjectStore(object_store))
+        return year_datasets
 
 
 class AORCAlaskaProcessor(BaseProcessor):
@@ -517,6 +517,16 @@ class NWMV3ConusProcessor(NWMV3Processor):
             {self.x_label: "x", self.y_label: "y"}
         )
 
+    @property
+    @lru_cache
+    def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
+        """Lazy load dataset from S3."""
+        vars = {}
+        for var in self.vars:
+            object_store = obstore.store.from_url(self.url(var), skip_signature=True)
+            vars[var] = xr.open_zarr(ObjectStore(object_store))
+        return vars
+
 
 class NWMV3OConusProcessor(NWMV3Processor):
     """Processor for NWM OCONUS data."""
@@ -574,6 +584,13 @@ class NWMV3OConusProcessor(NWMV3Processor):
                 f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
             )
             raise e
+
+    @property
+    @lru_cache
+    def s3_lazy_ds(self) -> xr.Dataset:
+        """Lazy load dataset from S3."""
+        object_store = obstore.store.from_url(self.url, skip_signature=True)
+        return xr.open_zarr(ObjectStore(object_store))
 
 
 class NWMV3AlaskaProcessor(NWMV3Processor):
@@ -640,15 +657,18 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
 
     @property
     @lru_cache
-    def s3_lazy_ds_w_coords(self):
-        """Lazy load dataset from S3 with coordinates assigned."""
-        year_datasets = {}
-        for year in self.years:
-            object_store = obstore.store.from_url(self.url(), skip_signature=True)
-            ds = xr.open_zarr(ObjectStore(object_store))
-            ds = ds.assign_coords(
-                {"x": self.geo_grid["x"].values, "y": self.geo_grid["y"].values[::-1]}
-            )
-            ds.rio.write_crs(self.src_crs, inplace=True)
-            year_datasets[year] = ds
-        return year_datasets
+    def s3_lazy_ds(self) -> xr.Dataset:
+        """Lazy load dataset from S3 with coordinates assigned.
+
+        NOTE: The y coordinates need to be reversed for proper orientation.
+        This is specific to the Alaska NWM Retrospective data due to the CRS and
+        coordinates having to be pulled from the geo_grid and mapped to the actual
+        data.
+        """
+        object_store = obstore.store.from_url(self.url, skip_signature=True)
+        ds = xr.open_zarr(ObjectStore(object_store))
+        ds = ds.assign_coords(
+            {"x": self.geo_grid["x"].values, "y": self.geo_grid["y"].values[::-1]}
+        )
+        ds.rio.write_crs(self.src_crs, inplace=True)
+        return ds
