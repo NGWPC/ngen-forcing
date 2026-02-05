@@ -4124,8 +4124,9 @@ def find_hourly_nbm_neighbors(
     current_min = d_current.minute
 
     # First find the current NBM forecast cycle that we are using.
+    ana_offset = 1 if config_options.ana_flag else 0
     current_nbm_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=supplemental_precip.userCycleOffset * 60.0
+        seconds=(ana_offset + supplemental_precip.userCycleOffset) * 60.0
     )
 
     # if Alaska SR, shift to previous cycle and add 3 hours to forecast ('f') if using all NBM precip
@@ -4640,7 +4641,9 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # for this time period, throw an error.
 
     if not config_options.ana_flag:
-        if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > input_horizon:
+        if (
+            input_forcings.userFcstHorizon + input_forcings.userCycleOffset
+        ) / 60.0 > input_horizon:
             config_options.errMsg = f"Config file ForecastInputHorizons exceeds maximum allowed hours of: {str(input_horizon)}"
             err_handler.log_critical(config_options, mpi_config)
 
