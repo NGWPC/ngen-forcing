@@ -50,7 +50,7 @@ class BaseProcessor:
 
     @property
     @lru_cache
-    def bounds(self):
+    def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
         Apply buffer in known crs/units (degrees) and then convert back to src_crs.
@@ -104,7 +104,7 @@ class BaseProcessor:
         return np.datetime64(self.config_options.b_date_proc) + np.timedelta64(1, "h")
 
     @property
-    def dates(self):
+    def dates(self) -> pd.DatetimeIndex:
         """Date range for the forecast window."""
         return pd.date_range(start=self.time_min, end=self.time_max, freq="h")
 
@@ -114,7 +114,7 @@ class BaseProcessor:
         return list(set([date.year for date in self.dates]))
 
     @property
-    def year_start_stop_dict(self):
+    def year_start_stop_dict(self) -> dict[int, tuple[datetime, datetime]]:
         """Dictionary of start and stop dates for each year in the date range."""
         year_dict = {}
         for year in self.years:
@@ -145,17 +145,17 @@ class BaseProcessor:
         return f"/tmp/{self.dataset_name}_{self.gage_id}_{self.current_time_str}_{self.end_time_str}.nc"
 
     @property
-    def end_time_datetime(self):
+    def end_time_datetime(self) -> datetime:
         """Datetime object for the end time step."""
         return self.start_end_dates.get(self.current_time)
 
     @property
-    def end_time_str(self):
+    def end_time_str(self) -> str:
         """String representation of the end time step."""
         return self.end_time_datetime.strftime("%Y%m%d%H")
 
     @property
-    def current_time_str(self):
+    def current_time_str(self) -> str:
         """String representation of the current time step."""
         return self.current_time.strftime("%Y%m%d%H")
 
@@ -218,12 +218,12 @@ class BaseProcessor:
 
     @property
     @lru_cache
-    def gdf(self):
+    def gdf(self) -> gpd.GeoDataFrame:
         """Load and cache the geospatial dataframe."""
         gdf = gpd.read_file(self.config_options.geopackage, layer="divides")
         return gdf.to_crs(self.src_crs)
 
-    def plot_precip(self, ds: xr.Dataset):
+    def plot_precip(self, ds: xr.Dataset) -> None:
         """Plot precipitation field for the current time step."""
         qmesh = ds[self.precip_variable].plot()
         self.gdf.plot(ax=qmesh.axes, facecolor="none", edgecolor="black")
@@ -234,7 +234,7 @@ class BaseProcessor:
         )
         plt.clf()
 
-    def write_sum_tif(self, ds: xr.Dataset):
+    def write_sum_tif(self, ds: xr.Dataset) -> None:
         """Write precip sum raster."""
         ds[self.precip_variable].sum("time").rio.write_crs(self.src_crs).rio.to_raster(
             f"{self.precip_variable}_sum.tif"
@@ -297,7 +297,7 @@ class AORCConusProcessor(BaseProcessor):
 
     @property
     @lru_cache
-    def src_crs(self):
+    def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
             self.url(self.years[0]), skip_signature=True
@@ -481,7 +481,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
 
     @property
     @lru_cache
-    def src_crs(self):
+    def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
             self.url(self.vars[0]), skip_signature=True
@@ -532,7 +532,9 @@ class NWMV3OConusProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    def url(self, var: str = None) -> str:
+    @property
+    @lru_cache
+    def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
         :return: NWM S3 zarr URL
@@ -546,11 +548,9 @@ class NWMV3OConusProcessor(NWMV3Processor):
 
     @property
     @lru_cache
-    def src_crs(self):
+    def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
-        object_store = obstore.store.from_url(
-            self.url(self.vars[0]), skip_signature=True
-        )
+        object_store = obstore.store.from_url(self.url, skip_signature=True)
         return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
 
     @property
@@ -595,7 +595,9 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    def url(self, var: str = None) -> str:
+    @property
+    @lru_cache
+    def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
         :return: NWM S3 zarr URL
@@ -631,12 +633,12 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
 
     @property
     @lru_cache
-    def src_crs(self):
+    def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         return self.geo_grid["crs"].attrs["spatial_ref"]
 
     @property
-    def geo_grid(self):
+    def geo_grid(self) -> xr.Dataset:
         """Load geogrid metadata."""
         geo_grid = xr.open_dataset(
             "/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
