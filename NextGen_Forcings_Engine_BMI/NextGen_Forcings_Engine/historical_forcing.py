@@ -19,8 +19,7 @@ import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
 from mpi4py.futures import MPICommExecutor
-from pyproj import CRS, Transformer
-from shapely import box, transform
+from pyproj import CRS
 from zarr.storage import ObjectStore
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -47,68 +46,41 @@ class BaseProcessor:
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
         self.dest_crs = CRS(4326)
-        self.buffer = 0.01  # degree buffer around bounding box
-
-    @property
-    def box(self):
-        """Shapely box for spatial bounds."""
-        return box(
-            self.xmin - self.buffer,
-            self.ymin - self.buffer,
-            self.xmax + self.buffer,
-            self.ymax + self.buffer,
-        )
-
-    @property
-    def transformer(self):
-        """Transformer for coordinate reference system conversion."""
-        return Transformer.from_crs(self.dest_crs, self.src_crs, always_xy=True)
+        self.buffer = 0.02  # degree buffer around bounding box
 
     @property
     @lru_cache
-    def reprojected_box(self):
-        """Reprojected bounding box to source CRS."""
-        return transform(self.box, self.transformer.transform, interleaved=False)
+    def bounds(self):
+        """Get bounding box from geospatial dataframe.
+
+        Apply buffer in known crs/units (degrees) and then convert back to src_crs.
+        """
+        return (
+            self.gdf.to_crs(self.dest_crs)
+            .buffer(self.buffer)
+            .to_crs(self.src_crs)
+            .total_bounds
+        )
 
     @property
     def reprojected_xmin(self) -> float:
         """Minimum longitude in source CRS."""
-        return self.reprojected_box.bounds[0]
+        return self.bounds[0]
 
     @property
     def reprojected_ymin(self) -> float:
         """Minimum latitude in source CRS."""
-        return self.reprojected_box.bounds[1]
+        return self.bounds[1]
 
     @property
     def reprojected_xmax(self) -> float:
         """Maximum longitude in source CRS."""
-        return self.reprojected_box.bounds[2]
+        return self.bounds[2]
 
     @property
     def reprojected_ymax(self) -> float:
         """Maximum latitude in source CRS."""
-        return self.reprojected_box.bounds[3]
-
-    @property
-    def xmax(self) -> float:
-        """Maximum longitude from geospatial metadata."""
-        return np.max(self.wrf_hydro_geo_meta.lon_bounds)
-
-    @property
-    def xmin(self) -> float:
-        """Minimum longitude from geospatial metadata."""
-        return np.min(self.wrf_hydro_geo_meta.lon_bounds)
-
-    @property
-    def ymax(self) -> float:
-        """Maximum latitude from geospatial metadata."""
-        return np.max(self.wrf_hydro_geo_meta.lat_bounds)
-
-    @property
-    def ymin(self) -> float:
-        """Minimum latitude from geospatial metadata."""
-        return np.min(self.wrf_hydro_geo_meta.lat_bounds)
+        return self.bounds[3]
 
     @contextmanager
     def timing_block(self, step_str: str):
@@ -225,9 +197,9 @@ class BaseProcessor:
             )
         ds = self.computed_ds.sel(time=self.current_time)
 
-        if self.mpi_config.rank == 0:
-            self.plot_precip(ds)
-        #     self.write_sum_tif(self.computed_ds)
+        # if self.mpi_config.rank == 0:
+        #     self.plot_precip(ds)
+        # self.write_sum_tif(self.computed_ds)
         return ds
 
     @property
@@ -266,7 +238,7 @@ class BaseProcessor:
         qmesh = ds[self.precip_variable].plot()
         self.gdf.plot(ax=qmesh.axes, facecolor="none", edgecolor="black")
 
-        plt.title(f"Precipitation at {str(ds.time.values)}")
+        plt.title(f"{self.precip_variable} at {str(ds.time.values)}")
         plt.savefig(
             f"{self.precip_variable}_{str(ds.time.values)}_{self.mpi_config.rank}.png"
         )
@@ -307,7 +279,13 @@ class BaseProcessor:
             )
             if sliced_ds[self.x_label].size == 0 or sliced_ds[self.y_label].size == 0:
                 raise ValueError(
-                    "Unable to find data for the specified input dataset, domain, and catchment locations. Check that the dataset is supported for the given domain"
+                    f"""Unable to find data for the specified input dataset, domain, 
+                    and catchment locations. Check that the dataset is supported for 
+                    the given domain. x-size: {sliced_ds[self.x_label].size} | 
+                    y-size: {sliced_ds[self.y_label].size} | y-min: {self.reprojected_ymin} | 
+                    y-max: {self.reprojected_ymax} | x-min: {self.reprojected_xmin} | 
+                    x-max: {self.reprojected_xmax} | ds y-start coord: {ds[self.y_label].values[0]} | 
+                    ds y-end coord: {ds[self.y_label].values[-1]} | Updated"""
                 )
         return sliced_ds
 
@@ -336,7 +314,7 @@ class AORCConusProcessor(BaseProcessor):
         object_store = obstore.store.from_url(
             self.url(self.years[0]), skip_signature=True
         )
-        return CRS(xr.open_zarr(ObjectStore(object_store)).crs.attrs["spatial_ref"])
+        return CRS(xr.open_zarr(ObjectStore(object_store)).rio.crs)
 
     def url(self, year: str) -> str:
         """Generate AORC S3 zarr URL for current year.
@@ -655,8 +633,10 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
     @property
     def geo_grid(self):
         """Load geogrid metadata."""
-        geo = xr.open_dataset("/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc")
-        return geo
+        geo_grid = xr.open_dataset(
+            "/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
+        )
+        return geo_grid
 
     @property
     @lru_cache
@@ -667,7 +647,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
             object_store = obstore.store.from_url(self.url(), skip_signature=True)
             ds = xr.open_zarr(ObjectStore(object_store))
             ds = ds.assign_coords(
-                {"x": self.geo_grid["x"].values, "y": self.geo_grid["y"].values}
+                {"x": self.geo_grid["x"].values, "y": self.geo_grid["y"].values[::-1]}
             )
             ds.rio.write_crs(self.src_crs, inplace=True)
             year_datasets[year] = ds
