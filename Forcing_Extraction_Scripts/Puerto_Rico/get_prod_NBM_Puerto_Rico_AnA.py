@@ -17,9 +17,6 @@ class NBMAnAPuertoRicoDownloader(ForecastDownloader):
         """Sets the base url for NBM Puerto Rico AnA data."""
         return "https://noaa-nbm-grib2-pds.s3.amazonaws.com"
 
-    # def should_process_hour(self, d_start):
-    #    return d_start.hour in [0, 6, 12, 18]
-
     def get_download_targets(self, _):
         """Sets the forecast hours to download."""
         return range(0, 2)
