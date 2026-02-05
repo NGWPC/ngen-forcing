@@ -63,7 +63,7 @@ class ForecastDownloader(ABC):
         self.cleanback_hours = cleanback_hours
         self.lagback_hours = lagback_hours
         self.ens_number = ens_number
-        self.input_horizon = input_horizon
+        self.input_horizon = int(input_horizon / 60)
 
         # Current hour, rounded to the top of the hour in UTC
         self.d_now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
