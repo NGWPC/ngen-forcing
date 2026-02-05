@@ -252,9 +252,7 @@ class BaseProcessor:
         """Determine cache size based on number of catchments."""
         return np.timedelta64(round(24 * 365 * 20 / self.number_of_catchments), "h")
 
-    def slice_ds(
-        self, ds: xr.Dataset, start_time: np.datetime64, end_time: np.datetime64
-    ) -> xr.Dataset:
+    def slice_ds(self, ds: xr.Dataset) -> xr.Dataset:
         """Subset dataset to spatial and temporal bounds.
 
         :return: Sliced Dataset
@@ -264,7 +262,7 @@ class BaseProcessor:
                 {
                     self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
                     self.y_label: slice(self.reprojected_ymin, self.reprojected_ymax),
-                    self.time_label: slice(start_time, end_time),
+                    self.time_label: slice(self.current_time, self.end_time_datetime),
                 }
             )
             if sliced_ds[self.x_label].size == 0 or sliced_ds[self.y_label].size == 0:
@@ -332,9 +330,7 @@ class AORCConusProcessor(BaseProcessor):
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(
-                        self.s3_lazy_ds[self.current_time.year],
-                        self.current_time,
-                        self.end_time_datetime,
+                        self.s3_lazy_ds[self.current_time.year]
                     ).rename({self.x_label: "x", self.y_label: "y"})
         except Exception as e:
             LOG.critical(
@@ -503,11 +499,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    object_store = obstore.store.from_url(
-                        self.url(var), skip_signature=True
-                    )
-                    ds = xr.open_zarr(ObjectStore(object_store))
-                    datasets.append(self.slice_ds(ds, self.time_min, self.time_max))
+                    datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
                     f"Error opening {self.dataset_name} data from {self.url(var)}: {e}\n"
@@ -574,14 +566,12 @@ class NWMV3OConusProcessor(NWMV3Processor):
                     return xr.open_dataset(self.nc_path)
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    return self.slice_ds(
-                        self.s3_lazy_ds[self.current_time.year],
-                        self.current_time,
-                        self.end_time_datetime,
-                    ).rename({self.x_label: "x", self.y_label: "y"})
+                    return self.slice_ds(self.s3_lazy_ds).rename(
+                        {self.x_label: "x", self.y_label: "y"}
+                    )
         except Exception as e:
             LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
+                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
             )
             raise e
 
@@ -630,14 +620,12 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
                     return xr.open_dataset(self.nc_path)
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    return self.slice_ds(
-                        self.s3_lazy_ds_w_coords[self.current_time.year],
-                        self.current_time,
-                        self.end_time_datetime,
-                    ).rename({self.x_label: "x", self.y_label: "y"})
+                    return self.slice_ds(self.s3_lazy_ds).rename(
+                        {self.x_label: "x", self.y_label: "y"}
+                    )
         except Exception as e:
             LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
+                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
             )
             raise e
 
