@@ -2,8 +2,6 @@ import os
 
 from Forcing_Extraction_Scripts.forecast_download_base import ForecastDownloader
 
-DIAG_LOG = "/ngen-app/data/logs/forcing_diag.log"
-
 
 class NBMAnAPuertoRicoDownloader(ForecastDownloader):
     """
@@ -33,9 +31,6 @@ class NBMAnAPuertoRicoDownloader(ForecastDownloader):
         )
 
     def build_file_url_and_name(self, d_start, target, _):
-        with open(DIAG_LOG, "a") as f:
-            f.write(f"Building URL and filename for {d_start} target {target}\n")
-
         fhr_str = f"f{str(target).zfill(3)}"
         filename = f"blend.t{d_start.strftime('%H')}z.core.{fhr_str}.pr.grib2"
         url = os.path.join(
@@ -45,10 +40,7 @@ class NBMAnAPuertoRicoDownloader(ForecastDownloader):
             "core",
             filename,
         )
-        with open(DIAG_LOG, "a") as f:
-            f.write(
-                f"Building URL and filename for {d_start} target {target}: {url}, {filename}\n"
-            )
+
         return url, filename
 
     @property
