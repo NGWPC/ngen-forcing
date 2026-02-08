@@ -533,11 +533,11 @@ class NWMV3ConusProcessor(NWMV3Processor):
     @lru_cache
     def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
         """Lazy load dataset from S3."""
-        vars = {}
+        variables = {}
         for var in self.vars:
             object_store = obstore.store.from_url(self.url(var), skip_signature=True)
-            vars[var] = xr.open_zarr(ObjectStore(object_store))
-        return vars
+            variables[var] = xr.open_zarr(ObjectStore(object_store))
+        return variables
 
 
 class NWMV3OConusProcessor(NWMV3Processor):
