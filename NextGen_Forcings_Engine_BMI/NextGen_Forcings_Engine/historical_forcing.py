@@ -3,6 +3,7 @@
 import datetime
 import logging
 import os
+import re
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import lru_cache
@@ -104,7 +105,7 @@ class BaseProcessor:
         return np.datetime64(self.config_options.b_date_proc) + np.timedelta64(1, "h")
 
     @property
-    def dates(self) -> pd.DatetimeIndex:
+    def datetimes(self) -> pd.DatetimeIndex:
         """Date range for the forecast window."""
         return pd.date_range(start=self.time_min, end=self.time_max, freq="h")
 
@@ -118,7 +119,7 @@ class BaseProcessor:
         """Dictionary of start and stop dates for each year in the date range."""
         year_dict = {}
         for year in self.years:
-            year_dates = [date for date in self.dates if date.year == year]
+            year_dates = [date for date in self.datetimes if date.year == year]
             year_dict[year] = (year_dates[0], year_dates[-1])
         return year_dict
 
@@ -151,7 +152,7 @@ class BaseProcessor:
     @property
     def end_time_datetime(self) -> datetime:
         """Datetime object for the end time step."""
-        return self.start_end_dates.get(self.current_time)
+        return self.start_end_datetimes.get(self.current_time)
 
     @property
     def end_time_str(self) -> str:
@@ -201,7 +202,7 @@ class BaseProcessor:
     def process_historical_data(self, current_time: str) -> xr.Dataset:
         """Process forcing data for the given configuration and geospatial metadata."""
         self.current_time = current_time
-        if self.current_time in self.start_end_dates.keys():
+        if self.current_time in self.start_end_datetimes.keys():
             self.computed_ds = self.compute_ds()
         if self.current_time not in self.computed_ds.time.values:
             raise IndexError(
@@ -418,7 +419,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         :raises Exception: If zarr open fails
         """
         datasets = []
-        for date in self.dates:
+        for date in self.datetimes:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     load_dotenv(find_dotenv())
