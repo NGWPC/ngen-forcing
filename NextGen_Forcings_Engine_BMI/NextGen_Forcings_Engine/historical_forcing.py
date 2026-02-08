@@ -380,6 +380,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         wrf_hydro_geo_meta: dict,
     ):
         """Initialize AORC Alaska processor."""
+        raise NotImplementedError("AORC Alaska processor is not yet implemented.")
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
         self.dataset_name = "AORC"
         self.precip_variable = "APCP_surface"
