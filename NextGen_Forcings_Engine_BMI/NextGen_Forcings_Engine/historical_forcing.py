@@ -111,7 +111,7 @@ class BaseProcessor:
     @property
     def years(self):
         """List of years in the date range."""
-        return list(set([date.year for date in self.dates]))
+        return sorted(list(set([date.year for date in self.datetimes])))
 
     @property
     def year_start_stop_dict(self) -> dict[int, tuple[datetime, datetime]]:
