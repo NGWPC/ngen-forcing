@@ -175,20 +175,28 @@ class BaseProcessor:
 
     @property
     @lru_cache
-    def start_end_dates(self) -> list[np.datetime64]:
-        """Generate list of start dates for caching."""
-        start_end_dates = {}
+    def start_end_datetimes(self) -> list[np.datetime64]:
+        """Generate list of start dates for caching.
+
+        If the cache size exceeds the year boundary, it will create multiple
+        start and end date pairs for each year. Otherwise, it will create
+        start and end date pairs based on the cache size.
+         :return: List of start dates as np.datetime64
+        """
+        start_end_datetimes = {}
         for start, end in self.year_start_stop_dict.values():
             start_date = start
             end_date = start_date + self.cache_size
-            if end_date > end:
+            if end_date > end:  # ensure end date does not exceed year boundary
                 end_date = end
-            while end_date <= end:
-                start_end_dates[start_date] = end_date
+            while end_date <= end:  # loop until end date reaches year boundary
+                start_end_datetimes[start_date] = end_date
                 if end_date == end:
                     break
-                start_date, end_date = self.update_dates(start_date, end_date, end)
-        return start_end_dates
+                start_date, end_date = self.update_dates(
+                    start_date, end_date, end
+                )  # update dates for next time window (based on cache size)
+        return start_end_datetimes
 
     def process_historical_data(self, current_time: str) -> xr.Dataset:
         """Process forcing data for the given configuration and geospatial metadata."""
@@ -253,7 +261,14 @@ class BaseProcessor:
     @property
     @lru_cache
     def cache_size(self) -> np.timedelta64:
-        """Determine cache size based on number of catchments."""
+        """Determine cache size based on number of catchments.
+
+        20 in the numerator is an empirically derived value that balances memory usage
+        and performance. It can be adjusted based on system capabilities and dataset size.
+        24 and 365 are hours in  a day and days in a year, respectively.
+
+        :return: Cache size as np.timedelta64
+        """
         return np.timedelta64(round(24 * 365 * 20 / self.number_of_catchments), "h")
 
     def slice_ds(self, ds: xr.Dataset) -> xr.Dataset:
