@@ -204,7 +204,17 @@ class BaseProcessor:
         return start_end_datetimes
 
     def process_historical_data(self, current_time: str) -> xr.Dataset:
-        """Process forcing data for the given configuration and geospatial metadata."""
+        """Process forcing data for the given configuration and geospatial metadata.
+
+        Test if the current time is in the start_end_datetimes keys (start of a time window).
+        If so, compute the dataset. Otherwise, use the existing computed dataset.
+
+        Then select the data for the current time from the computed dataset.
+
+        :param current_time: Current time as string in format YYYYMMDDHH
+        :return: xarray Dataset for the current time step
+        :raises IndexError: If the current time is not in the dataset
+        """
         self.current_time = current_time
         if self.current_time in self.start_end_datetimes.keys():
             self.computed_ds = self.compute_ds()
