@@ -110,12 +110,12 @@ class BaseProcessor:
         return pd.date_range(start=self.time_min, end=self.time_max, freq="h")
 
     @property
-    def years(self):
+    def years(self) -> list[int]:
         """List of years in the date range."""
         return sorted(list(set([date.year for date in self.datetimes])))
 
     @property
-    def year_start_stop_dict(self) -> dict[int, tuple[datetime, datetime]]:
+    def year_start_stop_dict(self) -> dict[int, tuple[pd.Timestamp, pd.Timestamp]]:
         """Dictionary of start and stop dates for each year in the date range."""
         year_dict = {}
         for year in self.years:
@@ -154,7 +154,7 @@ class BaseProcessor:
         return f"/tmp/{self.dataset_name}_{self.gage_id}_{self.current_time_str}_{self.end_time_str}.nc"
 
     @property
-    def end_time_datetime(self) -> datetime:
+    def end_time_datetime(self) -> pd.Timestamp:
         """Datetime object for the end time step."""
         return self.start_end_datetimes.get(self.current_time)
 
@@ -169,8 +169,8 @@ class BaseProcessor:
         return self.current_time.strftime("%Y%m%d%H")
 
     def update_dates(
-        self, start_date: datetime, end_date: datetime, end: datetime
-    ) -> tuple[datetime, datetime]:
+        self, start_date: pd.Timestamp, end_date: pd.Timestamp, end: pd.Timestamp
+    ) -> tuple[pd.Timestamp, pd.Timestamp]:
         """Update start and end dates for caching."""
         start_date = end_date + timedelta(hours=1)
         end_date = start_date + self.cache_size
@@ -179,14 +179,13 @@ class BaseProcessor:
         return start_date, end_date
 
     @property
-    @lru_cache
-    def start_end_datetimes(self) -> list[np.datetime64]:
-        """Generate list of start dates for caching.
+    def start_end_datetimes(self) -> dict[pd.Timestamp, pd.Timestamp]:
+        """Generate dictioanry of start and end dates for caching.
 
         If the cache size exceeds the year boundary, it will create multiple
         start and end date pairs for each year. Otherwise, it will create
         start and end date pairs based on the cache size.
-         :return: List of start dates as np.datetime64
+         :return: Dictionary of start and end dates as pd.Timestamp
         """
         start_end_datetimes = {}
         for start, end in self.year_start_stop_dict.values():
@@ -375,7 +374,7 @@ class AORCConusProcessor(BaseProcessor):
 
     @property
     @lru_cache
-    def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
+    def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
         """Lazy load dataset from S3."""
         year_datasets = {}
         for year in self.years:
