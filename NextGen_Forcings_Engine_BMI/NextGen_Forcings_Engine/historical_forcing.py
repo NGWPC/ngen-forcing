@@ -139,10 +139,14 @@ class BaseProcessor:
     def gage_id(self) -> str:
         """Return gage id from geospatial dataframe."""
         match = re.search(
-            r"gauge_(\d+)\.gpkg", os.path.basename(self.config_options.geopackage)
+            r"^gauge_(\d+)\.gpkg$", os.path.basename(self.config_options.geopackage)
         )
         if match:
             return str(match.group(1))
+        else:
+            raise ValueError(
+                f"Unable to extract gage ID from geopackage filename: {self.config_options.geopackage}"
+            )
 
     @property
     def nc_path(self) -> str:
