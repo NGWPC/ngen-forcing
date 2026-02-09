@@ -7936,9 +7936,14 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             # benefits of reuse seem unclear
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
+            except FileNotFoundError:
+                # File doesn't exist
+                config_options.statusMsg = f"NetCDF file not found for removal, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(config_options, mpi_config)
+            except OSError as e:
+                # Any other OS error is critical
                 config_options.errMsg = (
-                    "Unable to remove NetCDF file: " + input_forcings.tmpFile
+                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}"
                 )
                 err_handler.log_critical(config_options, mpi_config)
         err_handler.check_program_status(config_options, mpi_config)
