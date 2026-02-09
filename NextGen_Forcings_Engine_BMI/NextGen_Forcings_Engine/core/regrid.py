@@ -1672,6 +1672,9 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -1712,21 +1715,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
-            if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
-                err_handler.log_warning(
-                    config_options,
-                    mpi_config,
-                    msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing...",
-                )
-                try:
-                    os_utils.os_remove_retry(input_forcings.tmpFile)
-                except OSError:
-                    err_handler.log_critical(
-                        config_options,
-                        mpi_config,
-                        msg=f"Unable to remove temporary file: {input_forcings.tmpFile}",
-                    )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             # Build GRIB2 to NetCDF conversion
             fields = []
