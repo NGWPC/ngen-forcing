@@ -146,6 +146,9 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     esmf_mesh_retry_partial = functools.partial(
         esmf_mesh_retry, mpi_config, config_options, err_handler
     )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
 
     ds = None
 
@@ -477,15 +480,7 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         input_forcings.input_map_output[force_count], :
                     ]
     finally:
-        if mpi_config.rank == 0 and ds is not None:
-            try:
-                ds.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close input NetCDF file: {input_forcings.file_in2}",
-                )
+        close_rank_0_partial(ds)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -8365,6 +8360,12 @@ def regrid_mrms_hourly(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    close_partial = functools.partial(
+        os_utils.close, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # Do we want to use MRMS data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
@@ -9340,37 +9341,12 @@ def regrid_mrms_hourly(
 
     finally:
         # Close whichever file handles got opened
-        if id_mrms is not None:
-            try:
-                id_mrms.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {mrms_tmp_nc}",
-                )
-
-        if id_mrms_rqi is not None:
-            try:
-                id_mrms_rqi.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {mrms_tmp_rqi_nc}",
-                )
-
-        if mpi_config.rank == 0:
-            for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
-                if os.path.isfile(f):
-                    try:
-                        os_utils.os_remove_retry(f)
-                    except OSError:
-                        err_handler.log_critical(
-                            config_options,
-                            mpi_config,
-                            msg=f"Unable to remove scratch file: {f}",
-                        )
+        close_partial(id_mrms)
+        close_partial(id_mrms_rqi)
+        os_remove_rank_0_partial(mrms_tmp_grib2)
+        os_remove_rank_0_partial(mrms_tmp_nc)
+        os_remove_rank_0_partial(mrms_tmp_rqi_grib2)
+        os_remove_rank_0_partial(mrms_tmp_rqi_nc)
         mpi_config.comm.barrier()
         err_handler.check_program_status(config_options, mpi_config)
 
@@ -11684,8 +11660,8 @@ def regrid_hourly_nbm(
                             )
                         err_handler.check_program_status(config_options, mpi_config)
 
-                        if mpi_config.rank == 0:
-                            hgt_tmp.close()
+                        close_rank_0_partial(hgt_tmp)
+
                     elif config_options.grid_type == "hydrofabric":
                         if mpi_config.rank == 0:
                             var_tmp = hgt_tmp.variables["DIST_surface"][0, :, :]
@@ -11756,8 +11732,8 @@ def regrid_hourly_nbm(
                             )
                         err_handler.check_program_status(config_options, mpi_config)
 
-                        if mpi_config.rank == 0:
-                            hgt_tmp.close()
+                        close_rank_0_partial(hgt_tmp)
+
                     elif config_options.grid_type == "unstructured":
                         if mpi_config.rank == 0:
                             var_tmp = hgt_tmp.variables["DIST_surface"][0, :, :]
@@ -11899,8 +11875,7 @@ def regrid_hourly_nbm(
                             )
                         err_handler.check_program_status(config_options, mpi_config)
 
-                        if mpi_config.rank == 0:
-                            hgt_tmp.close()
+                        close_rank_0_partial(hgt_tmp)
 
         if config_options.grid_type == "gridded":
             # Regrid the input variables.
@@ -12338,6 +12313,9 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    close_partial = functools.partial(
+        os_utils.close, mpi_config, config_options, err_handler
+    )
 
     # Check to see if the regrid complete flag for this
     # output time step is true. This entails the necessary
@@ -12733,15 +12711,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
         finally:
             # always close the NetCDF handle
-            if id_tmp is not None:
-                try:
-                    id_tmp.close()
-                except OSError as e:
-                    err_handler.log_critical(
-                        config_options,
-                        mpi_config,
-                        msg=f"Unable to close NDFD temp file {tmp_file}: {e}",
-                    )
+            close_partial(id_tmp)
 
             # only remove the scratch file if this was a new‐cycle run
             if (

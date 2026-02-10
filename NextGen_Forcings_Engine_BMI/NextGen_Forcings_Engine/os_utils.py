@@ -54,18 +54,35 @@ def os_remove_rank_0(
     err_handler.check_program_status(config_options, mpi_config)
 
 
-def close_rank_0(
+def close_rank_0(mpi_config: MpiConfig, *args, **kwargs) -> None:
+    """If rank 0, close the file handle. Wraps _close.
+    Collective, must be called by all ranks.
+    file_handle must have a close() method or be None.
+    If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
+    if mpi_config.rank == 0:
+        _close(mpi_config, *args, **kwargs)
+
+
+def close(mpi_config: MpiConfig, *args, **kwargs) -> None:
+    """Close the file handle. Wraps _close.
+    Collective, must be called by all ranks.
+    file_handle must have a close() method or be None.
+    If file_handle is None, do nothing except the error handler collective call."""
+    _close(mpi_config, *args, **kwargs)
+
+
+def _close(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
     err_handler: types.ModuleType,
     file_handle: typing.Any | None,
     msg_prefix: str = "",
 ) -> None:
-    """If rank 0, close the file handle.
+    """Close the file handle.
     Collective, must be called by all ranks.
     file_handle must have a close() method or be None.
-    If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
-    if mpi_config.rank == 0 and file_handle is not None:
+    If file_handle is None, do nothing except the error handler collective call."""
+    if file_handle is not None:
         if not hasattr(file_handle, "close"):
             raise RuntimeError(
                 f"Provided object for file_handle does not have a close method: {file_handle}"
