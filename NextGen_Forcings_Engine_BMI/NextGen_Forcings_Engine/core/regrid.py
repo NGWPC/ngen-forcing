@@ -10104,6 +10104,7 @@ def regrid_mrms_precip_flag(
                 f"Unable to remove NetCDF file: {mrms_tmp_nc} - {e}\n"
                 f"{traceback.format_exc()}"
             )
+            err_handler.log_critical(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -13316,6 +13317,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         f"{traceback.format_exc()}"
                     )
                     err_handler.log_critical(config_options, mpi_config)
+            err_handler.check_program_status(config_options, mpi_config)
 
 
 def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
