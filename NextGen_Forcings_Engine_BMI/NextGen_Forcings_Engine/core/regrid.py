@@ -69,6 +69,44 @@ GRIB2 = "GRIB2"
 next_file_number = 0
 
 
+def get_partials(mpi_config: MpiConfig, config_options: ConfigOptions):
+    """Return a tuple of various partials for keeping things DRY"""
+    esmf_regridobj_call_retry_partial = functools.partial(
+        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    esmf_field_retry_partial = functools.partial(
+        esmf_field_retry, mpi_config, config_options, err_handler
+    )
+    esmf_grid_retry_partial = functools.partial(
+        esmf_grid_retry, mpi_config, config_options, err_handler
+    )
+    esmf_regrid_retry_partial = functools.partial(
+        esmf_regrid_retry, mpi_config, config_options, err_handler
+    )
+    esmf_mesh_retry_partial = functools.partial(
+        esmf_mesh_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
+    close_anyrank_partial = functools.partial(
+        os_utils.close, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
+    return (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    )
+
+
 @contextmanager
 def timing_block(step_str: str):
     """Context manager for timing code execution.
@@ -140,15 +178,16 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     :param mpi_config:
     :return:
     """
-    esmf_grid_retry_partial = functools.partial(
-        esmf_grid_retry, mpi_config, config_options, err_handler
-    )
-    esmf_mesh_retry_partial = functools.partial(
-        esmf_mesh_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     ds = None
 
@@ -496,15 +535,16 @@ def _regrid_ak_ext_ana_pcp_stage4(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -1051,15 +1091,16 @@ def _regrid_conus_ext_ana_pcp_stage4(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -1609,15 +1650,16 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -2522,15 +2564,16 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -3417,15 +3460,16 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -4482,12 +4526,16 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     ## Flag to jump to different regridding module for AWS NWM Forcing data
     if config_options.aws:
@@ -4853,12 +4901,16 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # Check to see if the regrid complete flag for this
     # output time step is true. This entails the necessary
@@ -5234,12 +5286,16 @@ def regrid_custom_hourly_netcdf(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     with timing_block("Regrid AORC AWS"):
         # Flag to jump to different regridding function soley for AORC AWS data
@@ -6103,12 +6159,16 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -6686,15 +6746,16 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -7565,15 +7626,16 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     :param config_options:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -8357,15 +8419,16 @@ def regrid_mrms_hourly(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_partial = functools.partial(
-        os_utils.close, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # Do we want to use MRMS data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
@@ -9341,8 +9404,8 @@ def regrid_mrms_hourly(
 
     finally:
         # Close whichever file handles got opened
-        close_partial(id_mrms)
-        close_partial(id_mrms_rqi)
+        close_anyrank_partial(id_mrms)
+        close_anyrank_partial(id_mrms_rqi)
         os_remove_rank_0_partial(mrms_tmp_grib2)
         os_remove_rank_0_partial(mrms_tmp_nc)
         os_remove_rank_0_partial(mrms_tmp_rqi_grib2)
@@ -9363,15 +9426,16 @@ def regrid_mrms_precip_flag(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -9613,15 +9677,16 @@ def regrid_hourly_wrf_arw(
     :param config_options:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -10507,15 +10572,16 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -11007,15 +11073,16 @@ def regrid_sbcv2_liquid_water_fraction(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -11398,15 +11465,16 @@ def regrid_hourly_nbm(
     :param mpi_config:
     :return:
     """
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_rank_0_partial = functools.partial(
-        os_utils.close_rank_0, mpi_config, config_options, err_handler
-    )
-    os_remove_rank_0_partial = functools.partial(
-        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # Do we want to use NBM data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
@@ -12310,12 +12378,16 @@ def regrid_hourly_nbm(
 @static_vars(last_file=None)
 def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """Regrid NDFD forcing data to the WRF-Hydro domain."""
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
-    close_partial = functools.partial(
-        os_utils.close, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # Check to see if the regrid complete flag for this
     # output time step is true. This entails the necessary
@@ -12711,7 +12783,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             err_handler.check_program_status(config_options, mpi_config)
         finally:
             # always close the NetCDF handle
-            close_partial(id_tmp)
+            close_anyrank_partial(id_tmp)
 
             # only remove the scratch file if this was a new‐cycle run
             if (
@@ -12731,9 +12803,16 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
 def regrid_aorc_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """Regrid AORC AWS forcing data to the WRF-Hydro domain."""
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     fill_values = {
         "TMP": 288.0,
@@ -13329,9 +13408,16 @@ def check_regrid_status(
     :param mpi_config:
     :return:
     """
-    esmf_field_retry_partial = functools.partial(
-        esmf_field_retry, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the destination ESMF field hasn't been created, create it here.
     if not input_forcings.esmf_field_out:
@@ -13486,9 +13572,16 @@ def check_supp_pcp_regrid_status(
     :param mpi_config:
     :return:
     """
-    esmf_field_retry_partial = functools.partial(
-        esmf_field_retry, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     # If the destination ESMF field hasn't been created, create it here.
     if not supplemental_precip.esmf_field_out:
@@ -13907,12 +14000,16 @@ def calculate_weights(
     :param force_count:
     :return:
     """
-    esmf_field_retry_partial = functools.partial(
-        esmf_field_retry, mpi_config, config_options, err_handler
-    )
-    esmf_grid_retry_partial = functools.partial(
-        esmf_grid_retry, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     err_handler.log_msg(config_options, mpi_config, debug=True, msg="Calculate Weights")
 
@@ -14337,18 +14434,16 @@ def calculate_supp_pcp_weights(
     :param config_options:
     :return:
     """
-    esmf_field_retry_partial = functools.partial(
-        esmf_field_retry, mpi_config, config_options, err_handler
-    )
-    esmf_grid_retry_partial = functools.partial(
-        esmf_grid_retry, mpi_config, config_options, err_handler
-    )
-    esmf_regrid_retry_partial = functools.partial(
-        esmf_regrid_retry, mpi_config, config_options, err_handler
-    )
-    esmf_regridobj_call_retry_partial = functools.partial(
-        esmf_regridobj_call_retry, mpi_config, config_options, err_handler
-    )
+    (
+        esmf_regridobj_call_retry_partial,
+        esmf_field_retry_partial,
+        esmf_grid_retry_partial,
+        esmf_regrid_retry_partial,
+        esmf_mesh_retry_partial,
+        close_rank_0_partial,
+        close_anyrank_partial,
+        os_remove_rank_0_partial,
+    ) = get_partials(mpi_config, config_options)
 
     ndims = 0
     if mpi_config.rank == 0:
