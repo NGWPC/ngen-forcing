@@ -207,6 +207,7 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
 
     raw_download_dir=_normpath(cfg['raw_download_dir'])
 
+    domain_name = Path(cfg['domain_file']).stem
     with open( f"{sim_dir}/schism_calib.cfg", "w") as schcfg:
       schcfg.write(f"export STARTPDY={startpdy}\n")
       schcfg.write(f"export STARTCYC={startcyc}\n")
@@ -216,7 +217,7 @@ def prepare_schism_base_simulation_folder(cfg, domain_info):
         schcfg.write('export USE_TPXO="YES"\n')
       else:
         schcfg.write('export USE_TPXO="NO"\n')
-      schcfg.write(f"export COASTAL_DOMAIN={cfg['domain_file']}\n")
+      schcfg.write(f"export COASTAL_DOMAIN={domain_name}\n")
       schcfg.write(f"export METEO_SOURCE={cfg['meteo_source'].upper()}\n")
       schcfg.write(f"export COASTAL_WORK_DIR={sim_dir}\n")
       schcfg.write(f"export RAW_DOWNLOAD_DIR={raw_download_dir}\n")

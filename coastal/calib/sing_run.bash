@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #SBATCH --job-name=sing_mpi  #job name
 #SBATCH -N 2                     #number of nodes to use
-#SBATCH --partition=compute      #the patition
+#SBATCH --partition=c5n-18xlarge #the patition
 #SBATCH --ntasks-per-node=18     #numebr of cores per node
 #SBATCH --exclusive
 
@@ -9,12 +9,36 @@ export NODES=2          #this must match the number of nodes defined above by sl
 export NCORES=18        #this must match the number of cores per node defined above by slurm
 export NPROCS=$((NODES*NCORES))
 
-set -x
+set -euox pipefail
 
 #load the configuration file
 . ./schism_calib.cfg
 
-export NGWPC_COASTAL_PARM_DIR=/ngen-test/coastal/ngwpc-coastal
+# Check string variables
+for var in STARTPDY STARTCYC COASTAL_DOMAIN METEO_SOURCE COASTAL_WORK_DIR RAW_DOWNLOAD_DIR; do
+    if [[ -z "${!var}" ]]; then
+        echo "ERROR: $var is not defined in config file"
+        exit 1
+    fi
+done
+
+# Check numeric variables
+for var in FCST_LENGTH_HRS; do
+    if [[ -z "${!var}" ]] || ! [[ "${!var}" =~ ^[0-9]+$ ]]; then
+        echo "ERROR: $var must be a positive integer"
+        exit 1
+    fi
+done
+
+# Check YES/NO variables
+if [[ "${USE_TPXO}" != "YES" ]] && [[ "${USE_TPXO}" != "NO" ]]; then
+    echo "ERROR: USE_TPXO must be YES or NO"
+    exit 1
+fi
+
+export NFS_MOUNT=/ngen-test
+
+export NGWPC_COASTAL_PARM_DIR=$NFS_MOUNT/coastal/ngwpc-coastal
 
 export NGEN_APP_DIR=/ngen-app
 #
@@ -53,22 +77,21 @@ export FI_EFA_RECVWIN_SIZE=65536
 # User specific aliases and functions
 # >>> conda initialize >>>
 # !! Contents within this block are managed by 'conda init' !!
-__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"
+__conda_setup="$($NFS_MOUNT/ngen-app/conda/bin/conda 'shell.bash' 'hook' 2> /dev/null)"
 if [ $? -eq 0 ]; then
     eval "$__conda_setup"
 else
-    if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then
-        . "/opt/conda/etc/profile.d/conda.sh"
+    if [ -f "$NFS_MOUNT/ngen-app/conda/etc/profile.d/conda.sh" ]; then
+        . "$NFS_MOUNT/ngen-app/conda/etc/profile.d/conda.sh"
     else
-        export PATH="/opt/conda/bin:$PATH"
+        export PATH="$NFS_MOUNT/ngen-app/conda/bin:$PATH"
     fi
 fi
 unset __conda_setup
 # <<< conda initialize <<<
 #
 
-export NFS_MOUNT=/efs
-export PATH=/opt/conda/bin:${PATH}
+export PATH=$NFS_MOUNT/ngen-app/conda/bin:${PATH}
 export CONDA_ENVS_PATH=$NFS_MOUNT/ngen-app/conda/envs
 export CONDA_ENV_NAME=ngen_forcing_coastal
 export PATH=${CONDA_ENVS_PATH}/${CONDA_ENV_NAME}/bin:${PATH}
@@ -77,8 +100,7 @@ SIF_PATH=/ngencerf-app/singularity/ngen-coastal.sif
 
 conda activate ${CONDA_ENVS_PATH}/$CONDA_ENV_NAME
 
-export LD_LIBRARY_PATH=/opt/conda/lib:${CONDA_ENVS_PATH}/lib:$LD_LIBRARY_PATH
-
+export LD_LIBRARY_PATH=$NFS_MOUNT/ngen-app/conda/lib:${CONDA_ENVS_PATH}/lib:${LD_LIBRARY_PATH:-}
 #
 # location of the NWM retrospective or archieved forcing files
 # note that the time span of the files must cover the whole simulation period
@@ -96,8 +118,7 @@ else
    exit 1
 fi
 
-export MPICOMMAND2="mpiexec -n ${NPROCS} "
-export MPICOMMAND3="mpiexec -n 4 "
+export MPICOMMAND="mpiexec -n ${NPROCS} "
 
 declare -A coastal_domain_to_inland_domain=( \
 	   [prvi]="domain_puertorico" \
@@ -142,26 +163,6 @@ if [[ $USE_TPXO == "YES" ]]; then
     export COASTAL_SOURCE=''
 fi
 
-#singularity exec -B $BINDINGS --pwd ${work_dir} $SIF_PATH \
-#	/bin/bash -c \
-# 	 '__conda_setup="$('/opt/conda/bin/conda' 'shell.bash' 'hook' 2> /dev/null)"; \
-#         if [ $? -eq 0 ]; then \
-#                eval "$__conda_setup"; \
-#         else \
-#                if [ -f "/opt/conda/etc/profile.d/conda.sh" ]; then \
-#                     . "/opt/conda/etc/profile.d/conda.sh" ; \
-#                else \
-#                      export PATH="/opt/conda/bin:$PATH" ;\
-#                fi;                                              \
-#          fi;                                               \
-#         conda run -n $CONDA_ENV_NAME python \
-#	../forcing_downloader/main.py \
-#	"$COASTAL_WORK_DIR" \
-#	"${coastal_domain_to_nwm_domain[$COASTAL_DOMAIN]}"
-#	"$start_dt" \
-#	"$end_dt" \
-#	"$METEO_SOURCE" "nwm" "$COASTAL_SOURCE"'
-
 #
 # location of the archived STOFS file if STOFS data is
 # going to be used for the boundary nodes
@@ -186,7 +187,7 @@ export COASTAL_FORCING_OUTPUT_DIR=$DATAexec/coastal_forcing_output
 export FECPP_JOB_INDEX=0
 export FECPP_JOB_COUNT=1
 
-${MPICOMMAND3} singularity exec -B $BINDINGS \
+${MPICOMMAND} singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
@@ -219,7 +220,7 @@ else
    export SCHISM_OUTPUT_FILE=$DATAexec/elev2D.th.nc
    export OPEN_BNDS_HGRID_FILE=$DATAexec/open_bnds_hgrid.nc
 
-   ${MPICOMMAND3} singularity exec -B $BINDINGS \
+   ${MPICOMMAND} singularity exec -B $BINDINGS \
 	  --pwd ${work_dir} \
          $SIF_PATH \
 	 $CONDA_ENVS_PATH/$CONDA_ENV_NAME/bin/python \
@@ -238,13 +239,13 @@ singularity exec -B $BINDINGS \
 	 ./run_sing_coastal_workflow_pre_schism.bash
 
 
-export PATH=/opt/amazon/openmpi/bin:/opt/amazon/efa/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+export PATH=$NFS_MOUNT/openmpi/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin
+export LD_LIBRARY_PATH=$NFS_MOUNT/openmpi/lib
 
-export LD_LIBRARY_PATH=/opt/amazon/openmpi/lib:/opt/amazon/openmpi/lib64
 export OMPI_ALLOW_RUN_AS_ROOT=1
 export OMPI_ALLOW_RUN_AS_ROOT_CONFIRM=1
 
-${MPICOMMAND2} singularity exec -B $BINDINGS --pwd $COASTAL_WORK_DIR \
+${MPICOMMAND} singularity exec -B $BINDINGS --pwd $COASTAL_WORK_DIR \
          $SIF_PATH \
 	/bin/bash -c "/ngen-app/nwm.v3.0.6/exec/pschism_wcoss2_NO_PARMETIS_TVD-VL.openmpi $NSCRIBES"
 
