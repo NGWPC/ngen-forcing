@@ -504,6 +504,9 @@ def _regrid_ak_ext_ana_pcp_stage4(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -536,24 +539,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
     id_tmp = None
     try:
         if supplemental_precip.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(stage4_tmp_nc):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {stage4_tmp_nc} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(stage4_tmp_nc)
-                    except OSError:
-                        err_handler.log_critical(
-                            config_options,
-                            mpi_config,
-                            msg=f"Unable to remove temporary file: {stage4_tmp_nc}",
-                        )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(stage4_tmp_nc, "Found old tmp file. ")
 
             # Create a temporary NetCDF file from the GRIB2 file.
             if WGRIB2_env:
@@ -1087,6 +1073,9 @@ def _regrid_conus_ext_ana_pcp_stage4(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -1118,24 +1107,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
     id_tmp = None
     try:
         if supplemental_precip.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(stage4_tmp_nc):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {stage4_tmp_nc} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(stage4_tmp_nc)
-                    except OSError:
-                        err_handler.log_critical(
-                            config_options,
-                            mpi_config,
-                            msg=f"Unable to remove temporary file: {stage4_tmp_nc}",
-                        )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(stage4_tmp_nc, "Found old tmp file. ")
 
             # Create a temporary NetCDF file from the GRIB2 file.
             if WGRIB2_env:
@@ -1713,8 +1685,6 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         err_handler.log_msg(config_options, mpi_config, msg="Regrid CONUS HRRR")
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
             os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             # Build GRIB2 to NetCDF conversion
@@ -2600,6 +2570,9 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -2632,24 +2605,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     try:
         err_handler.log_msg(config_options, mpi_config, msg="Regrid CONUS RAP")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        err_handler.log_critical(
-                            config_options,
-                            mpi_config,
-                            msg=f"Unable to remove file: {input_forcings.tmpFile}",
-                        )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -3522,6 +3478,9 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -3557,24 +3516,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     try:
         err_handler.log_msg(config_options, mpi_config, msg="Regrid CFSv2")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError as err:
-                        err_handler.log_critical(
-                            config_options,
-                            mpi_config,
-                            msg=f"Unable to remove previous temporary file: {input_forcings.tmpFile}{err}",
-                        )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -6835,6 +6777,9 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -6881,23 +6826,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         )
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
-                err_handler.log_warning(
-                    config_options,
-                    mpi_config,
-                    msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing.....",
-                )
-                try:
-                    os_utils.os_remove_retry(input_forcings.tmpFile)
-                except OSError:
-                    err_handler.log_critical(
-                        config_options,
-                        mpi_config,
-                        msg=f"Unable to remove file: {input_forcings.tmpFile}",
-                    )
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -7743,6 +7672,9 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -7774,20 +7706,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     try:
         err_handler.log_msg(config_options, mpi_config, msg="Regridding NAM nest data")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        err_handler.err_out(config_options)
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -9842,6 +9761,9 @@ def regrid_hourly_wrf_arw(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -9875,20 +9797,7 @@ def regrid_hourly_wrf_arw(
         err_handler.log_msg(config_options, mpi_config, msg="Regrid WRF-ARW nest data")
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {input_forcings.tmpFile} - Removing.....",
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        err_handler.err_out(config_options)
-            err_handler.check_program_status(config_options, mpi_config)
+            os_remove_rank_0_partial(input_forcings.tmpFile, "Found old tmp file. ")
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
