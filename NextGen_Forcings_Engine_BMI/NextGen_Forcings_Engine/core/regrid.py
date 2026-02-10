@@ -9203,10 +9203,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             # These files shouldn't exist. If they do, remove them.
             if mpi_config.rank == 0:
                 if os.path.isfile(arw_tmp_nc):
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg=f"Found old temporary file: {arw_tmp_nc} - Removing.....",
+                    log_warn(
+                        msg=f"Found old temporary file: {arw_tmp_nc} - Removing....."
                     )
                     try:
                         os_utils.os_remove_retry(arw_tmp_nc)
@@ -9971,11 +9969,7 @@ def regrid_hourly_nbm(
 
     if mpi_config.rank == 0:
         if os.path.isfile(nbm_tmp_nc):
-            err_handler.log_warning(
-                config_options,
-                mpi_config,
-                msg=f"Found old temporary file: {nbm_tmp_nc} - Removing.....",
-            )
+            log_warn(msg=f"Found old temporary file: {nbm_tmp_nc} - Removing.....")
             try:
                 os_utils.os_remove_retry(nbm_tmp_nc)
             except OSError:
@@ -10075,10 +10069,8 @@ def regrid_hourly_nbm(
 
                 # Regrid the height variable.
                 if config_options.grid_meta is None:
-                    err_handler.log_warning(
-                        config_options,
-                        mpi_config,
-                        msg="No NBM height file supplied, downscaling will not be available",
+                    log_warn(
+                        msg="No NBM height file supplied, downscaling will not be available"
                     )
                     err_handler.check_program_status(config_options, mpi_config)
                 else:
