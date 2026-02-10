@@ -25,6 +25,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import Mp
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing import (
     AORCAlaskaProcessor,
     AORCConusProcessor,
+    NWMV3AlaskaProcessor,
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
@@ -484,9 +485,12 @@ class NWMv3ForcingEngineModel:
                                 elif config_options.nwm_domain in [
                                     "Hawaii",
                                     "PR",
-                                    "Alaska",
                                 ]:
                                     self.source_data_processor = NWMV3OConusProcessor(
+                                        config_options, mpi_config, wrf_hydro_geo_meta
+                                    )
+                                elif config_options.nwm_domain == "Alaska":
+                                    self.source_data_processor = NWMV3AlaskaProcessor(
                                         config_options, mpi_config, wrf_hydro_geo_meta
                                     )
                                 else:

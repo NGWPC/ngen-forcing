@@ -32,7 +32,8 @@ dependencies = [
     "xarray[complete]==2025.12.0",
     "zarr",
     "rioxarray",
-    "python-dotenv"
+    "python-dotenv",
+    "obstore"
 ]
 
 dynamic = ["version"]
