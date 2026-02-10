@@ -1,5 +1,6 @@
 from . import retry_utils
 import types
+import typing
 from .core.parallel import MpiConfig
 from .core.config import ConfigOptions
 import os
@@ -39,6 +40,9 @@ def os_remove_rank_0(
     file_path: str,
     msg_prefix: str = "",
 ) -> None:
+    """If rank 0, remove the file if it exists. Ignore FileNotFoundErrors.
+    Collective, must be called by all ranks.
+    If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
     if mpi_config.rank == 0:
         if os.path.exists(file_path):
             err_handler.log_warning(
@@ -47,4 +51,37 @@ def os_remove_rank_0(
                 msg=f"{msg_prefix}Removing file: {file_path}",
             )
             os_remove_retry(file_path, ignore_filenotfound=True)
+    err_handler.check_program_status(config_options, mpi_config)
+
+
+def close_rank_0(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    file_handle: typing.Any | None,
+    msg_prefix: str = "",
+) -> None:
+    """If rank 0, close the file handle.
+    Collective, must be called by all ranks.
+    file_handle must have a close() method or be None.
+    If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
+    if mpi_config.rank == 0 and file_handle is not None:
+        if not hasattr(file_handle, "close"):
+            raise RuntimeError(
+                f"Provided object for file_handle does not have a close method: {file_handle}"
+            )
+        # Get file name from the handle
+        if hasattr(file_handle, "filepath"):
+            fn = getattr(file_handle, "filepath")()  # filepath is a method
+        elif hasattr(file_handle, "name"):
+            fn = getattr(file_handle, "name")
+        else:
+            fn = "(UNKNOWN)"
+        # Close
+        try:
+            file_handle.close()
+        except Exception as e:
+            raise RuntimeError(
+                f"{msg_prefix}Could not close file object: {file_handle}. File name: {fn}"
+            ) from e
     err_handler.check_program_status(config_options, mpi_config)

@@ -504,6 +504,9 @@ def _regrid_ak_ext_ana_pcp_stage4(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
     )
@@ -1007,25 +1010,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {stage4_tmp_nc}",
-                )
-            try:
-                os_utils.os_remove_retry(stage4_tmp_nc)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {stage4_tmp_nc}",
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(stage4_tmp_nc)
 
 
 def regrid_ak_ext_ana_pcp(
@@ -1072,6 +1058,9 @@ def _regrid_conus_ext_ana_pcp_stage4(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -1579,24 +1568,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {stage4_tmp_nc}",
-                )
-            try:
-                os_utils.os_remove_retry(stage4_tmp_nc)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {stage4_tmp_nc}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(stage4_tmp_nc)
     # noinspection PyUnreachableCode
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -1643,6 +1616,9 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -2536,24 +2512,8 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 # mpi_config.comm.barrier()
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -2569,6 +2529,9 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -3444,24 +3407,8 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -3477,6 +3424,9 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -4522,24 +4472,8 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     ] = config_options.globalNdv
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -4555,6 +4489,9 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
 
     ## Flag to jump to different regridding module for AWS NWM Forcing data
@@ -4907,15 +4844,8 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     input_forcings.input_map_output[force_count], :
                 ]
             err_handler.check_program_status(config_options, mpi_config)
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+
+    close_rank_0_partial(id_tmp)
 
 
 def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -4930,6 +4860,9 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
 
     # Check to see if the regrid complete flag for this
@@ -5290,15 +5223,8 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
                     input_forcings.input_map_output[force_count], :
                 ]
             err_handler.check_program_status(config_options, mpi_config)
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+
+    close_rank_0_partial(id_tmp)
 
 
 def regrid_custom_hourly_netcdf(
@@ -5315,6 +5241,9 @@ def regrid_custom_hourly_netcdf(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
 
     with timing_block("Regrid AORC AWS"):
@@ -6165,15 +6094,8 @@ def regrid_custom_hourly_netcdf(
                         input_forcings.input_map_output[force_count], :
                     ]
                 err_handler.check_program_status(config_options, mpi_config)
-        # Close the NetCDF file
-        if mpi_config.rank == 0:
-            try:
-                id_tmp.close()
-            except OSError:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-                )
-                err_handler.err_out(config_options)
+
+        close_rank_0_partial(id_tmp)
 
 
 def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -6188,6 +6110,9 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
 
     # If the expected file is missing, this means we are allowing missing files, simply
@@ -6751,15 +6676,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 ]
             err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+    close_rank_0_partial(id_tmp)
 
 
 @static_vars(last_file=None)
@@ -6776,6 +6693,9 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -7634,27 +7554,8 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-
-            # reinstituting removal - overwriting can cause issues on some file systems
-            # benefits of reuse seem unclear
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -7671,6 +7572,9 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -8440,24 +8344,8 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9502,6 +9390,12 @@ def regrid_mrms_precip_flag(
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
     )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
+    )
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
@@ -9724,24 +9618,9 @@ def regrid_mrms_precip_flag(
             )
         err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            err_handler.log_critical(
-                config_options,
-                mpi_config,
-                msg=f"Unable to close NetCDF file: {supplemental_precip.file_in2}",
-            )
-        try:
-            os_utils.os_remove_retry(mrms_tmp_nc)
-        except OSError:
-            err_handler.log_critical(
-                config_options,
-                mpi_config,
-                msg=f"Unable to remove NetCDF file: {mrms_tmp_nc}",
-            )
+    close_rank_0_partial(id_tmp)
+    # os_remove_rank_0_partial(supplemental_precip.file_in2)  # TODO revisit, is this needed?  Original code was closing id_tmp with a msg about forcings_or_precip.file_in2
+    os_remove_rank_0_partial(mrms_tmp_nc)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9760,6 +9639,9 @@ def regrid_hourly_wrf_arw(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
     )
     os_remove_rank_0_partial = functools.partial(
         os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
@@ -10632,26 +10514,9 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {input_forcings.tmpFile}",
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {input_forcings.tmpFile}",
-                )
-    # noinspection PyUnreachableCode
-    err_handler.check_program_status(config_options, mpi_config)
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(input_forcings.tmpFile)
+        err_handler.check_program_status(config_options, mpi_config)
 
 
 def regrid_hourly_wrf_arw_hi_res_pcp(
@@ -10668,6 +10533,12 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
     )
 
     # If the expected file is missing, this means we are allowing missing files, simply
@@ -11143,24 +11014,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to close NetCDF file: {arw_tmp_nc}",
-                )
-            try:
-                os_utils.os_remove_retry(arw_tmp_nc)
-            except OSError:
-                err_handler.log_critical(
-                    config_options,
-                    mpi_config,
-                    msg=f"Unable to remove NetCDF file: {arw_tmp_nc}",
-                )
+        close_rank_0_partial(id_tmp)
+        os_remove_rank_0_partial(arw_tmp_nc)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -11178,6 +11033,12 @@ def regrid_sbcv2_liquid_water_fraction(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
     )
 
     # If the expected file is missing, this means we are allowing missing files, simply
@@ -11545,16 +11406,7 @@ def regrid_sbcv2_liquid_water_fraction(
             )
         err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            err_handler.log_critical(
-                config_options,
-                mpi_config,
-                msg=f"Unable to close NetCDF file: {supplemental_forcings.file_in1}",
-            )
+    close_rank_0_partial(id_tmp)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -11572,6 +11424,12 @@ def regrid_hourly_nbm(
     """
     esmf_regridobj_call_retry_partial = functools.partial(
         esmf_regridobj_call_retry, mpi_config, config_options, err_handler
+    )
+    close_rank_0_partial = functools.partial(
+        os_utils.close_rank_0, mpi_config, config_options, err_handler
+    )
+    os_remove_rank_0_partial = functools.partial(
+        os_utils.os_remove_rank_0, mpi_config, config_options, err_handler
     )
 
     # Do we want to use NBM data at this timestep? If not, log and continue
@@ -12468,24 +12326,9 @@ def regrid_hourly_nbm(
                 destination1_elem[:] = destination2_elem[:]
             err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the temporary NetCDF file and remove it.
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            err_handler.log_critical(
-                config_options,
-                mpi_config,
-                msg=f"Unable to close NetCDF file: {forcings_or_precip.file_in1}",
-            )
-        try:
-            os_utils.os_remove_retry(nbm_tmp_nc)
-        except OSError:
-            err_handler.log_critical(
-                config_options,
-                mpi_config,
-                msg=f"Unable to remove temporary NBM NetCDF file: {nbm_tmp_nc}",
-            )
+    close_rank_0_partial(id_tmp)
+    # os_remove_rank_0_partial(forcings_or_precip.file_in1)  # TODO revisit, is this needed?  Original code was closing id_tmp with a msg about forcings_or_precip.file_in1
+    os_remove_rank_0_partial(nbm_tmp_nc)
     err_handler.check_program_status(config_options, mpi_config)
 
 
