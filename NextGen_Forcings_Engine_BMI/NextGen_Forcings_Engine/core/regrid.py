@@ -3219,7 +3219,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
                 var_sub_tmp = mpi_config.scatter_array(
                     input_forcings, var_tmp, config_options
-                and assigns to  )
+                )
                 err_handler.check_program_status(config_options, mpi_config)
 
                 try:
@@ -3229,7 +3229,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                         "Unable to place local RAP array into ESMF field: " + str(err)
                     )
                     err_handler.log_critical(config_options, mpi_config)
-                and assigns to  err_handler.check_program_status(config_options, mpi_config)
+                err_handler.check_program_status(config_options, mpi_config)
 
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
@@ -14316,6 +14316,7 @@ def get_weight_file_names(
     config_options: ConfigOptions,
     input_forcings: GeoMetaWrfHydro,
 ) -> tuple[str | None, str | None]:
+    """Get weight file names for regridding."""
     if not config_options.weightsDir:
         return None, None
 
@@ -14507,8 +14508,11 @@ def calculate_weights(
     lon_var="longitude",
     fill=False,
 ):
-    """Calculate ESMF weights based on the output ESMF field previously calculated, along with input lat/lon grids, and a sample dataset.
+    """Calculate weights function.
 
+    Function to calculate ESMF weights based on the output ESMF
+    field previously calculated, along with input lat/lon grids,
+    and a sample dataset.
     :param input_forcings:
     :param id_tmp:
     :param mpi_config:
