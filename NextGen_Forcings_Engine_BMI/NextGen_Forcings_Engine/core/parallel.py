@@ -1,10 +1,9 @@
-
 import os
 import uuid
 
 import mpi4py
 import numpy as np
-import os
+
 mpi4py.rc.threads = False
 
 from mpi4py import MPI
@@ -65,10 +64,10 @@ class MpiConfig:
         wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
         if wait_for_debug.lower() in ("true", "1"):
             self.wait_for_debugpy_client()
+        print("here")
 
     def __broadcast_new_64bit_uid(self, config_options):
-        """Broadcast a random uint64 then save the hash of that to self.uid64,
-        which effectively broadcasts the same unique string to all ranks."""
+        """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks."""
         if self.uid64 is not None:
             raise ValueError(f"self.uid64 already set: {repr(self.uid64)}")
 
@@ -86,9 +85,11 @@ class MpiConfig:
         self.uid64 = uid_64bit_hex[16:]
 
     def wait_for_debugpy_client(self):
-        """This blocks until the debugpy clients have attached to cppdbg/gdb.
+        """Block until the debugpy clients have attached to cppdbg/gdb.
+
         This is for debugging concurrent ngen-forcing MPI ranks (processes).
-        See `launch.json`, `devcontainer.json`, and `tasks.json` in the nwm-rte repository for details."""
+        See `launch.json`, `devcontainer.json`, and `tasks.json` in the nwm-rte repository for details.
+        """
         import debugpy
 
         debugpy.listen(("localhost", 5678 + self.rank))
@@ -299,11 +300,11 @@ class MpiConfig:
     scatter_array = scatter_array_scatterv_no_cache
 
     def merge_slabs_gatherv(self, local_slab, options, allgather: bool = False):
-        """If allgather is True, then Allgatherv will be used instead of Gatherv,
-        which causes all ranks to be distributed to all other ranks. This is necessary
-        for the hydrofabric case, to handle how ngen's hydrologic catchment partitionining
-        differs from ESMF's arbitrary partitioning."""
+        """If allgather is True, then Allgatherv will be used instead of Gatherv, which causes all ranks to be distributed to all other ranks.
 
+        This is necessary for the hydrofabric case, to handle how ngen's hydrologic
+        catchment partitionining differs from ESMF's arbitrary partitioning.
+        """
         # Filter based on dimensionality of array
         if len(local_slab.shape) == 2:
             # gather buffer offsets and bounds to rank 0 for 2d array

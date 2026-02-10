@@ -166,12 +166,14 @@ class InputForcings:
 
     @property
     def keyValue(self):
+        """Get the forcing key value."""
         if self._keyValue is None:
-            raise RuntimeError(f"keyValue has not yet been set")
+            raise RuntimeError("keyValue has not yet been set")
         return self._keyValue
 
     @keyValue.setter
     def keyValue(self, val):
+        """Set the forcing key value."""
         if self._keyValue is not None:
             raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
         self._keyValue = val

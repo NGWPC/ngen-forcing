@@ -1,17 +1,16 @@
 import math
 from time import time
 
+import netCDF4
 import numpy as np
 
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
 import shapely
-import netCDF4
 from scipy import spatial
-from . import err_handler
-from .. import esmf_utils
-from .. import nc_utils
 
+from .. import esmf_utils, nc_utils
+from . import err_handler
 
 try:
     import esmpy as ESMF

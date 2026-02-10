@@ -1,8 +1,8 @@
 import configparser
 import json
 import logging
-import re
 import os
+import re
 from datetime import datetime, timedelta, timezone
 
 import numpy as np
@@ -2082,7 +2082,9 @@ class ConfigOptions:
         pattern = r"geo_em_([a-zA-Z-_]+)\.nc$"  # E.g. extract "Puerto_Rico" from /foo/bar/esmf_mesh/NWM/domain/geo_em_Puerto_Rico.nc
         groups = re.findall(pattern, self.nwm_geogrid)
         if len(groups) != 1:
-            raise ValueError(f"Could not determine NWM domain. {len(groups)} groups found (expected 1) in {self.nwm_geogrid} using regex pattern {pattern}")
+            raise ValueError(
+                f"Could not determine NWM domain. {len(groups)} groups found (expected 1) in {self.nwm_geogrid} using regex pattern {pattern}"
+            )
         domain = groups[0]
         if domain in ["PuertoRico", "Puerto_Rico", "PR"]:
             return "PR"

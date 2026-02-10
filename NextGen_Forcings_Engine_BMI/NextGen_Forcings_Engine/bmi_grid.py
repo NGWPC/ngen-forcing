@@ -1,4 +1,5 @@
-"""bmi_grid.py
+"""bmi_grid.py.
+
 Module for supporting BMI grid meta data and functionality
 
 @author Nels Frazier

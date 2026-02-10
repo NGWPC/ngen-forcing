@@ -1,8 +1,9 @@
-from . import retry_utils
-import types
-from .core.parallel import MpiConfig
-from .core.config import ConfigOptions
 import os
+import types
+
+from . import retry_utils
+from .core.config import ConfigOptions
+from .core.parallel import MpiConfig
 
 
 @retry_utils.retry_w_mpi_context(
