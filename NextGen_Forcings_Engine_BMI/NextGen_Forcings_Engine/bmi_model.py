@@ -1,10 +1,12 @@
 # Need these for BMI
 # This is needed for get_var_bytes
+import atexit
 import gc
 import hashlib
 import os
 
 # time debugging
+import signal
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -237,6 +239,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
+
+        # cleanup meshfile on exit because it's temporary, now
+        # TODO: consider WCOSS gating
+        if self._mpi_meta.rank == 0:
+            atexit.register(self._cleanup_geogrid)
+            for sig in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+                signal.signal(sig, self._signal_handler)
 
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
@@ -946,6 +955,24 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             )
             self._output_configured = True
 
+    def _cleanup_geogrid(self):
+        """Remove temporary geogrid file if it exists."""
+        try:
+            geofile = getattr(self, "_job_meta", None)
+            if geofile is not None:
+                geofile = getattr(geofile, "geogrid", None)
+            if geofile is not None and os.path.isfile(geofile):
+                os.remove(geofile)
+        except Exception:
+            pass
+
+    def _signal_handler(self, signum, frame):
+        """Handle termination signals by cleaning up before exit."""
+        self._cleanup_geogrid()
+        # Re-raise the signal to allow normal termination
+        signal.signal(signum, signal.SIG_DFL)
+        os.kill(os.getpid(), signum)
+
     # ------------------------------------------------------------
     def update(self):
         """Update the model by advancing one time step.
@@ -1050,6 +1077,14 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                         os.remove(file_path)
                     elif os.path.isdir(file_path):
                         os.rmdir(file_path)
+            # TODO: Consider if this can be gated for non-wcoss only
+            try:
+                atexit.unregister(self._cleanup_geogrid)
+            except Exception:
+                pass
+
+            # Do the cleanup
+            self._cleanup_geogrid()
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
