@@ -72,7 +72,7 @@ def build_dis_from_ngen_netcdf(
     start_time: Optional[datetime] = None,  # if provided, write seconds since this start
 ):
     """
-    Reuses your previous single-file logic, with an optional start_time.
+    Reuses previous single-file logic, with an optional start_time.
     - If start_time is None: time column is written as given by the netCDF (numeric seconds).
     - If start_time is provided: convert netCDF times to seconds since start_time.
     """

@@ -3,6 +3,5 @@ domain:
   - name: hawaii
     path: ..\..\..\coastalmodels\schism\hawaii\ # path to base model files
     region: hawaii   # General region or basin group
-    epsg: 32615
-    notes: >
-      Example SCHISM domain 
+    epsg: 6634
+    notes: Example SCHISM domain 

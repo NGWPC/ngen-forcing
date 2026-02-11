@@ -10,7 +10,7 @@ OutputFrequency: 60
 SubOutputHour: 0
 SubOutFreq: 0
 ScratchDir: "{root_dir}/scratch/NWM/"
-Output: 1
+Output: 0
 compressOutput: 0
 floatOutput: 0
 AnAFlag: 0
@@ -60,4 +60,4 @@ RqiMethod: 0
 RqiThreshold: 0.9
 cfsEnsNumber: 1
 custom_input_fcst_freq: []
-NWM_Geogrid: '{root_dir}/esmf_mesh/NWM/domain/geo_em_CONUS.nc'
+NWM_Geogrid: '{root_dir}/esmf_mesh/NWM/domain/geo_em_{global_domain}.nc'

@@ -149,6 +149,14 @@ def _run_predict_tide_relative(
     if env_extra:
         proc_env.update({str(k): str(v) for k, v in env_extra.items()})
 
+
+    out_abs = (project_root / output_rel).resolve()
+    out_abs.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        out_abs.unlink()  # remove stale file so Fortran can create it with WRITE
+    except FileNotFoundError:
+        pass
+
     result = subprocess.run(
         cmd,
         shell=True,
@@ -356,7 +364,7 @@ def run_tpxo_pipeline_for_sfincs(
     end_time: Union[str, datetime],
     utm_epsg: Union[int, str],
 
-    # optional overrides (defaults match your layout & constraints)
+    # optional overrides (defaults match with layout & constraints)
     predict_tide_exe_rel: Union[str, Path] = "process_data/TPXO/predict_tide",
     model_control_rel: Union[str, Path] = "process_data/TPXO/Model_tpxo10_atlas",
     tp_dir_rel: Union[str, Path] = "process_data/TPXO",

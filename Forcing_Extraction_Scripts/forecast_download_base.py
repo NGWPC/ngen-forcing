@@ -1,9 +1,9 @@
 import argparse
-import atexit
+import logging
 import os
 import shutil
-import sys
 import time
+import uuid
 from abc import ABC, abstractmethod
 from datetime import datetime, timezone, timedelta
 from urllib import request, error
@@ -11,21 +11,21 @@ from urllib import request, error
 import requests
 from bs4 import BeautifulSoup
 
-import logging
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.log_level_set import MODULE_NAME
+from nextgen_forcings_ewts import MODULE_NAME
+
 LOG = logging.getLogger(MODULE_NAME)
 if not LOG.handlers:
     # No handlers attached — fallback to default root logger
     logging.basicConfig()
     LOG = logging.getLogger()
 
+
 class ForecastDownloader(ABC):
     """
     Abstract base class for structured forecast data downloads.
 
     Supports:
-    - Lock file safety
-    - Download retry
+    - Retry-safe downloading
     - Cleanup of old data
     - CLI support via from_cli_args()
     - Optional forecast-per-cycle or single-file-per-hour strategies
@@ -71,9 +71,6 @@ class ForecastDownloader(ABC):
 
         # Ensure output directory exists
         os.makedirs(self.out_dir, exist_ok=True)
-
-        # Lockfile used to prevent concurrent runs
-        self.lockfile = os.path.join(self.out_dir, f"{self.__class__.__name__}.lck")
 
     def effective_lagback(self):
         """
@@ -126,12 +123,8 @@ class ForecastDownloader(ABC):
         """
         Main method that orchestrates lock acquisition, cleanup, and downloading.
         """
-        self._acquire_lock()
-        try:
-            self._cleanup_old_data()
-            self._download_data()
-        finally:
-            self._release_lock()
+        self._cleanup_old_data()
+        self._download_data()
 
     #
     # --- Abstract methods to override in subclass ---
@@ -213,33 +206,6 @@ class ForecastDownloader(ABC):
     # --- Internal workflow methods ---
     #
 
-    def _acquire_lock(self):
-        """
-        Prevent multiple concurrent runs by creating a lockfile.
-        Register atexit cleanup to ensure the lock is removed when the process exits.
-        """
-        if os.path.isfile(self.lockfile):
-            with open(self.lockfile, 'r') as f:
-                pid = f.readline().strip()
-            LOG.critical(f"Lock file {self.lockfile} exists. PID: {pid}")
-            sys.exit(1)
-
-        with open(self.lockfile, 'w') as f:
-            f.write(str(os.getpid()))
-
-        # Automatically clean up the lock file on exit
-        atexit.register(self._release_lock)
-
-    def _release_lock(self):
-        """
-        Safely remove the lock file if it still exists.
-        """
-        if os.path.exists(self.lockfile):
-            try:
-                os.remove(self.lockfile)
-            except Exception as e:
-                LOG.warning(f"Failed to remove lockfile: {e}")
-
     def _cleanup_old_data(self):
         """
         Cleans up old data using either:
@@ -308,8 +274,9 @@ class ForecastDownloader(ABC):
                 url, filename = self.build_file_url_and_name(d_start, target, self.ens_number)
                 out_path = os.path.join(output_dir, filename)
 
+                LOG.info(f"Looking for file {out_path}")
                 if os.path.isfile(out_path):
-                    LOG.debug(f"Skipping existing: {out_path}")
+                    LOG.info(f"Skipping existing: {out_path}")
                     continue
 
                 self._download_file(url, out_path)
@@ -319,33 +286,94 @@ class ForecastDownloader(ABC):
     # noinspection PyMethodMayBeStatic
     def _download_file(self, url, out_path):
         """
-        Attempt to download a file from the URL with retry logic.
-        Retries up to 10 times with a 30-second interval between attempts.
+        Download to a unique temporary file, then "publish" it atomically.
+        Publishing is done by creating a hard link to the final path.
+        This guarantees:
+          - no overwriting if another process wins the race
+          - no partial files ever appear at the final path
+          - atomic, race-proof behavior without lock files
         """
         max_attempts = 10
         interval = 30  # seconds
         attempt = 0
 
+        # Directory and base name for temp file
+        out_dir = os.path.dirname(out_path)
+        base = os.path.basename(out_path)
+
+        # Format: .<filename>.tmp.<UUID>
+        # Hidden temp file tied to the final filename, guaranteed unique
+        temp_path = os.path.join(out_dir, f".{base}.tmp.{uuid.uuid4()}")
+
         while attempt < max_attempts:
             try:
-                LOG.debug(f"Attempt {attempt + 1}: Downloading {url}")
-                request.urlretrieve(url, out_path)
-                LOG.debug(f"Download complete: {out_path}")
-                return
+                LOG.info(f"Attempt {attempt + 1}: Downloading {url} -> {temp_path}")
+                request.urlretrieve(url, temp_path)
+
+                # ----------------------------------------------------------
+                # ATOMIC PUBLISH STEP:
+                #
+                # os.link(temp_path, out_path) attempts to create a second
+                # directory entry (a hard link) pointing to the same inode
+                # as the temporary file.
+                #
+                # This operation is atomic:
+                #   - It SUCCEEDS only if 'out_path' does NOT already exist.
+                #   - It FAILS with FileExistsError if another process
+                #     created the final file first.
+                #
+                # If it succeeds, both names point to the same inode.
+                # We then remove the temp name, leaving only 'out_path'.
+                #
+                # This effectively acts like a "rename", but:
+                #   - it never overwrites existing files
+                #   - it is race-safe on Linux
+                # ----------------------------------------------------------
+                try:
+                    os.link(temp_path, out_path)
+
+                    # Give up the temporary name. The underlying file remains,
+                    # because 'out_path' now points to the same inode.
+                    os.remove(temp_path)
+
+                    LOG.info(f"Download complete: {out_path}")
+                    return
+
+                except FileExistsError:
+                    # Another process already published the file.
+                    LOG.info(f"{out_path} already exists; another process wrote it first. Removing temp.")
+                    os.remove(temp_path)
+                    return
+
             except error.HTTPError as e:
                 if e.code == 404:
+                    # Permanent upstream error — retries won't fix it
                     LOG.error(f"File not found (404): {url} - Stopping retries")
-                    return False
+                    return
+                # Other HTTP errors may be temporary; allow the retry loop to continue
                 LOG.error(f"HTTPError {e.code} while downloading {url}: {e.reason}")
+
             except error.URLError as e:
+                # Network-level transient error; retry is appropriate
                 LOG.error(f"URLError while downloading {url}: {e.reason}")
+
             except Exception as e:
+                # Unknown failure; safe to retry
                 LOG.error(f"Unexpected error while downloading {url}: {e}")
+
+            finally:
+                # If the download step failed, ensure we don't leave stray temp files
+                if os.path.exists(temp_path):
+                    try:
+                        os.remove(temp_path)
+                    except Exception:
+                        pass
 
             attempt += 1
             time.sleep(interval)
 
         LOG.error(f"Failed to download after {max_attempts} attempts: {url}")
+        return
 
 
 class FixedFileDownloader(ForecastDownloader, ABC):
@@ -391,7 +419,7 @@ class FixedFileDownloader(ForecastDownloader, ABC):
                 out_path = os.path.join(full_dir, filename)
 
                 if os.path.isfile(out_path):
-                    LOG.debug(f"Skipping existing: {out_path}")
+                    LOG.info(f"Skipping existing: {out_path}")
                     continue
 
                 self._download_file(url, out_path)

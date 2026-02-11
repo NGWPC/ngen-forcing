@@ -1,7 +1,9 @@
 import os
+import re
 import traceback
 from datetime import datetime, timedelta
 from typing import Iterable, Optional
+from pathlib import Path
 import numpy as np
 import xarray as xr
 import pyproj
@@ -9,6 +11,8 @@ import geopandas as gpd  # kept if you plan to use later
 from shapely.affinity import rotate
 from shapely.geometry import box
 import pandas as pd
+import netCDF4 as nc
+from netCDF4 import  num2date, date2num
 from .glofs_sfincs import build_bzs_from_glofs_legacy
 from .mateo_sfincs import write_sfincs_meteo_from_nwm
 
@@ -64,6 +68,7 @@ class DataProcessor:
         self.domain_path = self.domain_info["domain"][0]["path"]
         self.ngen_dis_netcdf = ngen_dis_netcdf
         self.tpxo_env = tpxo_env
+        # self.inp_dict = self._get_inp_dict( self.sim_dir) if self.model == 'sfincs' else None
 
         '''
         # Coastal products (optional)
@@ -88,17 +93,18 @@ class DataProcessor:
         self.domain_path = self.domain_info["domain"][0]["path"]
         domain_epsg = self.domain_info["domain"][0]["epsg"]
 
-        if domain_epsg is not None:
+        if ( self.model == 'sfincs' ):
+          if domain_epsg is not None:
             self.target_epsg = int(domain_epsg)
-        else:
+          else:
             sfgrid = xr.open_dataset(os.path.join(self.domain_path, "sfincs.nc"))
             self.target_epsg = int(sfgrid.attrs.get("epsg", 32614))  # fallback to 32614
             sfgrid.close()
-        print(f"[init] Using target EPSG: {self.target_epsg}")
+          print(f"[init] Using target EPSG: {self.target_epsg}")
 
 
-        self.tpxo_model_control = tpxo_model_control    # e.g. "TPXO/Model_tpxo10_atlas"
-        self.tpxo_relative_path = tpxo_relative_path
+          self.tpxo_model_control = tpxo_model_control    # e.g. "TPXO/Model_tpxo10_atlas"
+          self.tpxo_relative_path = tpxo_relative_path
 
         os.makedirs(self.sim_dir, exist_ok=True)
 
@@ -174,14 +180,13 @@ class DataProcessor:
             start_date=self.start_dt,
             end_date=self.end_dt,
             mode="ana",
-            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # <- make this a full path in your environment
+            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # full path 
             out_dir=self.sim_dir,                               # where to write sfincs.amu/.amv/.ampr/.amp
             raw_root=self.raw_root,                           # root containing the daily NWM folders
             target_epsg=self.target_epsg,
             buffer_m=2000.0,
             flip_vertical=True,
-        )
-
+        )    
         print("Done:", summary)
 
 
@@ -200,7 +205,7 @@ class DataProcessor:
             start_date=self.start_dt,
             end_date=self.end_dt,
             mode="retro",
-            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # <- make this a full path in your environment
+            domain_nc_path=os.path.join(self.domain_path, "sfincs.nc"),   # full path
             out_dir=self.sim_dir,                               # where to write sfincs.amu/.amv/.ampr/.amp
             raw_root=self.raw_root,                           # root containing the daily NWM folders
             target_epsg=self.target_epsg,
@@ -239,9 +244,12 @@ class DataProcessor:
         rows = []
         ref_time = self.start_dt.replace(tzinfo=None)  # seconds since start_time
 
-        for dt in self._iter_hours():
-            date_str = dt.strftime("%Y%m%d"); hour_str = f"{dt.hour:02d}"
-            path = os.path.join(self.raw_root, "hydro", "nwm", f"nwm_channel_rt_{date_str}_{hour_str}.nc")
+        #for dt in self._iter_hours():
+        for dt in self._iter_hydro():
+            date_str = dt.strftime("%Y%m%d"); 
+            hour_str = dt.strftime("%H%M");
+            #path = os.path.join(self.raw_root, "hydro", "nwm", f"nwm_channel_rt_{date_str}_{hour_str}.nc")
+            path = os.path.join(self.raw_root, "hydro", "nwm", f"{date_str}{hour_str}.CHRTOUT_DOMAIN1")
             if not os.path.exists(path):
                 # skip silently; downloader may have partial hours
                 continue
@@ -585,6 +593,13 @@ class DataProcessor:
             yield current
             current += timedelta(hours=1)
 
+    def _iter_hydro(self) -> Iterable[datetime]:
+        current = self.start_dt
+        while current < self.end_dt:
+            yield current
+            current += timedelta(hours=1) if self.domain_info['domain'][0]['name'] != 'hawaii' \
+                    else timedelta(minutes=15)
+
     @staticmethod
     def _parse_time(s: str) -> datetime:
         fmts = ["%Y-%m-%dT%H-%M-%SZ", "%Y-%m-%dT%H:%M:%SZ", "%Y-%m-%d %H:%M:%S"]
@@ -594,6 +609,26 @@ class DataProcessor:
             except ValueError:
                 pass
         return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
+
+    @staticmethod
+    def _normpath(*parts) -> str:
+       return str(Path(*parts).resolve())
+
+    @staticmethod
+    def _get_inp_dict(sim_dir: str) -> datetime:
+       inp_path = Path(DataProcessor._normpath(sim_dir, "sfincs.inp"))
+       if Path(inp_path).exists():
+          with open(inp_path, "r") as f:
+            lines = f.readlines()
+
+       out = {}
+       pat = re.compile(rf'^\s*([^\n\t\r= ]+)\s*=\s*(.*?)(\s*(#.*)?)$', re.IGNORECASE)
+       for ln in lines:
+         m = pat.match(ln)
+         if m:
+            out[ m.group(1) ] = m.group(2)
+       return out
+
 
 
     import pandas as pd
@@ -626,7 +661,7 @@ class DataProcessor:
             import numpy as np
             import pandas as pd
             import pyproj
-            from scipy.interpolate import RegularGridInterpolator, interp1d
+            from scipy.interpolate import RegularGridInterpolator, NearestNDInterpolator, interp1d, LinearNDInterpolator
         except Exception as e:
             print(f"[process][coastal:stofs] missing dep: {e}")
             return
@@ -655,6 +690,7 @@ class DataProcessor:
             print(f"[process][coastal:stofs] empty boundary file: {bnd_file}")
             return
 
+        domain = self.domain_info['domain'][0]['name']
         # ---------- discover STOFS files from window ----------
         outdir = os.path.join(self.raw_root, "coastal", "stofs")
         wanted = []
@@ -662,7 +698,8 @@ class DataProcessor:
         for dt in self._iter_hours():
             if dt.hour not in (0, 6, 12, 18):
                 continue
-            fname = f"stofs_2d_glo.t{dt.hour:02d}z.conus.east.cwl.grib2"
+            fname = f"stofs_2d_glo.t{dt.hour:02d}z.conus.east.cwl.grib2" if self.domain_info['domain'][0]['name'] != 'hawaii' \
+                    else f"stofs_2d_glo.t{dt.hour:02d}z.hawaii.cwl.grib2" 
             fpath = os.path.join(outdir, fname)
             if os.path.exists(fpath) and fpath not in seen:
                 wanted.append(fpath)
@@ -679,24 +716,27 @@ class DataProcessor:
         # ---------- define CRS and grid geometry ----------
         # SFINCS boundary CRS (UTM) and STOFS Lambert Conformal CRS
         utm = pyproj.CRS(f"EPSG:{self.target_epsg}")
-        lcc = pyproj.CRS.from_proj4(
+        if domain != 'hawaii':
+           lcc = pyproj.CRS.from_proj4(
             "+proj=lcc +lat_1=25 +lat_2=25 +lat_0=25 +lon_0=265 +x_0=0 +y_0=0 +R=6371200 +units=m +no_defs"
-        )
-        to_lcc = pyproj.Transformer.from_crs(utm, lcc, always_xy=True)
+           )
+           to_lcc = pyproj.Transformer.from_crs(utm, lcc, always_xy=True)
 
-        # STOFS grid spacing and a consistent Lambert origin used to reconstruct X/Y axes
-        dx = 2539.703
-        dy = 2539.703
-        # Origin reference given in (lon0, lat0) – we only need its *Lambert* coordinates
-        # so compute once via WGS84→LCC.
-        wgs84 = pyproj.CRS("EPSG:4326")
-        wgs_to_lcc = pyproj.Transformer.from_crs(wgs84, lcc, always_xy=True)
-        lon0, lat0 = 238.445999, 20.191999
-        x0, y0 = wgs_to_lcc.transform(lon0, lat0)
+           # STOFS grid spacing and a consistent Lambert origin used to reconstruct X/Y axes
+           dx = 2539.703
+           dy = 2539.703
+           # Origin reference given in (lon0, lat0) – we only need its *Lambert* coordinates
+           # so compute once via WGS84→LCC.
+           wgs84 = pyproj.CRS("EPSG:4326")
+           wgs_to_lcc = pyproj.Transformer.from_crs(wgs84, lcc, always_xy=True)
+           lon0, lat0 = 238.445999, 20.191999
+           x0, y0 = wgs_to_lcc.transform(lon0, lat0)
 
-        # Convert boundary points to Lambert coordinates
-        xb, yb = to_lcc.transform(bnd_df["x"].values, bnd_df["y"].values)
-        sample_pts = np.column_stack([yb, xb])  # (y, x) order for RegularGridInterpolator
+           # Convert boundary points to Lambert coordinates
+           xb, yb = to_lcc.transform(bnd_df["x"].values, bnd_df["y"].values)
+           sample_pts = np.column_stack([yb, xb])  # (y, x) order for RegularGridInterpolator
+        else:
+           sample_pts = np.column_stack([bnd_df['y'].values, bnd_df['x'].values])  
 
         # Containers for raw samples and matching seconds since start
         all_rows = []
@@ -715,7 +755,7 @@ class DataProcessor:
                     backend_kwargs={"indexpath": "", "filter_by_keys": {"typeOfLevel": "surface"}},
                 )
             except Exception as e:
-                print(f"[process][coastal:stofs] failed to open default: {e}")
+                print(f"[process][coastal:stofs] {path} failed to open default: {e}")
                 continue
 
             # pick variable name
@@ -734,15 +774,23 @@ class DataProcessor:
             print(f"[process][coastal:stofs] {fname}: var='{varname}', dims={dims}, shape={shape}")
 
             # Expect (step, y, x)
-            if len(shape) != 3 or dims[1] != "y" or dims[2] != "x":
+            if ( len(shape) != 3 or dims[1] != "y" or dims[2] != "x" ) and  \
+               ( len(shape) != 2 or dims[1] != "values" ) :
                 print(f"[process][coastal:stofs] {fname}: unexpected dims {dims}; skipping")
                 continue
 
-            nframes, ny, nx = shape
+            if domain == 'hawaii':
+              nframes, n = shape 
 
-            # Build LCC grid axes (meters) so we can use RegularGridInterpolator
-            x_axis = x0 + np.arange(nx) * dx
-            y_axis = y0 + np.arange(ny) * dy
+              to_utm = pyproj.Transformer.from_crs("EPSG:4326", utm, always_xy=True)
+              x_axis, y_axis = to_utm.transform(ds["longitude"].values, ds["latitude"].values)
+
+            else:
+              nframes, ny, nx = shape
+
+              # Build LCC grid axes (meters) so we can use RegularGridInterpolator
+              x_axis = x0 + np.arange(nx) * dx
+              y_axis = y0 + np.arange(ny) * dy
 
             # ---- robust time handling (handles scalar 'time', 1-D 'valid_time', and 'step') ----
             try:
@@ -799,14 +847,21 @@ class DataProcessor:
             try:
                 for k in range(nframes):
                     frame = np.asarray(data.isel(step=k).values)
-                    # Build interpolator over (y, x)
-                    rgi = RegularGridInterpolator(
+                    if domain == 'hawaii':
+                      # Build interpolator over (y, x)
+                      nni = NearestNDInterpolator(list( zip(y_axis, x_axis) ), frame)
+                      #lni = LinearNDInterpolator(list( zip(y_axis, x_axis) ), frame)
+                      vals = nni(sample_pts)  # shape: (n_points,)
+                    else:
+                      # Build interpolator over (y, x)
+                      rgi = RegularGridInterpolator(
                         (y_axis, x_axis),
                         frame,
                         bounds_error=False,
                         fill_value=np.nan,
-                    )
-                    vals = rgi(sample_pts)  # shape: (n_points,)
+                      )
+                      vals = rgi(sample_pts)  # shape: (n_points,)
+
                     all_rows.append(vals.astype(float))
                 all_times.extend(sec_since_start.tolist())
                 print(f"[process][coastal:stofs] {fname}: sampled {nframes} frames at {sample_pts.shape[0]} points")
@@ -841,7 +896,7 @@ class DataProcessor:
                 # add +0.25 to all values
                 temp=row
                 # row = row + 1.0
-                print(f"{temp} : {row}")
+                #print(f"{temp} : {row}")
                 line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
                 f.write(line + "\n")
         print(f"[process][coastal:stofs] wrote {raw_path} ({values.shape[0]} rows, {values.shape[1]} points)")
@@ -876,7 +931,7 @@ class DataProcessor:
                 # add +0.25 to all values
                 temp=row
                 # row = row + 1.0
-                print(f"{temp} : {row}")
+                #print(f"{temp} : {row}")
                 line = f"{int(t)} " + " ".join(f"{v:.4f}" if np.isfinite(v) else "0.0000" for v in row)
                 f.write(line + "\n")
         print(f"[process][coastal:stofs] wrote {final_path} ({interp_mat.shape[0]} rows @10-min)")
@@ -1143,3 +1198,18 @@ class DataProcessor:
             print(f"[tpxo] wrote bzs  → {bzs_path} (nt={tgt.size}, npts={npts}, dt={out_dt_seconds}s)")
         '''
 
+    def process_schism(self):
+        if self.model != "schism":
+            print(f"[process] Model '{self.model}' not implemented yet.")
+            return
+        else:
+            if self.domain_info['domain'][0]['name'] == 'prvi' and self.meteo == "nwm_retro":
+              path = os.path.join(self.raw_root, "meteo", "nwm_retro")
+              retro_files = os.listdir(path)
+              for f in retro_files:
+                  if f.endswith('.LDASIN_DOMAIN1'):
+                      ncfile = path + '/' + f
+                      with nc.Dataset(ncfile, mode="r+") as dataset:
+                          validtimevar = dataset.variables['valid_time']
+                          correct_validtime = datetime.strptime( f, "%Y%m%d%H.LDASIN_DOMAIN1") 
+                          validtimevar[:] = date2num([ correct_validtime ], validtimevar.units)

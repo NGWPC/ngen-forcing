@@ -12,7 +12,7 @@ Notes
     A) {model}.t{HH}z.{YYYYMMDD}.fields.n{xxx}.nc
     B) nos.{model}.fields.n{xxx}.{YYYYMMDD}.t{HH}z.nc
 - For OPeNDAP we use only the A-pattern URL (as requested).
-- add_360_longitudes=True will wrap negative lons into [0, 360], like your legacy.
+- add_360_longitudes=True will wrap negative lons into [0, 360].
 """
 
 from __future__ import annotations
@@ -133,7 +133,7 @@ def _opendap_hour_url(model: str, dt: datetime) -> str:
 
 
 def _opendap_sample_url(model: str, dt: datetime) -> str:
-    """Use the t00z n000 file of the start day for mesh (matches your legacy sample)."""
+    """Use the t00z n000 file of the start day for mesh (matches legacy sample)."""
     yyyy = f"{dt.year:04d}"
     mm = dt.strftime("%m")
     datestr = dt.strftime("%Y%m%d")
@@ -448,7 +448,7 @@ def build_bzs_from_glofs_legacy(
     base_dir: Optional[str] = None,  # ignored; kept for legacy signature
 ) -> str:
     """
-    Public entry point compatible with your existing caller.
+    Public entry point compatible with existing caller.
     """
     start = _parse_dt_utc_any(start_dt)
     end = _parse_dt_utc_any(end_dt)
