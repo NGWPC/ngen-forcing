@@ -18,11 +18,10 @@ from typing import Optional
 import numpy as np
 from netCDF4 import Dataset
 
+from nextgen_forcings_ewts import MODULE_NAME
 
 from . import err_handler
 
-import logging
-from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 
 if "WGRIB2" not in os.environ:
@@ -966,7 +965,9 @@ class OutputObj:
             ]
 
         if ConfigOptions.forcing_output == 1 and MpiConfig.rank == 0:
-            LOG.debug(f"Writing output forcing file for timestamp {self.outDate.strftime('%Y-%m-%d %H:%M')}: {self.outPath}")
+            LOG.debug(
+                f"Writing output forcing file for timestamp {self.outDate.strftime('%Y-%m-%d %H:%M')}: {self.outPath}"
+            )
             # Only output on the master processor.
             try:
                 # Try opening the output file and populating the time variable
@@ -989,7 +990,6 @@ class OutputObj:
         # Now loop through each variable, collect the data (call on each processor), assemble into the final
         # output grid, and place into the output file (if on processor 0).
         for i_var, varTmp in enumerate(output_variable_attribute_dict):
-
             # Collect data from the various processors, and place into the output file.
             try:
                 if ConfigOptions.grid_type == "gridded":
@@ -1003,7 +1003,8 @@ class OutputObj:
                     dataOutTmp = MpiConfig.merge_slabs_gatherv(
                         self.output_local[output_variable_attribute_dict[varTmp][0], :],
                         ConfigOptions,
-                    allgather=True)
+                        allgather=True,
+                    )
                     # NOTE this assumes that the var order here matches var order elsewhere.
                     self.output_global[i_var, :] = dataOutTmp.flatten()
                 elif ConfigOptions.grid_type == "unstructured":
@@ -1052,7 +1053,11 @@ class OutputObj:
 
             err_handler.check_program_status(ConfigOptions, MpiConfig)
 
-        if ConfigOptions.forcing_output == 1 and MpiConfig.rank == 0 and idOut is not None:
+        if (
+            ConfigOptions.forcing_output == 1
+            and MpiConfig.rank == 0
+            and idOut is not None
+        ):
             # Close the NetCDF file
             try:
                 idOut.close()

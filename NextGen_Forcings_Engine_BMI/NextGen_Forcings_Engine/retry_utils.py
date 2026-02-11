@@ -1,16 +1,17 @@
 import functools
 import time
 import traceback
-
 import types
-from .core.parallel import MpiConfig
+
 from .core.config import ConfigOptions
+from .core.parallel import MpiConfig
 
 
 def retry_w_mpi_context(
     abort: bool, num_retries: int, sleep_start: float, sleep_factor: float
 ):
-    """
+    """Retry with MPI context.
+
     Decorator intended to retry functions in MPI context. In the event of a fail out (after multiple attempts),
     this decorator will either MPI abort directly, or reraise the final exception.  In order to allow this to
     be called from only some ranks and not others (such as rank 0 only), this does not call
@@ -77,7 +78,7 @@ def retry_w_mpi_context(
                         sleep_sec *= sleep_factor
                     else:
                         # Fail out
-                        msg += f" Attempts exceeded limit."
+                        msg += " Attempts exceeded limit."
                         if abort:
                             msg += f" Will MPI Abort(). Traceback:\n{traceback.format_exc()}"
                             err_handler.log_critical(
@@ -103,7 +104,8 @@ def retry_w_mpi_context(
 
 
 def retry_simple(num_retries: int, sleep_start: float, sleep_factor: float):
-    """
+    """Retry simple decorator.
+
     Decorator intended to retry functions in non-MPI context, that do not involve collective / barrier calls.
 
     May wrap any function.

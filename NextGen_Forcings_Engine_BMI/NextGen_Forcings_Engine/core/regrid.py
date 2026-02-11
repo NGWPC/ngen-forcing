@@ -7,9 +7,8 @@ import sys
 import traceback
 from contextlib import contextmanager
 from datetime import datetime, timedelta
-from time import monotonic, time
 from pathlib import Path
-from .. import os_utils
+from time import monotonic, time
 
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -19,21 +18,14 @@ import shapely
 # from mpi4py.futures import MPIPoolExecutor
 from mpi4py.futures import MPICommExecutor
 
+from .. import os_utils
+
 try:
     import esmpy as ESMF
 except ImportError:
     import ESMF
 
 import logging
-
-from ..esmf_utils import (
-    esmf_field_retry,
-    esmf_grid_retry,
-    esmf_mesh_retry,
-    esmf_regrid_retry,
-    esmf_regridfromfile_retry,
-    esmf_regridobj_call_retry,
-)
 
 import dask
 import dask.delayed
@@ -55,6 +47,15 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
+
+from ..esmf_utils import (
+    esmf_field_retry,
+    esmf_grid_retry,
+    esmf_mesh_retry,
+    esmf_regrid_retry,
+    esmf_regridfromfile_retry,
+    esmf_regridobj_call_retry,
+)
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -14315,6 +14316,7 @@ def get_weight_file_names(
     config_options: ConfigOptions,
     input_forcings: GeoMetaWrfHydro,
 ) -> tuple[str | None, str | None]:
+    """Get weight file names for regridding."""
     if not config_options.weightsDir:
         return None, None
 
@@ -14389,9 +14391,12 @@ def make_regrid(
     fill: bool,
     element_mode: bool,
 ) -> None:
-    """`input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place.
+    """Make ESMF regrid object.
+
+    `input_forcings.regridObj` or `input_forcings.regridObj_elem` is modified in-place.
     Writes weight file to disk if weight_file is not None.
-    Operates on element object if `element_mode` is True."""
+    Operates on element object if `element_mode` is True.
+    """
     assert isinstance(fill, bool)
 
     if not element_mode:
@@ -14503,7 +14508,8 @@ def calculate_weights(
     lon_var="longitude",
     fill=False,
 ):
-    """
+    """Calculate weights function.
+
     Function to calculate ESMF weights based on the output ESMF
     field previously calculated, along with input lat/lon grids,
     and a sample dataset.

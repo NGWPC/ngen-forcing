@@ -71,7 +71,11 @@ def run_bmi(
     # Initialize arrays based on grid type
     # ===============================
     if model._grid_type in {"gridded", "hydrofabric"}:
-        varsize = len(model._wrf_hydro_geo_meta.element_ids_global) if model._grid_type == "hydrofabric" else model._varsize
+        varsize = (
+            len(model._wrf_hydro_geo_meta.element_ids_global)
+            if model._grid_type == "hydrofabric"
+            else model._varsize
+        )
         # Shared initialization
         U2D = np.zeros(varsize, dtype=float)
         V2D = np.zeros(varsize, dtype=float)
