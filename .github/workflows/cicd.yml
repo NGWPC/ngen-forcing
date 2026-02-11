@@ -78,7 +78,7 @@ jobs:
           BUILD_DATE=$(date -u -d "$NOW" +'%Y-%m-%dT%H:%M:%SZ')
 
           # for Docker image tags
-          TIMESTAMP=$(date -u -d "$NOW" +'%Y-%m-%dT%H-%M-%SZ')
+          TIMESTAMP=$(date -u -d "$NOW" +'%Y%m%d%H%M%SZ')
 
           # logic to get the real branch name and commit SHA on pull requests
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
