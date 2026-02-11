@@ -103,7 +103,7 @@ jobs:
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             # for pull requests, use pr-<pr number>-build
             ALIAS="pr-${{ github.event.pull_request.number }}-build"
-          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "$GITHUB_REF_TYPE" = "tag" ]; then
+          elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${{ github.ref_type }}" = "tag" ]; then
             # for manual workflow dispatch on tags, use the git tag
             ALIAS="${CLEAN_REF}"
           else
