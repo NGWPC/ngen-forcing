@@ -64,7 +64,6 @@ class MpiConfig:
         wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
         if wait_for_debug.lower() in ("true", "1"):
             self.wait_for_debugpy_client()
-        print("here")
 
     def __broadcast_new_64bit_uid(self, config_options):
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks."""
