@@ -275,7 +275,9 @@ class BaseProcessor:
 
         :return: Cache size as np.timedelta64
         """
-        return np.timedelta64(round(24 * 365 * 20 / self.number_of_catchments), "h")
+        return np.timedelta64(
+            max(round(24 * 365 * 20 / self.number_of_catchments), 12), "h"
+        )
 
     def slice_ds(self, ds: xr.Dataset) -> xr.Dataset:
         """Subset dataset to spatial and temporal bounds.
