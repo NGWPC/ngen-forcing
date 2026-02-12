@@ -136,14 +136,14 @@ class BaseProcessor:
         )
 
     @property
-    def gage_id(self) -> str:
-        """Return gage id from geospatial dataframe."""
+    def gpkg_name(self) -> str:
+        """Return name of the geopackage."""
         return os.path.splitext(os.path.basename(self.config_options.geopackage))[0]
 
     @property
     def nc_path(self) -> str:
         """Construct file path for cached netcdf files."""
-        return f"/tmp/{self.dataset_name}_{self.gage_id}_{self.current_time_str}_{self.end_time_str}.nc"
+        return f"/tmp/{self.dataset_name}_{self.gpkg_name}_{self.current_time_str}_{self.end_time_str}.nc"
 
     @property
     def end_time_datetime(self) -> pd.Timestamp:
