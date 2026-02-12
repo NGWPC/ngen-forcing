@@ -360,7 +360,7 @@ class AORCConusProcessor(BaseProcessor):
                     ).rename({self.x_label: "x", self.y_label: "y"})
         except Exception as e:
             LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url()}: {e}\n"
+                f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
             )
             raise e
 
