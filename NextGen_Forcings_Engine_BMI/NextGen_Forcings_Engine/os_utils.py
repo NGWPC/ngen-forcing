@@ -46,9 +46,10 @@ def os_remove_rank_0(
     If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
     if mpi_config.rank == 0:
         if os.path.exists(file_path):
-            err_handler.log_warning(
+            err_handler.log_msg(
                 config_options,
                 mpi_config,
+                debug=True,
                 msg=f"{msg_prefix}Removing file: {file_path}",
             )
             os_remove_retry(file_path, ignore_filenotfound=True)
