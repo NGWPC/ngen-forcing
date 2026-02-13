@@ -1531,7 +1531,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regrid CONUS HRRR")
+        pt.log_info(msg="Regrid CONUS HRRR")
 
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
@@ -2331,7 +2331,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regrid CONUS RAP")
+        pt.log_info(msg="Regrid CONUS RAP")
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -3134,7 +3134,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regrid CFSv2")
+        pt.log_info(msg="Regrid CFSv2")
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -4094,7 +4094,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         input_forcings.file_in2, config_options, mpi_config, open_on_all_procs=True
     )
 
-    pt.log_msg(msg="Regrid NWM Custom NetCDF Forcing Variables")
+    pt.log_info(msg="Regrid NWM Custom NetCDF Forcing Variables")
 
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
@@ -4408,7 +4408,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
                 longitude=(["y", "x"], lon_coords), latitude=(["y", "x"], lat_coords)
             )
 
-    pt.log_msg(msg="Regrid NWM Custom zarr Forcing Variables")
+    pt.log_info(msg="Regrid NWM Custom zarr Forcing Variables")
 
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
@@ -4433,7 +4433,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
 
         input_forcings.height = None
         if mpi_config.rank == 0:
-            pt.log_msg(
+            pt.log_info(
                 msg=f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
             )
 
@@ -4738,7 +4738,7 @@ def regrid_custom_hourly_netcdf(
             "DLWRF": 310.0,
         }
 
-        pt.log_msg(msg="Regrid Custom Hourly NetCDF Forcing Variables")
+        pt.log_info(msg="Regrid Custom Hourly NetCDF Forcing Variables")
 
         for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
             if mpi_config.rank == 0:
@@ -5016,7 +5016,7 @@ def regrid_custom_hourly_netcdf(
                 else:
                     input_forcings.height = None
                     if mpi_config.rank == 0:
-                        pt.log_msg(
+                        pt.log_info(
                             msg=f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
                         )
 
@@ -5478,7 +5478,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     )
     ind = np.where(seconds_index == np.min(seconds_index))[0][0]
 
-    pt.log_msg(msg="Regrid Custom Hourly NetCDF Forcing Variables")
+    pt.log_info(msg="Regrid Custom Hourly NetCDF Forcing Variables")
 
     for force_count, nc_var in enumerate(input_forcings.netcdf_var_names):
         if mpi_config.rank == 0:
@@ -5509,7 +5509,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             else:
                 input_forcings.height = None
                 if mpi_config.rank == 0:
-                    pt.log_msg(
+                    pt.log_info(
                         msg=f"Unable to locate Geopoential height in: {input_forcings.file_in2}. Downscaling will not be available."
                     )
 
@@ -5966,7 +5966,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regridding 13km GFS Variables.")
+        pt.log_info(msg="Regridding 13km GFS Variables.")
 
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
@@ -6731,7 +6731,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regridding NAM nest data")
+        pt.log_info(msg="Regridding NAM nest data")
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
@@ -7414,7 +7414,7 @@ def regrid_mrms_hourly(
     # Do we want to use MRMS data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
         if mpi_config.rank == 0:
-            pt.log_msg(msg="Exceeded max hours for MRMS precipitation")
+            pt.log_info(msg="Exceeded max hours for MRMS precipitation")
         return
 
     # If the expected file is missing, this means we are allowing missing files, simply
@@ -7463,7 +7463,7 @@ def regrid_mrms_hourly(
     # alert the user, and set the final output grids to be the global NDV and return.
     if not supplemental_precip.file_in1 or not supplemental_precip.file_in2:
         if mpi_config.rank == 0:
-            pt.log_msg(
+            pt.log_info(
                 msg="No MRMS Precipitation available. Supplemental precipitation will not be used."
             )
         supplemental_precip.regridded_precip2 = None
@@ -7489,7 +7489,7 @@ def regrid_mrms_hourly(
     id_mrms = None
     id_mrms_rqi = None
     try:
-        pt.log_msg(msg="Rrgrid MRMS")
+        pt.log_info(msg="Rrgrid MRMS")
 
         if supplemental_precip.file_type != NETCDF:
             # Unzip MRMS files to temporary locations.
@@ -8317,7 +8317,7 @@ def regrid_mrms_precip_flag(
 
     if calc_regrid_flag:
         if mpi_config.rank == 0:
-            pt.log_msg(msg="Calculating MRMS PrecipFlag regridding weights.")
+            pt.log_info(msg="Calculating MRMS PrecipFlag regridding weights.")
         calculate_supp_pcp_weights(
             supplemental_precip,
             id_tmp,
@@ -8331,7 +8331,7 @@ def regrid_mrms_precip_flag(
     var_tmp = None
     if mpi_config.rank == 0:
         if mpi_config.rank == 0:
-            pt.log_msg(msg="Regridding MRMS PrecipFlag Fraction.")
+            pt.log_info(msg="Regridding MRMS PrecipFlag Fraction.")
         try:
             var_tmp = id_tmp.variables[supplemental_precip.netcdf_var_names[0]][0, :, :]
         except (ValueError, KeyError, AttributeError) as err:
@@ -8361,7 +8361,7 @@ def regrid_mrms_precip_flag(
             supplemental_precip.esmf_field_out,
         )
     except ValueError as ve:
-        pt.log_crit(msg=f"Unable to regrid MRMS PrecipFlag: {ve}"         )
+        pt.log_crit(msg=f"Unable to regrid MRMS PrecipFlag: {ve}")
     err_handler.check_program_status(config_options, mpi_config)
 
     # Set any missing data or pixel cells outside the input domain to a default of 100%
@@ -8392,7 +8392,7 @@ def regrid_mrms_precip_flag(
         var_tmp_elem = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                pt.log_msg(msg="Regridding MRMS PrecipFlag Fraction.")
+                pt.log_info(msg="Regridding MRMS PrecipFlag Fraction.")
             try:
                 var_tmp_elem = id_tmp.variables[
                     supplemental_precip.netcdf_var_names[0]
@@ -8522,7 +8522,7 @@ def regrid_hourly_wrf_arw(
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regrid WRF-ARW nest data")
+        pt.log_info(msg="Regrid WRF-ARW nest data")
 
         if input_forcings.file_type != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
@@ -9317,7 +9317,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
 
     id_tmp = None
     try:
-        pt.log_msg(msg="Regrid ARW")
+        pt.log_info(msg="Regrid ARW")
 
         if supplemental_precip.file_type != NETCDF:
             # These files shouldn't exist. If they do, remove them.
@@ -9780,7 +9780,7 @@ def regrid_sbcv2_liquid_water_fraction(
         var_tmp = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                pt.log_msg(msg="Regridding SBCv2 Liquid Water Fraction.")
+                pt.log_info(msg="Regridding SBCv2 Liquid Water Fraction.")
             try:
                 var_tmp = id_tmp.variables[supplemental_forcings.netcdf_var_names[0]][:]
             except (ValueError, KeyError, AttributeError) as err:
@@ -9985,7 +9985,7 @@ def regrid_sbcv2_liquid_water_fraction(
         var_tmp = None
         if mpi_config.rank == 0:
             if mpi_config.rank == 0:
-                pt.log_msg(msg="Regridding SBCv2 Liquid Water Fraction - hydrofabric")
+                pt.log_info(msg="Regridding SBCv2 Liquid Water Fraction - hydrofabric")
             try:
                 var_tmp = id_tmp.variables[supplemental_forcings.netcdf_var_names[0]][:]
             except (ValueError, KeyError, AttributeError) as err:
@@ -10074,7 +10074,7 @@ def regrid_hourly_nbm(
     # Do we want to use NBM data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
         if mpi_config.rank == 0:
-            pt.log_msg(
+            pt.log_info(
                 msg="Exceeded max hours for NBM data, will not use NBM in final layering."
             )
         return
@@ -10140,7 +10140,7 @@ def regrid_hourly_nbm(
 
     err_handler.check_program_status(config_options, mpi_config)
 
-    pt.log_msg(msg="Processing NBM Variables")
+    pt.log_info(msg="Processing NBM Variables")
 
     for force_count, nc_var in enumerate(forcings_or_precip.netcdf_var_names):
         if mpi_config.rank == 0:
@@ -10498,7 +10498,7 @@ def regrid_hourly_nbm(
                     )
                 )
             except ValueError as ve:
-                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}"                 )
+                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}")
             err_handler.check_program_status(config_options, mpi_config)
 
             # Set any pixel cells outside the input domain to the global missing value.
@@ -10588,7 +10588,7 @@ def regrid_hourly_nbm(
                     )
                 )
             except ValueError as ve:
-                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}"                 )
+                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}")
             err_handler.check_program_status(config_options, mpi_config)
             # Set any pixel cells outside the input domain to the global missing value.
             try:
@@ -10677,7 +10677,7 @@ def regrid_hourly_nbm(
                     )
                 )
             except ValueError as ve:
-                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}"                 )
+                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}")
             err_handler.check_program_status(config_options, mpi_config)
             # Set any pixel cells outside the input domain to the global missing value.
             try:
@@ -10766,7 +10766,7 @@ def regrid_hourly_nbm(
                     )
                 )
             except ValueError as ve:
-                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}"                 )
+                pt.log_crit(msg=f"Unable to regrid NBM {tag}: {ve}")
             err_handler.check_program_status(config_options, mpi_config)
             # Set any pixel cells outside the input domain to the global missing value.
             try:
@@ -10855,7 +10855,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             pt.log_debug(msg="No NDFD regridding required for this timestep.")
         return
 
-    pt.log_msg(msg="Regrid NDFD")
+    pt.log_info(msg="Regrid NDFD")
 
     hour = input_forcings.fcst_hour2
     current_cycle = config_options.current_fcst_cycle
