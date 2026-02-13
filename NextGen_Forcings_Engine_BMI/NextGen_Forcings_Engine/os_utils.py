@@ -1,4 +1,5 @@
 from . import retry_utils
+import traceback
 import types
 import typing
 from .core.parallel import MpiConfig
@@ -92,17 +93,22 @@ def _close(
             fn = getattr(file_handle, "filepath")
             if not isinstance(fn, str):
                 fn = fn()  # `filepath` is often a method rather than an attribute, e.g. for NetCDF files
-            if not isinstance(fn, str):
-                raise TypeError(f"Expected fn to be a string, got: {type(fn)}")
         elif hasattr(file_handle, "name"):
             fn = getattr(file_handle, "name")
         else:
             fn = "(UNKNOWN)"
+        if not isinstance(fn, str):
+            raise TypeError(
+                f"Expected fn to resolve to a string for file_handle {file_handle}, got: {type(fn)}"
+            )
         # Close
+        err_handler.log_msg(
+            config_options, mpi_config, debug=True, msg=f"Closing file: {fn}"
+        )
         try:
             file_handle.close()
         except Exception as e:
-            raise RuntimeError(
-                f"{msg_prefix}Could not close file object: {file_handle}. File name: {fn}"
-            ) from e
+            msg = f"{msg_prefix}Could not close file object: {file_handle}. File name: {fn}. Exception: {e}. Traceback: {traceback.format_exc()}"
+            err_handler.log_critical(config_options, mpi_config, msg)
+            raise RuntimeError(msg) from e
     err_handler.check_program_status(config_options, mpi_config)
