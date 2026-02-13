@@ -88,6 +88,7 @@ class Partials:
         self.close_rank_0_partial = partial(os_utils.close_rank_0, *args1)
         self.close_anyrank_partial = partial(os_utils.close, *args1)
         self.os_remove_rank_0_partial = partial(os_utils.os_remove_rank_0, *args1)
+        self.os_remove_anyrank_partial = partial(os_utils.os_remove, *args1)
         # NOTE need to use positional arg for param `debug` here, to allow for positional arg `msg` afterwards.
         self.log_debug = partial(err_handler.log_msg, *args2, True)
         self.log_info = partial(err_handler.log_msg, *args2, False)
@@ -7952,13 +7953,8 @@ def regrid_mrms_hourly(
             except OSError:
                 pt.log_crit(f"Unable to close NetCDF file: {mrms_tmp_rqi_nc}")
 
-        if mpi_config.rank == 0:
-            for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
-                if os.path.isfile(f):
-                    try:
-                        os_utils.os_remove_retry(f)
-                    except OSError:
-                        pt.log_crit(f"Unable to remove scratch file: {f}")
+        for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
+            pt.os_remove_rank_0_partial(f)
         mpi_config.comm.barrier()
         err_handler.check_program_status(config_options, mpi_config)
 
@@ -10457,13 +10453,8 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             config_options.scratch_dir, f"temp_ndfd_conus_{ndfd_var}.nc"
         )
         # Temp file may exist. If it does, and we don't need it again, remove it.....
-        if not reuse_prev_file and mpi_config.rank == 0:
-            if os.path.isfile(tmp_file):
-                pt.log_debug(f"Deleting old temporary file: {tmp_file}")
-                try:
-                    os_utils.os_remove_retry(tmp_file)
-                except OSError:
-                    pt.log_crit(f"Unable to remove file: {tmp_file}")
+        if not reuse_prev_file:
+            pt.os_remove_rank_0_partial(tmp_file)
         err_handler.check_program_status(config_options, mpi_config)
 
         id_tmp = None
@@ -10754,22 +10745,8 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             pt.close_anyrank_partial(id_tmp)  # NOTE all ranks are calling this
 
             # only remove the scratch file if this was a new‐cycle run
-            if (
-                not reuse_prev_file
-                and mpi_config.rank == 0
-                and os.path.isfile(tmp_file)
-            ):
-                try:
-                    os_utils.os_remove_retry(tmp_file)
-                except FileNotFoundError:
-                    pt.log_warn(
-                        f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                    )
-
-                except Exception as e:
-                    pt.log_crit(
-                        f"Unable to remove scratch file {tmp_file}: {e}\n{traceback.format_exc()}"
-                    )
+            if not reuse_prev_file:
+                pt.os_remove_rank_0_partial(tmp_file)
             err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -11797,13 +11774,8 @@ def execute_regrid(
         )
     except ValueError as ve:
         pt.log_crit(f"Unable to extract regridded data from ESMF regridded field: {ve}")
-        # delete bad cached file if it exists
-        if weight_file is not None:
-            pt.log_debug(f"Deleting if exists: {weight_file}")
-            try:
-                os_utils.os_remove_retry(weight_file)
-            except FileNotFoundError:
-                pass
+        # TODO confirm intent for all ranks to call this
+        pt.os_remove_anyrank_partial(weight_file)
 
     err_handler.check_program_status(config_options, mpi_config)
 
