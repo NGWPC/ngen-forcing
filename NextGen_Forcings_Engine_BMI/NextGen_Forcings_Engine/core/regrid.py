@@ -4843,7 +4843,9 @@ def regrid_custom_hourly_netcdf(
                             f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
                         )
 
-                pt.close_rank_0_partial(id_tmp)
+                # close netCDF file on non-root ranks
+                if mpi_config.rank != 0:
+                    id_tmp.close()
 
             if config_options.grid_type == "gridded":
                 # Regrid the input variables.
@@ -5310,7 +5312,9 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                         f"Unable to locate Geopoential height in: {input_forcings.file_in2}. Downscaling will not be available."
                     )
 
-            pt.close_rank_0_partial(id_tmp)
+            # close netCDF file on non-root ranks
+            if mpi_config.rank != 0:
+                id_tmp.close()
 
         if config_options.grid_type == "gridded":
             # Regrid the input variables.
