@@ -38,39 +38,76 @@ def os_remove_rank_0(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
     err_handler: types.ModuleType,
-    file_path: str,
-    msg_prefix: str = "",
+    *args,
+    **kwargs,
 ) -> None:
     """If rank 0, remove the file if it exists. Ignore FileNotFoundErrors.
-    Collective, must be called by all ranks.
-    If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
+    Collective, must be called by all ranks."""
     if mpi_config.rank == 0:
-        if os.path.exists(file_path):
-            err_handler.log_msg(
-                config_options,
-                mpi_config,
-                debug=True,
-                msg=f"{msg_prefix}Removing file: {file_path}",
-            )
-            os_remove_retry(file_path, ignore_filenotfound=True)
+        _os_remove(mpi_config, config_options, err_handler, *args, **kwargs)
     err_handler.check_program_status(config_options, mpi_config)
 
 
-def close_rank_0(mpi_config: MpiConfig, *args, **kwargs) -> None:
+def os_remove(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    *args,
+    **kwargs,
+) -> None:
+    """Remove the file if it exists. Ignore FileNotFoundErrors.
+    Collective, must be called by all ranks."""
+    _os_remove(mpi_config, config_options, err_handler, *args, **kwargs)
+    err_handler.check_program_status(config_options, mpi_config)
+
+
+def _os_remove(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    file_path: str,
+    msg_prefix: str = "",
+) -> None:
+    """Remove the file if it exists. Ignore FileNotFoundErrors.
+    Does not make collective call."""
+    err_handler.log_msg(
+        config_options,
+        mpi_config,
+        debug=True,
+        msg=f"{msg_prefix}Removing file if exists: {file_path}",
+    )
+    os_remove_retry(file_path, ignore_filenotfound=True)
+
+
+def close_rank_0(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    *args,
+    **kwargs,
+) -> None:
     """If rank 0, close the file handle. Wraps _close.
     Collective, must be called by all ranks.
     file_handle must have a close() method or be None.
     If rank != 0 or file_handle is None, do nothing except the error handler collective call."""
     if mpi_config.rank == 0:
-        _close(mpi_config, *args, **kwargs)
+        _close(mpi_config, config_options, err_handler, *args, **kwargs)
+    err_handler.check_program_status(config_options, mpi_config)
 
 
-def close(mpi_config: MpiConfig, *args, **kwargs) -> None:
+def close(
+    mpi_config: MpiConfig,
+    config_options: ConfigOptions,
+    err_handler: types.ModuleType,
+    *args,
+    **kwargs,
+) -> None:
     """Close the file handle. Wraps _close.
     Collective, must be called by all ranks.
     file_handle must have a close() method or be None.
     If file_handle is None, do nothing except the error handler collective call."""
-    _close(mpi_config, *args, **kwargs)
+    _close(mpi_config, config_options, err_handler, *args, **kwargs)
+    err_handler.check_program_status(config_options, mpi_config)
 
 
 def _close(
@@ -81,35 +118,35 @@ def _close(
     msg_prefix: str = "",
 ) -> None:
     """Close the file handle.
-    Collective, must be called by all ranks.
     file_handle must have a close() method or be None.
-    If file_handle is None, do nothing except the error handler collective call."""
-    if file_handle is not None:
-        if not hasattr(file_handle, "close"):
-            raise RuntimeError(
-                f"Provided object for file_handle does not have a close method: {file_handle}"
-            )
-        # Get file name from the handle
-        if hasattr(file_handle, "filepath"):
-            fn = getattr(file_handle, "filepath")
-            if not isinstance(fn, str):
-                fn = fn()  # `filepath` is often a method rather than an attribute, e.g. for NetCDF files
-        elif hasattr(file_handle, "name"):
-            fn = getattr(file_handle, "name")
-        else:
-            fn = "(UNKNOWN)"
-        if not isinstance(fn, str):
-            raise TypeError(
-                f"Expected fn to resolve to a string for file_handle {file_handle}, got: {type(fn)}"
-            )
-        # Close
-        err_handler.log_msg(
-            config_options, mpi_config, debug=True, msg=f"Closing file: {fn}"
+    If file_handle is None, do nothing.
+    Does not make collective call."""
+    if file_handle is None:
+        return
+    if not hasattr(file_handle, "close"):
+        raise RuntimeError(
+            f"Provided object for file_handle does not have a close method: {file_handle}"
         )
-        try:
-            file_handle.close()
-        except Exception as e:
-            msg = f"{msg_prefix}Could not close file object: {file_handle}. File name: {fn}. Exception: {e}. Traceback: {traceback.format_exc()}"
-            err_handler.log_critical(config_options, mpi_config, msg)
-            raise RuntimeError(msg) from e
-    err_handler.check_program_status(config_options, mpi_config)
+    # Get file name from the handle
+    if hasattr(file_handle, "filepath"):
+        fn = getattr(file_handle, "filepath")
+        if not isinstance(fn, str):
+            fn = fn()  # `filepath` is often a method rather than an attribute, e.g. for NetCDF files
+    elif hasattr(file_handle, "name"):
+        fn = getattr(file_handle, "name")
+    else:
+        fn = "(UNKNOWN)"
+    if not isinstance(fn, str):
+        raise TypeError(
+            f"Expected fn to resolve to a string for file_handle {file_handle}, got: {type(fn)}"
+        )
+    # Close
+    err_handler.log_msg(
+        config_options, mpi_config, debug=True, msg=f"Closing file: {fn}"
+    )
+    try:
+        file_handle.close()
+    except Exception as e:
+        msg = f"{msg_prefix}Could not close file object: {file_handle}. File name: {fn}. Exception: {e}. Traceback: {traceback.format_exc()}"
+        err_handler.log_critical(config_options, mpi_config, msg)
+        raise RuntimeError(msg) from e
