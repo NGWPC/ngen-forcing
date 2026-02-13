@@ -1027,24 +1027,25 @@ def _regrid_ak_ext_ana_pcp_stage4(
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
             try:
                 os_utils.os_remove_retry(stage4_tmp_nc)
             except FileNotFoundError:
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {stage4_tmp_nc}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {stage4_tmp_nc}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -1618,24 +1619,25 @@ def _regrid_conus_ext_ana_pcp_stage4(
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
             try:
                 os_utils.os_remove_retry(stage4_tmp_nc)
             except FileNotFoundError:
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {stage4_tmp_nc}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {stage4_tmp_nc}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
     # noinspection PyUnreachableCode
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -2593,24 +2595,19 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -3520,24 +3517,19 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -4617,24 +4609,19 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -7747,10 +7734,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
 
             # reinstituting removal - overwriting can cause issues on some file systems
             # benefits of reuse seem unclear
@@ -7758,16 +7742,14 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -8568,24 +8550,19 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9857,25 +9834,23 @@ def regrid_mrms_precip_flag(
         try:
             id_tmp.close()
         except Exception as e:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {mrms_tmp_nc} - {e}\n"
-                f"{traceback.format_exc()}"
-            )
+            config_options.errMsg = f"Unable to close NetCDF file: {mrms_tmp_nc} - {e}\n{traceback.format_exc()}"
         try:
             os_utils.os_remove_retry(mrms_tmp_nc)
         except FileNotFoundError:
             # File doesn't exist
-            config_options.statusMsg = (
-                f"NetCDF file not found, continuing: {mrms_tmp_nc}"
+            err_handler.log_warning(
+                config_options,
+                mpi_config,
+                msg=f"NetCDF file not found, continuing: {mrms_tmp_nc}",
             )
-            err_handler.log_warning(config_options, mpi_config)
         except Exception as e:
             # Any other exception is critical
-            config_options.errMsg = (
-                f"Unable to remove NetCDF file: {mrms_tmp_nc} - {e}\n"
-                f"{traceback.format_exc()}"
+            err_handler.log_critical(
+                config_options,
+                mpi_config,
+                msg=f"Unable to remove NetCDF file: {mrms_tmp_nc} - {e}\n{traceback.format_exc()}",
             )
-            err_handler.log_critical(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -10781,24 +10756,19 @@ def regrid_hourly_wrf_arw(
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
             try:
                 os_utils.os_remove_retry(input_forcings.tmpFile)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n"
-                    f"{traceback.format_exc()}"
-                )
+                config_options.errMsg = f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
     # noinspection PyUnreachableCode
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -11297,26 +11267,27 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             try:
                 id_tmp.close()
             except Exception as e:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {arw_tmp_nc} - {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to close NetCDF file: {arw_tmp_nc} - {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
             try:
                 os_utils.os_remove_retry(arw_tmp_nc)
             except FileNotFoundError:
                 # File doesn't exist
-                config_options.statusMsg = (
-                    f"NetCDF file not found, continuing: {arw_tmp_nc}"
+                err_handler.log_warning(
+                    config_options,
+                    mpi_config,
+                    msg=f"NetCDF file not found, continuing: {arw_tmp_nc}",
                 )
-                err_handler.log_warning(config_options, mpi_config)
             except Exception as e:
                 # Any other exception is critical
-                config_options.errMsg = (
-                    f"Unable to remove NetCDF file: {arw_tmp_nc} - {e}\n"
-                    f"{traceback.format_exc()}"
+                err_handler.log_critical(
+                    config_options,
+                    mpi_config,
+                    msg=f"Unable to remove NetCDF file: {arw_tmp_nc} - {e}\n{traceback.format_exc()}",
                 )
-                err_handler.log_critical(config_options, mpi_config)
         err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -12629,17 +12600,11 @@ def regrid_hourly_nbm(
         try:
             id_tmp.close()
         except Exception as e:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {nbm_tmp_nc} - {e}\n"
-                f"{traceback.format_exc()}"
-            )
+            config_options.errMsg = f"Unable to close NetCDF file: {nbm_tmp_nc} - {e}\n{traceback.format_exc()}"
         try:
             os_utils.os_remove_retry(nbm_tmp_nc)
         except Exception as e:
-            config_options.errMsg = (
-                f"Unable to remove temporary NBM NetCDF file: {nbm_tmp_nc} - {e}\n"
-                f"{traceback.format_exc()}"
-            )
+            config_options.errMsg = f"Unable to remove temporary NBM NetCDF file: {nbm_tmp_nc} - {e}\n{traceback.format_exc()}"
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -13063,17 +13028,18 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 try:
                     os_utils.os_remove_retry(tmp_file)
                 except FileNotFoundError:
-                    config_options.statusMsg = (
-                        f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
+                    err_handler.log_warning(
+                        config_options,
+                        mpi_config,
+                        msg=f"NetCDF file not found, continuing: {input_forcings.tmpFile}",
                     )
-                    err_handler.log_warning(config_options, mpi_config)
 
                 except Exception as e:
-                    config_options.errMsg = (
-                        f"Unable to remove scratch file {tmp_file}: {e}\n"
-                        f"{traceback.format_exc()}"
+                    err_handler.log_critical(
+                        config_options,
+                        mpi_config,
+                        msg=f"Unable to remove scratch file {tmp_file}: {e}\n{traceback.format_exc()}",
                     )
-                    err_handler.log_critical(config_options, mpi_config)
             err_handler.check_program_status(config_options, mpi_config)
 
 
