@@ -10142,7 +10142,7 @@ def regrid_hourly_nbm(
                 else:
                     if not os.path.exists(config_options.grid_meta):
                         pt.log_crit(
-                            'NBM height file "{config_options.grid_meta}" does not exist'
+                            f'NBM height file "{config_options.grid_meta}" does not exist'
                         )
                     err_handler.check_program_status(config_options, mpi_config)
 
