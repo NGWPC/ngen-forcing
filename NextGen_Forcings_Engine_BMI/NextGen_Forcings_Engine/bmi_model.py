@@ -24,15 +24,14 @@ from bmipy import Bmi
 from mpi4py import MPI
 
 from NextGen_Forcings_Engine_BMI import esmf_creation, forcing_extraction
-
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOGRID
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import ConfigOptions
 from .bmi_grid import Grid, GridType
 from .core import (
-    config,
     err_handler,
     forcingInputMod,
-    geoMod,
     ioMod,
-    parallel,
     suppPrecipMod,
 )
 from .model import NWMv3ForcingEngineModel
@@ -207,7 +206,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # If _job_meta was not set by initialize_with_params(), create a default one
         if self._job_meta is None:
-            self._job_meta = config.ConfigOptions(self.cfg_bmi)
+            self._job_meta = ConfigOptions(self.cfg_bmi)
 
         # Parse the configuration options
         try:
@@ -231,7 +230,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._job_meta.nwmConfig = self.cfg_bmi["NWM_CONFIG"]
 
         # Initialize MPI communication
-        self._mpi_meta = parallel.MpiConfig()
+        self._mpi_meta = MpiConfig()
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
@@ -252,21 +251,11 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # information about the modeling domain, local processor
         # grid boundaries, and ESMF grid objects/fields to be used
         # in regridding.
-        self._wrf_hydro_geo_meta = geoMod.GeoMetaWrfHydro()
+        self._wrf_hydro_geo_meta = GEOGRID.get(self._job_meta.grid_type)(
+            self._job_meta, self._mpi_meta
+        )
 
-        if self._job_meta.grid_type == "gridded":
-            self._wrf_hydro_geo_meta.initialize_destination_geo_gridded(
-                self._job_meta, self._mpi_meta
-            )
-        elif self._job_meta.grid_type == "unstructured":
-            self._wrf_hydro_geo_meta.initialize_destination_geo_unstructured(
-                self._job_meta, self._mpi_meta
-            )
-        elif self._job_meta.grid_type == "hydrofabric":
-            self._wrf_hydro_geo_meta.initialize_destination_geo_hydrofabric(
-                self._job_meta, self._mpi_meta
-            )
-        else:
+        if self._wrf_hydro_geo_meta is None:
             self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured, hydrofabric) in the config."
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
 
@@ -761,9 +750,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         if self._job_meta.spatial_meta is not None:
             try:
-                self._wrf_hydro_geo_meta.initialize_geospatial_metadata(
-                    self._job_meta, self._mpi_meta
-                )
+                self._wrf_hydro_geo_meta.initialize_geospatial_metadata()
             except Exception as e:
                 err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -897,7 +884,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
         # Set the job metadata parameters (b_date, geogrid) using config_options
-        self._job_meta = config.ConfigOptions(
+        self._job_meta = ConfigOptions(
             self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid
         )
 

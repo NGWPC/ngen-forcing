@@ -12,7 +12,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
@@ -963,7 +963,7 @@ class InputForcings:
     def regrid_inputs(
         self,
         config_options: ConfigOptions,
-        wrf_hyro_geo_meta: GeoMetaWrfHydro,
+        wrf_hyro_geo_meta: GeoMeta,
         mpi_config: MpiConfig,
     ):
         """Regrid input forcings to the final output grids for this timestep.
@@ -1012,7 +1012,7 @@ class InputForcings:
 
 def init_dict(
     config_options: ConfigOptions,
-    geo_meta_wrf_hydro: GeoMetaWrfHydro,
+    geo_meta_wrf_hydro: GeoMeta,
     mpi_config: MpiConfig,
 ) -> dict:
     """Initialize the input forcing dictionary.

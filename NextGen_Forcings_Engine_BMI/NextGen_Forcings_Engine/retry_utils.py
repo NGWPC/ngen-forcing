@@ -3,8 +3,8 @@ import time
 import traceback
 import types
 
-from .core.config import ConfigOptions
-from .core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import ConfigOptions
 
 
 def retry_w_mpi_context(

@@ -18,7 +18,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
@@ -80,7 +80,7 @@ class NWMv3ForcingEngineModel:
         model: dict,
         future_time: float,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -347,7 +347,7 @@ class NWMv3ForcingEngineModel:
         self,
         future_time: float,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -664,7 +664,7 @@ class NWMv3ForcingEngineModel:
     def process_suplemental_precip(
         self,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
@@ -736,7 +736,7 @@ class NWMv3ForcingEngineModel:
     def write_output(
         self,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
     ):
@@ -764,7 +764,7 @@ class NWMv3ForcingEngineModel:
         self,
         model: dict,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         output_obj: OutputObj,
     ):
         """Flatten the Forcings Engine output object and update the BMI dictionary."""

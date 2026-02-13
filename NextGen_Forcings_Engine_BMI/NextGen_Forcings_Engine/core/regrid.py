@@ -43,7 +43,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
@@ -11979,7 +11979,7 @@ def check_supp_pcp_regrid_status(
 def get_weight_file_names(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
 ) -> tuple[str | None, str | None]:
     """Get weight file names for regridding."""
     if not config_options.weightsDir:
@@ -12005,7 +12005,7 @@ def get_weight_file_names(
 def load_weight_file(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str,
     element_mode: bool,
 ) -> None:
@@ -12051,7 +12051,7 @@ def load_weight_file(
 def make_regrid(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str | None,
     fill: bool,
     element_mode: bool,
@@ -12120,7 +12120,7 @@ def make_regrid(
 def execute_regrid(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str,
     element_mode: bool,
 ) -> None:
