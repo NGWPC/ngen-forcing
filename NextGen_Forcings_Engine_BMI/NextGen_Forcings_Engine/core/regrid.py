@@ -71,6 +71,8 @@ next_file_number = 0
 
 
 class Partials:
+    """A simple list of partials for common function / method calls."""
+
     def __init__(self, mpi_config: MpiConfig, config_options: ConfigOptions):
         a1 = (mpi_config, config_options, err_handler)
         a2 = (config_options, mpi_config)
