@@ -74,23 +74,25 @@ class Partials:
     """A simple list of partials for common function / method calls."""
 
     def __init__(self, mpi_config: MpiConfig, config_options: ConfigOptions):
-        a1 = (mpi_config, config_options, err_handler)
-        a2 = (config_options, mpi_config)
+        args1 = (mpi_config, config_options, err_handler)
+        args2 = (config_options, mpi_config)
 
-        self.esmf_regridobj_call_retry_partial = partial(esmf_regridobj_call_retry, *a1)
-        self.esmf_field_retry_partial = partial(esmf_field_retry, *a1)
-        self.esmf_grid_retry_partial = partial(esmf_grid_retry, *a1)
-        self.esmf_regrid_retry_partial = partial(esmf_regrid_retry, *a1)
-        self.esmf_mesh_retry_partial = partial(esmf_mesh_retry, *a1)
+        self.esmf_regridobj_call_retry_partial = partial(
+            esmf_regridobj_call_retry, *args1
+        )
+        self.esmf_field_retry_partial = partial(esmf_field_retry, *args1)
+        self.esmf_grid_retry_partial = partial(esmf_grid_retry, *args1)
+        self.esmf_regrid_retry_partial = partial(esmf_regrid_retry, *args1)
+        self.esmf_mesh_retry_partial = partial(esmf_mesh_retry, *args1)
         # TODO enable after implementing
-        # self.close_rank_0_partial = partial(os_utils.close_rank_0, *a1)
-        # self.close_anyrank_partial = partial(os_utils.close, *a1)
-        # self.os_remove_rank_0_partial = partial(os_utils.os_remove_rank_0, *a1)
-        self.log_debug = partial(err_handler.log_msg, *a2, debug=True)
-        self.log_info = partial(err_handler.log_msg, *a2, debug=False)
-        self.log_warn = partial(err_handler.log_warning, *a2)
-        self.log_err = partial(err_handler.log_error, *a2)
-        self.log_crit = partial(err_handler.log_critical, *a2)
+        # self.close_rank_0_partial = partial(os_utils.close_rank_0, *args1)
+        # self.close_anyrank_partial = partial(os_utils.close, *args1)
+        # self.os_remove_rank_0_partial = partial(os_utils.os_remove_rank_0, *args1)
+        self.log_debug = partial(err_handler.log_msg, *args2, debug=True)
+        self.log_info = partial(err_handler.log_msg, *args2, debug=False)
+        self.log_warn = partial(err_handler.log_warning, *args2)
+        self.log_err = partial(err_handler.log_error, *args2)
+        self.log_crit = partial(err_handler.log_critical, *args2)
 
 
 @contextmanager
