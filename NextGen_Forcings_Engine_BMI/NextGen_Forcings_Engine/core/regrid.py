@@ -84,10 +84,11 @@ class Partials:
         self.esmf_grid_retry_partial = partial(esmf_grid_retry, *args1)
         self.esmf_regrid_retry_partial = partial(esmf_regrid_retry, *args1)
         self.esmf_mesh_retry_partial = partial(esmf_mesh_retry, *args1)
-        # TODO enable after implementing
-        # self.close_rank_0_partial = partial(os_utils.close_rank_0, *args1)
-        # self.close_anyrank_partial = partial(os_utils.close, *args1)
-        # self.os_remove_rank_0_partial = partial(os_utils.os_remove_rank_0, *args1)
+        # NOTE these OS functions are collective and must be called by all ranks. The rank-specific behavior is handled within them.
+        self.close_rank_0_partial = partial(os_utils.close_rank_0, *args1)
+        self.close_anyrank_partial = partial(os_utils.close, *args1)
+        self.os_remove_rank_0_partial = partial(os_utils.os_remove_rank_0, *args1)
+        self.os_remove_anyrank_partial = partial(os_utils.os_remove, *args1)
         # NOTE need to use positional arg for param `debug` here, to allow for positional arg `msg` afterwards.
         self.log_debug = partial(err_handler.log_msg, *args2, True)
         self.log_info = partial(err_handler.log_msg, *args2, False)
@@ -502,18 +503,7 @@ def _regrid_ak_ext_ana_pcp_stage4(
     id_tmp = None
     try:
         if supplemental_precip.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(stage4_tmp_nc):
-                    pt.log_warn(
-                        f"Found old temporary file: {stage4_tmp_nc} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(stage4_tmp_nc)
-                    except OSError:
-                        pt.log_crit(f"Unable to remove temporary file: {stage4_tmp_nc}")
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(stage4_tmp_nc)
 
             # Create a temporary NetCDF file from the GRIB2 file.
             if WGRIB2_env:
@@ -928,23 +918,8 @@ def _regrid_ak_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(stage4_tmp_nc)
-            except FileNotFoundError:
-                pt.log_warn(f"NetCDF file not found, continuing: {stage4_tmp_nc}")
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(stage4_tmp_nc)
 
 
 def regrid_ak_ext_ana_pcp(
@@ -1016,18 +991,7 @@ def _regrid_conus_ext_ana_pcp_stage4(
     id_tmp = None
     try:
         if supplemental_precip.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(stage4_tmp_nc):
-                    pt.log_warn(
-                        f"Found old temporary file: {stage4_tmp_nc} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(stage4_tmp_nc)
-                    except OSError:
-                        pt.log_crit(f"Unable to remove temporary file: {stage4_tmp_nc}")
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(stage4_tmp_nc)
 
             # Create a temporary NetCDF file from the GRIB2 file.
             if WGRIB2_env:
@@ -1446,23 +1410,8 @@ def _regrid_conus_ext_ana_pcp_stage4(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(stage4_tmp_nc)
-            except FileNotFoundError:
-                pt.log_warn(f"NetCDF file not found, continuing: {stage4_tmp_nc}")
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {stage4_tmp_nc}: {e}\n{traceback.format_exc()}"
-                )
-    # noinspection PyUnreachableCode
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(stage4_tmp_nc)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -1535,19 +1484,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
         pt.log_info("Regrid CONUS HRRR")
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
-                pt.log_warn(
-                    f"Found old temporary file: {input_forcings.tmpFile} - Removing..."
-                )
-                try:
-                    os_utils.os_remove_retry(input_forcings.tmpFile)
-                except OSError:
-                    pt.log_crit(
-                        f"Unable to remove temporary file: {input_forcings.tmpFile}"
-                    )
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             # Build GRIB2 to NetCDF conversion
             fields = []
@@ -2273,27 +2210,8 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 # mpi_config.comm.barrier()
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
 
 def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -2334,18 +2252,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     try:
         pt.log_info("Regrid CONUS RAP")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    pt.log_warn(
-                        f"Found old temporary file: {input_forcings.tmpFile} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        pt.log_crit(f"Unable to remove file: {input_forcings.tmpFile}")
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -3071,27 +2978,8 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
 
 def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -3135,20 +3023,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     try:
         pt.log_info("Regrid CFSv2")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    pt.log_warn(
-                        f"Found old temporary file: {input_forcings.tmpFile} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError as err:
-                        pt.log_crit(
-                            f"Unable to remove previous temporary file: {input_forcings.tmpFile}{err}"
-                        )
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -4035,27 +3910,8 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
                     ] = config_options.globalNdv
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
 
 def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -4347,15 +4203,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     input_forcings.input_map_output[force_count], :
                 ]
             err_handler.check_program_status(config_options, mpi_config)
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+    pt.close_rank_0_partial(id_tmp)
 
 
 def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -4656,15 +4504,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
                     input_forcings.input_map_output[force_count], :
                 ]
             err_handler.check_program_status(config_options, mpi_config)
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+    pt.close_rank_0_partial(id_tmp)
 
 
 def regrid_custom_hourly_netcdf(
@@ -5389,15 +5229,7 @@ def regrid_custom_hourly_netcdf(
                         input_forcings.input_map_output[force_count], :
                     ]
                 err_handler.check_program_status(config_options, mpi_config)
-        # Close the NetCDF file
-        if mpi_config.rank == 0:
-            try:
-                id_tmp.close()
-            except OSError:
-                config_options.errMsg = (
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-                )
-                err_handler.err_out(config_options)
+        pt.close_rank_0_partial(id_tmp)
 
 
 def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -5865,15 +5697,7 @@ def regrid_era5(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 ]
             err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            config_options.errMsg = (
-                f"Unable to close NetCDF file: {input_forcings.tmpFile}"
-            )
-            err_handler.err_out(config_options)
+    pt.close_rank_0_partial(id_tmp)
 
 
 @static_vars(last_file=None)
@@ -5928,17 +5752,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
         pt.log_info("Regridding 13km GFS Variables.")
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
-                pt.log_warn(
-                    f"Found old temporary file: {input_forcings.tmpFile} - Removing....."
-                )
-                try:
-                    os_utils.os_remove_retry(input_forcings.tmpFile)
-                except OSError:
-                    pt.log_crit(f"Unable to remove file: {input_forcings.tmpFile}")
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -6622,30 +6436,8 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-
-            # reinstituting removal - overwriting can cause issues on some file systems
-            # benefits of reuse seem unclear
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
 
 def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
@@ -6688,18 +6480,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     try:
         pt.log_info("Regridding NAM nest data")
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    pt.log_warn(
-                        f"Found old temporary file: {input_forcings.tmpFile} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        err_handler.err_out(config_options)
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -7328,27 +7109,8 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
 
 def regrid_mrms_hourly(
@@ -8195,13 +7957,8 @@ def regrid_mrms_hourly(
             except OSError:
                 pt.log_crit(f"Unable to close NetCDF file: {mrms_tmp_rqi_nc}")
 
-        if mpi_config.rank == 0:
-            for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
-                if os.path.isfile(f):
-                    try:
-                        os_utils.os_remove_retry(f)
-                    except OSError:
-                        pt.log_crit(f"Unable to remove scratch file: {f}")
+        for f in (mrms_tmp_grib2, mrms_tmp_nc, mrms_tmp_rqi_grib2, mrms_tmp_rqi_nc):
+            pt.os_remove_rank_0_partial(f)
         mpi_config.comm.barrier()
         err_handler.check_program_status(config_options, mpi_config)
 
@@ -8405,25 +8162,8 @@ def regrid_mrms_precip_flag(
             )
         err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except Exception as e:
-            pt.log_crit(
-                f"Unable to close NetCDF file: {mrms_tmp_nc} - {e}\n{traceback.format_exc()}"
-            )
-        try:
-            os_utils.os_remove_retry(mrms_tmp_nc)
-        except FileNotFoundError:
-            # File doesn't exist
-            pt.log_warn(f"NetCDF file not found, continuing: {mrms_tmp_nc}")
-        except Exception as e:
-            # Any other exception is critical
-            pt.log_crit(
-                f"Unable to remove NetCDF file: {mrms_tmp_nc} - {e}\n{traceback.format_exc()}"
-            )
-    err_handler.check_program_status(config_options, mpi_config)
+    pt.close_rank_0_partial(id_tmp)
+    pt.os_remove_rank_0_partial(mrms_tmp_nc)
 
 
 def regrid_hourly_wrf_arw(
@@ -8470,18 +8210,7 @@ def regrid_hourly_wrf_arw(
         pt.log_info("Regrid WRF-ARW nest data")
 
         if input_forcings.file_type != NETCDF:
-            # This file shouldn't exist.... but if it does (previously failed
-            # execution of the program), remove it.....
-            if mpi_config.rank == 0:
-                if os.path.isfile(input_forcings.tmpFile):
-                    pt.log_warn(
-                        f"Found old temporary file: {input_forcings.tmpFile} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(input_forcings.tmpFile)
-                    except OSError:
-                        err_handler.err_out(config_options)
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
             for force_count, grib_var in enumerate(input_forcings.grib_vars):
@@ -9203,27 +8932,8 @@ def regrid_hourly_wrf_arw(
                 err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(input_forcings.tmpFile)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(
-                    f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                )
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {input_forcings.tmpFile} - {e}\n{traceback.format_exc()}"
-                )
-    # noinspection PyUnreachableCode
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(input_forcings.tmpFile)
     err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -9265,17 +8975,7 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
         pt.log_info("Regrid ARW")
 
         if supplemental_precip.file_type != NETCDF:
-            # These files shouldn't exist. If they do, remove them.
-            if mpi_config.rank == 0:
-                if os.path.isfile(arw_tmp_nc):
-                    pt.log_warn(
-                        f"Found old temporary file: {arw_tmp_nc} - Removing....."
-                    )
-                    try:
-                        os_utils.os_remove_retry(arw_tmp_nc)
-                    except IOError:
-                        err_handler.log_critical(config_options, mpi_config)
-            err_handler.check_program_status(config_options, mpi_config)
+            pt.os_remove_rank_0_partial(arw_tmp_nc)
 
             # If the input paths have been set to None, this means input is missing. We will
             # alert the user, and set the final output grids to be the global NDV and return.
@@ -9648,25 +9348,8 @@ def regrid_hourly_wrf_arw_hi_res_pcp(
             err_handler.check_program_status(config_options, mpi_config)
 
     finally:
-        # Close the temporary NetCDF file and remove it.
-        if mpi_config.rank == 0 and id_tmp is not None:
-            try:
-                id_tmp.close()
-            except Exception as e:
-                pt.log_crit(
-                    f"Unable to close NetCDF file: {arw_tmp_nc} - {e}\n{traceback.format_exc()}"
-                )
-            try:
-                os_utils.os_remove_retry(arw_tmp_nc)
-            except FileNotFoundError:
-                # File doesn't exist
-                pt.log_warn(f"NetCDF file not found, continuing: {arw_tmp_nc}")
-            except Exception as e:
-                # Any other exception is critical
-                pt.log_crit(
-                    f"Unable to remove NetCDF file: {arw_tmp_nc} - {e}\n{traceback.format_exc()}"
-                )
-        err_handler.check_program_status(config_options, mpi_config)
+        pt.close_rank_0_partial(id_tmp)
+        pt.os_remove_rank_0_partial(arw_tmp_nc)
 
 
 def regrid_sbcv2_liquid_water_fraction(
@@ -9985,15 +9668,7 @@ def regrid_sbcv2_liquid_water_fraction(
             )
         err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the NetCDF file
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except OSError:
-            pt.log_crit(
-                f"Unable to close NetCDF file: {supplemental_forcings.file_in1}"
-            )
-    err_handler.check_program_status(config_options, mpi_config)
+    pt.close_rank_0_partial(id_tmp)
 
 
 def regrid_hourly_nbm(
@@ -10033,14 +9708,7 @@ def regrid_hourly_nbm(
     file_uuid = str(mpi_config.uid64)
     nbm_tmp_nc = str(Path(config_options.scratch_dir) / f"{file_uuid}_{file_name}")
 
-    if mpi_config.rank == 0:
-        if os.path.isfile(nbm_tmp_nc):
-            pt.log_warn(f"Found old temporary file: {nbm_tmp_nc} - Removing.....")
-            try:
-                os_utils.os_remove_retry(nbm_tmp_nc)
-            except OSError:
-                pt.log_crit(f"Unable to remove file: {nbm_tmp_nc}")
-    err_handler.check_program_status(config_options, mpi_config)
+    pt.os_remove_rank_0_partial(nbm_tmp_nc)
 
     if forcings_or_precip.grib_vars is not None:
         fields = []
@@ -10748,21 +10416,8 @@ def regrid_hourly_nbm(
                 destination1_elem[:] = destination2_elem[:]
             err_handler.check_program_status(config_options, mpi_config)
 
-    # Close the temporary NetCDF file and remove it.
-    if mpi_config.rank == 0:
-        try:
-            id_tmp.close()
-        except Exception as e:
-            pt.log_crit(
-                f"Unable to close NetCDF file: {nbm_tmp_nc} - {e}\n{traceback.format_exc()}"
-            )
-        try:
-            os_utils.os_remove_retry(nbm_tmp_nc)
-        except Exception as e:
-            pt.log_crit(
-                f"Unable to remove temporary NBM NetCDF file: {nbm_tmp_nc} - {e}\n{traceback.format_exc()}"
-            )
-    err_handler.check_program_status(config_options, mpi_config)
+    pt.close_rank_0_partial(id_tmp)
+    pt.os_remove_rank_0_partial(nbm_tmp_nc)
 
 
 @static_vars(last_file=None)
@@ -10802,13 +10457,8 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             config_options.scratch_dir, f"temp_ndfd_conus_{ndfd_var}.nc"
         )
         # Temp file may exist. If it does, and we don't need it again, remove it.....
-        if not reuse_prev_file and mpi_config.rank == 0:
-            if os.path.isfile(tmp_file):
-                pt.log_debug(f"Deleting old temporary file: {tmp_file}")
-                try:
-                    os_utils.os_remove_retry(tmp_file)
-                except OSError:
-                    pt.log_crit(f"Unable to remove file: {tmp_file}")
+        if not reuse_prev_file:
+            pt.os_remove_rank_0_partial(tmp_file)
         err_handler.check_program_status(config_options, mpi_config)
 
         id_tmp = None
@@ -11096,30 +10746,11 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 )
             err_handler.check_program_status(config_options, mpi_config)
         finally:
-            # always close the NetCDF handle
-            if id_tmp is not None:
-                try:
-                    id_tmp.close()
-                except OSError as e:
-                    pt.log_crit(f"Unable to close NDFD temp file {tmp_file}: {e}")
+            pt.close_anyrank_partial(id_tmp)  # NOTE all ranks are calling this
 
             # only remove the scratch file if this was a new‐cycle run
-            if (
-                not reuse_prev_file
-                and mpi_config.rank == 0
-                and os.path.isfile(tmp_file)
-            ):
-                try:
-                    os_utils.os_remove_retry(tmp_file)
-                except FileNotFoundError:
-                    pt.log_warn(
-                        f"NetCDF file not found, continuing: {input_forcings.tmpFile}"
-                    )
-
-                except Exception as e:
-                    pt.log_crit(
-                        f"Unable to remove scratch file {tmp_file}: {e}\n{traceback.format_exc()}"
-                    )
+            if not reuse_prev_file:
+                pt.os_remove_rank_0_partial(tmp_file)
             err_handler.check_program_status(config_options, mpi_config)
 
 
@@ -12147,13 +11778,8 @@ def execute_regrid(
         )
     except ValueError as ve:
         pt.log_crit(f"Unable to extract regridded data from ESMF regridded field: {ve}")
-        # delete bad cached file if it exists
-        if weight_file is not None:
-            pt.log_debug(f"Deleting if exists: {weight_file}")
-            try:
-                os_utils.os_remove_retry(weight_file)
-            except FileNotFoundError:
-                pass
+        # TODO confirm intent for all ranks to call this
+        pt.os_remove_anyrank_partial(weight_file)
 
     err_handler.check_program_status(config_options, mpi_config)
 
