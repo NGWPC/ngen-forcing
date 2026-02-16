@@ -418,7 +418,7 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.image_sfincs }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            SFINCS_CPU_IMAGE_TAG=${{ github.event.inputs.SFINCS_CPU_IMAGE_TAG  || 'latest' }}
+            SFINCS_CPU_IMAGE_TAG=${{ inputs.SFINCS_CPU_IMAGE_TAG  || 'latest' }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
