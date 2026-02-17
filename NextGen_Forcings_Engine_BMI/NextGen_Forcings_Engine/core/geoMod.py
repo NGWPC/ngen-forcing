@@ -29,7 +29,7 @@ LOG = logging.getLogger(MODULE_NAME)
 
 
 class GeoMeta:
-    """Abstract class for handling information about the WRF-Hydro domain we are processing forcings too."""
+    """Abstract class for handling information about the WRF-Hydro domain we are processing forcings to."""
 
     def __init__(self, config_options: ConfigOptions, mpi_config: MpiConfig):
         """Initialize GeoMeta class variables."""
@@ -41,8 +41,6 @@ class GeoMeta:
         self.ny_global_elem = None
         self.dx_meters = None
         self.dy_meters = None
-        self.nx_local_elem = None
-        self.ny_local_elem = None
         self.latitude_grid = None
         self.longitude_grid = None
         self.element_ids = None
@@ -385,7 +383,7 @@ class GeoMeta:
 
 
 class GriddedGeoMeta(GeoMeta):
-    """Class for handling information about the gridded domain we are processing forcings too."""
+    """Class for handling information about the gridded domain we are processing forcings to."""
 
     def __init__(self, config_options: ConfigOptions, mpi_config: MpiConfig):
         """Initialize GeoMetaWrfHydro class variables.
@@ -397,7 +395,8 @@ class GriddedGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-
+        self.nx_local_elem = None
+        self.ny_local_elem = None
         # Open the geogrid file and extract necessary information
         # to create ESMF fields.
         if mpi_config.rank == 0:
@@ -888,38 +887,38 @@ class GriddedGeoMeta(GeoMeta):
         return slope, slp_azi
 
     @property
-    def x_lower_bound(self):
+    def x_lower_bound(self) -> int:
         """Get the local x lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][1]
 
     @property
-    def x_upper_bound(self):
+    def x_upper_bound(self) -> int:
         """Get the local x upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][1]
 
     @property
-    def y_lower_bound(self):
+    def y_lower_bound(self) -> int:
         """Get the local y lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][0]
 
     @property
-    def y_upper_bound(self):
+    def y_upper_bound(self) -> int:
         """Get the local y upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][0]
 
     @property
-    def nx_local(self):
+    def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return self.x_upper_bound - self.x_lower_bound
 
     @property
-    def ny_local(self):
+    def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return self.y_upper_bound - self.y_lower_bound
 
 
 class HydrofabricGeoMeta(GeoMeta):
-    """Class for handling information about the unstructured hydrofabric domain we are processing forcings too."""
+    """Class for handling information about the unstructured hydrofabric domain we are processing forcings to."""
 
     def __init__(self, config_options: ConfigOptions, mpi_config: MpiConfig):
         """Initialize GeoMetaWrfHydro class variables.
@@ -931,7 +930,12 @@ class HydrofabricGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-
+        self.nx_local_elem = None
+        self.ny_local_elem = None
+        self.x_lower_bound = None
+        self.x_upper_bound = None
+        self.y_lower_bound = None
+        self.y_upper_bound = None
         if self.config_options.geogrid is not None:
             # Phase 1: Rank 0 extracts all needed global data
             if self.mpi_config.rank == 0:
@@ -1075,18 +1079,18 @@ class HydrofabricGeoMeta(GeoMeta):
             self.mesh_inds = pet_element_inds
 
     @property
-    def nx_local(self):
+    def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
     @property
-    def ny_local(self):
+    def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
 
 class UnstructuredGeoMeta(GeoMeta):
-    """Class for handling information about the unstructured domain we are processing forcings too."""
+    """Class for handling information about the unstructured domain we are processing forcings to."""
 
     def __init__(self, config_options: ConfigOptions, mpi_config: MpiConfig):
         """Initialize GeoMetaWrfHydro class variables.
@@ -1099,6 +1103,10 @@ class UnstructuredGeoMeta(GeoMeta):
         """
         super().__init__(config_options, mpi_config)
 
+        self.x_lower_bound = None
+        self.x_upper_bound = None
+        self.y_lower_bound = None
+        self.y_upper_bound = None
         # Open the geogrid file and extract necessary information
         # to create ESMF fields.
         if mpi_config.rank == 0:
@@ -1337,31 +1345,30 @@ class UnstructuredGeoMeta(GeoMeta):
         pet_element_inds = None
 
     @property
-    def nx_local(self):
+    def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[0][1])
 
     @property
-    def ny_local(self):
+    def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[0][1])
 
     @property
-    def nx_local_elem(self):
+    def nx_local_elem(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
     @property
-    def ny_local_elem(self):
+    def ny_local_elem(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
-    def calc_slope_unstructured(self, esmf_nc):
+    def calc_slope_unstructured(self):
         """Calculate slope grids needed for incoming shortwave radiation downscaling.
 
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program. This calculates the slopes for both nodes and elements
-        :param esmf_nc:
         :return:
         """
         esmf_nc = netCDF4.Dataset(self.config_options.geogrid, "r")
