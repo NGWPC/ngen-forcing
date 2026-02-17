@@ -1,5 +1,9 @@
+import atexit
+from functools import partial
 import os
 import uuid
+import signal
+import sys
 
 import mpi4py
 import numpy as np
@@ -8,6 +12,7 @@ mpi4py.rc.threads = False
 
 from mpi4py import MPI
 
+from .config import ConfigOptions
 from . import err_handler
 
 # If MPI was initialized outside of python,
@@ -25,16 +30,21 @@ class MpiConfig:
     handle from mpi4py.
     """
 
-    def __init__(self):
-        """Initialize the MPI abstract class that will contain basic information and communication handles."""
+    def __init__(self, config_options: ConfigOptions):
+        """Initialize the MPI abstract class that will contain basic information and communication handles.
+        NOTE: this class overrides the system excepthook so that
+        cleanup steps and MPI abort can be triggered on unhandled exceptions.
+        """
         self.comm = None
         self.rank = None
         self.size = None
         self.uid64: str | None = (
             None  # broadcasted random 16 chars based on random uint64
         )
+        self.config_options = config_options
+        self.__register_exit_handlers()
 
-    def initialize_comm(self, config_options, comm=None):
+    def initialize_comm(self, comm=None):
         """Initialize MPI communication.
 
         Initial function to initialize MPI.
@@ -44,26 +54,238 @@ class MpiConfig:
             self.comm = comm if comm is not None else MPI.COMM_WORLD
             self.comm.Set_errhandler(MPI.ERRORS_ARE_FATAL)
         except AttributeError as ae:
-            config_options.errMsg = "Unable to initialize the MPI Communicator object"
+            self.config_options.errMsg = (
+                "Unable to initialize the MPI Communicator object"
+            )
             raise ae
 
         try:
             self.size = self.comm.Get_size()
         except MPI.Exception as mpi_exception:
-            config_options.errMsg = "Unable to retrieve the MPI size."
+            self.config_options.errMsg = "Unable to retrieve the MPI size."
             raise mpi_exception
 
         try:
             self.rank = self.comm.Get_rank()
         except MPI.Exception as mpi_exception:
-            config_options.errMsg = "Unable to retrieve the MPI processor rank."
+            self.config_options.errMsg = "Unable to retrieve the MPI processor rank."
             raise mpi_exception
 
-        self.__broadcast_new_64bit_uid(config_options)
+        self.__broadcast_new_64bit_uid(self.config_options)
 
         wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
         if wait_for_debug.lower() in ("true", "1"):
             self.wait_for_debugpy_client()
+
+        # self._test_exit()
+
+    # ------------------------------------------------------
+    # Exit handling, exception handling, cleanup, and abort.
+    # ------------------------------------------------------
+
+    def _test_exit(self) -> None:
+        """Various methods for testing potential exit conditions"""
+        self.__test_exit("exception", 0)
+        # self.__test_exit("exception", 1)
+        # self.__test_exit("signal", 0)
+        ### Signal on rank 1 causes a deadlock iff abort_with_cleanup only allows rank 0 to abort, so all ranks need to be able to abort.
+        # self.__test_exit("signal", 1)
+        # self.__test_exit("sysexit1", 0)
+        # self.__test_exit("sysexit1", 1)
+        # self.__test_exit("check_program_status", 0)
+        # self.__test_exit("check_program_status", 1)
+        # self.__test_exit("err_out_screen", 0)
+        # self.__test_exit("err_out_screen", 1)
+        # self.__test_exit("err_out_screen_para", 0)
+        # self.__test_exit("err_out_screen_para", 1)
+
+    def abort_with_cleanup(self, errorcode: int) -> None:
+        """Call cleanup methods, before calling MPI Abort.
+        Do not make direct calls to MPI Abort without this method.
+        Use this method for all MPI abort needs."""
+        comm = getattr(self, "comm", None)
+        if comm is None:
+            raise RuntimeError("comm is not initialized")
+        # if self.rank == 0:
+        if True:
+            self._cleanup()
+            err_handler.log_msg(
+                self.config_options, self, debug=True, msg="About to MPI Abort"
+            )
+            comm.Abort(errorcode)
+        comm.Barrier()  # For testing case of only rank 0 aborting.
+        raise RuntimeError("At bottom of abort_with_cleanup, should not get here.")
+
+    def __signals_handled(self) -> tuple[int]:
+        """Return a tuple of signals to be handled by cleanup routine."""
+        ### signal.valid_signals() contains many that are unrelated to stoppage / interruption / error.
+        # sigs = [s for s in signal.valid_signals() if s not in (signal.SIGKILL, signal.SIGSTOP)]
+        sigs = (
+            signal.SIGINT,
+            signal.SIGTERM,
+            signal.SIGHUP,
+            signal.SIGQUIT,
+            signal.SIGSEGV,
+            signal.SIGABRT,
+            signal.SIGFPE,
+            signal.SIGBUS,
+            signal.SIGILL,
+        )
+        return sigs
+
+    def __register_exit_handlers(self) -> None:
+        """Register exit handlers for unhandled exceptions, signals, and regular exits.
+        TODO: consider WCOSS gating.
+        TODO: note that when non-0 ranks call Abort directly, the rank 0 exit handler is still invoked, at least in some cases,
+        so there may be opportunities to streamline this further to have only rank 0 perform the cleanup. Would need to test
+        against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
+        rank 0 break out of a collective call if it happens to be waiting at one)."""
+        # Exceptions
+        sys.exepthook = self.__excepthook
+        # Regular exits
+        atexit.register(self._cleanup)
+        # Signals
+        for sig in self.__signals_handled():
+            signal.signal(sig, self.__signal_handler)
+
+    def __excepthook(self, ex_type, value, tb) -> None:
+        """Custom excepthook which follows these steps:
+        1. Call Python's built-in excepthook.
+        2. Log .errMsg as CRITICAL (unless it is None).
+        3. Cleanup.
+        4. MPI Abort.
+
+        To apply, set `sys.excepthook` to this method."""
+        sys.__excepthook__(ex_type, value, tb)
+        if self.config_options.errMsg is not None:
+            err_handler.log_critical(
+                self.config_options,
+                self,
+                msg=f"In excepthook, found errMsg = {repr(self.config_options.errMsg)}",
+            )
+        self.abort_with_cleanup(1)
+
+    def __signal_handler(self, signum, frame) -> None:
+        """Handle termination signals by cleaning up before exit."""
+        ### Unregister the signal handler
+        for s in self.__signals_handled():
+            signal.signal(s, signal.SIG_DFL)
+        ### Cleanup and re-send the original signal to itself
+        # self._cleanup()
+        # os.kill(os.getpid(), signum)
+        ### Cleanup and abort directly
+        self.abort_with_cleanup(signum)
+
+    def _cleanup(self) -> None:
+        """High-level cleanup routine called by exit handlers."""
+        # if self.rank != 0:
+        #     return
+        err_handler.log_msg(
+            self.config_options, self, debug=True, msg="About to clean up"
+        )
+        self._cleanup_scratch_dir()
+        self._cleanup_geogrid()
+
+    def _cleanup_scratch_dir(self) -> None:
+        """Remove contents of scratch dir."""
+        try:
+            contents = os.listdir(self.config_options.scratch_dir)
+        except FileNotFoundError:
+            return
+        # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
+        # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
+        # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
+        #
+        # Only delete files that don't start with either of these
+        skip_starts = (".nfs", "NextGen_Forcings_Engine")
+        to_delete = [_ for _ in contents if not _.startswith(skip_starts)]
+        for fn in to_delete:
+            fp = os.path.join(self.config_options.scratch_dir, fn)
+            try:
+                os.remove(fp)
+            except FileNotFoundError:
+                pass
+            except IsADirectoryError:
+                try:
+                    os.rmdir(fp)
+                except FileNotFoundError:
+                    pass
+
+    def _cleanup_geogrid(self) -> None:
+        """Remove temporary geogrid file if it exists."""
+        if self.config_options is None:
+            return
+        geogrid = getattr(self.config_options, "geogrid", None)
+        if geogrid is not None:
+            try:
+                os.remove(geogrid)
+            except FileNotFoundError:
+                pass
+
+    def __test_exit(self, mode: str, rank: int) -> None:
+        """Intentionally exit in a particular way, for testing exit/cleanup behavior.
+        `mode` : str. Mode of exit. See match/case block below for accepted values.
+        `rank` : int. Rank to perform the mode of exit. Can be 0 or 1. They have different"""
+
+        log_debug_partial = partial(
+            err_handler.log_msg, self.config_options, self, True
+        )
+
+        log_debug_partial(
+            f"__test_exit(): provided: mode={repr(mode)}, rank={repr(rank)}"
+        )
+        if rank not in (0, 1):
+            raise ValueError(f"__test_exit(): unsupported value for rank: {repr(rank)}")
+
+        if self.rank == rank:
+            match mode:
+                case "exception":
+                    msg = "__test_exit(): raising intentional RuntimeError"
+                    log_debug_partial(msg)
+                    self.config_options.errMsg = "TEST"
+                    raise RuntimeError(msg)
+
+                case "signal":
+                    # msg = f"__test_exit(): sending signal.SIGHUP ({signal.SIGHUP})"
+                    msg = f"__test_exit(): sending signal.SIGTERM ({signal.SIGTERM})"
+                    log_debug_partial(msg)
+                    # os.kill(os.getpid(), signal.SIGHUP)
+                    os.kill(os.getpid(), signal.SIGTERM)
+
+                case "sysexit1":
+                    msg = "__test_exit(): calling sys.exit(1)"
+                    log_debug_partial(msg)
+                    sys.exit(1)
+
+                case "check_program_status":
+                    msg = "__test_exit(): setting critical msg before calling check_program_status()"
+                    log_debug_partial(msg)
+                    err_handler.log_critical(
+                        self.config_options, self, msg="TESTING EXIT HANDLING"
+                    )
+
+                case "err_out_screen":
+                    msg = "__test_exit(): calling err_out_screen()"
+                    log_debug_partial(msg)
+                    err_handler.err_out_screen(msg)
+
+                case "err_out_screen_para":
+                    msg = "__test_exit(): calling err_out_screen_para()"
+                    log_debug_partial(msg)
+                    err_handler.err_out_screen_para(msg, self)
+
+                case _:
+                    raise ValueError(f"Unsupported mode={repr(mode)} for __test_exit()")
+
+        log_debug_partial("__test_exit(): reaching check_program_status()")
+        err_handler.check_program_status(self.config_options, self)
+
+        log_debug_partial("__test_exit(): reaching MPI Barrier")
+        self.comm.Barrier()
+
+        msg = "__test_exit(): got past MPI Barrier (should not get here)"
+        log_debug_partial(msg)
+        raise RuntimeError(msg)
 
     def __broadcast_new_64bit_uid(self, config_options):
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks."""
@@ -338,7 +560,11 @@ class MpiConfig:
                         + str(i)
                     )
                     err_handler.log_critical(options, self)
-                    self.comm.abort()
+                    # TODO why was there an abort here?
+                    # Switched it to a new wrapped/cleanup abort,
+                    # but would like to remove that call too if
+                    # there is no reason to keep it.
+                    self.abort_with_cleanup(1)
 
             # options.errMsg = "Checking of Rows and Columns complete"
             # err_handler.log_msg(options,self)

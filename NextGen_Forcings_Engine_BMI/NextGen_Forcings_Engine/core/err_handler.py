@@ -114,8 +114,7 @@ def check_program_status(
             stack = traceback.format_stack()[:-1]
             for frame in stack:
                 LOG.error(frame)
-            MpiConfig.comm.Abort(1)
-            sys.exit(1)
+            MpiConfig.abort_with_cleanup(1)
 
     # Sync up processors.
     # When this is enabled, then all ranks wait for rank 0 to evaluate the
