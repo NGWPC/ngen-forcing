@@ -887,22 +887,22 @@ class GriddedGeoMeta(GeoMeta):
         return slope, slp_azi
 
     @property
-    def x_lower_bound(self) -> int:
+    def x_lower_bound(self) -> float:
         """Get the local x lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][1]
 
     @property
-    def x_upper_bound(self) -> int:
+    def x_upper_bound(self) -> float:
         """Get the local x upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][1]
 
     @property
-    def y_lower_bound(self) -> int:
+    def y_lower_bound(self) -> float:
         """Get the local y lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][0]
 
     @property
-    def y_upper_bound(self) -> int:
+    def y_upper_bound(self) -> float:
         """Get the local y upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][0]
 
