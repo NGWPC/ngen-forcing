@@ -24,9 +24,12 @@ from bmipy import Bmi
 from mpi4py import MPI
 
 from NextGen_Forcings_Engine_BMI import esmf_creation, forcing_extraction
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOGRID
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import ConfigOptions
+
 from .bmi_grid import Grid, GridType
 from .core import (
     err_handler,
@@ -251,13 +254,13 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # information about the modeling domain, local processor
         # grid boundaries, and ESMF grid objects/fields to be used
         # in regridding.
+        if self._job_meta.grid_type not in GEOGRID:
+            self._job_meta.errMsg = f"Invalid grid type specified: {self._job_meta.grid_type}. Valid options are: {list(GEOGRID.keys())}"
+            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
+
         self._wrf_hydro_geo_meta = GEOGRID.get(self._job_meta.grid_type)(
             self._job_meta, self._mpi_meta
         )
-
-        if self._wrf_hydro_geo_meta is None:
-            self._job_meta.errMsg = "You must specify a proper grid_type (gridded, unstructured, hydrofabric) in the config."
-            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
 
         # Assign grid type to BMI class for grid information
         self._grid_type = self._job_meta.grid_type.lower()
@@ -884,9 +887,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
         # Set the job metadata parameters (b_date, geogrid) using config_options
-        self._job_meta = ConfigOptions(
-            self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid
-        )
+        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
 
         # Now that _job_meta is set, call initialize() to set up the core model
         self.initialize(config_file, output_path=output_path)
