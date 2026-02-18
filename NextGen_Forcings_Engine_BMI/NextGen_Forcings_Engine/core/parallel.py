@@ -14,6 +14,7 @@ from mpi4py import MPI
 
 from .config import ConfigOptions
 from . import err_handler
+from . import mpi_utils
 
 # If MPI was initialized outside of python,
 # disable initialization/finalization behavior
@@ -72,7 +73,7 @@ class MpiConfig:
             self.config_options.errMsg = "Unable to retrieve the MPI processor rank."
             raise mpi_exception
 
-        self.__broadcast_new_64bit_uid(self.config_options)
+        self.__broadcast_new_64bit_uid()
 
         wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
         if wait_for_debug.lower() in ("true", "1"):
@@ -291,23 +292,9 @@ class MpiConfig:
         self.log_debug(msg)
         raise RuntimeError(msg)
 
-    def __broadcast_new_64bit_uid(self, config_options):
+    def __broadcast_new_64bit_uid(self):
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks."""
-        if self.uid64 is not None:
-            raise ValueError(f"self.uid64 already set: {repr(self.uid64)}")
-
-        rand_uint64 = None
-        if self.rank == 0:
-            rng = np.random.default_rng()
-            rand_uint64 = rng.integers(0, 2**64, dtype=np.uint64)
-        rand_uint64 = self.broadcast_parameter(
-            rand_uint64, config_options, param_type=np.uint64
-        )
-
-        # Since based on 64-bit int, first 16 chars are 0, final 16 chars are random
-        uid_64bit_hex = uuid.UUID(int=rand_uint64).hex
-        assert len(uid_64bit_hex) == 32
-        self.uid64 = uid_64bit_hex[16:]
+        self.uid64 = mpi_utils.get_new_broadcasted_uid()
 
     def wait_for_debugpy_client(self):
         """Block until the debugpy clients have attached to cppdbg/gdb.

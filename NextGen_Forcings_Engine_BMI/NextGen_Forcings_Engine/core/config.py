@@ -16,6 +16,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
 )
 from nextgen_forcings_ewts import MODULE_NAME
 
+
+from . import mpi_utils
+
 LOG = logging.getLogger(MODULE_NAME)
 
 FORCE_COUNT = 27
@@ -146,6 +149,17 @@ class ConfigOptions:
         self.geogrid = geogrid_arg
         self.geopackage = None
 
+        self.uid64 = None
+
+        self.broadcast_new_64bit_uid()
+
+    def broadcast_new_64bit_uid(self):
+        """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks.
+        Should be called once to avoid confusion."""
+        if self.uid64 is not None:
+            raise RuntimeError("self.uid64 has already been initialized.")
+        self.uid64 = mpi_utils.get_new_broadcasted_uid()
+
     def validate_config(self, cfg_bmi: dict) -> None:
         """Validate in options from the configuration file and check that proper options were provided."""
         # Ensure b_date_proc is set; if not, read from the configuration file
@@ -195,8 +209,10 @@ class ConfigOptions:
             else:
                 geogrid_parent = os.path.dirname(geogrid_base)
                 geogrid_filename = os.path.basename(geogrid_base)
+                if self.uid64 is None:
+                    raise ValueError("self.uid64 cannot be None, please initialize it.")
                 self.geogrid = os.path.join(
-                    geogrid_parent, f"{uuid.uuid4().hex}_{geogrid_filename}"
+                    geogrid_parent, f"{self.uid64}_{geogrid_filename}"
                 )
             # Create directory for esmf_mesh file
             if not os.path.isdir(geogrid_parent):
