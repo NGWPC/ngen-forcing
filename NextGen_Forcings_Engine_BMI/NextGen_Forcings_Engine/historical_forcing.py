@@ -19,7 +19,7 @@ import s3fs
 import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
-from mpi4py.futures import MPICommExecutor
+# from mpi4py.futures import MPICommExecutor
 from pyproj import CRS
 from zarr.storage import ObjectStore
 
@@ -224,10 +224,13 @@ class BaseProcessor:
         """Materialize lazy dask arrays into memory."""
         ds = None
         with self.timing_block("computing dataset"):
-            with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
-                with dask.config.set(scheduler=executor):
-                    if self.mpi_config.rank == 0:
-                        ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
+            ### This MPICommExecutor usage is being disabled for testing on certain environments.
+            # with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
+            #     with dask.config.set(scheduler=executor):
+            #         if self.mpi_config.rank == 0:
+            #             ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
+            if self.mpi_config.rank == 0:
+                ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
