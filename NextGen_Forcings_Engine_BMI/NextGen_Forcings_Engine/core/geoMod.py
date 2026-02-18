@@ -78,7 +78,6 @@ class GeoMeta:
         Function that will read in crs/x/y geospatial metadata and coordinates
         from the optional geospatial metadata file IF it was specified by the user in
         the configuration file.
-        :param config_options:
         :return:
         """
         # We will only read information on processor 0. This data is not necessary for the
@@ -249,13 +248,13 @@ class GeoMeta:
 
         # mpi_config.comm.barrier()
 
-    def calc_slope(self, esmf_nc):
+    def calc_slope(self, esmf_nc: netCDF4.Dataset) -> tuple:
         """Calculate slope grids needed for incoming shortwave radiation downscaling.
 
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program.
-        :param esmf_nc:
-        :return:
+        :param esmf_nc: The open netCDF4 dataset for the geogrid file, passed in to avoid having to reopen the file multiple times
+        :return: A tuple containing slope and slope azimuth for nodes and elements
         """
         # First extract the sina,cosa, and elevation variables from the geogrid file.
         try:
@@ -720,9 +719,7 @@ class GriddedGeoMeta(GeoMeta):
             # be used for downscaling purposes.
             if mpi_config.rank == 0:
                 try:
-                    slopeTmp, slp_azi_tmp = self.calc_slope(
-                        esmf_nc, self.config_options
-                    )
+                    slopeTmp, slp_azi_tmp = self.calc_slope(esmf_nc)
                 except Exception:
                     raise Exception
             else:
@@ -776,9 +773,7 @@ class GriddedGeoMeta(GeoMeta):
             # Calculate the slope from the domain using elevation of the gridded model and other approximations
             if mpi_config.rank == 0:
                 try:
-                    slopeTmp, slp_azi_tmp = self.calc_slope_gridded(
-                        esmf_nc, self.config_options
-                    )
+                    slopeTmp, slp_azi_tmp = self.calc_slope_gridded(esmf_nc)
                 except Exception:
                     raise Exception
             else:
@@ -811,17 +806,14 @@ class GriddedGeoMeta(GeoMeta):
         slp_azi_tmp = None
         varTmp = None
 
-    def calc_slope_gridded(self, esmf_nc):
+    def calc_slope_gridded(self, esmf_nc: netCDF4.Dataset) -> tuple:
         """Calculate slope grids needed for incoming shortwave radiation downscaling.
 
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program. This calculates the slopes for grid cells
-        :param esmf_nc:
-        :param config_options:
-        :return:
+        :param esmf_nc: The open netCDF4 dataset for the geogrid file, passed in to avoid having to reopen the file multiple times
+        :return: A tuple containing slope and slope azimuth for grid cells
         """
-        esmf_nc = netCDF4.Dataset(self.config_options.geogrid, "r")
-
         try:
             lons = esmf_nc.variables[self.config_options.lon_var][:]
             lats = esmf_nc.variables[self.config_options.lat_var][:]
@@ -1321,7 +1313,7 @@ class UnstructuredGeoMeta(GeoMeta):
             # Calculate the slope from the domain using elevation on the WRF-Hydro domain. This will
             # be used for downscaling purposes.
             slope_node_Tmp, slp_azi_node_tmp, slope_elem_Tmp, slp_azi_elem_tmp = (
-                self.calc_slope_unstructured(esmf_nc, self.config_options)
+                self.calc_slope_unstructured(esmf_nc)
             )
 
             self.slope = slope_node_Tmp[pet_node_inds]
@@ -1364,15 +1356,14 @@ class UnstructuredGeoMeta(GeoMeta):
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
-    def calc_slope_unstructured(self):
+    def calc_slope_unstructured(self, esmf_nc: netCDF4.Dataset) -> tuple:
         """Calculate slope grids needed for incoming shortwave radiation downscaling.
 
         Function to calculate slope grids needed for incoming shortwave radiation downscaling
         later during the program. This calculates the slopes for both nodes and elements
-        :return:
+        :param esmf_nc: The open netCDF4 dataset for the geogrid file, passed in to avoid having to reopen the file multiple times
+        :return: A tuple containing slope and slope azimuth for nodes and elements
         """
-        esmf_nc = netCDF4.Dataset(self.config_options.geogrid, "r")
-
         try:
             node_lons = esmf_nc.variables[self.config_options.nodecoords_var][:][:, 0]
             node_lats = esmf_nc.variables[self.config_options.nodecoords_var][:][:, 1]
