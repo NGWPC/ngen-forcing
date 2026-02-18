@@ -42,6 +42,7 @@ class MpiConfig:
             None  # broadcasted random 16 chars based on random uint64
         )
         self.config_options = config_options
+        self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
         self.__register_exit_handlers()
 
     def initialize_comm(self, comm=None):
@@ -188,9 +189,12 @@ class MpiConfig:
 
     def _cleanup_scratch_dir(self) -> None:
         """Remove contents of scratch dir."""
+        self.log_debug("Cleanup: starting scratch dir cleanup")
         try:
+            self.log_debug(f"Cleanup: listing: {self.config_options.scratch_dir}")
             contents = os.listdir(self.config_options.scratch_dir)
         except FileNotFoundError:
+            self.log_debug(f"Cleanup: not found: {self.config_options.scratch_dir}")
             return
         # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
         # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
@@ -202,38 +206,38 @@ class MpiConfig:
         for fn in to_delete:
             fp = os.path.join(self.config_options.scratch_dir, fn)
             try:
+                self.log_debug(f"Cleanup: deleting: {fp}")
                 os.remove(fp)
             except FileNotFoundError:
+                self.log_debug(f"Cleanup: not found: {fp}")
                 pass
             except IsADirectoryError:
+                self.log_debug(f"Cleanup: is a directory, calling rmdir: {fp}")
                 try:
                     os.rmdir(fp)
                 except FileNotFoundError:
+                    self.log_debug(f"Cleanup: not found: {fp}")
                     pass
 
     def _cleanup_geogrid(self) -> None:
         """Remove temporary geogrid file if it exists."""
+        self.log_debug("Cleanup: starting geogrid cleanup")
         if self.config_options is None:
             return
         geogrid = getattr(self.config_options, "geogrid", None)
         if geogrid is not None:
             try:
+                self.log_debug(f"Cleanup: removing: {geogrid}")
                 os.remove(geogrid)
             except FileNotFoundError:
+                self.log_debug(f"Cleanup: not found: {geogrid}")
                 pass
 
     def __test_exit(self, mode: str, rank: int) -> None:
         """Intentionally exit in a particular way, for testing exit/cleanup behavior.
         `mode` : str. Mode of exit. See match/case block below for accepted values.
         `rank` : int. Rank to perform the mode of exit. Can be 0 or 1. They have different"""
-
-        log_debug_partial = partial(
-            err_handler.log_msg, self.config_options, self, True
-        )
-
-        log_debug_partial(
-            f"__test_exit(): provided: mode={repr(mode)}, rank={repr(rank)}"
-        )
+        self.log_debug(f"__test_exit(): provided: mode={repr(mode)}, rank={repr(rank)}")
         if rank not in (0, 1):
             raise ValueError(f"__test_exit(): unsupported value for rank: {repr(rank)}")
 
@@ -241,50 +245,50 @@ class MpiConfig:
             match mode:
                 case "exception":
                     msg = "__test_exit(): raising intentional RuntimeError"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     self.config_options.errMsg = "TEST"
                     raise RuntimeError(msg)
 
                 case "signal":
                     # msg = f"__test_exit(): sending signal.SIGHUP ({signal.SIGHUP})"
                     msg = f"__test_exit(): sending signal.SIGTERM ({signal.SIGTERM})"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     # os.kill(os.getpid(), signal.SIGHUP)
                     os.kill(os.getpid(), signal.SIGTERM)
 
                 case "sysexit1":
                     msg = "__test_exit(): calling sys.exit(1)"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     sys.exit(1)
 
                 case "check_program_status":
                     msg = "__test_exit(): setting critical msg before calling check_program_status()"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     err_handler.log_critical(
                         self.config_options, self, msg="TESTING EXIT HANDLING"
                     )
 
                 case "err_out_screen":
                     msg = "__test_exit(): calling err_out_screen()"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     err_handler.err_out_screen(msg)
 
                 case "err_out_screen_para":
                     msg = "__test_exit(): calling err_out_screen_para()"
-                    log_debug_partial(msg)
+                    self.log_debug(msg)
                     err_handler.err_out_screen_para(msg, self)
 
                 case _:
                     raise ValueError(f"Unsupported mode={repr(mode)} for __test_exit()")
 
-        log_debug_partial("__test_exit(): reaching check_program_status()")
+        self.log_debug("__test_exit(): reaching check_program_status()")
         err_handler.check_program_status(self.config_options, self)
 
-        log_debug_partial("__test_exit(): reaching MPI Barrier")
+        self.log_debug("__test_exit(): reaching MPI Barrier")
         self.comm.Barrier()
 
         msg = "__test_exit(): got past MPI Barrier (should not get here)"
-        log_debug_partial(msg)
+        self.log_debug(msg)
         raise RuntimeError(msg)
 
     def __broadcast_new_64bit_uid(self, config_options):

@@ -1022,6 +1022,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: None
 
         """
+        err_handler.log_msg(
+            self._job_meta, self._mpi_meta, True, "Starting BMI finalize()"
+        )
+
         # Force destruction of ESMF objects
         self._wrf_hydro_geo_meta = None
         self._input_forcing_mod = None
