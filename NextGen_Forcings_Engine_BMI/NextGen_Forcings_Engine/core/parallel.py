@@ -187,6 +187,11 @@ class MpiConfig:
         )
         self._cleanup_scratch_dir()
         self._cleanup_geogrid()
+        # TODO: Consider if this can be gated for non-wcoss only
+        try:
+            atexit.unregister(self._cleanup)
+        except Exception:
+            pass
 
     def _cleanup_scratch_dir(self) -> None:
         """Remove contents of scratch dir."""
