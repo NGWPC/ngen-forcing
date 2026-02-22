@@ -44,39 +44,39 @@ def set_none(func) -> Any:
     return wrapper
 
 
-def broadcast(func) -> Any:
+def broadcast(prop) -> Any:
     """Broadcast the output of a function to all processors."""
 
-    @wraps(func)
+    @wraps(prop)
     def wrapper(self) -> Any:
         """Broadcast the output of a function to all processors."""
-        result = func(self)
+        result = prop.fget(self)
         return self.mpi_config.comm.bcast(result, root=0)
 
-    return wrapper
+    return property(wrapper)
 
 
-def barrier(func) -> Any:
+def barrier(prop) -> Any:
     """Synchronize all processors at a barrier."""
 
-    @wraps(func)
+    @wraps(prop)
     def wrapper(self) -> Any:
         """Synchronize all processors at a barrier."""
-        result = func(self)
+        result = prop.fget(self)
         self.mpi_config.comm.barrier()
         return result
 
-    return wrapper
+    return property(wrapper)
 
 
-def scatter(func) -> Any:
+def scatter(prop) -> Any:
     """Scatter the output of a function to all processors."""
 
-    @wraps(func)
+    @wraps(prop)
     def wrapper(self) -> Any:
         """Scatter the output of a function to all processors."""
         try:
-            var, name, config_options, post_slice = func(self)
+            var, name, config_options, post_slice = prop.fget(self)
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
                 return var[:, :]
@@ -88,7 +88,7 @@ def scatter(func) -> Any:
             )
             raise e
 
-    return wrapper
+    return property(wrapper)
 
 
 class GeoMeta:
@@ -942,7 +942,7 @@ class HydrofabricGeoMeta(GeoMeta):
         """Create the ESMF Mesh object for the unstructured domain."""
         try:
             return ESMF.Mesh(
-                self.config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH
+                filename=self.config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH
             )
         except Exception as e:
             LOG.critical(
@@ -991,7 +991,7 @@ class HydrofabricGeoMeta(GeoMeta):
     @lru_cache
     def element_ids_global(self) -> np.ndarray:
         """Get the global element IDs for the unstructured domain."""
-        return self.get_geogrid_var(self.config_options.element_id_var)
+        return self.get_geogrid_var(self.config_options.element_id_var).values
 
     @broadcast
     @property
@@ -1460,7 +1460,7 @@ class UnstructuredGeoMeta(GeoMeta):
 
 
 GEOGRID = {
-    "gridded": GriddedGeoMeta,
-    "unstructured": UnstructuredGeoMeta,
+    # "gridded": GriddedGeoMeta,
+    # "unstructured": UnstructuredGeoMeta,
     "hydrofabric": HydrofabricGeoMeta,
 }
