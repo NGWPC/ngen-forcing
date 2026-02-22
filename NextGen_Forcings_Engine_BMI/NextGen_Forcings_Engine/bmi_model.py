@@ -27,7 +27,7 @@ from NextGen_Forcings_Engine_BMI import esmf_creation, forcing_extraction
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOGRID
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import GEOGRID
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
 from .bmi_grid import Grid, GridType
@@ -750,13 +750,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             long_name: self._var_name_units_map[long_name][1]
             for long_name in self._var_name_units_map.keys()
         }
-
-        if self._job_meta.spatial_meta is not None:
-            try:
-                self._wrf_hydro_geo_meta.initialize_geospatial_metadata()
-            except Exception as e:
-                err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
-        err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
