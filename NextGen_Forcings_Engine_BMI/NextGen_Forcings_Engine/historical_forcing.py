@@ -7,7 +7,8 @@ import re
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import lru_cache
-from time import time
+from time import perf_counter
+import typing
 
 import dask
 import geopandas as gpd
@@ -19,7 +20,6 @@ import s3fs
 import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
-# from mpi4py.futures import MPICommExecutor
 from pyproj import CRS
 from zarr.storage import ObjectStore
 
@@ -84,17 +84,21 @@ class BaseProcessor:
         return self.bounds[3]
 
     @contextmanager
-    def timing_block(self, step_str: str):
+    def timing_block(self, step_str: str, log_callable: typing.Callable = LOG.debug):
         """Context manager for timing code execution.
 
         Args:
             step_str: Description of the step being timed.
+            log_callable: Callable used for sending the log message. Defaults to LOG.debug.
 
         """
-        start = time()
+        start = perf_counter()
+        log_callable(f"  Starting {step_str}")
         yield
-        end = time()
-        LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+        end = perf_counter()
+        log_callable(
+            f"  Execution time for {step_str}: {round(end - start, 2)} seconds"
+        )
 
     @property
     def time_min(self) -> np.datetime64:
@@ -223,13 +227,8 @@ class BaseProcessor:
     def compute_ds(self) -> xr.Dataset:
         """Materialize lazy dask arrays into memory."""
         ds = None
-        with self.timing_block("computing dataset"):
-            ### This MPICommExecutor usage is being disabled for testing on certain environments.
-            # with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
-            #     with dask.config.set(scheduler=executor):
-            #         if self.mpi_config.rank == 0:
-            #             ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
-            if self.mpi_config.rank == 0:
+        if self.mpi_config.rank == 0:
+            with self.timing_block("computing dataset", LOG.info):
                 ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
