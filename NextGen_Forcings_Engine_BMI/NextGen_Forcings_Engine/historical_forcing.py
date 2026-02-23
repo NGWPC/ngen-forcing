@@ -183,6 +183,11 @@ class BaseProcessor:
         start and end date pairs for each year. Otherwise, it will create
         start and end date pairs based on the cache size.
          :return: Dictionary of start and end dates as pd.Timestamp
+
+         TODO for lru_cache safety, confirm or enforce that these are never mutated:
+            self.config_options.b_date_proc
+            self.config_options.fcst_input_horizons
+            self.config_options.fcst_freq
         """
         start_end_datetimes = {}
         for start, end in self.year_start_stop_dict.values():
