@@ -53,8 +53,17 @@ class InputForcings:
 
         self.initialize_config_options()
         if self.q2dDownscaleOpt > 0:
-            self.handle_humidity_downscaling()
-        self.initialize_geo_data()
+            self.geo_meta.handle_humidity_downscaling()
+
+        if self.force_count == 8 and 8 in self.input_map_output:
+            # TODO: this assumes that LQFRAC (8) is always the last grib var
+            self.grib_vars = self.grib_vars[:-1]
+
+        self.geo_meta_wrf_hydro.initialize_geo_data()
+
+        # Obtain custom input cycle frequencies
+        if self.key_value == 10 or self.key_value == 11:
+            self.cycle_freq = self.config_options.customFcstFreq[self.custom_count]
 
     def initialize_config_options(self) -> None:
         """Initialize configuration options from the config_options attribute."""
@@ -64,99 +73,9 @@ class InputForcings:
             if isinstance(val, list) and len(val) > 0
         ]
 
-    def handle_humidity_downscaling(self) -> None:
-        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
-
-        If we have specified specific humidity downscaling, establish arrays to hold
-        temporary temperature arrays that are un-downscaled.
-        """
-        if self.config_options.grid_type == "gridded":
-            self.t2dTmp = np.empty(
-                [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.float32,
-            )
-            self.psfcTmp = np.empty(
-                [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.float32,
-            )
-            self.t2dTmp_elem = None
-            self.psfcTmp_elem = None
-        elif self.config_options.grid_type == "unstructured":
-            self.t2dTmp = np.empty([self.geo_meta.ny_local], np.float32)
-            self.psfcTmp = np.empty([self.geo_meta.ny_local], np.float32)
-            self.t2dTmp_elem = np.empty([self.geo_meta.ny_local_elem], np.float32)
-            self.psfcTmp_elem = np.empty([self.geo_meta.ny_local_elem], np.float32)
-        elif self.config_options.grid_type == "hydrofabric":
-            self.t2dTmp = np.empty([self.geo_meta.ny_local], np.float32)
-            self.psfcTmp = np.empty([self.geo_meta.ny_local], np.float32)
-            self.t2dTmp_elem = None
-            self.psfcTmp_elem = None
-
-    def initialize_geo_data(self) -> None:
-        """Initialize geometry-related arrays based on grid type and downscaling options.
-
-        Initialize the local final grid of values. This is represntative
-        of the local grid for this forcing, for a specific output timesetp.
-        This grid will be updated from one output timestep to another, and
-        also through downscaling and bias correction.
-        """
-        force_count = 9 if self.config_options.include_lqfrac else 8
-        if force_count == 8 and 8 in self.input_map_output:
-            # TODO: this assumes that LQFRAC (8) is always the last grib var
-            self.grib_vars = self.grib_vars[:-1]
-
-        if self.config_options.grid_type == "gridded":
-            self.final_forcings = np.empty(
-                [force_count, self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.float64,
-            )
-            self.height = np.empty(
-                [self.geo_meta.ny_local, self.geo_meta.nx_local], np.float32
-            )
-            self.regridded_mask = np.empty(
-                [self.geo_meta.ny_local, self.geo_meta.nx_local], np.float32
-            )
-            self.regridded_mask_AORC = np.empty(
-                [self.geo_meta.ny_local, self.geo_meta.nx_local], np.float32
-            )
-            self.final_forcings_elem = None
-            self.height_elem = None
-            self.regridded_mask_elem = None
-            self.regridded_mask_elem_AORC = None
-
-        elif self.config_options.grid_type == "unstructured":
-            self.final_forcings = np.empty(
-                [force_count, self.geo_meta.ny_local], np.float64
-            )
-            self.height = np.empty([self.geo_meta.ny_local], np.float32)
-            self.regridded_mask = np.empty([self.geo_meta.ny_local], np.float32)
-            self.regridded_mask_AORC = np.empty([self.geo_meta.ny_local], np.float32)
-            self.final_forcings_elem = np.empty(
-                [force_count, self.geo_meta.ny_local_elem], np.float64
-            )
-            self.height_elem = np.empty([self.geo_meta.ny_local_elem], np.float32)
-            self.regridded_mask_elem = np.empty(
-                [self.geo_meta.ny_local_elem], np.float32
-            )
-            self.regridded_mask_elem_AORC = np.empty(
-                [self.geo_meta.ny_local_elem], np.float32
-            )
-
-        elif self.config_options.grid_type == "hydrofabric":
-            self.final_forcings = np.empty(
-                [force_count, self.geo_meta.ny_local], np.float64
-            )
-            self.height = np.empty([self.geo_meta.ny_local], np.float32)
-            self.regridded_mask = np.empty([self.geo_meta.ny_local], np.float32)
-            self.regridded_mask_AORC = np.empty([self.geo_meta.ny_local], np.float32)
-            self.final_forcings_elem = None
-            self.height_elem = None
-            self.regridded_mask_elem = None
-            self.regridded_mask_elem_AORC = None
-
-        # Obtain custom input cycle frequencies
-        if self.key_value == 10 or self.key_value == 11:
-            self.cycle_freq = self.config_options.customFcstFreq[self.custom_count]
+    def force_count(self) -> int:
+        """Force count."""
+        return 9 if self.config_options.include_lqfrac else 8
 
     @property
     def product_name(self) -> str:

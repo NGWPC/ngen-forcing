@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 import math
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -7,6 +10,10 @@ import numpy as np
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
 import shapely
 from scipy import spatial
+
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+    InputForcings,
+)
 
 try:
     import esmpy as ESMF
@@ -25,6 +32,11 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
+
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+        InputForcings,
+    )
 
 LOG = logging.getLogger(MODULE_NAME)
 CONSTS = CONSTS[Path(__file__).stem]
@@ -294,6 +306,62 @@ class GriddedGeoMeta(GeoMeta):
         super().__init__(config_options, mpi_config)
         for attr in CONSTS[self.__class__.__name__]:
             setattr(self, attr, None)
+
+    def initialize_geo_data(
+        self,
+        input_forcings: InputForcings,
+    ) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [
+                input_forcings.force_count,
+                input_forcings.geo_meta.ny_local,
+                input_forcings.geo_meta.nx_local,
+            ],
+            np.float64,
+        )
+        input_forcings.height = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.final_forcings_elem = None
+        input_forcings.height_elem = None
+        input_forcings.regridded_mask_elem = None
+        input_forcings.regridded_mask_elem_AORC = None
+
+    def handle_humidity_downscaling(
+        self,
+        input_forcings: InputForcings,
+    ) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.t2dTmp_elem = None
+        input_forcings.psfcTmp_elem = None
 
     @broadcast
     @property
@@ -893,6 +961,46 @@ class HydrofabricGeoMeta(GeoMeta):
         for attr in CONSTS[self.__class__.__name__]:
             setattr(self, attr, None)
 
+    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        From forcingInputMod.py
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
+        )
+        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.final_forcings_elem = None
+        input_forcings.height_elem = None
+        input_forcings.regridded_mask_elem = None
+        input_forcings.regridded_mask_elem_AORC = None
+
+    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        From forcingInputMod.py
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.t2dTmp_elem = None
+        input_forcings.psfcTmp_elem = None
+
     @property
     @lru_cache
     def lat_bounds(self) -> np.ndarray:
@@ -1067,6 +1175,59 @@ class UnstructuredGeoMeta(GeoMeta):
         super().__init__(config_options, mpi_config)
         for attr in CONSTS[self.__class__.__name__]:
             setattr(self, attr, None)
+
+    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        From forcingInputMod.py
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.t2dTmp_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.psfcTmp_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+
+    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        From forcingInputMod.py
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
+        )
+        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.final_forcings_elem = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local_elem],
+            np.float64,
+        )
+        input_forcings.height_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.regridded_mask_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.regridded_mask_elem_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
 
     @broadcast
     @property
@@ -1460,7 +1621,7 @@ class UnstructuredGeoMeta(GeoMeta):
 
 
 GEOGRID = {
-    # "gridded": GriddedGeoMeta,
-    # "unstructured": UnstructuredGeoMeta,
+    "gridded": GriddedGeoMeta,
+    "unstructured": UnstructuredGeoMeta,
     "hydrofabric": HydrofabricGeoMeta,
 }
