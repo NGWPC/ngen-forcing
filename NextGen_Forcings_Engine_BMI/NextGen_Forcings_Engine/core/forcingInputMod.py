@@ -36,7 +36,7 @@ class InputForcings:
         config_options: ConfigOptions = None,
         geo_meta: GeoMetaWrfHydro = None,
         mpi_config: MpiConfig = None,
-    ):
+    ) -> None:
         """Initialize InputForcings with configuration options, geospatial metadata, and MPI configuration."""
         self.config_options = config_options
         self.geo_meta_wrf_hydro = geo_meta
@@ -56,7 +56,7 @@ class InputForcings:
             self.handle_humidity_downscaling()
         self.initialize_geo_data()
 
-    def initialize_config_options(self):
+    def initialize_config_options(self) -> None:
         """Initialize configuration options from the config_options attribute."""
         [
             setattr(self, key, val[self.keyValue])
@@ -64,7 +64,7 @@ class InputForcings:
             if isinstance(val, list) and len(val) > 0
         ]
 
-    def handle_humidity_downscaling(self):
+    def handle_humidity_downscaling(self) -> None:
         """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
 
         If we have specified specific humidity downscaling, establish arrays to hold
@@ -92,7 +92,7 @@ class InputForcings:
             self.t2dTmp_elem = None
             self.psfcTmp_elem = None
 
-    def initialize_geo_data(self):
+    def initialize_geo_data(self) -> None:
         """Initialize geometry-related arrays based on grid type and downscaling options.
 
         Initialize the local final grid of values. This is represntative
@@ -159,19 +159,19 @@ class InputForcings:
             self.cycle_freq = self.config_options.customFcstFreq[self.custom_count]
 
     @property
-    def product_name(self):
+    def product_name(self) -> str:
         """Map the forcing key value to the product name."""
         return CONSTS["PRODUCT_NAME"][self.keyValue]
 
     @property
-    def keyValue(self):
+    def keyValue(self) -> int:
         """Get the forcing key value."""
         if self._keyValue is None:
             raise RuntimeError("keyValue has not yet been set")
         return self._keyValue
 
     @keyValue.setter
-    def keyValue(self, val):
+    def keyValue(self, val: int) -> int:
         """Set the forcing key value."""
         if self._keyValue is not None:
             raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
@@ -188,7 +188,7 @@ class InputForcings:
         return self._file_ext
 
     @file_ext.setter
-    def file_ext(self, val):
+    def file_ext(self, val: str) -> str:
         if val is None:
             raise TypeError(
                 "Cannot set file_ext to None since that value indicates an uninitialized state"
@@ -204,7 +204,7 @@ class InputForcings:
         return self._cycle_freq
 
     @cycle_freq.setter
-    def cycle_freq(self, val):
+    def cycle_freq(self, val: int) -> int:
         if val is None:
             raise TypeError(
                 "Cannot set cycle_freq to None since that value indicates an uninitialized state"
@@ -220,7 +220,7 @@ class InputForcings:
         return self._grib_vars
 
     @grib_vars.setter
-    def grib_vars(self, val):
+    def grib_vars(self, val: list[str]) -> list[str] | None:
         if val is None:
             raise TypeError(
                 "Cannot set grib_vars to None since that value indicates an uninitialized state"
@@ -228,17 +228,17 @@ class InputForcings:
         self._grib_vars = val
 
     @property
-    def grib_levels(self):
+    def grib_levels(self) -> str:
         """Map the forcing key value to the required GRIB variable levels."""
         return CONSTS["GRIB_LEVELS"][self.keyValue]
 
     @property
-    def netcdf_var_names(self):
+    def netcdf_var_names(self) -> str:
         """Map the forcing key value to the required NetCDF variable names."""
         return CONSTS["NET_CDF_VARS_NAMES"][self.keyValue]
 
     @property
-    def grib_mes_idx(self):
+    def grib_mes_idx(self) -> list[int] | None:
         """Map the forcing key value to the required GRIB message ids.
 
         arrays that store the message ids of required forcing variables for each forcing type
@@ -247,18 +247,18 @@ class InputForcings:
         return CONSTS["GRIB_MES_IDX"][self.keyValue]
 
     @property
-    def input_map_output(self):
+    def input_map_output(self) -> list[int] | None:
         """Map the forcing key value to the input to output variable mapping."""
         return CONSTS["INPUT_MAP_OUTPUT"][self.keyValue]
 
     @property
-    def forecast_horizons(self):
+    def forecast_horizons(self) -> list[int] | None:
         """Map the forcing key value to the forecast horizons list."""
         return CONSTS["FORECAST_HORIZONS"][self.keyValue]
 
     def calc_neighbor_files(
         self, config_options: ConfigOptions, dcurrent, mpi_config: MpiConfig
-    ):
+    ) -> None:
         """Calculate the last/next expected input forcing file based on the current time step.
 
         Function that will calculate the last/next expected
@@ -283,7 +283,7 @@ class InputForcings:
         config_options: ConfigOptions,
         wrf_hyro_geo_meta: GeoMetaWrfHydro,
         mpi_config: MpiConfig,
-    ):
+    ) -> None:
         """Regrid input forcings to the final output grids for this timestep.
 
         Polymorphic function that will regrid input forcings to the
@@ -302,7 +302,7 @@ class InputForcings:
 
     def temporal_interpolate_inputs(
         self, config_options: ConfigOptions, mpi_config: MpiConfig
-    ):
+    ) -> None:
         """Run temporal interpolation of the input forcing grids that have been regridded.
 
         Polymorphic function that will run temporal interpolation of
@@ -332,9 +332,7 @@ def init_dict(
     :param config_options:
     :return: input_dict - A dictionary defining our inputs.
     """
-    # Initialize an empty dictionary
     input_dict = {}
-
     if config_options.precip_only_flag:
         return input_dict
 
