@@ -5,25 +5,14 @@ initializing ESMF grids and regrid objects), etc
 """
 
 import logging
+from pathlib import Path
 
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
-    CYCLE_FREQ,
-    FILE_EXT,
-    FIND_NEIGHBOR_FILES_MAP,
-    FORECAST_HORIZONS,
-    GRIB_LEVELS,
-    GRIB_MES_IDX,
-    INPUT_MAP_OUTPUT,
-    NET_CDF_VARS_NAMES,
-    PRODUCT_NAME,
-    REGRID_MAP,
-    TEMPORAL_INTERPOLATE_INPUTS_MAP,
-)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GeoMetaWrfHydro,
 )
@@ -31,6 +20,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import Mp
 from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
+CONSTS = CONSTS[Path(__file__).stem]
 
 
 class InputForcings:
@@ -51,76 +41,15 @@ class InputForcings:
         self.config_options = config_options
         self.geo_meta_wrf_hydro = geo_meta
         self.mpi_config = mpi_config
-        self.nx_global = None
-        self.ny_global = None
-        self.nx_local = None
-        self.ny_local = None
-        self.nx_local_corner = None
-        self.ny_local_corner = None
-        self.x_lower_bound = None
-        self.x_upper_bound = None
-        self.y_lower_bound = None
-        self.y_upper_bound = None
-        self.x_lower_bound_corner = None
-        self.x_upper_bound_corner = None
-        self.y_lower_bound_corner = None
-        self.y_upper_bound_corner = None
-        self.outFreq = None
-        self.lapseGrid = None
-        self.rqiClimoGrid = None
-        self.nwmPRISM_numGrid = None
-        self.nwmPRISM_denGrid = None
-        self.esmf_lats = None
-        self.esmf_lons = None
-        self.esmf_grid_in = None
-        self.esmf_grid_in_elem = None
         self.regridComplete = False
-        self.regridObj = None
-        self.regridObj_elem = None
-        self.esmf_field_in = None
-        self.esmf_field_in_elem = None
-        self.esmf_field_out = None
-        self.esmf_field_out_elem = None
-        # --------------------------------
-        # Only used for CFSv2 bias correction
-        # as bias correction needs to take
-        # place prior to regridding.
-        self.coarse_input_forcings1 = None
-        self.coarse_input_forcings2 = None
-        # --------------------------------
-        self.regridded_forcings1 = None
-        self.regridded_forcings2 = None
-        self.globalPcpRate1 = None
-        self.globalPcpRate2 = None
-        self.regridded_forcings1_elem = None
-        self.regridded_forcings2_elem = None
-        self.globalPcpRate1_elem = None
-        self.globalPcpRate2_elem = None
-        self.ndv = None
-        self.file_in1 = None
-        self.file_in2 = None
-        self.fcst_hour1 = None
-        self.fcst_hour2 = None
-        self.fcst_date1 = None
-        self.fcst_date2 = None
-        self.height_elem = None
-        self.tmpFile = None
-        self.tmpFileHeight = None
+        self.regridComplete = False
         self.rstFlag = 0
-        self.regridded_precip1 = None
-        self.regridded_precip2 = None
-        self.regridded_precip1_elem = None
-        self.regridded_precip2_elem = None
         self.skip = False
-
-        # Private attrs that have associated @property setter/getter
         self._keyValue = key_value
-        self._file_ext = None
-        self._cycle_freq = None
-        self._grib_vars = None
-        self.find_neighbor_files_map = FIND_NEIGHBOR_FILES_MAP
-        self.regrid_map = REGRID_MAP
-        self.temporal_interpolate_inputs_map = TEMPORAL_INTERPOLATE_INPUTS_MAP
+
+        self.find_neighbor_files_map = CONSTS["FIND_NEIGHBOR_FILES_MAP"]
+        self.regrid_map = CONSTS["REGRID_MAP"]
+        self.temporal_interpolate_inputs_map = CONSTS["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
 
         self.initialize_config_options()
         if self.q2dDownscaleOpt > 0:
@@ -232,7 +161,7 @@ class InputForcings:
     @property
     def product_name(self):
         """Map the forcing key value to the product name."""
-        return PRODUCT_NAME[self.keyValue]
+        return CONSTS["PRODUCT_NAME"][self.keyValue]
 
     @property
     def keyValue(self):
@@ -251,7 +180,7 @@ class InputForcings:
     @property
     def file_ext(self) -> str:
         """Map the forcing file type to the file extension."""
-        ext = FILE_EXT.get(self.file_type)
+        ext = CONSTS["FILE_EXT"].get(self.file_type)
         if ext is None:
             raise ValueError(f"Unexpected file_type: {self.file_type}")
         self._file_ext = ext
@@ -271,7 +200,7 @@ class InputForcings:
         """Map the forcing key value to the cycle frequency in minutes."""
         if self._cycle_freq is None:
             # First call to getter, initialize
-            self._cycle_freq = CYCLE_FREQ[self.keyValue]
+            self._cycle_freq = CONSTS["CYCLE_FREQ"][self.keyValue]
         return self._cycle_freq
 
     @cycle_freq.setter
@@ -301,12 +230,12 @@ class InputForcings:
     @property
     def grib_levels(self):
         """Map the forcing key value to the required GRIB variable levels."""
-        return GRIB_LEVELS[self.keyValue]
+        return CONSTS["GRIB_LEVELS"][self.keyValue]
 
     @property
     def netcdf_var_names(self):
         """Map the forcing key value to the required NetCDF variable names."""
-        return NET_CDF_VARS_NAMES[self.keyValue]
+        return CONSTS["NET_CDF_VARS_NAMES"][self.keyValue]
 
     @property
     def grib_mes_idx(self):
@@ -315,17 +244,17 @@ class InputForcings:
         arrays that store the message ids of required forcing variables for each forcing type
         TODO fill these arrays for forcing types other than GFS
         """
-        return GRIB_MES_IDX[self.keyValue]
+        return CONSTS["GRIB_MES_IDX"][self.keyValue]
 
     @property
     def input_map_output(self):
         """Map the forcing key value to the input to output variable mapping."""
-        return INPUT_MAP_OUTPUT[self.keyValue]
+        return CONSTS["INPUT_MAP_OUTPUT"][self.keyValue]
 
     @property
     def forecast_horizons(self):
         """Map the forcing key value to the forecast horizons list."""
-        return FORECAST_HORIZONS[self.keyValue]
+        return CONSTS["FORECAST_HORIZONS"][self.keyValue]
 
     def calc_neighbor_files(
         self, config_options: ConfigOptions, dcurrent, mpi_config: MpiConfig
