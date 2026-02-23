@@ -175,8 +175,9 @@ class BaseProcessor:
         return start_date, end_date
 
     @property
+    @lru_cache
     def start_end_datetimes(self) -> dict[pd.Timestamp, pd.Timestamp]:
-        """Generate dictioanry of start and end dates for caching.
+        """Generate dictionary of start and end dates for caching.
 
         If the cache size exceeds the year boundary, it will create multiple
         start and end date pairs for each year. Otherwise, it will create
