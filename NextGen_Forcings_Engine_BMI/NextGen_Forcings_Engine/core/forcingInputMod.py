@@ -10,6 +10,8 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
 
 if TYPE_CHECKING:
@@ -247,6 +249,219 @@ class InputForcings:
         )
 
 
+class InputForcingsGridded(InputForcings):
+    """Abstract class defining parameters of a single input forcing product.
+
+    This is an abstract class that will define all the parameters
+    of a single gridded input forcing product.
+    """
+
+    def __init__(
+        self,
+        force_key: int,
+        idx: int = None,
+        config_options: ConfigOptions = None,
+        geo_meta: GeoMeta = None,
+        mpi_config: MpiConfig = None,
+    ) -> None:
+        """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration."""
+        super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+
+    def initialize_geo_data(
+        self,
+        input_forcings: InputForcings,
+    ) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [
+                input_forcings.force_count,
+                input_forcings.geo_meta.ny_local,
+                input_forcings.geo_meta.nx_local,
+            ],
+            np.float64,
+        )
+        input_forcings.height = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.final_forcings_elem = None
+        input_forcings.height_elem = None
+        input_forcings.regridded_mask_elem = None
+        input_forcings.regridded_mask_elem_AORC = None
+
+    def handle_humidity_downscaling(
+        self,
+        input_forcings: InputForcings,
+    ) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+            np.float32,
+        )
+        input_forcings.t2dTmp_elem = None
+        input_forcings.psfcTmp_elem = None
+
+
+class InputForcingsHydrofabric(InputForcings):
+    """Abstract class defining parameters of a single input forcing product.
+
+    This is an abstract class that will define all the parameters
+    of a single hydrofabric input forcing product.
+    """
+
+    def __init__(
+        self,
+        force_key: int,
+        idx: int = None,
+        config_options: ConfigOptions = None,
+        geo_meta: GeoMeta = None,
+        mpi_config: MpiConfig = None,
+    ) -> None:
+        """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
+        super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+
+    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        From forcingInputMod.py
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
+        )
+        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.final_forcings_elem = None
+        input_forcings.height_elem = None
+        input_forcings.regridded_mask_elem = None
+        input_forcings.regridded_mask_elem_AORC = None
+
+    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        From forcingInputMod.py
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.t2dTmp_elem = None
+        input_forcings.psfcTmp_elem = None
+
+
+class InputForcingsUnstructured(InputForcings):
+    """Abstract class defining parameters of a single input forcing product.
+
+    This is an abstract class that will define all the parameters
+    of a single unstructured input forcing product.
+    """
+
+    def __init__(
+        self,
+        force_key: int,
+        idx: int = None,
+        config_options: ConfigOptions = None,
+        geo_meta: GeoMeta = None,
+        mpi_config: MpiConfig = None,
+    ) -> None:
+        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
+        super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+
+    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
+        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+
+        From forcingInputMod.py
+
+        If we have specified specific humidity downscaling, establish arrays to hold
+        temporary temperature arrays that are un-downscaled.
+        """
+        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.psfcTmp = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.t2dTmp_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.psfcTmp_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+
+    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
+        """Initialize geometry-related arrays based on grid type and downscaling options.
+
+        From forcingInputMod.py
+
+        Initialize the local final grid of values. This is represntative
+        of the local grid for this forcing, for a specific output timesetp.
+        This grid will be updated from one output timestep to another, and
+        also through downscaling and bias correction.
+        """
+        input_forcings.final_forcings = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
+        )
+        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
+        input_forcings.regridded_mask = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.regridded_mask_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local], np.float32
+        )
+        input_forcings.final_forcings_elem = np.empty(
+            [input_forcings.force_count, input_forcings.geo_meta.ny_local_elem],
+            np.float64,
+        )
+        input_forcings.height_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.regridded_mask_elem = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+        input_forcings.regridded_mask_elem_AORC = np.empty(
+            [input_forcings.geo_meta.ny_local_elem], np.float32
+        )
+
+
+INPUTFORCINGS = {
+    "gridded": InputForcingsGridded,
+    "unstructured": InputForcingsUnstructured,
+    "hydrofabric": InputForcingsHydrofabric,
+}
+
+
 def init_dict(
     config_options: ConfigOptions,
     geo_meta: GeoMeta,
@@ -268,7 +483,13 @@ def init_dict(
     custom_count = 0
     for idx in range(0, config_options.number_inputs):
         force_key = config_options.input_forcings[idx]
-        input_dict[force_key] = InputForcings(
+
+        if config_options.grid_type not in INPUTFORCINGS:
+            raise TypeError(
+                f"Invalid grid type specified: {config_options.grid_type}. Valid options are: {list(INPUTFORCINGS.keys())}"
+            )
+
+        input_dict[force_key] = INPUTFORCINGS[config_options.grid_type](
             force_key, idx, config_options, geo_meta, mpi_config
         )
         # input_dict[force_key].keyValue = force_key
