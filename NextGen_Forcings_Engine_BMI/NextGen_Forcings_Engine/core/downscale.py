@@ -39,7 +39,7 @@ def run_downscaling(input_forcings, config_options, geo_meta_wrf_hydro, mpi_conf
 
     # Dictionary mapping to shortwave radiation downscaling
     downscale_sw = {0: no_downscale, 1: ncar_topo_adj}
-    downscale_sw[input_forcings.swDownscaleOpt](
+    downscale_sw[input_forcings.swDowscaleOpt](
         input_forcings, config_options, geo_meta_wrf_hydro, mpi_config
     )
     err_handler.check_program_status(config_options, mpi_config)
@@ -254,7 +254,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
         if MpiConfig.rank == 0:
             while True:
                 # First ensure we have a parameter directory
-                if input_forcings.dScaleParamDirs == "NONE":
+                if input_forcings.paramDir == "NONE":
                     ConfigOptions.errMsg = (
                         "User has specified spatial temperature lapse rate "
                         "downscaling while no downscaling parameter directory "
@@ -264,7 +264,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                     break
 
                 # Compose the path to the lapse rate grid file.
-                lapsePath = input_forcings.dScaleParamDirs + "/lapse_param.nc"
+                lapsePath = input_forcings.paramDir + "/lapse_param.nc"
                 if not os.path.isfile(lapsePath):
                     ConfigOptions.errMsg = (
                         "Expected lapse rate parameter file: "
@@ -699,13 +699,13 @@ def nwm_monthly_PRISM_downscale(
             if mmVersion == 1:
                 # Compose paths to the expected files.
                 numeratorPath = (
-                    input_forcings.dScaleParamDirs
+                    input_forcings.paramDir
                     + "/PRISM_Precip_Clim_"
                     + ConfigOptions.current_output_date.strftime("%b")
                     + "_NWM_Grid.nc"
                 )
                 denominatorPath = (
-                    input_forcings.dScaleParamDirs
+                    input_forcings.paramDir
                     + "/PRISM_Precip_Clim_"
                     + ConfigOptions.current_output_date.strftime("%b")
                     + "_NWM_to_"
@@ -716,13 +716,13 @@ def nwm_monthly_PRISM_downscale(
             elif mmVersion == 2:
                 # Compose paths to the expected files.
                 numeratorPath = (
-                    input_forcings.dScaleParamDirs
+                    input_forcings.paramDir
                     + "/PRISM_Precip_Clim_"
                     + ConfigOptions.current_output_date.strftime("%b")
                     + "_NWM_Grid.nc"
                 )
                 denominatorPath = (
-                    input_forcings.dScaleParamDirs
+                    input_forcings.paramDir
                     + "/PRISM_Precip_Clim_"
                     + ConfigOptions.current_output_date.strftime("%b")
                     + "_"

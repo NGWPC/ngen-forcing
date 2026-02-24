@@ -87,7 +87,7 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
     # greater than an expected value. However, since these are custom input NetCDF files,
     # we are foregoing that check.
     current_nldas_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.fcst_input_offsets * 60.0
+        seconds=input_forcings.userCycleOffset * 60.0
     )
 
     # Calculate the current forecast hour within this cycle.
@@ -123,14 +123,14 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/NLDAS_FORA0125_H.A"
         + input_forcings.fcst_date1.strftime("%Y%m%d.%H%M")
         + ".002"
         + input_forcings.file_ext
     )
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/NLDAS_FORA0125_H.A"
         + input_forcings.fcst_date1.strftime("%Y%m%d.%H%M")
         + ".002"
@@ -213,7 +213,7 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input Custom file: "
                     + input_forcings.file_in2
@@ -255,27 +255,27 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
         # Calculate expected file paths.
         if d_current.year > 2019:
             tmp_file1 = (
-                input_forcings.input_force_dirs
+                input_forcings.inDir
                 + "/AORC-OWP_"
                 + d_current.strftime("%Y%m%d%H")
                 + input_forcings.file_ext
             )
             tmp_file2 = (
-                input_forcings.input_force_dirs
+                input_forcings.inDir
                 + "/AORC-OWP_"
                 + d_current.strftime("%Y%m%d%H")
                 + input_forcings.file_ext
             )
         else:
             tmp_file1 = (
-                input_forcings.input_force_dirs
+                input_forcings.inDir
                 + "/AORC-OWP_"
                 + d_current.strftime("%Y%m%d%H")
                 + "z"
                 + input_forcings.file_ext
             )
             tmp_file2 = (
-                input_forcings.input_force_dirs
+                input_forcings.inDir
                 + "/AORC-OWP_"
                 + d_current.strftime("%Y%m%d%H")
                 + "z"
@@ -284,13 +284,13 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     if input_forcings.product_name == "AORC_Alaska":
         # Calculate expected file paths.
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/AK_AORC-OWP_"
             + d_current.strftime("%Y%m%d%H")
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/AK_AORC-OWP_"
             + d_current.strftime("%Y%m%d%H")
             + input_forcings.file_ext
@@ -373,7 +373,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     if config_options.input_forcings[0] not in [12, 21]:
         if mpi_config.rank == 0:
             if not os.path.isfile(input_forcings.file_in2):
-                if input_forcings.input_force_mandatory == 1:
+                if input_forcings.enforce == 1:
                     config_options.errMsg = (
                         "Expected input AORC file: "
                         + input_forcings.file_in2
@@ -412,12 +412,8 @@ def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
     :return:
     """
     # Point to ERA5 netcdf input file
-    tmp_file1 = os.path.join(
-        input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0]
-    )
-    tmp_file2 = os.path.join(
-        input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0]
-    )
+    tmp_file1 = os.path.join(input_forcings.inDir, os.listdir(input_forcings.inDir)[0])
+    tmp_file2 = os.path.join(input_forcings.inDir, os.listdir(input_forcings.inDir)[0])
 
     if mpi_config.rank == 0:
         # Check to see if files are already set. If not, then reset, grids and
@@ -495,7 +491,7 @@ def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input ERA5 Interim file: "
                     + input_forcings.file_in2
@@ -543,13 +539,13 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
         # Calculate expected file paths.
 
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/"
             + d_current.strftime("%Y%m%d%H")
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/"
             + d_current.strftime("%Y%m%d%H")
             + input_forcings.file_ext
@@ -558,13 +554,13 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
         # Calculate expected file paths.
 
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/"
             + d_current.strftime("%Y%m%d%H%M")
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/"
             + d_current.strftime("%Y%m%d%H%M")
             + input_forcings.file_ext
@@ -646,7 +642,7 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input NWM file: "
                     + input_forcings.file_in2
@@ -695,7 +691,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     # First find the current ExtAnA forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_ext_ana_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
+        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
     )
 
     ext_ana_horizon = 32
@@ -703,7 +699,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
     ) / 60.0 > ext_ana_horizon:
         config_options.errMsg = (
             "User has specified a ExtAnA conus forecast horizon "
@@ -751,7 +747,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/"
         + prev_ext_ana_date.strftime("%Y%m%d%H")
         + "/"
@@ -838,7 +834,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.exists(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input ExtAnA file: "
                     + input_forcings.file_in2
@@ -896,7 +892,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     # First find the current HRRR forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_hrrr_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
+        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
     )
     if current_hrrr_cycle.hour % 6 != 0:
         hrrr_horizon = default_horizon
@@ -906,7 +902,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
     ) / 60.0 > hrrr_horizon:
         config_options.errMsg = (
             "User has specified a HRRR conus forecast horizon "
@@ -950,7 +946,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
         + "/hrrr.t"
@@ -964,7 +960,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
         err_handler.log_msg(config_options, mpi_config)
 
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
         + "/hrrr.t"
@@ -979,7 +975,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     if os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False:
         # Calculate expected file paths.
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/hrrr."
             + current_hrrr_cycle.strftime("%Y%m%d")
             + "/hrrr.t"
@@ -993,7 +989,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
             err_handler.log_msg(config_options, mpi_config)
 
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/hrrr."
             + current_hrrr_cycle.strftime("%Y%m%d")
             + "/hrrr.t"
@@ -1079,7 +1075,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.exists(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input HRRR file: "
                     + input_forcings.file_in2
@@ -1293,7 +1289,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
     else:
         current_hrrr_cycle = (
             config_options.current_fcst_cycle
-        )  # - datetime.timedelta(seconds=input_forcings.fcst_input_offsets * 60.0)
+        )  # - datetime.timedelta(seconds=input_forcings.userCycleOffset * 60.0)
 
         # Map the native forecast hour to the shifted HRRR cycles
         hrrr_cycle = (current_hrrr_cycle.hour // 3 * 3) - 3
@@ -1357,7 +1353,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
         + "/alaska/hrrr.t"
@@ -1372,7 +1368,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
         err_handler.log_msg(config_options, mpi_config)
 
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
         + "/alaska/hrrr.t"
@@ -1456,7 +1452,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.exists(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input HRRR file: "
                     + input_forcings.file_in2
@@ -1506,7 +1502,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     # First find the current RAP forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_rap_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
+        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
     )
     if (
         current_rap_cycle.hour == 3
@@ -1521,7 +1517,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
     ) / 60.0 > rap_horizon:
         config_options.errMsg = (
             "User has specified a RAP CONUS 13km forecast horizon "
@@ -1562,7 +1558,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/rap."
         + current_rap_cycle.strftime("%Y%m%d")
         + "/rap.t"
@@ -1572,7 +1568,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
         + input_forcings.file_ext
     )
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/rap."
         + current_rap_cycle.strftime("%Y%m%d")
         + "/rap.t"
@@ -1587,7 +1583,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     if os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False:
         # Calculate expected file paths.
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/rap."
             + current_rap_cycle.strftime("%Y%m%d")
             + "/rap.t"
@@ -1597,7 +1593,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/rap."
             + current_rap_cycle.strftime("%Y%m%d")
             + "/rap.t"
@@ -1612,7 +1608,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     if os.path.isfile(tmp_file1) == False and os.path.isfile(tmp_file2) == False:
         # Calculate expected file paths.
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/rap."
             + current_rap_cycle.strftime("%Y%m%d")
             + "/rap.t"
@@ -1622,7 +1618,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/rap."
             + current_rap_cycle.strftime("%Y%m%d")
             + "/rap.t"
@@ -1706,7 +1702,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
         if mpi_config.rank == 0:
             if not os.path.isfile(input_forcings.file_in2):
                 missing = input_forcings.file_in2.replace("pgrb", "[bgrb|pgrb]")
-                if input_forcings.input_force_mandatory == 1:
+                if input_forcings.enforce == 1:
                     config_options.errMsg = (
                         "Expected input RAP file: " + missing + " not found."
                     )
@@ -1756,9 +1752,9 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     gfs_precip_delineators = {120: [360, 60], 240: [360, 180], 384: [360, 180]}
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
-    ) / 60.0 > max(gfs_out_horizons):
+    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
+        gfs_out_horizons
+    ):
         config_options.errMsg = (
             "User has specified a GFS forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -1777,7 +1773,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # First find the current GFS forecast cycle that we are using.
     current_gfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.fcst_input_offsets * 60.0
+        seconds=input_forcings.userCycleOffset * 60.0
     )
 
     # Calculate the current forecast hour within this GFS cycle.
@@ -1823,7 +1819,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Calculate expected file paths.
     if current_gfs_cycle < datetime.datetime(2019, 6, 12, 12):
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/gfs."
             + current_gfs_cycle.strftime("%Y%m%d%H")
             + "/gfs.t"
@@ -1833,7 +1829,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/gfs."
             + current_gfs_cycle.strftime("%Y%m%d%H")
             + "/gfs.t"
@@ -1845,7 +1841,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     else:
         # FV3 change on June 12th, 2019
         tmp_file1 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/gfs."
             + current_gfs_cycle.strftime("%Y%m%d")
             + "/"
@@ -1857,7 +1853,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
             + input_forcings.file_ext
         )
         tmp_file2 = (
-            input_forcings.input_force_dirs
+            input_forcings.inDir
             + "/gfs."
             + current_gfs_cycle.strftime("%Y%m%d")
             + "/"
@@ -2020,7 +2016,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input GFS file: "
                     + input_forcings.file_in2
@@ -2070,9 +2066,9 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
 
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
-    ) / 60.0 > max(nam_nest_out_horizons):
+    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
+        nam_nest_out_horizons
+    ):
         config_options.errMsg = (
             "User has specified a NAM nest forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -2091,7 +2087,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
 
     else:
         current_nam_nest_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-            seconds=input_forcings.fcst_input_offsets * 60.0
+            seconds=input_forcings.userCycleOffset * 60.0
         )
 
     if mpi_config.rank == 0:
@@ -2160,7 +2156,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/nam."
         + current_nam_nest_cycle.strftime("%Y%m%d")
         + "/nam.t"
@@ -2173,7 +2169,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
         + input_forcings.file_ext
     )
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/nam."
         + current_nam_nest_cycle.strftime("%Y%m%d")
         + "/nam.t"
@@ -2262,7 +2258,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input NAM Nest file: "
                     + input_forcings.file_in2
@@ -2310,9 +2306,9 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
-    ) / 60.0 > max(cfs_out_horizons):
+    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
+        cfs_out_horizons
+    ):
         config_options.errMsg = (
             "User has specified a CFSv2 forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -2322,7 +2318,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # First find the current CFS forecast cycle that we are using.
     current_cfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.fcst_input_offsets * 60.0
+        seconds=input_forcings.userCycleOffset * 60.0
     )
 
     # Calculate the current forecast hour within this CFSv2 cycle.
@@ -2366,11 +2362,11 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
         prev_cfs_date = next_cfs_date
 
     # Calculate expected file paths.
-    if input_forcings.input_force_types == "GRIB2":
+    if input_forcings.file_type == "GRIB2":
         input_forcings.file_ext = ".grb2"
 
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/cfs."
         + current_cfs_cycle.strftime("%Y%m%d")
         + "/"
@@ -2387,7 +2383,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
         + input_forcings.file_ext
     )
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/cfs."
         + current_cfs_cycle.strftime("%Y%m%d")
         + "/"
@@ -2484,7 +2480,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input CFSv2 file: "
                     + input_forcings.file_in2
@@ -2526,7 +2522,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
     # greater than an expected value. However, since these are custom input NetCDF files,
     # we are foregoing that check.
     current_custom_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.fcst_input_offsets * 60.0
+        seconds=input_forcings.userCycleOffset * 60.0
     )
 
     # Calculate the current forecast hour within this cycle.
@@ -2567,7 +2563,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/custom_hourly."
         + current_custom_cycle.strftime("%Y%m%d%H")
         + ".f"
@@ -2575,7 +2571,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
         + ".nc"
     )
     tmp_file2 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/custom_hourly."
         + current_custom_cycle.strftime("%Y%m%d%H")
         + ".f"
@@ -2657,7 +2653,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
         # Ensure we have the necessary new file
         if mpi_config.rank == 0:
             if not os.path.isfile(input_forcings.file_in2):
-                if input_forcings.input_force_mandatory == 1:
+                if input_forcings.enforce == 1:
                     config_options.errMsg = (
                         "Expected input Custom file: "
                         + input_forcings.file_in2
@@ -3260,7 +3256,7 @@ def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_conf
 
     # Calculate expected file paths.
     tmp_file1 = (
-        input_forcings.input_force_dirs
+        input_forcings.inDir
         + "/SBC_LWF/"
         + input_forcings.fcst_date1.strftime("%Y%m")
         + "/"
@@ -3343,7 +3339,7 @@ def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_conf
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input SBCV2_LWF file: "
                     + input_forcings.file_in2
@@ -4361,7 +4357,7 @@ def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
     input_forcings.fcst_hour2 = current_fcst.total_seconds() / 3600
 
     tmp_file1 = os.path.join(
-        input_forcings.input_force_dirs,
+        input_forcings.inDir,
         "NDFD",
         current_cycle.strftime("%Y%m%d"),
         "wgrbbul",
@@ -4451,7 +4447,7 @@ def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
             for tag in ("tmp", "wdir", "wspd", "qpf")
         ]:
             if not os.path.isfile(subfile):
-                if input_forcings.input_force_mandatory == 1:
+                if input_forcings.enforce == 1:
                     config_options.errMsg = (
                         f"Expected input NDFD file: {subfile} not found."
                     )
@@ -4636,7 +4632,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # ana_offset = 0
 
     current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0 * 60
+        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0 * 60
     )
 
     input_horizon = input_forcings.forecast_horizons[current_input_cycle.hour]
@@ -4646,7 +4642,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     if not config_options.ana_flag:
         if (
-            input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+            input_forcings.userFcstHorizon + input_forcings.userCycleOffset
         ) / 60.0 > input_horizon:
             config_options.errMsg = f"Config file ForecastInputHorizons exceeds maximum allowed hours of: {str(input_horizon)}"
             err_handler.log_critical(config_options, mpi_config)
@@ -4711,8 +4707,8 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
         input_forcings.fcst_hour1 = input_forcings.fcst_hour1 - 1
     if config_options.ana_flag == 0:
         # Calculate expected file paths.
-        pattern1 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
-        pattern2 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
+        pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
+        pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
 
         files1 = glob.glob(pattern1) + glob.glob(pattern2)
         tmp_file1 = files1[0]
@@ -4720,8 +4716,8 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
             config_options.statusMsg = "Previous input file being used: " + tmp_file1
             err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
 
-        pattern1 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
-        pattern2 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
+        pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
+        pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(next_input_forecast_hour).zfill(2)}.grib2"
 
         files2 = glob.glob(pattern1) + glob.glob(pattern2)
 
@@ -4733,8 +4729,8 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     elif config_options.ana_flag == 1:
         # Calculate expected file paths.
-        pattern1 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
-        pattern2 = f"{input_forcings.input_force_dirs}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
+        pattern1 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
+        pattern2 = f"{input_forcings.inDir}/*.{current_input_cycle.strftime('%Y%m%d')}/conus/*{current_input_cycle.strftime('%H')}z*{str(prev_input_forecast_hour).zfill(2)}.grib2"
 
         files1 = glob.glob(pattern1) + glob.glob(pattern2)
 
@@ -4857,7 +4853,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.exists(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
+            if input_forcings.enforce == 1:
                 config_options.errMsg = (
                     "Expected input file: " + input_forcings.file_in2 + " not found."
                 )
