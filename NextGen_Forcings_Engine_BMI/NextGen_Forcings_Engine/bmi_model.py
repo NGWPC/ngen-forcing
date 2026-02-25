@@ -125,7 +125,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         self.cfg_bmi = None
         self._job_meta = None
         self._mpi_meta = None
-        self._wrf_hydro_geo_meta = None
+        self.geo_meta = None
         self._grid_type = None
         self._grids = None
         self._grid_map = None
@@ -211,12 +211,12 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         with bmi_cfg_file.open("r") as fp:
             cfg = yaml.safe_load(fp)
 
-        self.cfg_bmi = self._parse_config(cfg)
+        self.cfg_bmi = parse_config(cfg)
 
         # If _job_meta was not set by initialize_with_params(), create a default one
         if self._job_meta is None:
             self._job_meta = ConfigOptions(self.cfg_bmi)
-
+        
         # Parse the configuration options
         try:
             self._job_meta.validate_config(self.cfg_bmi)
@@ -240,6 +240,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Initialize MPI communication
         self._mpi_meta = MpiConfig()
+
+        self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
             self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
@@ -258,7 +261,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Assign grid type to BMI class for grid information
         self._grid_type = self._job_meta.grid_type.lower()
-        self._wrf_hydro_geo_meta.set_var_names(self)
+        self.set_var_names(self)
 
         # ----- Create some lookup tabels from the long variable names --------#
         self._var_name_map_long_first = {
@@ -277,8 +280,8 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
         if (
-            self._wrf_hydro_geo_meta.nx_local < 2
-            or self._wrf_hydro_geo_meta.ny_local < 2
+            self.geo_meta.nx_local < 2
+            or self.geo_meta.ny_local < 2
         ):
             self._job_meta.errMsg = (
                 "You have specified too many cores for your WRF-Hydro grid. "
@@ -289,7 +292,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Initialize our output object, which includes local slabs from the output grid.
         try:
-            self._output_obj = ioMod.OutputObj(self._job_meta, self._wrf_hydro_geo_meta)
+            self._output_obj = ioMod.OutputObj(self._job_meta, self.geo_meta)
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -301,7 +304,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # downscaling and regridding purposes.
         try:
             self._input_forcing_mod = forcingInputMod.init_dict(
-                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
+                self._job_meta, self.geo_meta, self._mpi_meta
             )
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
@@ -311,7 +314,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # the supp class.
         if self._job_meta.number_supp_pcp > 0:
             self._supp_pcp_mod = suppPrecipMod.initDict(
-                self._job_meta, self._wrf_hydro_geo_meta
+                self._job_meta, self.geo_meta
             )
         else:
             self._supp_pcp_mod = None
@@ -335,7 +338,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
-            self._values["CAT-ID"] = self._wrf_hydro_geo_meta.element_ids_global
+            self._values["CAT-ID"] = self.geo_meta.element_ids_global
 
         self._configure_output_path(output_path)
 
@@ -407,7 +410,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 )
 
             self._output_obj.init_forcing_file(
-                self._job_meta, self._wrf_hydro_geo_meta, self._mpi_meta
+                self._job_meta, self.geo_meta, self._mpi_meta
             )
             self._output_configured = True
 
@@ -451,7 +454,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                 self._values,
                 future_time,
                 self._job_meta,
-                self._wrf_hydro_geo_meta,
+                self.geo_meta,
                 self._input_forcing_mod,
                 self._supp_pcp_mod,
                 self._mpi_meta,
@@ -468,7 +471,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
                     self._values,
                     self._values["current_model_time"],
                     self._job_meta,
-                    self._wrf_hydro_geo_meta,
+                    self.geo_meta,
                     self._input_forcing_mod,
                     self._supp_pcp_mod,
                     self._mpi_meta,
@@ -488,7 +491,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         """
         # Force destruction of ESMF objects
-        self._wrf_hydro_geo_meta = None
+        self.geo_meta = None
         self._input_forcing_mod = None
         self._supp_pcp_mod = None
         self._model = None
@@ -1570,34 +1573,18 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         """
         super().__init__()
 
-        if self._job_meta.grid_type != "gridded":
-            self._job_meta.errMsg = (
-                f"Invalid grid type specified: {self._job_meta.grid_type}."
-            )
-        self._wrf_hydro_geo_meta = GriddedGeoMeta(self._job_meta, self._mpi_meta)
-        err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
-
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid ranks for the gridded domain.
-
-        From bmi_model.py.
-        """
+        """Get the grid ranks for the gridded domain."""
         return [bmi_model.grid_4.rank]
 
     def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid IDs for the gridded domain.
-
-        From bmi_model.py.
-        """
+        """Get the grid IDs for the gridded domain."""
         return [bmi_model.grid_1.id]
 
     def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
-        """Get the size of the flattened 2D arrays from the gridded domain.
-
-        From bmi_model.py.
-        """
+        """Get the size of the flattened 2D arrays from the gridded domain."""
         bmi_model._varsize = len(
-            np.zeros(bmi_model._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
         )
 
         for model_output in bmi_model.get_output_var_names():
@@ -1605,8 +1592,6 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
 
     def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
         """Set the variable names for the BMI model based on the geospatial metadata.
-
-        From bmi_model.py.
 
         Create a Python dictionary that maps CSDMS Standard
         Names to the model's internal variable names.
@@ -1629,17 +1614,17 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         bmi_model.grid_1 = Grid(
             1, 2, GridType.uniform_rectilinear
         )  # Grid 1 is a 2-dimensional grid
-        bmi_model.grid_1._grid_y = bmi_model._wrf_hydro_geo_meta.latitude_grid.flatten()
+        bmi_model.grid_1._grid_y = bmi_model.geo_meta.latitude_grid.flatten()
         bmi_model.grid_1._grid_x = (
-            bmi_model._wrf_hydro_geo_meta.longitude_grid.flatten()
+            bmi_model.geo_meta.longitude_grid.flatten()
         )
-        bmi_model.grid_1._shape = bmi_model._wrf_hydro_geo_meta.latitude_grid.shape
+        bmi_model.grid_1._shape = bmi_model.geo_meta.latitude_grid.shape
         bmi_model.grid_1._size = len(
-            bmi_model._wrf_hydro_geo_meta.latitude_grid.flatten()
+            bmi_model.geo_meta.latitude_grid.flatten()
         )
         bmi_model.grid_1._spacing = (
-            bmi_model._wrf_hydro_geo_meta.dx_meters,
-            bmi_model._wrf_hydro_geo_meta.dy_meters,
+            bmi_model.geo_meta.dx_meters,
+            bmi_model.geo_meta.dy_meters,
         )
         bmi_model.grid_1._units = "m"
         bmi_model.grid_1._origin = None
@@ -1665,42 +1650,24 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         """
         super().__init__()
 
-        if self._job_meta.grid_type != "hydrofabric":
-            self._job_meta.errMsg = (
-                f"Invalid grid type specified: {self._job_meta.grid_type}."
-            )
-            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
-        self._wrf_hydro_geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
-
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid ranks for the hydrofabric domain.
-
-        From bmi_model.py.
-        """
+        """Get the grid ranks for the hydrofabric domain."""
         return [bmi_model.grid_4.rank]
 
     def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid IDs for the hydrofabric domain.
-
-        From bmi_model.py.
-        """
+        """Get the grid IDs for the hydrofabric domain."""
         return [bmi_model.grid_4.id]
 
     def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
-        """Get the size of the flattened 1D arrays from the hydrofabric domain.
-
-        From bmi_model.py.
-        """
+        """Get the size of the flattened 1D arrays from the hydrofabric domain."""
         bmi_model._varsize = len(
-            np.zeros(bmi_model._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
         )
         for model_output in bmi_model.get_output_var_names():
             bmi_model._values[model_output] = np.zeros(bmi_model._varsize, dtype=float)
 
     def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
         """Set the variables for the hydrofabric geospatial metadata.
-
-        From bmi_model.py.
 
         Create a Python dictionary that maps CSDMS Standard
         Names to the model's internal variable names.
@@ -1730,9 +1697,9 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
             4, 2, GridType.unstructured
         )  # Grid 1 is a 2-dimensional grid
 
-        bmi_model.grid_4._grid_y = bmi_model._wrf_hydro_geo_meta.latitude_grid
-        bmi_model.grid_4._grid_x = bmi_model._wrf_hydro_geo_meta.longitude_grid
-        bmi_model.grid_4._size = len(bmi_model._wrf_hydro_geo_meta.latitude_grid)
+        bmi_model.grid_4._grid_y = bmi_model.geo_meta.latitude_grid
+        bmi_model.grid_4._grid_x = bmi_model.geo_meta.longitude_grid
+        bmi_model.grid_4._size = len(bmi_model.geo_meta.latitude_grid)
         bmi_model._grids = [bmi_model.grid_4]
         bmi_model._grid_map = {
             var_name: bmi_model.grid_4 for var_name in bmi_model._output_var_names
@@ -1754,18 +1721,8 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         """
         super().__init__()
 
-        if self._job_meta.grid_type != "unstructured":
-            self._job_meta.errMsg = (
-                f"Invalid grid type specified: {self._job_meta.grid_type}."
-            )
-            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
-        self._wrf_hydro_geo_meta = UnstructuredGeoMeta(self._job_meta, self._mpi_meta)
-
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid ranks for the unstructured domain.
-
-        From bmi_model.py.
-        """
+        """Get the grid ranks for the unstructured domain."""
         return [bmi_model.grid_2.rank, bmi_model.grid_3.rank]
 
     def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
@@ -1776,15 +1733,12 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         return [bmi_model.grid_2.id, bmi_model.grid_3.id]
 
     def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
-        """Get the size of the flattened 1D arrays for the unstructured domain.
-
-        From bmi_model.py.
-        """
+        """Get the size of the flattened 1D arrays for the unstructured domain."""
         bmi_model._varsize = len(
-            np.zeros(bmi_model._wrf_hydro_geo_meta.latitude_grid.shape).flatten()
+            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
         )
         bmi_model._varsize_elem = len(
-            np.zeros(bmi_model._wrf_hydro_geo_meta.latitude_grid_elem.shape).flatten()
+            np.zeros(bmi_model.geo_meta.latitude_grid_elem.shape).flatten()
         )
 
         for model_output in bmi_model.get_output_var_names():
@@ -1799,8 +1753,6 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
 
     def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
         """Set the variable names for the unstructured domain.
-
-        From bmi_model.py.
 
         Create a Python dictionary that maps CSDMS Standard
         Names to the model's internal variable names.
@@ -1857,12 +1809,18 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
             3, 2, GridType.unstructured
         )  # Grid 1 is a 2-dimensional grid
 
-        bmi_model.grid_2._grid_y = self._wrf_hydro_geo_meta.latitude_grid_elem
-        bmi_model.grid_2._grid_x = self._wrf_hydro_geo_meta.longitude_grid_elem
+        bmi_model.grid_2._grid_y = self.geo_meta.latitude_grid_elem
+        bmi_model.grid_2._grid_x = self.geo_meta.longitude_grid_elem
 
-        bmi_model.grid_3._grid_y = self._wrf_hydro_geo_meta.latitude_grid
-        bmi_model.grid_3._grid_x = self._wrf_hydro_geo_meta.longitude_grid
+        bmi_model.grid_3._grid_y = self.geo_meta.latitude_grid
+        bmi_model.grid_3._grid_x = self.geo_meta.longitude_grid
 
-        bmi_model.grid_2._size = len(self._wrf_hydro_geo_meta.latitude_grid_elem)
-        bmi_model.grid_3._size = len(self._wrf_hydro_geo_meta.latitude_grid)
+        bmi_model.grid_2._size = len(self.geo_meta.latitude_grid_elem)
+        bmi_model.grid_3._size = len(self.geo_meta.latitude_grid)
         bmi_model._grids = [bmi_model.grid_2, bmi_model.grid_3]
+
+BMIMODEL = {
+    "gridded": NWMv3_Forcing_Engine_BMI_model_Gridded,
+    "unstructured": NWMv3_Forcing_Engine_BMI_model_Unstructured,
+    "hydrofabric": NWMv3_Forcing_Engine_BMI_model_HydroFabric,
+}
