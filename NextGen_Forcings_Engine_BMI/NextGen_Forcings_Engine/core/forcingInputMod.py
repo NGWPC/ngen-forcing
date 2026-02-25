@@ -31,9 +31,9 @@ CONSTS = CONSTS[Path(__file__).stem]
 
 
 class InputForcings:
-    """Abstract class defining parameters of a single input forcing product.
+    """Class defining parameters of a single input forcing product.
 
-    This is an abstract class that will define all the parameters
+    This is a class that will define all the parameters
     of a single input forcing product.
     """
 
@@ -56,7 +56,7 @@ class InputForcings:
         self._keyValue = force_key
         self.idx = idx
 
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in CONSTS[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
         self.find_neighbor_files_map = CONSTS["FIND_NEIGHBOR_FILES_MAP"]
@@ -65,13 +65,13 @@ class InputForcings:
 
         self.initialize_config_options()
         if self.q2dDownscaleOpt > 0:
-            self.geo_meta.handle_humidity_downscaling()
+            self.handle_humidity_downscaling()
 
         if self.force_count == 8 and 8 in self.input_map_output:
             # TODO: this assumes that LQFRAC (8) is always the last grib var
             self.grib_vars = self.grib_vars[:-1]
 
-        self.geo_meta.initialize_geo_data(self)
+        self.initialize_geo_data(self)
 
         # Obtain custom input cycle frequencies
         if self.keyValue == 10 or self.keyValue == 11:
