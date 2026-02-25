@@ -1459,100 +1459,100 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
     # ------------------------------------------------------------
 
-    def _parse_config(self, cfg: dict) -> dict:
-        """Parse the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
+def parse_config(cfg: dict) -> dict:
+    """Parse the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
 
-        This function processes specific keys in the configuration dictionary:
-        - Converts path-like strings to `PosixPath` objects.
-        - Converts date strings to `pandas` datetime objects.
-        - Configures lists of integers or strings for specific variables in the configuration.
+    This function processes specific keys in the configuration dictionary:
+    - Converts path-like strings to `PosixPath` objects.
+    - Converts date strings to `pandas` datetime objects.
+    - Configures lists of integers or strings for specific variables in the configuration.
 
-        The function updates the `cfg` dictionary directly, modifying values as needed to match expected formats and types.
+    The function updates the `cfg` dictionary directly, modifying values as needed to match expected formats and types.
 
-        :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
-        :return: The updated configuration dictionary with appropriately parsed values.
-        """
-        # LOG.debug(f"Entering _parse_config with cfg type: {type(cfg)}")
-        if isinstance(cfg, str):
-            LOG.error(
-                f"Received string data (raw CSV) instead of dictionary: {cfg[:200]}..."
-            )
-            raise TypeError(
-                "Expected dictionary in _parse_config, but got a raw CSV string."
-            )
+    :param cfg: A dictionary containing the configuration settings. The dictionary may include paths, dates, and lists of values.
+    :return: The updated configuration dictionary with appropriately parsed values.
+    """
+    # LOG.debug(f"Entering _parse_config with cfg type: {type(cfg)}")
+    if isinstance(cfg, str):
+        LOG.error(
+            f"Received string data (raw CSV) instead of dictionary: {cfg[:200]}..."
+        )
+        raise TypeError(
+            "Expected dictionary in _parse_config, but got a raw CSV string."
+        )
 
-        # if not isinstance(cfg, dict):
-        #     raise TypeError(f"[ERROR] Expected dictionary in _parse_config, got {type(cfg)} with contents: {cfg}")
+    # if not isinstance(cfg, dict):
+    #     raise TypeError(f"[ERROR] Expected dictionary in _parse_config, got {type(cfg)} with contents: {cfg}")
 
-        for key, val in cfg.items():
-            # LOG.debug(f"Processing key: {key}, value type: {type(val)}, value: {val}")
-            # Convert all path strings to PosixPath objects
-            if any([key.endswith(x) for x in ["_dir", "_path", "_file", "_files"]]):
-                if (val is not None) and (val != "None"):
-                    if isinstance(val, list):
-                        temp_list = []
-                        for element in val:
-                            temp_list.append(Path(element))
-                        cfg[key] = temp_list
-                    else:
-                        cfg[key] = Path(val)
-                else:
-                    cfg[key] = None
-
-            # Convert Dates to pandas Datetime indices
-            elif key.endswith("_date"):
+    for key, val in cfg.items():
+        # LOG.debug(f"Processing key: {key}, value type: {type(val)}, value: {val}")
+        # Convert all path strings to PosixPath objects
+        if any([key.endswith(x) for x in ["_dir", "_path", "_file", "_files"]]):
+            if (val is not None) and (val != "None"):
                 if isinstance(val, list):
                     temp_list = []
-                    for elem in val:
-                        temp_list.append(pd.to_datetime(elem, format="%d/%m/%Y"))
+                    for element in val:
+                        temp_list.append(Path(element))
                     cfg[key] = temp_list
                 else:
-                    cfg[key] = pd.to_datetime(val, format="%d/%m/%Y")
-
-            # Configure NWMv3.0 input configurations to what the ConfigClass expects
-            # Flag for variables that need a list of integers
-            elif key in [
-                "InputForcings",
-                "InputMandatory",
-                "ForecastInputHorizons",
-                "ForecastInputOffsets",
-                "IgnoredBorderWidths",
-                "RegridOpt",
-                "TemperatureDownscaling",
-                "ShortwaveDownscaling",
-                "PressureDownscaling",
-                "PrecipDownscaling",
-                "HumidityDownscaling",
-                "TemperatureBiasCorrection",
-                "PressureBiasCorrection",
-                "HumidityBiasCorrection",
-                "WindBiasCorrection",
-                "SwBiasCorrection",
-                "LwBiasCorrection",
-                "PrecipBiasCorrection",
-                "SuppPcp",
-                "RegridOptSuppPcp",
-                "SuppPcpTemporalInterpolation",
-                "SuppPcpMandatory",
-                "SuppPcpInputOffsets",
-                "custom_input_fcst_freq",
-            ]:
-                cfg[key] = val
-
-            # Flag for variables that need to be a list of strings
-            elif key in [
-                "InputForcingDirectories",
-                "InputForcingTypes",
-                "DownscalingParamDirs",
-                "SuppPcpForcingTypes",
-                "SuppPcpDirectories",
-            ]:
-                cfg[key] = val
+                    cfg[key] = Path(val)
             else:
-                pass
+                cfg[key] = None
 
-        # Add more config parsing if necessary
-        return cfg
+        # Convert Dates to pandas Datetime indices
+        elif key.endswith("_date"):
+            if isinstance(val, list):
+                temp_list = []
+                for elem in val:
+                    temp_list.append(pd.to_datetime(elem, format="%d/%m/%Y"))
+                cfg[key] = temp_list
+            else:
+                cfg[key] = pd.to_datetime(val, format="%d/%m/%Y")
+
+        # Configure NWMv3.0 input configurations to what the ConfigClass expects
+        # Flag for variables that need a list of integers
+        elif key in [
+            "InputForcings",
+            "InputMandatory",
+            "ForecastInputHorizons",
+            "ForecastInputOffsets",
+            "IgnoredBorderWidths",
+            "RegridOpt",
+            "TemperatureDownscaling",
+            "ShortwaveDownscaling",
+            "PressureDownscaling",
+            "PrecipDownscaling",
+            "HumidityDownscaling",
+            "TemperatureBiasCorrection",
+            "PressureBiasCorrection",
+            "HumidityBiasCorrection",
+            "WindBiasCorrection",
+            "SwBiasCorrection",
+            "LwBiasCorrection",
+            "PrecipBiasCorrection",
+            "SuppPcp",
+            "RegridOptSuppPcp",
+            "SuppPcpTemporalInterpolation",
+            "SuppPcpMandatory",
+            "SuppPcpInputOffsets",
+            "custom_input_fcst_freq",
+        ]:
+            cfg[key] = val
+
+        # Flag for variables that need to be a list of strings
+        elif key in [
+            "InputForcingDirectories",
+            "InputForcingTypes",
+            "DownscalingParamDirs",
+            "SuppPcpForcingTypes",
+            "SuppPcpDirectories",
+        ]:
+            cfg[key] = val
+        else:
+            pass
+
+    # Add more config parsing if necessary
+    return cfg
 
 
 class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
