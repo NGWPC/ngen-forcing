@@ -66,6 +66,13 @@ CONSTS = {
             "slope_elem",
             "slp_azi_elem",
         ],
+    },
+    "bmi_model": {
+        "extension_map": {
+            "gridded": "GRIDDED",
+            "hydrofabric": "HYDROFABRIC",
+            "unstructured": "MESH",
+        },
         "_output_var_names": [
             "U2D_ELEMENT",
             "V2D_ELEMENT",
@@ -119,13 +126,6 @@ CONSTS = {
             "PSFC_NODE": ["Surface Pressure", "Pa"],
             "RAINRATE_NODE": ["Surface Precipitation Rate", "mm/s"],
         },
-    },
-    "bmi_model": {
-        "extension_map": {
-            "gridded": "GRIDDED",
-            "hydrofabric": "HYDROFABRIC",
-            "unstructured": "MESH",
-        }
     },
     "forcingInputMod": {
         "InputForcings": [
