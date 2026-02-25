@@ -1,5 +1,7 @@
 """Regridding module file for regridding input forcing files."""
 
+from __future__ import annotations
+
 import hashlib
 import os
 import sys
@@ -9,7 +11,7 @@ from datetime import datetime, timedelta
 from functools import partial
 from pathlib import Path
 from time import monotonic, time
-
+from typing import TYPE_CHECKING
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
@@ -39,13 +41,14 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     ioMod,
     timeInterpMod,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
-    ConfigOptions,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMeta,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+        GeoMeta,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
 
 from ..esmf_utils import (
@@ -12082,7 +12085,7 @@ def make_regrid(
 
     extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[
-        input_forcings.regridOpt - 1
+        input_forcings.regrid_opt - 1
     ]
 
     err_handler.check_program_status(config_options, mpi_config)
@@ -12279,7 +12282,7 @@ def calculate_weights(
     err_handler.check_program_status(config_options, mpi_config)
 
     # check if we're doing border trimming and set up mask
-    border = input_forcings.border  # // 5  # HRRR is a 3 km product
+    border = input_forcings.ignored_border_widths  # // 5  # HRRR is a 3 km product
     if border > 0:
         try:
             mask = input_forcings.esmf_grid_in.add_item(
