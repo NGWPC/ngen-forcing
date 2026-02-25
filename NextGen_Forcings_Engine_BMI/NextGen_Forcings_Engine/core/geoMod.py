@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import math
 from pathlib import Path
-from typing import TYPE_CHECKING
+
 
 import numpy as np
 
@@ -10,10 +10,6 @@ import numpy as np
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
 import shapely
 from scipy import spatial
-
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-    InputForcings,
-)
 
 try:
     import esmpy as ESMF
@@ -32,11 +28,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
-
-if TYPE_CHECKING:
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-        InputForcings,
-    )
 
 LOG = logging.getLogger(MODULE_NAME)
 CONSTS = CONSTS[Path(__file__).stem]
@@ -1469,3 +1460,4 @@ class UnstructuredGeoMeta(GeoMeta):
     def ny_local_elem(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
+
