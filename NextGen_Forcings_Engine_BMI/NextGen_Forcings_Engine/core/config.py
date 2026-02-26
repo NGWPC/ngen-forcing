@@ -4,6 +4,7 @@ import logging
 import os
 import re
 from datetime import datetime, timedelta, timezone
+import typing
 
 import numpy as np
 
@@ -12,6 +13,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling import (
     calculate_lookback_window,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
+    setter_hardener,
 )
 from nextgen_forcings_ewts import MODULE_NAME
 
@@ -57,7 +61,9 @@ class ConfigOptions:
         self.realtime_flag = None
         self.refcst_flag = None
         self.ana_flag = None
-        self.b_date_proc = b_date
+        self.b_date_proc: datetime | None = (
+            None if b_date is None else datetime.strptime(b_date, "%Y%m%d%H%M")
+        )
         self.e_date_proc = None
         self.first_fcst_cycle = None
         self.current_fcst_cycle = None
@@ -145,18 +151,138 @@ class ConfigOptions:
         self.geogrid = geogrid_arg
         self.geopackage = None
 
+    ### BEGIN hardened properties
+    # b_date_proc
+    @property
+    def b_date_proc(self):
+        return self._b_date_proc
+
+    @b_date_proc.setter
+    @setter_hardener
+    def b_date_proc(self, val: datetime | None):
+        if (val is not None) and (not isinstance(val, datetime)):
+            raise TypeError(
+                f"Expected type datetime or None for b_date_proc, but new val has type: {type(val)}"
+            )
+        self._b_date_proc = val
+
+    # fcst_freq
+    @property
+    def fcst_freq(self):
+        return self._fcst_freq
+
+    @fcst_freq.setter
+    @setter_hardener
+    def fcst_freq(self, val: typing.Any):
+        self._fcst_freq = val
+
+    # fcst_input_horizons
+    @property
+    def fcst_input_horizons(self):
+        return self._fcst_input_horizons
+
+    @fcst_input_horizons.setter
+    @setter_hardener
+    def fcst_input_horizons(self, val: typing.Any):
+        self._fcst_input_horizons = val
+
+    # aorc_conus_source
+    @property
+    def aorc_conus_source(self):
+        return self._aorc_conus_source
+
+    @aorc_conus_source.setter
+    @setter_hardener
+    def aorc_conus_source(self, val: typing.Any):
+        self._aorc_conus_source = val
+
+    # aorc_conus_year_url
+    @property
+    def aorc_conus_year_url(self):
+        return self._aorc_conus_year_url
+
+    @aorc_conus_year_url.setter
+    @setter_hardener
+    def aorc_conus_year_url(self, val: typing.Any):
+        self._aorc_conus_year_url = val
+
+    # aorc_alaska_source
+    @property
+    def aorc_alaska_source(self):
+        return self._aorc_alaska_source
+
+    @aorc_alaska_source.setter
+    @setter_hardener
+    def aorc_alaska_source(self, val: typing.Any):
+        self._aorc_alaska_source = val
+
+    # aorc_alaska_url
+    @property
+    def aorc_alaska_url(self):
+        return self._aorc_alaska_url
+
+    @aorc_alaska_url.setter
+    @setter_hardener
+    def aorc_alaska_url(self, val: typing.Any):
+        self._aorc_alaska_url = val
+
+    # nwm_source
+    @property
+    def nwm_source(self):
+        return self._nwm_source
+
+    @nwm_source.setter
+    @setter_hardener
+    def nwm_source(self, val: typing.Any):
+        self._nwm_source = val
+
+    # nwm_geogrid
+    @property
+    def nwm_geogrid(self):
+        return self._nwm_geogrid
+
+    @nwm_geogrid.setter
+    @setter_hardener
+    def nwm_geogrid(self, val: typing.Any):
+        self._nwm_geogrid = val
+
+    # geogrid
+    @property
+    def geogrid(self):
+        return self._geogrid
+
+    @geogrid.setter
+    @setter_hardener
+    def geogrid(self, val: typing.Any):
+        self._geogrid = val
+
+    # geopackage
+    @property
+    def geopackage(self):
+        return self._geopackage
+
+    @geopackage.setter
+    @setter_hardener
+    def geopackage(self, val: typing.Any):
+        self._geopackage = val
+
+    ### END hardened properties
+
     def validate_config(self, cfg_bmi: dict) -> None:
         """Validate in options from the configuration file and check that proper options were provided."""
         # Ensure b_date_proc is set; if not, read from the configuration file
         if self.b_date_proc is None:
             try:
-                self.b_date_proc = cfg_bmi.get(
-                    "RefcstBDateProc", None
-                )  # Default to None if not found
-                if self.b_date_proc is None:
+                # Default to None if not found
+                b_date_proc_from_cfg_bmi = cfg_bmi.get("RefcstBDateProc", None)
+                if b_date_proc_from_cfg_bmi is None:
                     err_out_screen(
                         "Unable to locate RefcstBDateProc under Logistics section in configuration file."
                     )
+                self.b_date_proc = datetime.strptime(
+                    b_date_proc_from_cfg_bmi, "%Y%m%d%H%M"
+                )
+
             except KeyError as e:
                 err_out_screen(
                     "Unable to locate RefcstBDateProc under Logistics section in configuration file.",
@@ -606,8 +732,15 @@ class ConfigOptions:
                     e,
                 )
             try:
-                self.b_date_proc = datetime.strptime(beg_date_tmp, "%Y%m%d%H%M")
-            except ValueError as e:
+                if isinstance(beg_date_tmp, datetime):
+                    self.b_date_proc = beg_date_tmp
+                elif isinstance(beg_date_tmp, str):
+                    self.b_date_proc = datetime.strptime(beg_date_tmp, "%Y%m%d%H%M")
+                else:
+                    raise TypeError(
+                        f"Expected datetime.datetime or str for beg_date_tmp, but got: {type(self.b_date_proc)}"
+                    )
+            except Exception as e:
                 err_out_screen(
                     "Improper RefcstBDateProc value entered into the configuration file. Please check your entry.",
                     e,
