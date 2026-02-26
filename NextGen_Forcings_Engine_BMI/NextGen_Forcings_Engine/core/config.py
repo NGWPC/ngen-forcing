@@ -22,6 +22,7 @@ from nextgen_forcings_ewts import MODULE_NAME
 LOG = logging.getLogger(MODULE_NAME)
 
 FORCE_COUNT = 27
+DATETIME_FORMAT = "%Y%m%d%H%M"
 
 
 class ConfigOptions:
@@ -62,7 +63,7 @@ class ConfigOptions:
         self.refcst_flag = None
         self.ana_flag = None
         self.b_date_proc: datetime | None = (
-            None if b_date is None else datetime.strptime(b_date, "%Y%m%d%H%M")
+            None if b_date is None else datetime.strptime(b_date, DATETIME_FORMAT)
         )
         self.e_date_proc = None
         self.first_fcst_cycle = None
@@ -280,7 +281,7 @@ class ConfigOptions:
                         "Unable to locate RefcstBDateProc under Logistics section in configuration file."
                     )
                 self.b_date_proc = datetime.strptime(
-                    b_date_proc_from_cfg_bmi, "%Y%m%d%H%M"
+                    b_date_proc_from_cfg_bmi, DATETIME_FORMAT
                 )
 
             except KeyError as e:
@@ -735,7 +736,7 @@ class ConfigOptions:
                 if isinstance(beg_date_tmp, datetime):
                     self.b_date_proc = beg_date_tmp
                 elif isinstance(beg_date_tmp, str):
-                    self.b_date_proc = datetime.strptime(beg_date_tmp, "%Y%m%d%H%M")
+                    self.b_date_proc = datetime.strptime(beg_date_tmp, DATETIME_FORMAT)
                 else:
                     raise TypeError(
                         f"Expected datetime.datetime or str for beg_date_tmp, but got: {type(self.b_date_proc)}"
