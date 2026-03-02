@@ -925,9 +925,10 @@ class InputForcings:
         LOG.debug(
             f"keyValue: {self.keyValue}, {self.find_neighbor_files_map[self.keyValue].__name__}"
         )
-        self.find_neighbor_files_map[self.keyValue](
-            self, config_options, dcurrent, mpi_config
-        )
+        if config_options.input_forcings[0] not in [12, 21]:
+            self.find_neighbor_files_map[self.keyValue](
+                self, config_options, dcurrent, mpi_config
+            )
 
     @property
     def regrid_map(self):

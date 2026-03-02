@@ -122,7 +122,7 @@ def check_program_status(
     # collected error flags and call Abort() as appropriate, before continuing.
     # When this is not enabled, then non-0 ranks may continue execution after sending
     # their error flag, since non-0 ranks do not block on reduce().
-    MpiConfig.comm.barrier()
+    # MpiConfig.comm.barrier()
 
 
 def init_log(ConfigOptions, MpiConfig):
