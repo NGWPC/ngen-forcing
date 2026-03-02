@@ -57,7 +57,9 @@ def serialize_to_json(obj, out_file: str = None) -> str:
 
 def assert_equal_with_tol(expect: dict, actual: dict):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
-    It is okay if actual has extra keys that are not present in expect."""
+    It is okay if actual has extra keys that are not present in expect.
+    TODO: implement the numerical tolerance (this currently uses hard equality check without tolerance).
+    """
     errors: list[Exception] = []
     logging.debug(
         f"Asserting equality with tolerance for {len(expect)} keys: {list(expect.keys())}"
