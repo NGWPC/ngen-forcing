@@ -140,7 +140,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
     def regrid_results_expect_data_file_name(self) -> str:
         """File name for expected test results."""
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        file_basename = f"test_expect_{self.regrid_func.__name__}_{self.config_options.bmi_time_index}.json"
+        file_basename = f"test_expect_{self.regrid_func.__name__}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}.json"
         file_path = os.path.join(
             test_dir, "test_data", "expected_results", file_basename
         )
