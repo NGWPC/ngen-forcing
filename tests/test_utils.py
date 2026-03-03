@@ -1,4 +1,9 @@
-"""Utilities for ngen-forcing tests"""
+"""Utilities for ngen-forcing tests.
+From the devcontainer, run like this for a typical test run:
+    ( cd src/ngen-forcing && pytest )
+Run like this to create new test data (expected outputs):
+    ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
+"""
 
 import json
 import logging
@@ -58,11 +63,11 @@ def serialize_to_json(obj, out_file: str = None) -> str:
 def assert_equal_with_tol(expect: dict, actual: dict):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
-    TODO: implement the numerical tolerance (this currently uses hard equality check without tolerance).
     """
+    numerical_tolerance = 1e-6
     errors: list[Exception] = []
     logging.debug(
-        f"Asserting equality with tolerance for {len(expect)} keys: {list(expect.keys())}"
+        f"Asserting equality with numerical tolerance {numerical_tolerance} for {len(expect)} keys: {list(expect.keys())}"
     )
     for k, v_expect in expect.items():
         logging.debug(f"Key {repr(k)} has expected value {v_expect}")
@@ -70,7 +75,14 @@ def assert_equal_with_tol(expect: dict, actual: dict):
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
-        if v_actual != v_expect:
+        if isinstance(v_expect, (float, int)):
+            if abs(v_expect - v_actual) > numerical_tolerance:
+                errors.append(
+                    ValueError(
+                        f"numerical tolerance {numerical_tolerance} exceeded by abs(v_expect - v_actual): abs({v_expect} - {v_actual}) == {abs(v_expect - v_actual)}"
+                    )
+                )
+        elif v_actual != v_expect:
             errors.append(
                 ValueError(
                     f"Not equal: for key {repr(k)}, expected {v_expect} but got {v_actual}"
