@@ -218,10 +218,10 @@ jobs:
           docker run --rm ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running BMI Forcing Unit Tests..."
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        uses: aquasecurity/setup-trivy@v0.2.5
         with:
           cache: true
-          version: v0.68.2
+          version: v0.69.3
       - name: Trivy scan (BMI Forcing)
         env:
           TMPDIR: /mnt/trivy-temp
@@ -332,10 +332,10 @@ jobs:
           docker run --rm ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running Coastal Unit Tests..."
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        uses: aquasecurity/setup-trivy@v0.2.5
         with:
           cache: true
-          version: v0.68.2
+          version: v0.69.3
       - name: Trivy scan (Coastal)
         env:
           TMPDIR: /mnt/trivy-temp
@@ -446,10 +446,10 @@ jobs:
           docker run --rm ${{ needs.setup.outputs.image_sfincs }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running SFINCS Unit Tests..."
       - name: Install Trivy
-        uses: aquasecurity/setup-trivy@v0.2.2
+        uses: aquasecurity/setup-trivy@v0.2.5
         with:
           cache: true
-          version: v0.68.2
+          version: v0.69.3
       - name: Trivy scan (SFINCS)
         env:
           TMPDIR: /mnt/trivy-temp
