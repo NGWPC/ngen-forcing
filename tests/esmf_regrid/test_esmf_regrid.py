@@ -88,5 +88,3 @@ def test_regrid_aorc_aws(
         fixt.remove_extra_data_from_regrid_results(input_forcings)
         fixt.check_regrid_results(input_forcings)
         fixt.post_regrid()
-
-    raise NotImplementedError("This test is a work in progress")
