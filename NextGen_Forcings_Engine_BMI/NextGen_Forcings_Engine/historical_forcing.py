@@ -4,11 +4,11 @@ import datetime
 import logging
 import os
 import re
+import typing
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import lru_cache
 from time import perf_counter
-import typing
 
 import dask
 import geopandas as gpd
@@ -223,8 +223,12 @@ class BaseProcessor:
             raise IndexError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
             )
-        ds = self.computed_ds.sel(time=self.current_time)
-
+        try:
+            ds = self.computed_ds.sel(time=self.current_time)
+        except KeyError:
+            raise KeyError(
+                f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
+            )
         # if self.mpi_config.rank == 0:
         #     self.plot_precip(ds)
         # self.write_sum_tif(self.computed_ds)
@@ -293,6 +297,14 @@ class BaseProcessor:
         :return: Sliced Dataset
         """
         with self.timing_block("slicing dataset"):
+            if self.current_time not in ds.time.values:
+                raise IndexError(
+                    f"The time provided is not in the dataset: {self.current_time}"
+                )
+            if self.end_time_datetime not in ds.time.values:
+                raise IndexError(
+                    f"The time provided is not in the dataset: {self.end_time_datetime}"
+                )
             sliced_ds = ds.sel(
                 {
                     self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
