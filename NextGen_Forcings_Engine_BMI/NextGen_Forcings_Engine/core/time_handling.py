@@ -949,6 +949,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
         input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/conus"
         + "/hrrr.t"
         + current_hrrr_cycle.strftime("%H")
         + "z.wrfsfcf"
@@ -963,6 +964,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
         input_forcings.inDir
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/conus"
         + "/hrrr.t"
         + current_hrrr_cycle.strftime("%H")
         + "z.wrfsfcf"
