@@ -53,6 +53,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         regrid_func: typing.Callable,
         source_data_processor_factory: type | typing.Callable,
+        regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
     ):
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
@@ -63,7 +64,10 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             # ...
             # ...
             self.post_regrid()
-        source_data_processor_factory could be AORCConusProcessor or another function that makes and returns an analogous class instance
+        regrid_func: The regrid function that is being tested.
+        source_data_processor_factory: could be AORCConusProcessor or another function that makes and returns an analogous class instance.  TODO remove this if no longer used.
+        regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
+        keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
         """
         super().__init__(bmi_model=bmi_model)
 
@@ -73,6 +77,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             self.mpi_config,
             self.wrf_hydro_geo_meta,
         )
+        self.regrid_arrays_to_trim_extra_elements = regrid_arrays_to_trim_extra_elements
         self.keys_to_check = keys_to_check
         self._state = None  # Test fixture state used to help ensure things happen in the right order
 
@@ -215,6 +220,103 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         # Update test fixture status
         self._state = "regrid_ran"
 
+    def remove_extra_data_from_regrid_results(self, input_forcings: InputForcings):
+        """
+        Check high-level aspects of some InputForcings arrays, such as length and sequence.
+        Trim extra values from arrays of InputForcings, in-place, as necessary. See below for rationale.
+        TODO consider doing this trimming on the json object rather than on the InputForcings object itself,
+        in case there are side-effects.
+
+        Resulting output numerical arrays of regridding process may contain extra elements that are
+        unused, contain unpredictable values, and should be ignored, i.e. should be removed from test results.
+
+        This is detected by inspecting lengths and inspecting explicit array index positions
+        referenced by `InputForcings.input_map_output`.
+
+        For example:
+            `input_map_output` may contain 8 elements spanning values 0 through 7 (in any order), while `regridded_forcings1` and `regridded_forcings2` may contain 9 elements each.
+            In this case, we infer that index 8 (the ninth element) should be ignored.
+            We assert that this is the case by confirming that index 8 does not exist in `input_map_output`.
+            Then we remove that element from the right end of `regridded_forcings1` and `regridded_forcings2`.
+        """
+        # e.g. ['TMP_2maboveground', 'SPFH_2maboveground', 'UGRD_10maboveground', 'VGRD_10maboveground', 'APCP_surface', 'DSWRF_surface', 'DLWRF_surface', 'PRES_surface']
+        netcdf_var_names = input_forcings.netcdf_var_names
+        # e.g. ['TMP', 'SPFH', 'UGRD', 'VGRD', 'APCP', 'DSWRF', 'DLWRF', 'PRES']
+        grib_vars = input_forcings.grib_vars
+        # The order that the vars appear in the regridded output numerical arrays. e.g. [4, 5, 0, 1, 3, 7, 2, 6] means that "TMP" is at index 4 (the fifth item) in the numerical array.
+        input_map_output = input_forcings.input_map_output
+
+        errors: list[Exception] = []
+
+        ### Assert that input_map_output has no duplicates
+        if len(input_map_output) != len(set(input_map_output)):
+            errors.append(
+                ValueError(f"Duplicates exist in input_map_output: {input_map_output}")
+            )
+
+        ### Assert that input_map_output has no gaps
+        for i in range(len(input_map_output)):
+            if i not in input_map_output:
+                errors.append(
+                    ValueError(
+                        f"Index {i} is missing from input_map_output: {input_map_output}"
+                    )
+                )
+
+        ### Assert that the range of input_map_output is sequential from 0
+        if min(input_map_output) != 0:
+            errors.append(
+                ValueError(
+                    f"Expected min(input_map_output) to be 0 but got {min(input_map_output)}"
+                )
+            )
+        if max(input_map_output) != len(input_map_output) - 1:
+            errors.append(
+                ValueError(
+                    f"Expected max(input_map_output) to be (len(input_map_output) - 1) aka ({len(input_map_output) - 1}) but got {max(input_map_output)}"
+                )
+            )
+
+        ### Assert that netcdf_var_names and grib_vars have equal length
+        if len(netcdf_var_names) != len(grib_vars):
+            errors.append(
+                ValueError(
+                    f"len(netcdf_var_names) != len(grib_vars): {len(netcdf_var_names)} vs {len(grib_vars)}"
+                )
+            )
+
+        ### Remove extra indexes from output arrays.
+        for key in self.regrid_arrays_to_trim_extra_elements:
+            logging.debug(
+                f"Trimming values of key {key} if they are longer than input_map_output (if longer than {len(input_map_output)})"
+            )
+            attr = getattr(input_forcings, key)
+            ### Some are naturally None.
+            if attr is None:
+                continue
+            ### If equal length already, then there's nothing to do.
+            if len(attr) == len(input_map_output):
+                continue
+            ### Assert that length of the array is at least as long as input_map_output.
+            if len(attr) < len(input_map_output):
+                errors.append(
+                    ValueError(
+                        f"Expected length of array for key {key} to be at least as long as input_map_output ({len(input_map_output)}), but got length {len(attr)}"
+                    )
+                )
+                continue
+            ### Trim the array
+            if len(attr.shape) == 2:
+                attr = attr[: len(input_map_output), :]
+                setattr(input_forcings, key, attr)
+            else:
+                raise ValueError(
+                    f"Unsupported array shape {attr.shape} for testing key {key}. Expected 2 dimensions and got {len(attr.shape)} dimensions."
+                )
+
+        if errors:
+            raise RuntimeError(f"input_forcings had invalid state. Errors: {errors}")
+
     def check_regrid_results(self, input_forcings: InputForcings):
         """Check the regrid results against previously serialized expected results data, which should be in the repository.
         Run this with a certain OS var to set up fresh test results expected data files."""
@@ -322,6 +424,7 @@ def bmi_forcing_fixture_historical_regrid(
         regrid_func,
         source_data_processor_factory,
         config_file,
+        regrid_arrays_to_trim_extra_elements,
         keys_to_check,
     ) = request.param
 
@@ -336,5 +439,6 @@ def bmi_forcing_fixture_historical_regrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
         source_data_processor_factory=source_data_processor_factory,
+        regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
         keys_to_check=keys_to_check,
     )
