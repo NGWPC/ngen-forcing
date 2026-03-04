@@ -72,7 +72,10 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
     @property
     def serialized_file_suffix(self) -> str:
         """Suffix for the file name for expected test results"""
-        return f"_n{self.mpi_config.size}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
+        gpkg_basename = os.path.splitext(
+            os.path.basename(self.config_options.geopackage)
+        )[0]
+        return f"_{gpkg_basename}_n{self.mpi_config.size}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
 
     @property
     def regrid_results_file_name_expect(self) -> str:
