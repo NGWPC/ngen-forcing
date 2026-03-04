@@ -53,14 +53,13 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
             self.pre_regrid()
             self.run_regrid()
-            # Then check results before calling self.post_regrid()
-            # ...
-            # ...
-            # ...
+            self.check_regrid_results()
             self.post_regrid()
-        regrid_func: The regrid function that is being tested.
-        regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
-        keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
+
+        Parameters:
+            regrid_func: The regrid function that is being tested.
+            regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
+            keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
         """
         super().__init__(bmi_model=bmi_model)
 
@@ -99,7 +98,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         file_path = os.path.join(test_dir, "test_data", "actual_results", file_basename)
         return file_path
 
-    def pre_regrid(self):
+    def pre_regrid(self) -> None:
         """Run various timing setup methods and preprocessing steps needed *before*  each regrid call"""
         if self._state not in (None, "post_ran"):
             raise ValueError(
@@ -168,17 +167,22 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         # Update test fixture status
         self._state = "pre_ran"
 
-    def set_input_forcings_skip_flags(self):
+    def set_input_forcings_skip_flags(self) -> None:
+        """Set the `skip` flag on the InputForcings object so that historical forcing regrid will not occur during loop_through_forcing_products()."""
         logging.debug(
             "Setting input_forcing.skip = True for each value in dict self.input_forcing_mod"
         )
         for force_key, input_forcing in self.bmi_model._input_forcing_mod.items():
             input_forcing.skip = True
 
-    def run_regrid(self, arg1: typing.Any):
-        """Run the regrid function. arg1 is the first argument to the regrid function, which can vary.
-        For example is may be `input_forcings`, or `supplemental_precip`, or potentially others.
-        Subsequent arguments to the regrid function should be standard and do not need to be provided by the test caller."""
+    def run_regrid(self, arg1: typing.Any) -> None:
+        """Run the regrid function.
+
+        Parameters:
+            arg1 is the first argument to the regrid function, which can vary.
+            For example is may be `input_forcings`, or `supplemental_precip`, or potentially others.
+            Subsequent arguments to the regrid function should be standard and do not need to be provided by the test caller.
+        """
 
         if self._state != "pre_ran":
             raise ValueError(
@@ -226,6 +230,12 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             In this case, we infer that index 8 (the ninth element) should be ignored.
             We assert that this is the case by confirming that index 8 does not exist in `input_map_output`.
             Then we remove that element from the right end of `regridded_forcings1` and `regridded_forcings2`.
+
+        Parameters:
+            input_forcings is the InputForcings object immediately after a ESMF regridding has occurred.
+
+        Returns:
+            A dictionary representation of input_forcings, but with some arrays trimmed and some keys dropped.
         """
         ### This is returned after being modified.
         input_forcings_deserial = json.loads(serialize_to_json(input_forcings))
@@ -314,9 +324,13 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 
         return input_forcings_deserial
 
-    def check_regrid_results(self, input_forcings: InputForcings):
+    def check_regrid_results(self, input_forcings: InputForcings) -> None:
         """Check the regrid results against previously serialized expected results data, which should be in the repository.
-        Run this with a certain OS var to set up fresh test results expected data files."""
+        Run this with a certain OS var to set up fresh test results expected data files.
+
+        Parameters:
+            input_forcings is the InputForcings object immediately after a ESMF regridding has occurred.
+        """
 
         if self._state != "regrid_ran":
             raise ValueError(
@@ -381,7 +395,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
                 f"Unexpected results compared to {self.regrid_results_file_name_expect}: {e}"
             ) from e
 
-    def post_regrid(self):
+    def post_regrid(self) -> None:
         """Run various timing setup methods and postprocessing steps needed *after* each regrid call"""
         if self._state != "regrid_ran":
             raise ValueError(
@@ -403,6 +417,9 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 def bmi_forcing_fixture(request) -> BMIForcingFixture:
     """Constructor for minimal class of classes for running BMI forcing.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid_aorc_aws.
+
+    Parameters:
+        request is a built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
     """
     (config_file,) = request.param
     bmi_model = NWMv3_Forcing_Engine_BMI_model()
@@ -421,8 +438,10 @@ def bmi_forcing_fixture_historical_regrid(
 ) -> BMIForcingFixture_HistoricalRegrid:
     """Constructor for minimal class of classes for running BMI historical forcing ESMF regrid functions.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid_aorc_aws.
+
+    Parameters:
+        request is a built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
     """
-    # Passed from @pytest.mark.parametrize usage
     (
         regrid_func,
         config_file,

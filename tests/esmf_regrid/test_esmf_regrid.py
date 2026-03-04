@@ -84,7 +84,7 @@ def test_regrid_aorc_aws(
         1. Hydrofabric discretization, AORC historical forcing, CONUS domain, nprocs == 1 (number of MPI ranks == 1).
     NOTE ^^^ this has been tested for the above conditions only ^^^
     """
-    # Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
+    ### Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
     total_timesteps = 3
     fixt = bmi_forcing_fixture_historical_regrid
     if len(fixt.input_forcing_mod) != 1:
