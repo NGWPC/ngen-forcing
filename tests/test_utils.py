@@ -52,7 +52,6 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         regrid_func: typing.Callable,
-        source_data_processor_factory: type | typing.Callable,
         regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
     ):
@@ -65,18 +64,12 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             # ...
             self.post_regrid()
         regrid_func: The regrid function that is being tested.
-        source_data_processor_factory: could be AORCConusProcessor or another function that makes and returns an analogous class instance.  TODO remove this if no longer used.
         regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
         keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
         """
         super().__init__(bmi_model=bmi_model)
 
         self.regrid_func = regrid_func
-        self.source_data_processor = source_data_processor_factory(
-            self.config_options,
-            self.mpi_config,
-            self.wrf_hydro_geo_meta,
-        )
         self.regrid_arrays_to_trim_extra_elements = regrid_arrays_to_trim_extra_elements
         self.keys_to_check = keys_to_check
         self._state = None  # Test fixture state used to help ensure things happen in the right order
@@ -422,7 +415,6 @@ def bmi_forcing_fixture_historical_regrid(
     # Passed from @pytest.mark.parametrize usage
     (
         regrid_func,
-        source_data_processor_factory,
         config_file,
         regrid_arrays_to_trim_extra_elements,
         keys_to_check,
@@ -438,7 +430,6 @@ def bmi_forcing_fixture_historical_regrid(
     return BMIForcingFixture_HistoricalRegrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
-        source_data_processor_factory=source_data_processor_factory,
         regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
         keys_to_check=keys_to_check,
     )

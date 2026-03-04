@@ -54,7 +54,6 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     [
         (
             regrid_aorc_aws,
-            AORCConusProcessor,
             RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             REGRID_KEYS_TO_CHECK,
