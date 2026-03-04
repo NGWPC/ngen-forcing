@@ -81,7 +81,7 @@ def test_regrid_aorc_aws(
 ) -> None:
     """pytest function for testing ESMF regrid functionality for AORC historical forcing data.
     NOTE vvv this has been tested for the following conditions only vvv
-        1. Hydrofabric discretization, AORC historical forcing, CONUS domain, nprocs == 1 (number of MPI ranks == 1).
+        1. Hydrofabric discretization, AORC historical forcing, CONUS domain.
     NOTE ^^^ this has been tested for the above conditions only ^^^
     """
     ### Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
