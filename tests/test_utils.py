@@ -1,11 +1,4 @@
-"""Utilities for ngen-forcing tests.
-From the devcontainer, run like this for a typical test run:
-    Single processor: ( cd src/ngen-forcing && pytest )
-    Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
-Run like this to create new test data (expected outputs):
-    Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
-    Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
-"""
+"""Utilities for ngen-forcing tests."""
 
 import json
 import logging
@@ -79,9 +72,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
     @property
     def serialized_file_suffix(self) -> str:
         """Suffix for the file name for expected test results"""
-        return (
-            f"_n{self.mpi_config.size}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
-        )
+        return f"_n{self.mpi_config.size}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
 
     @property
     def regrid_results_file_name_expect(self) -> str:
@@ -215,18 +206,17 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         # Update test fixture status
         self._state = "regrid_ran"
 
-    def remove_extra_data_from_regrid_results(self, input_forcings: InputForcings):
-        """
-        Check high-level aspects of some InputForcings arrays, such as length and sequence.
-        Trim extra values from arrays of InputForcings, in-place, as necessary. See below for rationale.
-        TODO consider doing this trimming on the json object rather than on the InputForcings object itself,
-        in case there are side-effects.
+    def remove_extra_data_from_regrid_results(
+        self, input_forcings: InputForcings
+    ) -> dict:
+        """Validate some high-level aspects of the InputForcings object, such as length and sequence of some arrays.
+        Then build a dictionary equivalent of it, and trim some of the arrays to the needed size for tests, and return that dictionary.
 
         Resulting output numerical arrays of regridding process may contain extra elements that are
         unused, contain unpredictable values, and should be ignored, i.e. should be removed from test results.
 
         This is detected by inspecting lengths and inspecting explicit array index positions
-        referenced by `InputForcings.input_map_output`.
+        referenced by `input_map_output`.
 
         For example:
             `input_map_output` may contain 8 elements spanning values 0 through 7 (in any order), while `regridded_forcings1` and `regridded_forcings2` may contain 9 elements each.
@@ -234,11 +224,13 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             We assert that this is the case by confirming that index 8 does not exist in `input_map_output`.
             Then we remove that element from the right end of `regridded_forcings1` and `regridded_forcings2`.
         """
-        # e.g. ['TMP_2maboveground', 'SPFH_2maboveground', 'UGRD_10maboveground', 'VGRD_10maboveground', 'APCP_surface', 'DSWRF_surface', 'DLWRF_surface', 'PRES_surface']
+        ### This is returned after being modified.
+        input_forcings_deserial = json.loads(serialize_to_json(input_forcings))
+        ### e.g. ['TMP_2maboveground', 'SPFH_2maboveground', 'UGRD_10maboveground', 'VGRD_10maboveground', 'APCP_surface', 'DSWRF_surface', 'DLWRF_surface', 'PRES_surface']
         netcdf_var_names = input_forcings.netcdf_var_names
-        # e.g. ['TMP', 'SPFH', 'UGRD', 'VGRD', 'APCP', 'DSWRF', 'DLWRF', 'PRES']
+        ### e.g. ['TMP', 'SPFH', 'UGRD', 'VGRD', 'APCP', 'DSWRF', 'DLWRF', 'PRES']
         grib_vars = input_forcings.grib_vars
-        # The order that the vars appear in the regridded output numerical arrays. e.g. [4, 5, 0, 1, 3, 7, 2, 6] means that "TMP" is at index 4 (the fifth item) in the numerical array.
+        ### The order that the vars appear in the regridded output numerical arrays. e.g. [4, 5, 0, 1, 3, 7, 2, 6] means that "TMP" is at index 4 (the fifth item) in the numerical array.
         input_map_output = input_forcings.input_map_output
 
         errors: list[Exception] = []
@@ -285,7 +277,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             logging.debug(
                 f"Trimming values of key {key} if they are longer than input_map_output (if longer than {len(input_map_output)})"
             )
-            attr = getattr(input_forcings, key)
+            attr = input_forcings_deserial[key]
             ### Some are naturally None.
             if attr is None:
                 continue
@@ -300,17 +292,24 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
                     )
                 )
                 continue
-            ### Trim the array
-            if len(attr.shape) == 2:
-                attr = attr[: len(input_map_output), :]
-                setattr(input_forcings, key, attr)
-            else:
-                raise ValueError(
-                    f"Unsupported array shape {attr.shape} for testing key {key}. Expected 2 dimensions and got {len(attr.shape)} dimensions."
+            ### Trim the 2d list. First assert it is a list of lists (it should have originated as a 2D array)
+            if not isinstance(attr, list):
+                errors.append(
+                    f"Expected type list[list], got {type(attr)} for key {key}"
                 )
+                continue
+            if not isinstance(attr[0], list):
+                errors.append(
+                    f"Expected type list[list], got {type(attr)} for key {key}"
+                )
+                continue
+            attr = attr[: len(input_map_output)]
+            input_forcings_deserial[key] = attr
 
         if errors:
             raise RuntimeError(f"input_forcings had invalid state. Errors: {errors}")
+
+        return input_forcings_deserial
 
     def check_regrid_results(self, input_forcings: InputForcings):
         """Check the regrid results against previously serialized expected results data, which should be in the repository.
@@ -321,22 +320,29 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
                 f"In check_regrid_results, expected state to 'regrid_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
 
-        # Check the output regrid weights file
-        pass  # TODO
+        ### Check the output regrid weights file
+        pass  # TODO is this needed?
 
-        regrid_results_json_str = serialize_to_json(
-            input_forcings,
-            sort_keys=True,
-            keep_keys=self.keys_to_check,
+        ### Convert the raw input_forcings object to a serialized-then-deserialized dictionary, trimming some of the arrays as needed.
+        regrid_results_actual = self.remove_extra_data_from_regrid_results(
+            input_forcings
         )
-        regrid_results_actual = json.loads(regrid_results_json_str)
+        ### Remove unchecked keys
+        regrid_results_actual = {
+            k: v for k, v in regrid_results_actual.items() if k in self.keys_to_check
+        }
         # regrid_results_actual["nx_local"] = float("inf")  # This will trigger a test failure
         # regrid_results_actual["ny_local"] = float("-inf")  # This will trigger a test failure
+        ### Serialize the cleaned up dictionary
+        regrid_results_json_str = serialize_to_json(
+            regrid_results_actual, sort_keys=True
+        )
 
         logging.warning(f"Writing actual data: {self.regrid_results_file_name_actual}")
         with open(self.regrid_results_file_name_actual, "w") as f:
             f.write(regrid_results_json_str)
 
+        ### NOTE this should be rarely used, only when updating the test expected outputs dataset
         if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
             # Dump current results to disk, to save it as "expected" results for later test runs.
             # Should only be used when committing new test results to the repository.
@@ -346,6 +352,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             with open(self.regrid_results_file_name_expect, "w") as f:
                 f.write(regrid_results_json_str)
 
+        ### Load expected regrid outputs
         logging.info(
             f"Reading expected test results data: {self.regrid_results_file_name_expect}"
         )
@@ -364,9 +371,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 
         try:
             assert_equal_with_tol(
-                expect=regrid_results_expect,
-                actual=regrid_results_actual,
-                keys_to_check=self.keys_to_check,
+                expect=regrid_results_expect, actual=regrid_results_actual
             )
         except ExpectVsActualError as e:
             raise RuntimeError(
