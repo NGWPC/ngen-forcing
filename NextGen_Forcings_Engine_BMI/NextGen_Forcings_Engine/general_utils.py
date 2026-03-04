@@ -77,9 +77,10 @@ def assert_equal_with_tol(
     logging.info(
         f"Asserting equality with numerical tolerance {numerical_tolerance} for {len(expect)} keys: {list(expect.keys())}"
     )
-    keys_missing = set(keys_to_check) - set(actual)
-    if keys_missing:
-        errors.append(KeyError(f"Missing keys: {keys_missing}"))
+    if keys_to_check:
+        keys_missing = set(keys_to_check) - set(actual)
+        if keys_missing:
+            errors.append(KeyError(f"Missing keys: {keys_missing}"))
 
     for k, v_expect in expect.items():
         if keys_to_check and k not in keys_to_check:
