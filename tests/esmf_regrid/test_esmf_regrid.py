@@ -1,4 +1,22 @@
-"""pytest tests for ESMF regrid functions"""
+"""pytest tests for ESMF regrid functions.
+
+Setup requirements:
+    1. Create the forcing config.yml files using RTE.
+    2. Enter the RTE devcontainer.
+
+Usage:
+    The initial test data was generated using RTE to create a calibration realization
+    for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
+    using RTE's run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
+
+    Run like this for a typical test run (checking against existing test output data)
+        Single processor: ( cd src/ngen-forcing && pytest )
+        Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
+
+    Run like this to create new test output data (created expected outputs for subsequent tests):
+        Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
+        Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
+"""
 
 import logging
 
@@ -6,9 +24,6 @@ import pytest
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.regrid import (
     regrid_aorc_aws,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing import (
-    AORCConusProcessor,
 )
 
 from tests.test_utils import (
@@ -38,7 +53,7 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     # "esmf_field_out",
     # "esmf_field_out_elem",
     "regridded_mask",
-    ### TODO revisit to see if this should be checked. Some notes in the code indicate that it is not used, but this has not been confirmed globally.
+    ### TODO revisit to see which use cases require checking this. Some notes in the code indicate that it is not used, but this has not been confirmed globally.
     # "regridded_mask_AORC",
     "regridded_mask_elem",
     "regridded_mask_elem_AORC",
@@ -69,12 +84,9 @@ def test_regrid_aorc_aws(
         1. Hydrofabric discretization, AORC historical forcing, CONUS domain, nprocs == 1 (number of MPI ranks == 1).
     NOTE ^^^ this has been tested for the above conditions only ^^^
     """
-    fixt = bmi_forcing_fixture_historical_regrid
-
-    # Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others,
-    # for example see `if config_options.current_output_step == 1` throughout the code
+    # Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
     total_timesteps = 3
-
+    fixt = bmi_forcing_fixture_historical_regrid
     if len(fixt.input_forcing_mod) != 1:
         raise ValueError(
             f"Expected 1 key for input_forcing_mod, got {len(fixt.input_forcing_mod)}: {list(fixt.input_forcing_mod.keys())}"
@@ -85,6 +97,5 @@ def test_regrid_aorc_aws(
     for i in range(total_timesteps):
         fixt.pre_regrid()
         fixt.run_regrid(input_forcings)
-        fixt.remove_extra_data_from_regrid_results(input_forcings)
         fixt.check_regrid_results(input_forcings)
         fixt.post_regrid()
