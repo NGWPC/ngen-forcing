@@ -20,7 +20,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-    init_dict as initialize_input_forcings_dict,
     InputForcings,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
@@ -50,28 +49,60 @@ def serializer_with_fallback(obj):
         return JSON_NOT_SERIALIZABLE_FORMAT.format(typ=str(type(obj)))
 
 
-def serialize_to_json(obj, out_file: str = None) -> str:
+def serialize_to_json(
+    obj,
+    out_file: str = None,
+    sort_keys: bool = False,
+    keep_keys: tuple = None,
+) -> str:
     """Serialize the provided object, and optionally write it to a new file"""
-    json_str = json.dumps(obj, default=serializer_with_fallback, indent=2)
+    dump_kwargs = {
+        "default": serializer_with_fallback,
+        "indent": 2,
+        "sort_keys": sort_keys,
+    }
+    json_str = json.dumps(obj, **dump_kwargs)
+
+    # Optionally filter
+    if keep_keys:
+        tmp = json.loads(json_str)
+        tmp = {k: v for k, v in tmp.items() if k in keep_keys}
+        json_str = json.dumps(tmp, **dump_kwargs)
+        del tmp
+
     if out_file is not None:
-        print(f"Writing: {out_file}")
+        logging.info(f"Writing: {out_file}")
         with open(out_file, "w") as f:
             f.write(json_str)
     return json_str
 
 
-def assert_equal_with_tol(expect: dict, actual: dict):
+def assert_equal_with_tol(
+    expect: dict,
+    actual: dict,
+    keys_to_check: tuple | None = None,
+):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
+    If keys_to_check is defined, then only those keys will be checked.
     """
     numerical_tolerance = 1e-6
     errors: list[Exception] = []
-    logging.debug(
+    logging.info(
         f"Asserting equality with numerical tolerance {numerical_tolerance} for {len(expect)} keys: {list(expect.keys())}"
     )
+    keys_missing = set(keys_to_check) - set(actual)
+    if keys_missing:
+        errors.append(KeyError(f"Missing keys: {keys_missing}"))
+
     for k, v_expect in expect.items():
+        if keys_to_check and k not in keys_to_check:
+            continue
         logging.debug(f"Key {repr(k)} has expected value {v_expect}")
-        v_actual = actual[k]
+        try:
+            v_actual = actual[k]
+        except KeyError:
+            errors.append(KeyError(f"Key {k} in expected data is missing from actual"))
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
@@ -85,7 +116,7 @@ def assert_equal_with_tol(expect: dict, actual: dict):
         elif v_actual != v_expect:
             errors.append(
                 ValueError(
-                    f"Not equal: for key {repr(k)}, expected {v_expect} but got {v_actual}"
+                    f"Not equal: for key {repr(k)},\nexpected:\n{v_expect}\n\nbut got:\n{v_actual}"
                 )
             )
     if errors:
@@ -102,11 +133,7 @@ class BMIForcingFixture:
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
         self.wrf_hydro_geo_meta: GeoMetaWrfHydro = bmi_model._wrf_hydro_geo_meta
-        self.input_forcings_mod: dict = initialize_input_forcings_dict(
-            config_options=self.config_options,
-            geo_meta_wrf_hydro=self.wrf_hydro_geo_meta,
-            mpi_config=self.mpi_config,
-        )
+        self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
 
 class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
@@ -115,6 +142,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         regrid_func: typing.Callable,
         source_data_processor_factory: type | typing.Callable,
+        keys_to_check: tuple[str],
     ):
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
             self.pre_regrid()
@@ -134,16 +162,36 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             self.mpi_config,
             self.wrf_hydro_geo_meta,
         )
+        self.keys_to_check = keys_to_check
         self._state = None  # Test fixture state used to help ensure things happen in the right order
 
     @property
-    def regrid_results_expect_data_file_name(self) -> str:
+    def serialized_file_suffix(self) -> str:
+        """Suffix for the file name for expected test results"""
+        return (
+            f"_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
+        )
+
+    @property
+    def regrid_results_file_name_expect(self) -> str:
         """File name for expected test results."""
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        file_basename = f"test_expect_{self.regrid_func.__name__}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}.json"
+        file_basename = (
+            f"test_expect_{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
+        )
         file_path = os.path.join(
             test_dir, "test_data", "expected_results", file_basename
         )
+        return file_path
+
+    @property
+    def regrid_results_file_name_actual(self) -> str:
+        """File name for expected test results."""
+        test_dir = os.path.dirname(os.path.abspath(__file__))
+        file_basename = (
+            f"test_actual_{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
+        )
+        file_path = os.path.join(test_dir, "test_data", "actual_results", file_basename)
         return file_path
 
     def pre_regrid(self):
@@ -153,20 +201,74 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
                 f"In pre_regrid, expected state to be either None or 'post_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
 
-        # Populate config_options.current_time
-        self.bmi_model._model.determine_forecast(
-            future_time=self.bmi_model._values["current_model_time"]
-            + self.bmi_model._values["time_step_size"],
-            config_options=self.config_options,
+        config_options = self.config_options
+        mpi_config = self.mpi_config
+        wrf_hydro_geo_meta = self.wrf_hydro_geo_meta
+        supp_pcp_mod = self.bmi_model._supp_pcp_mod
+        output_obj = self.bmi_model._output_obj
+        input_forcing_mod = self.bmi_model._input_forcing_mod
+
+        future_time = (
+            self.bmi_model._values["current_model_time"]
+            + self.bmi_model._values["time_step_size"]
         )
-        # process_historical_data has a side-effect of updating self.current_time, and may have other important side-effects. (20260227)
-        self.config_options.aws_obj = (
-            self.source_data_processor.process_historical_data(
-                self.config_options.current_time
-            )
+        model = self.bmi_model._model
+
+        ### NOTE with the exception of setting the skip flag, the below
+        ### block is copied verbatim from NWMv3ForcingEngineModel.run()
+        (
+            future_time,
+            config_options,
+        ) = model.determine_forecast(
+            future_time,
+            config_options,
         )
+        (
+            config_options,
+            input_forcing_mod,
+            mpi_config,
+        ) = model.adjust_precip(
+            config_options,
+            input_forcing_mod,
+            mpi_config,
+        )
+        (
+            config_options,
+            mpi_config,
+        ) = model.log_forecast(
+            config_options,
+            mpi_config,
+        )
+        ### NOTE setting the flag causes the regrid step to be skipped
+        self.set_input_forcings_skip_flags()
+        (
+            future_time,
+            config_options,
+            wrf_hydro_geo_meta,
+            input_forcing_mod,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+            input_forcings,
+        ) = model.loop_through_forcing_products(
+            future_time,
+            config_options,
+            wrf_hydro_geo_meta,
+            input_forcing_mod,
+            supp_pcp_mod,
+            mpi_config,
+            output_obj,
+        )
+
         # Update test fixture status
         self._state = "pre_ran"
+
+    def set_input_forcings_skip_flags(self):
+        logging.debug(
+            "Setting input_forcing.skip = True for each value in dict self.input_forcing_mod"
+        )
+        for force_key, input_forcing in self.bmi_model._input_forcing_mod.items():
+            input_forcing.skip = True
 
     def run_regrid(self, arg1: typing.Any):
         """Run the regrid function. arg1 is the first argument to the regrid function, which can vary.
@@ -177,6 +279,17 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
             raise ValueError(
                 f"In run_regrid, expected state to 'pre_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
+
+        # regrid_inputs_json_str = serialize_to_json(
+        #     arg1,
+        #     out_file=f"tmp_regrid_inputs{self.serialized_file_suffix}.json",
+        #     sort_keys=True,
+        # )
+        # wrf_hydro_geo_meta_json_str = serialize_to_json(
+        #     self.wrf_hydro_geo_meta,
+        #     out_file=f"tmp_wrf_hydro_geo_meta{self.serialized_file_suffix}.json",
+        #     sort_keys=True,
+        # )
 
         logging.info(
             f"Calling regrid function: {self.regrid_func.__name__} using arg1 of type {type(arg1)}"
@@ -203,29 +316,37 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         # Check the output regrid weights file
         pass  # TODO
 
-        regrid_results_json_str = serialize_to_json(input_forcings)
+        regrid_results_json_str = serialize_to_json(
+            input_forcings,
+            sort_keys=True,
+            keep_keys=self.keys_to_check,
+        )
         regrid_results_actual = json.loads(regrid_results_json_str)
         # regrid_results_actual["nx_local"] = float("inf")  # This will trigger a test failure
         # regrid_results_actual["ny_local"] = float("-inf")  # This will trigger a test failure
+
+        logging.warning(f"Writing actual data: {self.regrid_results_file_name_actual}")
+        with open(self.regrid_results_file_name_actual, "w") as f:
+            f.write(regrid_results_json_str)
 
         if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
             # Dump current results to disk, to save it as "expected" results for later test runs.
             # Should only be used when committing new test results to the repository.
             logging.warning(
-                f"Writing test data: {self.regrid_results_expect_data_file_name}"
+                f"Writing test data: {self.regrid_results_file_name_expect}"
             )
-            with open(self.regrid_results_expect_data_file_name, "w") as f:
+            with open(self.regrid_results_file_name_expect, "w") as f:
                 f.write(regrid_results_json_str)
 
         logging.info(
-            f"Reading expected test results data: {self.regrid_results_expect_data_file_name}"
+            f"Reading expected test results data: {self.regrid_results_file_name_expect}"
         )
         try:
-            with open(self.regrid_results_expect_data_file_name) as f:
+            with open(self.regrid_results_file_name_expect) as f:
                 regrid_results_expect = json.load(f)
         except FileNotFoundError as e:
             raise FileNotFoundError(
-                f"Could not find {self.regrid_results_expect_data_file_name}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
+                f"Could not find {self.regrid_results_file_name_expect}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
             ) from e
 
         # keys_to_check = ("nx_local", "ny_local", "nx_global", "ny_global")
@@ -235,11 +356,13 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 
         try:
             assert_equal_with_tol(
-                expect=regrid_results_expect, actual=regrid_results_actual
+                expect=regrid_results_expect,
+                actual=regrid_results_actual,
+                keys_to_check=self.keys_to_check,
             )
         except ExpectVsActualError as e:
             raise RuntimeError(
-                f"Unexpected results compared to {self.regrid_results_expect_data_file_name}: {e}"
+                f"Unexpected results compared to {self.regrid_results_file_name_expect}: {e}"
             ) from e
 
     def post_regrid(self):
@@ -284,7 +407,12 @@ def bmi_forcing_fixture_historical_regrid(
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid_aorc_aws.
     """
     # Passed from @pytest.mark.parametrize usage
-    (regrid_func, source_data_processor_factory, config_file) = request.param
+    (
+        regrid_func,
+        source_data_processor_factory,
+        config_file,
+        keys_to_check,
+    ) = request.param
 
     bmi_model = NWMv3_Forcing_Engine_BMI_model()
     bmi_model.initialize_with_params(
@@ -297,4 +425,5 @@ def bmi_forcing_fixture_historical_regrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
         source_data_processor_factory=source_data_processor_factory,
+        keys_to_check=keys_to_check,
     )

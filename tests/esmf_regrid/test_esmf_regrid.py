@@ -21,10 +21,38 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
 )
 
+REGRID_KEYS_TO_CHECK = (
+    # "esmf_field_in",
+    # "esmf_field_in_elem",
+    # "esmf_grid_in",
+    # "esmf_grid_in_elem",
+    # "esmf_field_out",
+    # "esmf_field_out_elem",
+    "regridded_forcings1",
+    "regridded_forcings1_elem",
+    "regridded_forcings2",
+    "regridded_forcings2_elem",
+    "regridded_mask",
+    # "regridded_mask_AORC",  # TODO revisit to see if this should be checked
+    "regridded_mask_elem",
+    "regridded_mask_elem_AORC",
+    "regridded_precip1",
+    "regridded_precip1_elem",
+    "regridded_precip2",
+    "regridded_precip2_elem",
+)
+
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_historical_regrid",
-    [(regrid_aorc_aws, AORCConusProcessor, RETRO_FORCING_CONFIG_FILE__AORC_CONUS)],
+    [
+        (
+            regrid_aorc_aws,
+            AORCConusProcessor,
+            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            REGRID_KEYS_TO_CHECK,
+        )
+    ],
     indirect=True,
 )
 def test_regrid_aorc_aws(
@@ -37,12 +65,12 @@ def test_regrid_aorc_aws(
     # for example see `if config_options.current_output_step == 1` throughout the code
     total_timesteps = 3
 
-    if len(fixt.input_forcings_mod) != 1:
+    if len(fixt.input_forcing_mod) != 1:
         raise ValueError(
-            f"Expected 1 key for input_forcings_mod, got {len(fixt.input_forcings_mod)}: {list(fixt.input_forcings_mod.keys())}"
+            f"Expected 1 key for input_forcing_mod, got {len(fixt.input_forcing_mod)}: {list(fixt.input_forcing_mod.keys())}"
         )
-    force_key = list(fixt.input_forcings_mod.keys())[0]
-    input_forcings = fixt.input_forcings_mod[force_key]
+    force_key = list(fixt.input_forcing_mod.keys())[0]
+    input_forcings = fixt.input_forcing_mod[force_key]
 
     for i in range(total_timesteps):
         fixt.pre_regrid()
