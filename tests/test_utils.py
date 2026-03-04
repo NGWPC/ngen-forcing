@@ -1,8 +1,10 @@
 """Utilities for ngen-forcing tests.
 From the devcontainer, run like this for a typical test run:
-    ( cd src/ngen-forcing && pytest )
+    Single processor: ( cd src/ngen-forcing && pytest )
+    Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
 Run like this to create new test data (expected outputs):
-    ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
+    Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
+    Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
 """
 
 import json
@@ -78,7 +80,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
     def serialized_file_suffix(self) -> str:
         """Suffix for the file name for expected test results"""
         return (
-            f"_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
+            f"_n{self.mpi_config.size}_rank{self.mpi_config.rank}_timestep{self.config_options.bmi_time_index}"
         )
 
     @property
