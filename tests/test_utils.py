@@ -95,7 +95,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 
     @property
     def regrid_results_file_name_actual(self) -> str:
-        """File name for expected test results."""
+        """File name for actual test results."""
         test_dir = os.path.dirname(os.path.abspath(__file__))
         file_basename = (
             f"test_actual_{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
