@@ -2,6 +2,7 @@
 
 import json
 import logging
+import typing
 
 import numpy as np
 
@@ -12,7 +13,7 @@ class ExpectVsActualError(Exception):
     """Raised by assert_equal_with_tol"""
 
 
-def serializer_with_fallback(obj):
+def serializer_with_fallback(obj: typing.Any):
     """Serializer for json.dump to handle typical types, numpy types, and non-serializable types,
     which are converted to a string composed of a sentinel and the type as the suffix.
     """
@@ -29,15 +30,15 @@ def serializer_with_fallback(obj):
 
 
 def serialize_to_json(
-    obj,
+    obj: typing.Any,
     out_file: str = None,
     sort_keys: bool = False,
     keep_keys: tuple = None,
 ) -> str:
     """Serialize the provided object.
-    Optionally sort it alphabetically.
-    Optionally filter it to keep only the keep_keys.
-    Optionally write it to a new file.
+    out_file: optionally write it to a new file.
+    sort_keys: optionally sort the keys (passed to json.dumps kwarg sort_keys).
+    keep_keys: optionally filter it to keep only the keep_keys.
     """
     dump_kwargs = {
         "default": serializer_with_fallback,
