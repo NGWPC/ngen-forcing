@@ -41,6 +41,7 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
+  BASE_IMAGE_NAME_BMI: rockylinux:8
 
 jobs:
   # set variables for use in other jobs
@@ -52,6 +53,9 @@ jobs:
       image_bmi: ${{ steps.vars.outputs.image_bmi }}
       image_coastal: ${{ steps.vars.outputs.image_coastal }}
       image_sfincs: ${{ steps.vars.outputs.image_sfincs }}
+      base_image_name_bmi: ${{ steps.vars.outputs.base_image_name_bmi }}
+      base_image_digest_bmi: ${{ steps.vars.outputs.base_image_digest_bmi }}
+      base_image_revision_bmi: ${{ steps.vars.outputs.base_image_revision_bmi }}
       pr_tag: ${{ steps.vars.outputs.pr_tag }}
       commit_sha: ${{ steps.vars.outputs.commit_sha }}
       commit_sha_short: ${{ steps.vars.outputs.commit_sha_short }}
@@ -93,6 +97,16 @@ jobs:
           CLEAN_REF=$(echo "$REAL_REF" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
           SHORT_SHA="${REAL_SHA:0:7}"
 
+          # base image metadata for BMI Dockerfile labels
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
+
+          BASE_IMAGE_INSPECT=$(skopeo inspect "docker://${BASE_IMAGE_NAME_BMI}")
+          BASE_IMAGE_DIGEST_BMI=$(echo "$BASE_IMAGE_INSPECT" | jq -r '.Digest // "unknown"')
+          BASE_IMAGE_REVISION_BMI=$(echo "$BASE_IMAGE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+
           # logic for the tags:
           # test_image_tag (commit short sha): used for the initial build and test
           # alias_tag: used for final tagging on successful tests
@@ -117,6 +131,9 @@ jobs:
           echo "image_bmi=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
           echo "image_coastal=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
           echo "image_sfincs=${IMAGE_BASE}/ngen-sfincs-forcing" >> "$GITHUB_OUTPUT"
+          echo "base_image_name_bmi=${BASE_IMAGE_NAME_BMI}" >> "$GITHUB_OUTPUT"
+          echo "base_image_digest_bmi=${BASE_IMAGE_DIGEST_BMI}" >> "$GITHUB_OUTPUT"
+          echo "base_image_revision_bmi=${BASE_IMAGE_REVISION_BMI}" >> "$GITHUB_OUTPUT"
           echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
           echo "test_image_tag=${TEST_TAG}" >> "$GITHUB_OUTPUT"
           echo "alias_tag=${ALIAS}" >> "$GITHUB_OUTPUT"
@@ -190,6 +207,9 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
+            BASE_IMAGE_NAME=${{ needs.setup.outputs.base_image_name_bmi }}
+            BASE_IMAGE_DIGEST=${{ needs.setup.outputs.base_image_digest_bmi }}
+            BASE_IMAGE_REVISION=${{ needs.setup.outputs.base_image_revision_bmi }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
