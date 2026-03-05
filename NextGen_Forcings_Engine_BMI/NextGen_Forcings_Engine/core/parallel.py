@@ -194,7 +194,12 @@ class MpiConfig:
             pass
 
     def _cleanup_scratch_dir(self) -> None:
-        """Remove contents of scratch dir."""
+        """Remove contents of scratch dir.
+        TODO: full scope of remaining scratch dir usage should be identified,
+        and changes implemented to ensure file name uniqueness in the case of
+        concurrent jobs as well as concurrent ngen workers (GWO and PSO calibrations).
+        Potentially, the scratch dir could be replaced with /tmp/.
+        """
         self.log_debug("Cleanup: starting scratch dir cleanup")
         try:
             self.log_debug(f"Cleanup: listing: {self.config_options.scratch_dir}")
