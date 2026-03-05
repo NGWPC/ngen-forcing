@@ -95,7 +95,9 @@ def assert_equal_with_tol(
         try:
             v_actual = actual[k]
         except KeyError:
-            errors.append(KeyError(f"Key {k} in expected data is missing from actual"))
+            msg = f"Key {k} in expected data is missing from actual"
+            errors.append(KeyError(msg))
+            continue
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
