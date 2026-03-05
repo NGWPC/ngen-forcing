@@ -16,6 +16,8 @@ class ExpectVsActualError(Exception):
 def serializer_with_fallback(obj: typing.Any):
     """Serializer for json.dump to handle typical types, numpy types, and non-serializable types,
     which are converted to a string composed of a sentinel and the type as the suffix.
+    To be used as the `default=` parameter when calling json dump/dumps.
+    Not to be called directly.
     """
     if hasattr(obj, "__dict__"):
         # It is serializable
@@ -36,9 +38,12 @@ def serialize_to_json(
     keep_keys: tuple = None,
 ) -> str:
     """Serialize the provided object.
-    out_file: optionally write it to a new file.
-    sort_keys: optionally sort the keys (passed to json.dumps kwarg sort_keys).
-    keep_keys: optionally filter it to keep only the keep_keys.
+    Parameters:
+        out_file: optionally write it to a new file.
+        sort_keys: optionally sort the keys (passed to json.dumps kwarg sort_keys).
+        keep_keys: optionally filter it to keep only the keep_keys.
+    Returns:
+        A JSON string representation of the object.
     """
     dump_kwargs = {
         "default": serializer_with_fallback,
@@ -71,6 +76,7 @@ def assert_equal_with_tol(
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
     If keys_to_check is defined, then only those keys will be checked.
+    Raises ExpectVsActualError.
     """
     numerical_tolerance = 1e-6
     errors: list[Exception] = []
