@@ -202,8 +202,8 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: .
-          file: Dockerfile.bmi-forcings
-          # file: Dockerfile.test
+          # file: Dockerfile.bmi-forcings
+          file: Dockerfile.test
           push: true
           tags: ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
