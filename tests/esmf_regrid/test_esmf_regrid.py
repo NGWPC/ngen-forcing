@@ -18,7 +18,9 @@ Usage:
         Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
 """
 
+import importlib.util
 import logging
+import os
 
 import pytest
 
@@ -26,11 +28,15 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.regrid import (
     regrid_aorc_aws,
 )
 
-from tests.test_utils import (
-    bmi_forcing_fixture_historical_regrid,  # noqa: F401
-    BMIForcingFixture_HistoricalRegrid,
+### Load import tests.test_utils as test_utils, referring explicitly to its path.
+### This explicit load is necessary since March 2026 versions of ngen which introduced /ngen-app/ngen/extern/topoflow-glacier/tests
+spec = importlib.util.spec_from_file_location(
+    "tests.test_utils", os.path.abspath("tests/test_utils.py")
 )
-
+test_utils = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(test_utils)
+bmi_forcing_fixture_historical_regrid = test_utils.bmi_forcing_fixture_historical_regrid
+BMIForcingFixture_HistoricalRegrid = test_utils.BMIForcingFixture_HistoricalRegrid
 
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
