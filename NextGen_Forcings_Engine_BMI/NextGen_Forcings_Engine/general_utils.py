@@ -72,16 +72,17 @@ def assert_equal_with_tol(
     expect: dict,
     actual: dict,
     keys_to_check: tuple | None = None,
+    absolute_tolerance: float = 1e-6,
+    relative_tolerance: float = 1e-6,
 ):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
     If keys_to_check is defined, then only those keys will be checked.
     Raises ExpectVsActualError.
     """
-    numerical_tolerance = 1e-6
     errors: list[Exception] = []
     logging.info(
-        f"Asserting equality with numerical tolerance {numerical_tolerance} for {len(expect)} keys: {list(expect.keys())}"
+        f"Asserting equality with absolute tolerance {absolute_tolerance} and relative tolerance {relative_tolerance} for {len(expect)} keys: {list(expect.keys())}"
     )
     if keys_to_check:
         keys_missing = set(keys_to_check) - set(actual)
@@ -92,6 +93,8 @@ def assert_equal_with_tol(
         if keys_to_check and k not in keys_to_check:
             continue
         logging.debug(f"Key {repr(k)} has expected value {v_expect}")
+
+        ### Check key existence
         try:
             v_actual = actual[k]
         except KeyError:
@@ -101,6 +104,8 @@ def assert_equal_with_tol(
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
+
+        ### Check type match
         if type(v_actual) is not type(v_expect):
             errors.append(
                 TypeError(
@@ -108,18 +113,35 @@ def assert_equal_with_tol(
                 )
             )
             continue
-        if isinstance(v_expect, (float, int)):
-            if abs(v_expect - v_actual) > numerical_tolerance:
-                errors.append(
-                    ValueError(
-                        f"numerical tolerance {numerical_tolerance} exceeded by abs(v_expect - v_actual): abs({v_expect} - {v_actual}) == {abs(v_expect - v_actual)}"
-                    )
-                )
-        elif v_actual != v_expect:
+
+        ### Check equality
+        if v_expect == v_actual:
+            continue
+        ### This also works for strings and string arrays
+        if np.array_equal(np.atleast_1d(v_expect), np.atleast_1d(v_actual)):
+            continue
+        ### Apply numerical tolerance
+        try:
+            if np.allclose(
+                np.atleast_1d(v_expect),
+                np.atleast_1d(v_actual),
+                atol=absolute_tolerance,
+                rtol=relative_tolerance,
+            ):
+                continue
+        except np.exceptions.DTypePromotionError:
             errors.append(
                 ValueError(
-                    f"Not equal: for key {repr(k)},\nexpected:\n{v_expect}\n\nbut got:\n{v_actual}"
+                    f"Expected not equal to actual, and could not apply np.allclose. expect={expect}, actual={actual}."
                 )
             )
+            continue
+
+        errors.append(
+            ValueError(
+                f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for at least one element. {v_expect} vs {v_actual}."
+            )
+        )
+
     if errors:
         raise ExpectVsActualError(errors)
