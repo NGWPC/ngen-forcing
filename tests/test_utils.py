@@ -21,12 +21,24 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
+    JSON_NOT_SERIALIZABLE_SENTINEL,
     ExpectVsActualError,
     serialize_to_json,
     assert_equal_with_tol,
 )
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
+
+
+def assert_no_not_serializable_sentinel(json_str: str) -> None:
+    """Inspect the provided string and raise an error if it contains
+    the sentinel indicating that it contains objects that could not be serialized to JSON."""
+    if not isinstance(json_str, str):
+        raise TypeError(f"Expected type str for json_str, but got {type(json_str)}")
+    if JSON_NOT_SERIALIZABLE_SENTINEL in json_str:
+        msg_bookend = f"ERROR: found sentinel JSON_NOT_SERIALIZABLE_SENTINEL ({repr(JSON_NOT_SERIALIZABLE_SENTINEL)}) in the string. Please expand the serializer."
+        msg_full = f"vvv {msg_bookend} vvv \n\nThe full string is:\n{json_str}\n\n^^^ {msg_bookend} ^^^"
+        raise ValueError(msg_full)
 
 
 class BMIForcingFixture:
@@ -355,6 +367,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         regrid_results_json_str = serialize_to_json(
             regrid_results_actual, sort_keys=True
         )
+        assert_no_not_serializable_sentinel(regrid_results_json_str)
 
         logging.warning(f"Writing actual data: {self.regrid_results_file_name_actual}")
         with open(self.regrid_results_file_name_actual, "w") as f:
