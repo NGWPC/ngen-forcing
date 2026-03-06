@@ -25,9 +25,8 @@ def serializer_with_fallback(obj: typing.Any):
         return obj.item()
     if hasattr(obj, "__dict__"):
         return obj.__dict__
-    else:
-        # It is not serializable
-        return JSON_NOT_SERIALIZABLE_FORMAT.format(typ=str(type(obj)))
+    # It is not serializable
+    return JSON_NOT_SERIALIZABLE_FORMAT.format(typ=str(type(obj)))
 
 
 def serialize_to_json(
