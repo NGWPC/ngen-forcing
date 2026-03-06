@@ -71,7 +71,7 @@ def assert_equal_with_tol(
     actual: dict,
     keys_to_check: tuple | None = None,
     absolute_tolerance: float = 1e-6,
-    relative_tolerance: float = 1e-6,
+    relative_tolerance: float = 1e-10,
 ):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
