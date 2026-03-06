@@ -5,7 +5,7 @@ NWM_CONFIG: "medium_range_mem6"
 InputForcings: [3] 
 InputForcingDirectories: ["{root_dir}/raw_input/GFS"]
 InputForcingTypes: ["GRIB2"]
-InputMandatory: [1]
+InputMandatory: [0]
 OutputFrequency: 60
 SubOutputHour: 120
 SubOutFreq: 180
