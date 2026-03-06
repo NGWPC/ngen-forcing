@@ -19,13 +19,12 @@ def serializer_with_fallback(obj: typing.Any):
     To be used as the `default=` parameter when calling json dump/dumps.
     Not to be called directly.
     """
-    if hasattr(obj, "__dict__"):
-        # It is serializable
-        return obj.__dict__
-    elif isinstance(obj, np.ndarray):
+    if isinstance(obj, np.ndarray):
         return obj.tolist()
-    elif isinstance(obj, np.generic):
+    if isinstance(obj, np.generic):
         return obj.item()
+    if hasattr(obj, "__dict__"):
+        return obj.__dict__
     else:
         # It is not serializable
         return JSON_NOT_SERIALIZABLE_FORMAT.format(typ=str(type(obj)))
