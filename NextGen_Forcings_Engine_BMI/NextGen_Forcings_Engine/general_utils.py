@@ -101,6 +101,13 @@ def assert_equal_with_tol(
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
+        if type(v_actual) is not type(v_expect):
+            errors.append(
+                TypeError(
+                    f"Type mismatch: type(v_actual) is not type(v_expect): {type(v_actual)} vs {type(v_expect)}"
+                )
+            )
+            continue
         if isinstance(v_expect, (float, int)):
             if abs(v_expect - v_actual) > numerical_tolerance:
                 errors.append(
