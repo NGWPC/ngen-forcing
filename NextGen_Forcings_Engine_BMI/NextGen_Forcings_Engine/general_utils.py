@@ -104,6 +104,17 @@ def assert_equal_with_tol(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
 
+        ### Check NoneType special case
+        if v_expect is None and v_actual is None:
+            continue
+        elif v_expect is None or v_actual is None:
+            errors.append(
+                ValueError(
+                    f"Key {repr(k)}: one is None, other is not. {v_expect} vs {v_actual}"
+                )
+            )
+            continue
+
         ### Check type match
         if type(v_actual) is not type(v_expect):
             errors.append(
