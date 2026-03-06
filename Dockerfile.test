@@ -11,7 +11,6 @@ ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_VENDOR="unknown"
 ARG IMAGE_VERSION="unknown"
 ARG IMAGE_REVISION="unknown"
-ARG IMAGE_CREATED="unknown"
 
 # OCI Standard Labels
 LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
@@ -21,7 +20,6 @@ LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
     org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
     org.opencontainers.image.version="${IMAGE_VERSION}" \
     org.opencontainers.image.revision="${IMAGE_REVISION}" \
-    org.opencontainers.image.created="${IMAGE_CREATED}" \
     org.opencontainers.image.title="NGEN Forcing Test Image" \
     org.opencontainers.image.description="Lightweight test image for verifying NGEN Forcing pipeline"
 

@@ -29,8 +29,16 @@ on:
           - BMI
           - Coastal
           - SFINCS
-      SFINCS_CPU_IMAGE_TAG:
-        description: 'SFINCS_CPU_IMAGE_TAG'
+      BMI_BASE_TAG:
+        description: 'BMI_BASE_TAG'
+        required: false
+        type: string
+      COASTAL_BASE_TAG:
+        description: 'COASTAL_BASE_TAG'
+        required: false
+        type: string
+      SFINCS_BASE_TAG:
+        description: 'SFINCS_BASE_TAG'
         required: false
         type: string
 
@@ -41,7 +49,9 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  BASE_IMAGE_NAME_BMI: rockylinux:8
+  BMI_BASE_REPO: rockylinux
+  COASTAL_BASE_REPO: rockylinux
+  SFINCS_BASE_REPO: deltares/sfincs-cpu
 
 jobs:
   # set variables for use in other jobs
@@ -49,19 +59,25 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       org: ${{ steps.vars.outputs.org }}
-      image_base: ${{ steps.vars.outputs.image_base }}
-      image_bmi: ${{ steps.vars.outputs.image_bmi }}
-      image_coastal: ${{ steps.vars.outputs.image_coastal }}
-      image_sfincs: ${{ steps.vars.outputs.image_sfincs }}
-      base_image_name_bmi: ${{ steps.vars.outputs.base_image_name_bmi }}
-      base_image_digest_bmi: ${{ steps.vars.outputs.base_image_digest_bmi }}
-      base_image_revision_bmi: ${{ steps.vars.outputs.base_image_revision_bmi }}
-      pr_tag: ${{ steps.vars.outputs.pr_tag }}
+      bmi_image: ${{ steps.vars.outputs.bmi_image }}
+      coastal_image: ${{ steps.vars.outputs.coastal_image }}
+      sfincs_image: ${{ steps.vars.outputs.sfincs_image }}
+      bmi_base_name: ${{ steps.vars.outputs.bmi_base_name }}
+      bmi_base_tag: ${{ steps.vars.outputs.bmi_base_tag }}
+      bmi_base_digest: ${{ steps.vars.outputs.bmi_base_digest }}
+      bmi_base_revision: ${{ steps.vars.outputs.bmi_base_revision }}
+      coastal_base_name: ${{ steps.vars.outputs.coastal_base_name }}
+      coastal_base_tag: ${{ steps.vars.outputs.coastal_base_tag }}
+      coastal_base_digest: ${{ steps.vars.outputs.coastal_base_digest }}
+      coastal_base_revision: ${{ steps.vars.outputs.coastal_base_revision }}
+      sfincs_base_name: ${{ steps.vars.outputs.sfincs_base_name }}
+      sfincs_base_tag: ${{ steps.vars.outputs.sfincs_base_tag }}
+      sfincs_base_digest: ${{ steps.vars.outputs.sfincs_base_digest }}
+      sfincs_base_revision: ${{ steps.vars.outputs.sfincs_base_revision }}
       commit_sha: ${{ steps.vars.outputs.commit_sha }}
       commit_sha_short: ${{ steps.vars.outputs.commit_sha_short }}
       test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
       alias_tag: ${{ steps.vars.outputs.alias_tag }}
-      build_date: ${{ steps.vars.outputs.build_date }}
       clean_ref: ${{ steps.vars.outputs.clean_ref }}
     steps:
       - name: Compute image vars
@@ -77,9 +93,6 @@ jobs:
 
           # one datetime for all time variables
           NOW=$(date -u +'%Y-%m-%d %H:%M:%S')
-
-          # for OCI labels
-          BUILD_DATE=$(date -u -d "$NOW" +'%Y-%m-%dT%H:%M:%SZ')
 
           # for Docker image tags
           TIMESTAMP=$(date -u -d "$NOW" +'%Y%m%d%H%M%SZ')
@@ -97,15 +110,47 @@ jobs:
           CLEAN_REF=$(echo "$REAL_REF" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
           SHORT_SHA="${REAL_SHA:0:7}"
 
-          # base image metadata for BMI Dockerfile labels
+          # skopeo is needed to inspect the base image
           if ! command -v skopeo >/dev/null 2>&1; then
             sudo apt-get update -y
             sudo apt-get install -y --no-install-recommends skopeo
           fi
 
-          BASE_IMAGE_INSPECT=$(skopeo inspect "docker://${BASE_IMAGE_NAME_BMI}")
-          BASE_IMAGE_DIGEST_BMI=$(echo "$BASE_IMAGE_INSPECT" | jq -r '.Digest // "unknown"')
-          BASE_IMAGE_REVISION_BMI=$(echo "$BASE_IMAGE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+          # base image metadata for BMI Dockerfile labels
+          BMI_BASE_TAG_INPUT="${{ github.event.inputs.BMI_BASE_TAG || '' }}"
+          if [ -n "$BMI_BASE_TAG_INPUT" ]; then
+            BMI_BASE_TAG="$BMI_BASE_TAG_INPUT"
+          else
+            BMI_BASE_TAG="8"
+          fi
+          BMI_BASE_NAME="${BMI_BASE_REPO}:${BMI_BASE_TAG}"
+          BMI_BASE_INSPECT=$(skopeo inspect "docker://${BMI_BASE_NAME}")
+          BMI_BASE_DIGEST=$(echo "$BMI_BASE_INSPECT" | jq -r '.Digest // "unknown"')
+          BMI_BASE_REVISION=$(echo "$BMI_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+
+          # base image metadata for Coastal Dockerfile labels
+          COASTAL_BASE_TAG_INPUT="${{ github.event.inputs.COASTAL_BASE_TAG || '' }}"
+          if [ -n "$COASTAL_BASE_TAG_INPUT" ]; then
+            COASTAL_BASE_TAG="$COASTAL_BASE_TAG_INPUT"
+          else
+            COASTAL_BASE_TAG="8"
+          fi
+          COASTAL_BASE_NAME="${COASTAL_BASE_REPO}:${COASTAL_BASE_TAG}"
+          COASTAL_BASE_INSPECT=$(skopeo inspect "docker://${COASTAL_BASE_NAME}")
+          COASTAL_BASE_DIGEST=$(echo "$COASTAL_BASE_INSPECT" | jq -r '.Digest // "unknown"')
+          COASTAL_BASE_REVISION=$(echo "$COASTAL_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+
+          # base image metadata for SFINCS Dockerfile labels
+          SFINCS_BASE_TAG_INPUT="${{ github.event.inputs.SFINCS_BASE_TAG || '' }}"
+          if [ -n "$SFINCS_BASE_TAG_INPUT" ]; then
+            SFINCS_BASE_TAG="$SFINCS_BASE_TAG_INPUT"
+          else
+            SFINCS_BASE_TAG="latest"
+          fi
+          SFINCS_BASE_NAME="${SFINCS_BASE_REPO}:${SFINCS_BASE_TAG}"
+          SFINCS_BASE_INSPECT=$(skopeo inspect "docker://${SFINCS_BASE_NAME}")
+          SFINCS_BASE_DIGEST=$(echo "$SFINCS_BASE_INSPECT" | jq -r '.Digest // "unknown"')
+          SFINCS_BASE_REVISION=$(echo "$SFINCS_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
 
           # logic for the tags:
           # test_image_tag (commit short sha): used for the initial build and test
@@ -118,23 +163,30 @@ jobs:
             # for pull requests, use pr-<pr number>-build
             ALIAS="pr-${{ github.event.pull_request.number }}-build"
           elif [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ] && [ "${{ github.ref_type }}" = "tag" ]; then
-            # for manual workflow dispatch on tags, use the git tag
+            # for workflow dispatches on tags, use the git tag
             ALIAS="${CLEAN_REF}"
           else
-            # for pushes to branches, use timestamp-branchname
+            # for pushes or workflow dispatches to branches, use <timestamp-branchname>
             ALIAS="${TIMESTAMP}-${CLEAN_REF}"
           fi
 
           # save outputs
           echo "org=${ORG}" >> "$GITHUB_OUTPUT"
-          echo "image_base=${IMAGE_BASE}" >> "$GITHUB_OUTPUT"
-          echo "image_bmi=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
-          echo "image_coastal=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
-          echo "image_sfincs=${IMAGE_BASE}/ngen-sfincs-forcing" >> "$GITHUB_OUTPUT"
-          echo "base_image_name_bmi=${BASE_IMAGE_NAME_BMI}" >> "$GITHUB_OUTPUT"
-          echo "base_image_digest_bmi=${BASE_IMAGE_DIGEST_BMI}" >> "$GITHUB_OUTPUT"
-          echo "base_image_revision_bmi=${BASE_IMAGE_REVISION_BMI}" >> "$GITHUB_OUTPUT"
-          echo "build_date=${BUILD_DATE}" >> "$GITHUB_OUTPUT"
+          echo "bmi_image=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
+          echo "coastal_image=${IMAGE_BASE}/ngen-coastal" >> "$GITHUB_OUTPUT"
+          echo "sfincs_image=${IMAGE_BASE}/ngen-sfincs-forcing" >> "$GITHUB_OUTPUT"
+          echo "bmi_base_name=${BMI_BASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "bmi_base_tag=${BMI_BASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "bmi_base_digest=${BMI_BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "bmi_base_revision=${BMI_BASE_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "coastal_base_name=${COASTAL_BASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "coastal_base_tag=${COASTAL_BASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "coastal_base_digest=${COASTAL_BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "coastal_base_revision=${COASTAL_BASE_REVISION}" >> "$GITHUB_OUTPUT"
+          echo "sfincs_base_name=${SFINCS_BASE_NAME}" >> "$GITHUB_OUTPUT"
+          echo "sfincs_base_tag=${SFINCS_BASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "sfincs_base_digest=${SFINCS_BASE_DIGEST}" >> "$GITHUB_OUTPUT"
+          echo "sfincs_base_revision=${SFINCS_BASE_REVISION}" >> "$GITHUB_OUTPUT"
           echo "test_image_tag=${TEST_TAG}" >> "$GITHUB_OUTPUT"
           echo "alias_tag=${ALIAS}" >> "$GITHUB_OUTPUT"
           echo "commit_sha=${REAL_SHA}" >> "$GITHUB_OUTPUT"
@@ -202,19 +254,18 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           context: .
-          # file: Dockerfile.bmi-forcings
-          file: Dockerfile.test
+          file: Dockerfile.bmi-forcings
+          # file: Dockerfile.test
           push: true
-          tags: ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }}
+          tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            BASE_IMAGE_NAME=${{ needs.setup.outputs.base_image_name_bmi }}
-            BASE_IMAGE_DIGEST=${{ needs.setup.outputs.base_image_digest_bmi }}
-            BASE_IMAGE_REVISION=${{ needs.setup.outputs.base_image_revision_bmi }}
+            BMI_BASE_TAG=${{ needs.setup.outputs.bmi_base_tag }}
+            BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
+            BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
             IMAGE_REVISION=${{ needs.setup.outputs.commit_sha }}
-            IMAGE_CREATED=${{ needs.setup.outputs.build_date }}
             CI_COMMIT_REF_NAME=${{ needs.setup.outputs.clean_ref }}
       - name: Free disk space
         run: |
@@ -235,7 +286,7 @@ jobs:
           df -h
       - name: Unit Test BMI
         run: |
-          docker run --rm ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }} \
+          docker run --rm ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running BMI Forcing Unit Tests..."
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.5
@@ -256,7 +307,7 @@ jobs:
             --scanners vuln \
             --ignore-unfixed \
             --timeout 45m \
-            ${{ needs.setup.outputs.image_bmi }}:${{ needs.setup.outputs.test_image_tag }}
+            ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
       - name: Promote Tags
         if: success()
         shell: bash
@@ -269,7 +320,7 @@ jobs:
             sudo apt-get install -y --no-install-recommends skopeo
           fi
 
-          IMAGE_BASE="${{ needs.setup.outputs.image_bmi }}"
+          IMAGE_BASE="${{ needs.setup.outputs.bmi_image }}"
           TEST_TAG="${{ needs.setup.outputs.test_image_tag }}"
           ALIAS_TAG="${{ needs.setup.outputs.alias_tag }}"
 
@@ -322,13 +373,15 @@ jobs:
           context: .
           file: Dockerfile.ngencoastal
           push: true
-          tags: ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.test_image_tag }}
+          tags: ${{ needs.setup.outputs.coastal_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
+            COASTAL_BASE_TAG=${{ needs.setup.outputs.coastal_base_tag }}
+            COASTAL_BASE_DIGEST=${{ needs.setup.outputs.coastal_base_digest }}
+            COASTAL_BASE_REVISION=${{ needs.setup.outputs.coastal_base_revision }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
             IMAGE_REVISION=${{ needs.setup.outputs.commit_sha }}
-            IMAGE_CREATED=${{ needs.setup.outputs.build_date }}
             CI_COMMIT_REF_NAME=${{ needs.setup.outputs.clean_ref }}
       - name: Free disk space
         run: |
@@ -349,7 +402,7 @@ jobs:
           df -h
       - name: Unit Test Coastal
         run: |
-          docker run --rm ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.test_image_tag }} \
+          docker run --rm ${{ needs.setup.outputs.coastal_image }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running Coastal Unit Tests..."
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.5
@@ -370,7 +423,7 @@ jobs:
             --scanners vuln \
             --ignore-unfixed \
             --timeout 45m \
-            ${{ needs.setup.outputs.image_coastal }}:${{ needs.setup.outputs.test_image_tag }}
+            ${{ needs.setup.outputs.coastal_image }}:${{ needs.setup.outputs.test_image_tag }}
       - name: promote tags (alias and latest)
         if: success()
         shell: bash
@@ -383,7 +436,7 @@ jobs:
             sudo apt-get install -y --no-install-recommends skopeo
           fi
 
-          IMAGE_BASE="${{ needs.setup.outputs.image_coastal }}"
+          IMAGE_BASE="${{ needs.setup.outputs.coastal_image }}"
           TEST_TAG="${{ needs.setup.outputs.test_image_tag }}"
           ALIAS_TAG="${{ needs.setup.outputs.alias_tag }}"
 
@@ -436,14 +489,15 @@ jobs:
           context: .
           file: Dockerfile.sfincs
           push: true
-          tags: ${{ needs.setup.outputs.image_sfincs }}:${{ needs.setup.outputs.test_image_tag }}
+          tags: ${{ needs.setup.outputs.sfincs_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            SFINCS_CPU_IMAGE_TAG=${{ inputs.SFINCS_CPU_IMAGE_TAG  || 'latest' }}
+            SFINCS_BASE_DIGEST=${{ needs.setup.outputs.sfincs_base_digest }}
+            SFINCS_BASE_REVISION=${{ needs.setup.outputs.sfincs_base_revision }}
+            SFINCS_BASE_TAG=${{ needs.setup.outputs.sfincs_base_tag }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
             IMAGE_REVISION=${{ needs.setup.outputs.commit_sha }}
-            IMAGE_CREATED=${{ needs.setup.outputs.build_date }}
       - name: Free disk space
         run: |
           # clear pre-installed tools
@@ -463,7 +517,7 @@ jobs:
           df -h
       - name: Unit Test SFINCS
         run: |
-          docker run --rm ${{ needs.setup.outputs.image_sfincs }}:${{ needs.setup.outputs.test_image_tag }} \
+          docker run --rm ${{ needs.setup.outputs.sfincs_image }}:${{ needs.setup.outputs.test_image_tag }} \
           echo "Running SFINCS Unit Tests..."
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.5
@@ -484,7 +538,7 @@ jobs:
             --scanners vuln \
             --ignore-unfixed \
             --timeout 45m \
-            ${{ needs.setup.outputs.image_sfincs }}:${{ needs.setup.outputs.test_image_tag }}
+            ${{ needs.setup.outputs.sfincs_image }}:${{ needs.setup.outputs.test_image_tag }}
       - name: promote tags (alias and latest)
         if: success()
         shell: bash
@@ -497,7 +551,7 @@ jobs:
             sudo apt-get install -y --no-install-recommends skopeo
           fi
 
-          IMAGE_BASE="${{ needs.setup.outputs.image_sfincs }}"
+          IMAGE_BASE="${{ needs.setup.outputs.sfincs_image }}"
           TEST_TAG="${{ needs.setup.outputs.test_image_tag }}"
           ALIAS_TAG="${{ needs.setup.outputs.alias_tag }}"
 
