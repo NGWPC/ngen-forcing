@@ -7,7 +7,7 @@ import re
 import typing
 from contextlib import contextmanager
 from datetime import timedelta
-from functools import lru_cache
+from functools import cached_property
 from time import perf_counter
 
 import dask
@@ -49,8 +49,7 @@ class BaseProcessor:
         self.dest_crs = CRS(4326)
         self.buffer = 0.02  # degree buffer around bounding box
 
-    @property
-    @lru_cache
+    @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
@@ -174,8 +173,7 @@ class BaseProcessor:
             end_date = end
         return start_date, end_date
 
-    @property
-    @lru_cache
+    @cached_property
     def start_end_datetimes(self) -> dict[pd.Timestamp, pd.Timestamp]:
         """Generate dictionary of start and end dates for caching.
 
@@ -184,7 +182,7 @@ class BaseProcessor:
         start and end date pairs based on the cache size.
          :return: Dictionary of start and end dates as pd.Timestamp
 
-         TODO for lru_cache safety, confirm or enforce that these are never mutated:
+         TODO for lru_cache / cached_property safety, confirm or enforce that these are never mutated:
             self.config_options.b_date_proc
             self.config_options.fcst_input_horizons
             self.config_options.fcst_freq
@@ -246,8 +244,7 @@ class BaseProcessor:
             ds.to_netcdf(self.nc_path)
         return ds
 
-    @property
-    @lru_cache
+    @cached_property
     def gdf(self) -> gpd.GeoDataFrame:
         """Load and cache the geospatial dataframe."""
         gdf = gpd.read_file(self.config_options.geopackage, layer="divides")
@@ -270,14 +267,12 @@ class BaseProcessor:
             f"{self.precip_variable}_sum.tif"
         )
 
-    @property
-    @lru_cache
+    @cached_property
     def number_of_catchments(self) -> int:
         """Return number of catchments in the geospatial dataframe."""
         return len(self.gdf)
 
-    @property
-    @lru_cache
+    @cached_property
     def cache_size(self) -> np.timedelta64:
         """Determine cache size based on number of catchments.
 
@@ -343,8 +338,7 @@ class AORCConusProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -386,8 +380,7 @@ class AORCConusProcessor(BaseProcessor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
         """Lazy load dataset from S3."""
         year_datasets = {}
@@ -415,8 +408,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self):
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -528,8 +520,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
 
         return url
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -558,8 +549,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
             {self.x_label: "x", self.y_label: "y"}
         )
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
         """Lazy load dataset from S3."""
         variables = {}
@@ -581,8 +571,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    @property
-    @lru_cache
+    @cached_property
     def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
@@ -595,8 +584,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
 
         return url
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(self.url, skip_signature=True)
@@ -624,8 +612,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> xr.Dataset:
         """Lazy load dataset from S3."""
         object_store = obstore.store.from_url(self.url, skip_signature=True)
@@ -644,8 +631,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    @property
-    @lru_cache
+    @cached_property
     def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
@@ -680,8 +666,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         return self.geo_grid["crs"].attrs["spatial_ref"]
@@ -694,8 +679,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         return geo_grid
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> xr.Dataset:
         """Lazy load dataset from S3 with coordinates assigned.
 
