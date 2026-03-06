@@ -81,7 +81,7 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     ],
     indirect=True,
 )
-def test_regrid_aorc_aws(
+def test_regrid_historical(
     bmi_forcing_fixture_historical_regrid: test_utils.BMIForcingFixture_HistoricalRegrid,  # pyright: ignore
 ) -> None:
     """pytest function for testing ESMF regrid functionality for AORC historical forcing data.
