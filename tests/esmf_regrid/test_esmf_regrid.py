@@ -35,8 +35,7 @@ spec = importlib.util.spec_from_file_location(
 )
 test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
-bmi_forcing_fixture_historical_regrid = test_utils.bmi_forcing_fixture_historical_regrid
-BMIForcingFixture_HistoricalRegrid = test_utils.BMIForcingFixture_HistoricalRegrid
+
 
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
@@ -83,7 +82,7 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     indirect=True,
 )
 def test_regrid_aorc_aws(
-    bmi_forcing_fixture_historical_regrid: BMIForcingFixture_HistoricalRegrid,  # noqa: F811
+    bmi_forcing_fixture_historical_regrid: test_utils.BMIForcingFixture_HistoricalRegrid,  # pyright: ignore
 ) -> None:
     """pytest function for testing ESMF regrid functionality for AORC historical forcing data.
     NOTE vvv this has been tested for the following conditions only vvv
