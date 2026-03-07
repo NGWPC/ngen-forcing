@@ -43,7 +43,7 @@ def assert_no_not_serializable_sentinel(json_str: str) -> None:
 
 class BMIForcingFixture:
     """Minimal class of classes for running BMI forcing.
-    For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid_aorc_aws.
+    For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
     """
 
     def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
@@ -54,11 +54,12 @@ class BMIForcingFixture:
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
 
-class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
+class BMIForcingFixture_Regrid(BMIForcingFixture):
     def __init__(
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         regrid_func: typing.Callable,
+        force_key: int,
         regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
     ):
@@ -70,6 +71,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
 
         Parameters:
             regrid_func: The regrid function that is being tested.
+            force_key: Should agree with the regrid function being tested, e.g. see ginputfunc.forcing_map
             regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
             keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
         """
@@ -78,7 +80,29 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         self.regrid_func = regrid_func
         self.regrid_arrays_to_trim_extra_elements = regrid_arrays_to_trim_extra_elements
         self.keys_to_check = keys_to_check
+
+        self.force_key = force_key
+        self.cull_force_keys_not_used_this_test()
+
         self._state = None  # Test fixture state used to help ensure things happen in the right order
+
+    def cull_force_keys_not_used_this_test(self) -> None:
+        """Remove force keys that are not used during this test. For example,
+        Short Range contains 2 total force keys, one for HRRR and one for RAP,
+        but we only want to test one at a time, so remove the other one."""
+        tmp = {k: v for k, v in self.input_forcing_mod.items() if k == self.force_key}
+        if len(tmp) != 1:
+            raise ValueError(
+                f"Expected to have 1 key-pair in the new input_forcing_mod after culling, but got {len(tmp)}. Original: {self.input_forcing_mod}"
+            )
+        self.input_forcing_mod = tmp
+
+        tmp = [_ for _ in self.config_options.input_forcings if _ == self.force_key]
+        if len(tmp) != 1:
+            raise ValueError(
+                f"Expected to have 1 element in the proposed new config_options.input_forcings after culling, but got {len(tmp)}. Original: {self.config_options.input_forcings}"
+            )
+        self.config_options.input_forcings = tmp
 
     @property
     def serialized_file_suffix(self) -> str:
@@ -181,7 +205,7 @@ class BMIForcingFixture_HistoricalRegrid(BMIForcingFixture):
         self._state = "pre_ran"
 
     def set_input_forcings_skip_flags(self) -> None:
-        """Set the `skip` flag on the InputForcings object so that historical forcing regrid will not occur during loop_through_forcing_products()."""
+        """Set the `skip` flag on the InputForcings object so that forcing regrid will not occur during loop_through_forcing_products()."""
         logging.debug(
             "Setting input_forcing.skip = True for each value in dict self.input_forcing_mod"
         )

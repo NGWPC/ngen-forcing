@@ -26,6 +26,8 @@ import pytest
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.regrid import (
     regrid_aorc_aws,
+    regrid_conus_hrrr,
+    regrid_conus_rap,
 )
 
 ### Load import tests.test_utils as test_utils, referring explicitly to its path.
@@ -37,9 +39,15 @@ test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
 
+### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
+os.environ["MFE_SILENT"] = "true"
+
+
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
 )
+FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Output/Forecast_Run/fcst_run1_short_range/forcing_config/short_range_config.yml"
+
 
 ### These are output arrays which can contain extra unused elements which need to be removed during an equality check.
 REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS = (
@@ -70,34 +78,51 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 
 
 @pytest.mark.parametrize(
-    "bmi_forcing_fixture_historical_regrid",
+    "bmi_forcing_fixture_regrid",
     [
         (
             regrid_aorc_aws,
             RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            12,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             REGRID_KEYS_TO_CHECK,
-        )
+        ),
+        (
+            regrid_conus_hrrr,
+            FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+            5,
+            REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
+            REGRID_KEYS_TO_CHECK,
+        ),
+        (
+            regrid_conus_rap,
+            FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+            6,
+            REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
+            REGRID_KEYS_TO_CHECK,
+        ),
     ],
     indirect=True,
 )
-def test_regrid_historical(
-    bmi_forcing_fixture_historical_regrid: test_utils.BMIForcingFixture_HistoricalRegrid,  # pyright: ignore
+def test_regrid(
+    bmi_forcing_fixture_regrid: test_utils.BMIForcingFixture_Regrid,  # pyright: ignore
 ) -> None:
-    """pytest function for testing ESMF regrid functionality for AORC historical forcing data.
+    """pytest function for testing ESMF regrid functionality.
     NOTE vvv this has been tested for the following conditions only vvv
         1. Hydrofabric discretization, AORC historical forcing, CONUS domain.
+        2. Hydrofabric discretization, HRRR and RAP forcing (individually), CONUS domain.
     NOTE ^^^ this has been tested for the above conditions only ^^^
     """
     ### Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
     total_timesteps = 3
-    fixt = bmi_forcing_fixture_historical_regrid
+
+    fixt = bmi_forcing_fixture_regrid
     if len(fixt.input_forcing_mod) != 1:
         raise ValueError(
             f"Expected 1 key for input_forcing_mod, got {len(fixt.input_forcing_mod)}: {list(fixt.input_forcing_mod.keys())}"
         )
-    force_key = list(fixt.input_forcing_mod.keys())[0]
-    input_forcings = fixt.input_forcing_mod[force_key]
+
+    input_forcings = fixt.input_forcing_mod[fixt.force_key]
 
     for i in range(total_timesteps):
         fixt.pre_regrid()
