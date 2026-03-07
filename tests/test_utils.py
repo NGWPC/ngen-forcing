@@ -1,5 +1,6 @@
 """Utilities for ngen-forcing tests."""
 
+from dataclasses import dataclass
 import json
 import logging
 import os
@@ -41,6 +42,50 @@ def assert_no_not_serializable_sentinel(json_str: str) -> None:
         raise ValueError(msg_full)
 
 
+@dataclass
+class ClassAttrFetcher:
+    """Class attribute fetcher, for helping to collect data
+    from various in-memory objects in a parameterized way
+    when building test results json files.
+
+    The string dunder of this class is used to build a test result data key.
+
+    Parameters:
+        fixture_attr_name:
+            The name of the high-level fixture attribute that contains
+            the desired child attribute, e.g. "wrf_hydro_geo_meta"
+
+        child_attr_name:
+            The name of the child attribute to be collected, e.g. "element_ids".
+    """
+
+    fixture_attr_name: str
+    child_attr_name: str
+
+    @property
+    def results_key_name(self) -> str:
+        return f"{self.fixture_attr_name}__{self.child_attr_name}"
+
+    def __str__(self) -> str:
+        return self.results_key_name
+
+    def get(
+        self, fixture_instance: typing.Any, serialize_and_deserialize: bool = False
+    ) -> typing.Any:
+        """From the fixture, fetch the parent class instance,
+        and the value of the child attribute, and return that value.
+
+        Parameters
+            fixture_instance: the fixture instance which contains the attributes to fetch from
+            serialize_and_deserialize: if true, the returned attribute will be serialized to JSON and then deserialized before returned.
+        """
+        parent = getattr(fixture_instance, self.fixture_attr_name)
+        child = getattr(parent, self.child_attr_name)
+        if serialize_and_deserialize:
+            child = json.loads(serialize_to_json(child))
+        return child
+
+
 class BMIForcingFixture:
     """Minimal class of classes for running BMI forcing.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
@@ -60,6 +105,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         regrid_func: typing.Callable,
         force_key: int,
+        extra_attrs: tuple[ClassAttrFetcher],
         regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
     ):
@@ -72,6 +118,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         Parameters:
             regrid_func: The regrid function that is being tested.
             force_key: Should agree with the regrid function being tested, e.g. see ginputfunc.forcing_map
+            extra_attrs: These are extra attributes to be added to the test results JSON, to supplement the primary InputForcings attributes.
             regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
             keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
         """
@@ -83,6 +130,8 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
 
         self.force_key = force_key
         self.cull_force_keys_not_used_this_test()
+
+        self.extra_attrs: tuple[ClassAttrFetcher] = extra_attrs
 
         self._state = None  # Test fixture state used to help ensure things happen in the right order
 
@@ -381,6 +430,18 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         regrid_results_actual = self.remove_extra_data_from_regrid_results(
             input_forcings
         )
+
+        ### Add extra results keys from objects outside of InputForcings,
+        ### for example this is used to bring in GeoMetaWrfHydro.element_ids.
+        for ea in self.extra_attrs:
+            if ea.results_key_name in regrid_results_actual:
+                raise KeyError(
+                    f"Key {ea.results_key_name} already exists in {regrid_results_actual}"
+                )
+            regrid_results_actual[ea.results_key_name] = ea.get(
+                self, serialize_and_deserialize=True
+            )
+
         ### Remove unchecked keys
         regrid_results_actual = {
             k: v for k, v in regrid_results_actual.items() if k in self.keys_to_check
@@ -426,7 +487,9 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
 
         try:
             assert_equal_with_tol(
-                expect=regrid_results_expect, actual=regrid_results_actual
+                expect=regrid_results_expect,
+                actual=regrid_results_actual,
+                keys_to_check=self.keys_to_check,
             )
         except ExpectVsActualError as e:
             raise RuntimeError(

@@ -38,6 +38,7 @@ spec = importlib.util.spec_from_file_location(
 test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
+ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 ### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
 os.environ["MFE_SILENT"] = "true"
@@ -50,7 +51,7 @@ FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_
 
 
 ### These are output arrays which can contain extra unused elements which need to be removed during an equality check.
-REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS = (
+REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS: tuple[str] = (
     "regridded_forcings1",
     "regridded_forcings1_elem",
     "regridded_forcings2",
@@ -58,7 +59,8 @@ REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS = (
 )
 
 ### These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
-REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
+### These are gathered from the resulting InputForcings class instance.
+REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     # "esmf_field_in",
     # "esmf_field_in_elem",
     # "esmf_grid_in",
@@ -76,6 +78,17 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
     "regridded_precip2_elem",
 )
 
+### While the InputForcings class instance is the primary source of test results data,
+### this is used to add supplemental attributes to the results data,
+### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
+EXTRA_ATTRS: tuple[ClassAttrFetcher] = (
+    ClassAttrFetcher("wrf_hydro_geo_meta", "element_ids"),
+)
+
+COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
+    _.results_key_name for _ in EXTRA_ATTRS
+)
+
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_regrid",
@@ -84,22 +97,25 @@ REGRID_KEYS_TO_CHECK = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
             regrid_aorc_aws,
             RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
             12,
+            EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            REGRID_KEYS_TO_CHECK,
+            COMPOSITE_KEYS_TO_CHECK,
         ),
         (
             regrid_conus_hrrr,
             FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
             5,
+            EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            REGRID_KEYS_TO_CHECK,
+            COMPOSITE_KEYS_TO_CHECK,
         ),
         (
             regrid_conus_rap,
             FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
             6,
+            EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            REGRID_KEYS_TO_CHECK,
+            COMPOSITE_KEYS_TO_CHECK,
         ),
     ],
     indirect=True,

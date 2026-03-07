@@ -42,6 +42,7 @@ def bmi_forcing_fixture_regrid(
         regrid_func,
         config_file,
         force_key,
+        extra_attrs,
         regrid_arrays_to_trim_extra_elements,
         keys_to_check,
     ) = request.param
@@ -57,6 +58,7 @@ def bmi_forcing_fixture_regrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
         force_key=force_key,
+        extra_attrs=extra_attrs,
         regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
         keys_to_check=keys_to_check,
     )

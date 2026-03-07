@@ -80,26 +80,39 @@ def assert_equal_with_tol(
     Raises ExpectVsActualError.
     """
     errors: list[Exception] = []
+
+    if not keys_to_check:
+        keys_to_check = list(expect.keys())
+
     logging.info(
-        f"Asserting equality with absolute tolerance {absolute_tolerance} and relative tolerance {relative_tolerance} for {len(expect)} keys: {list(expect.keys())}"
+        f"Asserting equality with absolute tolerance {absolute_tolerance} and relative tolerance {relative_tolerance} for {len(keys_to_check)} keys: {keys_to_check}"
     )
-    if keys_to_check:
-        keys_missing = set(keys_to_check) - set(actual)
-        if keys_missing:
-            errors.append(KeyError(f"Missing keys: {keys_missing}"))
 
-    for k, v_expect in expect.items():
-        if keys_to_check and k not in keys_to_check:
-            continue
-        logging.debug(f"Key {repr(k)} has expected value {v_expect}")
+    keys_missing_from_actual = set(keys_to_check) - set(actual)
+    if keys_missing_from_actual:
+        errors.append(KeyError(f"Missing keys from actual: {keys_missing_from_actual}"))
 
+    keys_missing_from_expected = set(keys_to_check) - set(expect)
+    if keys_missing_from_expected:
+        errors.append(
+            KeyError(f"Missing keys from expected: {keys_missing_from_expected}")
+        )
+
+    for k in keys_to_check:
         ### Check key existence
+        try:
+            v_expect = expect[k]
+        except KeyError:
+            errors.append(KeyError(f"Key {k} is missing from expected"))
+            continue
+
         try:
             v_actual = actual[k]
         except KeyError:
-            msg = f"Key {k} in expected data is missing from actual"
+            msg = f"Key {k} is missing from actual"
             errors.append(KeyError(msg))
             continue
+
         logging.debug(
             f"Key {repr(k)} has expected value {v_expect} and actual value {v_actual}"
         )
