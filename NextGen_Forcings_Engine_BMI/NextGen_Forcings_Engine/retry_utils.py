@@ -84,7 +84,7 @@ def retry_w_mpi_context(
                             err_handler.log_critical(
                                 config_options, mpi_config, msg=msg
                             )
-                            mpi_config.comm.Abort(1)
+                            mpi_config.abort_with_cleanup(1)
                         else:
                             msg += " Reraising exception."
                             err_handler.log_critical(

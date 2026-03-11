@@ -1,9 +1,10 @@
 import configparser
 import json
 import logging
-import os
 import re
+import os
 from datetime import datetime, timedelta, timezone
+import uuid
 
 import numpy as np
 
@@ -14,6 +15,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
     calculate_lookback_window,
 )
 from nextgen_forcings_ewts import MODULE_NAME
+
+
+from . import mpi_utils
 
 LOG = logging.getLogger(MODULE_NAME)
 
@@ -145,6 +149,17 @@ class ConfigOptions:
         self.geogrid = geogrid_arg
         self.geopackage = None
 
+        self.uid64 = None
+
+        self.broadcast_new_64bit_uid()
+
+    def broadcast_new_64bit_uid(self):
+        """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks.
+        Should be called once to avoid confusion."""
+        if self.uid64 is not None:
+            raise RuntimeError("self.uid64 has already been initialized.")
+        self.uid64 = mpi_utils.get_new_broadcasted_uid()
+
     def validate_config(self, cfg_bmi: dict) -> None:
         """Validate in options from the configuration file and check that proper options were provided."""
         # Ensure b_date_proc is set; if not, read from the configuration file
@@ -181,26 +196,32 @@ class ConfigOptions:
         # Ensure geogrid is set; if not, read from the configuration file
         if self.geogrid is None:
             try:
-                self.geogrid = cfg_bmi.get(
+                geogrid_base = cfg_bmi.get(
                     "GeogridIn", None
                 )  # Default to None if not found
-                if self.geogrid is None:
-                    err_out_screen(
-                        "Unable to locate GeogridIn in the configuration file."
-                    )
             except KeyError as e:
                 err_out_screen(
                     "Unable to locate GeogridIn in the configuration file.", e
                 )
+            if geogrid_base is None:
+                err_out_screen("Unable to locate GeogridIn in the configuration file.")
+                self.geogrid = None
+            else:
+                geogrid_parent = os.path.dirname(geogrid_base)
+                geogrid_filename = os.path.basename(geogrid_base)
+                if self.uid64 is None:
+                    raise ValueError("self.uid64 cannot be None, please initialize it.")
+                self.geogrid = os.path.join(
+                    geogrid_parent, f"{self.uid64}_{geogrid_filename}"
+                )
             # Create directory for esmf_mesh file
-            geogrid_dir = os.path.dirname(self.geogrid)
-            if not os.path.isdir(geogrid_dir):
+            if not os.path.isdir(geogrid_parent):
                 try:
-                    os.makedirs(geogrid_dir, exist_ok=True)
-                    LOG.debug(f"Created esmf mesh directory: {geogrid_dir}")
+                    os.makedirs(geogrid_parent, exist_ok=True)
+                    LOG.debug(f"Created esmf mesh directory: {geogrid_parent}")
                 except OSError as e:
                     err_out_screen(
-                        f"Unable to create esmf_mesh directory: {geogrid_dir}. Error: {e}"
+                        f"Unable to create esmf_mesh directory: {geogrid_parent}. Error: {e}"
                     )
 
         # Read in the base input forcing options as an array of values to map.

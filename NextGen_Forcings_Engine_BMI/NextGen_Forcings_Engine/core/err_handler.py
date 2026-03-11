@@ -114,15 +114,14 @@ def check_program_status(
             stack = traceback.format_stack()[:-1]
             for frame in stack:
                 LOG.error(frame)
-            MpiConfig.comm.Abort(1)
-            sys.exit(1)
+            MpiConfig.abort_with_cleanup(1)
 
     # Sync up processors.
     # When this is enabled, then all ranks wait for rank 0 to evaluate the
     # collected error flags and call Abort() as appropriate, before continuing.
     # When this is not enabled, then non-0 ranks may continue execution after sending
     # their error flag, since non-0 ranks do not block on reduce().
-    MpiConfig.comm.barrier()
+    # MpiConfig.comm.barrier()
 
 
 def init_log(ConfigOptions, MpiConfig):
