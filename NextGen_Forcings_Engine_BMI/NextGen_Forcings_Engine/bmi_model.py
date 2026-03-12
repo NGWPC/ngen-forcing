@@ -238,6 +238,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
 
+        ### Reassign the scratch dir to a new child dir of the current scratch dir,
+        ### applying uniqueness to the final path. This must be called by all ranks, once.
+        self._job_meta.uniquefy_scratch_dir_as_child(self._mpi_meta.uid64)
+
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:

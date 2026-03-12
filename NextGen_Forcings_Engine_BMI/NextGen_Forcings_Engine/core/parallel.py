@@ -44,6 +44,8 @@ class MpiConfig:
         )
         self.config_options = config_options
         self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
+        self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
+        self.log_warning = partial(err_handler.log_warning, self.config_options, self)
         self.__register_exit_handlers()
 
     def initialize_comm(self, comm=None):
@@ -201,12 +203,17 @@ class MpiConfig:
         Potentially, the scratch dir could be replaced with /tmp/.
         """
         self.log_debug("Cleanup: starting scratch dir cleanup")
-        try:
-            self.log_debug(f"Cleanup: listing: {self.config_options.scratch_dir}")
-            contents = os.listdir(self.config_options.scratch_dir)
-        except FileNotFoundError:
-            self.log_debug(f"Cleanup: not found: {self.config_options.scratch_dir}")
+        if self.config_options is None:
+            self.log_debug("Cleanup: config_options is not set")
             return
+        if not self.config_options.scratch_dir:
+            self.log_debug("Cleanup: scratch dir is not set")
+            return
+
+        self.log_debug(
+            f"Cleanup: listing scratch dir: {self.config_options.scratch_dir}"
+        )
+        contents = self.try_list_dir_no_reraise(self.config_options.scratch_dir)
         # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
         # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
         # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
@@ -216,24 +223,19 @@ class MpiConfig:
         to_delete = [_ for _ in contents if not _.startswith(skip_starts)]
         for fn in to_delete:
             fp = os.path.join(self.config_options.scratch_dir, fn)
-            try:
-                self.log_debug(f"Cleanup: deleting: {fp}")
-                os.remove(fp)
-            except FileNotFoundError:
-                self.log_debug(f"Cleanup: not found: {fp}")
-                pass
-            except IsADirectoryError:
-                self.log_debug(f"Cleanup: is a directory, calling rmdir: {fp}")
-                try:
-                    os.rmdir(fp)
-                except FileNotFoundError:
-                    self.log_debug(f"Cleanup: not found: {fp}")
-                    pass
+            if os.path.isfile(fp):
+                self.try_delete_file_no_reraise(fp)
+            elif os.path.isdir(fp):
+                self.try_remove_empty_dir_no_reraise(fp)
+
+        if self.config_options._scratch_dir_has_been_uniquefied:
+            self.try_remove_empty_dir_no_reraise(self.config_options.scratch_dir)
 
     def _cleanup_geogrid(self) -> None:
         """Remove temporary geogrid file if it exists."""
         self.log_debug("Cleanup: starting geogrid cleanup")
         if self.config_options is None:
+            self.log_debug("Cleanup: config_options is not set")
             return
         geogrid = getattr(self.config_options, "geogrid", None)
         if geogrid is not None:
@@ -243,6 +245,45 @@ class MpiConfig:
             except FileNotFoundError:
                 self.log_debug(f"Cleanup: not found: {geogrid}")
                 pass
+        else:
+            self.log_debug("Cleanup: config_options.geogrid is not set")
+            return
+
+    def try_list_dir_no_reraise(self, dir_path: str) -> list[str]:
+        """Try to list the directory and return a list of its contents.
+        Do not reraise an exception if it fails due to FileNotFoundError or NotADirectoryError"""
+        self.log_debug(f"Trying to list directory: {dir_path}")
+        try:
+            contents = os.listdir(dir_path)
+        except (FileNotFoundError, NotADirectoryError) as e:
+            self.log_warning(
+                f"Could not list, may have already been deleted: {dir_path}: {e}"
+            )
+            return []
+        else:
+            return contents
+
+    def try_delete_file_no_reraise(self, file_path: str) -> None:
+        """Try to delete the file, do not reraise an exception if it fails due to OSError"""
+        self.log_debug(f"Trying to delete file: {file_path}")
+        try:
+            os.remove(file_path)
+        except OSError as e:
+            self.log_warning(
+                f"Could not delete file (it may have already been deleted): {file_path}: {e}"
+            )
+        self.log_info(f"Deleted file: {file_path}")
+
+    def try_remove_empty_dir_no_reraise(self, dir_path: str) -> None:
+        """Try to rmdir the path, do not reraise an exception if it fails due to OSError"""
+        self.log_debug(f"Trying to remove directory: {dir_path}")
+        try:
+            os.rmdir(dir_path)
+        except OSError as e:
+            self.log_warning(
+                f"Could not rmdir (it may have already been deleted): {dir_path}: {e}"
+            )
+        self.log_info(f"Removed directory: {dir_path}")
 
     def __test_exit(self, mode: str, rank: int) -> None:
         """Intentionally exit in a particular way, for testing exit/cleanup behavior.
