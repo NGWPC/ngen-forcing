@@ -882,8 +882,8 @@ class InputForcings:
         return {
             1: time_handling.find_nldas_neighbors,
             3: time_handling.find_gfs_neighbors,
-            5: time_handling.find_input_neighbors,
-            6: time_handling.find_input_neighbors,
+            5: time_handling.find_conus_hrrr_neighbors,
+            6: time_handling.find_conus_rap_neighbors,
             7: time_handling.find_cfsv2_neighbors,
             8: time_handling.find_hourly_wrf_arw_neighbors,
             9: time_handling.find_gfs_neighbors,
