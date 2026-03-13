@@ -241,12 +241,7 @@ class MpiConfig:
             return
         geogrid = getattr(self.config_options, "geogrid", None)
         if geogrid is not None:
-            try:
-                self.log_debug(f"Cleanup: removing: {geogrid}")
-                os.remove(geogrid)
-            except FileNotFoundError:
-                self.log_debug(f"Cleanup: not found: {geogrid}")
-                pass
+            self.try_delete_file_no_reraise(geogrid)
         else:
             self.log_debug("Cleanup: config_options.geogrid is not set")
             return
@@ -259,7 +254,7 @@ class MpiConfig:
             contents = os.listdir(dir_path)
         except (FileNotFoundError, NotADirectoryError) as e:
             self.log_warning(
-                f"Could not list, may have already been deleted: {dir_path}: {e}"
+                f"Could not list (it may have already been deleted): {dir_path}: {e}"
             )
             return []
         else:
@@ -274,7 +269,8 @@ class MpiConfig:
             self.log_warning(
                 f"Could not delete file (it may have already been deleted): {file_path}: {e}"
             )
-        self.log_info(f"Deleted file: {file_path}")
+        else:
+            self.log_info(f"Deleted file: {file_path}")
 
     def try_remove_empty_dir_no_reraise(self, dir_path: str) -> None:
         """Try to rmdir the path, do not reraise an exception if it fails due to OSError"""
@@ -285,7 +281,8 @@ class MpiConfig:
             self.log_warning(
                 f"Could not rmdir (it may have already been deleted): {dir_path}: {e}"
             )
-        self.log_info(f"Removed directory: {dir_path}")
+        else:
+            self.log_info(f"Removed directory: {dir_path}")
 
     def __test_exit(self, mode: str, rank: int) -> None:
         """Intentionally exit in a particular way, for testing exit/cleanup behavior.
