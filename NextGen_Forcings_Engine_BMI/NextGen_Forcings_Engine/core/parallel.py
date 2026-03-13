@@ -197,10 +197,12 @@ class MpiConfig:
 
     def _cleanup_scratch_dir(self) -> None:
         """Remove contents of scratch dir.
-        TODO: full scope of remaining scratch dir usage should be identified,
-        and changes implemented to ensure file name uniqueness in the case of
-        concurrent jobs as well as concurrent ngen workers (GWO and PSO calibrations).
-        Potentially, the scratch dir could be replaced with /tmp/.
+        TODO: Potentially, the scratch dir could be replaced with /tmp/,
+        but /tmp/ files remain in the container and are not available outside of the container.
+        So use cases such as self._output_obj.outPath in `bmi_model.py` would need to be updated
+        to use a new configuration key for specifying the output directory for (optionally) storing permanent results.
+        The process of writing to outPath could still leverage /tmp/ while the file is incomplete / in-process,
+        using a OS rename to move the file to the shared location once writing has completed and the file handle has been closed.
         """
         self.log_debug("Cleanup: starting scratch dir cleanup")
         if self.config_options is None:
