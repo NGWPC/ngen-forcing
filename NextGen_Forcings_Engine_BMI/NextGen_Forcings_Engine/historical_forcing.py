@@ -1,7 +1,6 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
-import logging
 import os
 import re
 import typing
@@ -27,11 +26,12 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
+
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 zarr.config.set({"async.concurrency": 100})
-LOG = logging.getLogger(MODULE_NAME)
-
 
 class BaseProcessor:
     """Base class for data processors."""

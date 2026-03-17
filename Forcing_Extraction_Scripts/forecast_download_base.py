@@ -11,14 +11,9 @@ from urllib import request, error
 import requests
 from bs4 import BeautifulSoup
 
-from nextgen_forcings_ewts import MODULE_NAME
-
-LOG = logging.getLogger(MODULE_NAME)
-if not LOG.handlers:
-    # No handlers attached — fallback to default root logger
-    logging.basicConfig()
-    LOG = logging.getLogger()
-
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 class ForecastDownloader(ABC):
     """
@@ -50,6 +45,16 @@ class ForecastDownloader(ABC):
         :param cleanback_hours: How far back to clean old files
         :param lagback_hours: How many hours to lag before starting to fetch
         """
+
+        global LOG
+        if hasattr(LOG, "bind"):
+            # This is required prior to the first log message for the ewts package
+            LOG.bind()
+        else:
+            # Fallback to default root logger
+            logging.basicConfig()
+            LOG = logging.getLogger()
+
         if lookback_hours <= lagback_hours:
             raise ValueError(
                 f"Invalid configuration: lookback_hours ({lookback_hours}) must be greater than "

@@ -25,8 +25,6 @@ try:
 except ImportError:
     import ESMF
 
-import logging
-
 import dask
 import dask.delayed
 import netCDF4 as nc
@@ -46,7 +44,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GeoMetaWrfHydro,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
 
 from ..esmf_utils import (
     esmf_field_retry,
@@ -57,7 +54,9 @@ from ..esmf_utils import (
     esmf_regridobj_call_retry,
 )
 
-LOG = logging.getLogger(MODULE_NAME)
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
