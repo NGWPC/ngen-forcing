@@ -1,21 +1,23 @@
 """Conventional pytest file conftest.py. Automatically discovered and implicitly imported by pytest."""
 
 import pytest
+from test_utils import BMIForcingFixture, BMIForcingFixture_Regrid
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
     NWMv3_Forcing_Engine_BMI_model,
 )
 
-from test_utils import BMIForcingFixture, BMIForcingFixture_Regrid
-
 
 @pytest.fixture
 def bmi_forcing_fixture(request) -> BMIForcingFixture:
-    """Constructor for minimal class of classes for running BMI forcing.
+    """Construct minimal class of classes for running BMI forcing.
+
+    Constructor for minimal class of classes for running BMI forcing.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
 
-    Parameters:
-        request is a built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+
     """
     (config_file,) = request.param
     bmi_model = NWMv3_Forcing_Engine_BMI_model()
@@ -32,11 +34,14 @@ def bmi_forcing_fixture(request) -> BMIForcingFixture:
 def bmi_forcing_fixture_regrid(
     request,
 ) -> BMIForcingFixture_Regrid:
-    """Constructor for minimal class of classes for running forcing ESMF regrid functions.
+    """Construct minimal class of callas for running forcing ESMF regrid functions.
+
+    Constructor for minimal class of classes for running forcing ESMF regrid functions.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
 
-    Parameters:
-        request is a built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+
     """
     (
         regrid_func,
