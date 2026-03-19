@@ -1,7 +1,12 @@
 """Conventional pytest file conftest.py. Automatically discovered and implicitly imported by pytest."""
 
 import pytest
-from test_utils import BMIForcingFixture, BMIForcingFixture_Regrid
+from test_utils import (
+    BMIForcingFixture,
+    BMIForcingFixture_GeoMod,
+    BMIForcingFixture_InputForcing,
+    BMIForcingFixture_Regrid,
+)
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
     NWMv3_Forcing_Engine_BMI_model,
@@ -65,5 +70,69 @@ def bmi_forcing_fixture_regrid(
         force_key=force_key,
         extra_attrs=extra_attrs,
         regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
+        keys_to_check=keys_to_check,
+    )
+
+
+@pytest.fixture
+def bmi_forcing_fixture_geomod(
+    request,
+) -> BMIForcingFixture_GeoMod:
+    """Construct minimal class of classes for running forcing GeoMod.
+
+    Constructor for minimal class of classes for running forcing GeoMod.
+
+    For example usage, see: tests/geomod/test_geomod.test_geomod.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+
+    """
+    (
+        config_file,
+        keys_to_check,
+    ) = request.param
+
+    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model.initialize_with_params(
+        config_file=config_file,
+        b_date=None,
+        geogrid=None,
+        output_path=None,
+    )
+    return BMIForcingFixture_GeoMod(
+        bmi_model=bmi_model,
+        keys_to_check=keys_to_check,
+    )
+
+
+@pytest.fixture
+def bmi_forcing_fixture_input_forcing(
+    request,
+) -> BMIForcingFixture_InputForcing:
+    """Construct minimal class of callas for running forcing input_forcing.
+
+    Constructor for minimal class of classes for running forcing input_forcing.
+
+    For example usage, see: tests/forcing_input/test_forcing_input.test_forcing_input.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+
+    """
+    (
+        config_file,
+        keys_to_check,
+    ) = request.param
+
+    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model.initialize_with_params(
+        config_file=config_file,
+        b_date=None,
+        geogrid=None,
+        output_path=None,
+    )
+    return BMIForcingFixture_InputForcing(
+        bmi_model=bmi_model,
         keys_to_check=keys_to_check,
     )

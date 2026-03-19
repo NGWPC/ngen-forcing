@@ -38,6 +38,35 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
+def convert_long_lists(data, max_length=5):
+    """Recursively iterate over a nested data dictionary and convert all lists longer than max_length to a hash.
+
+    Args:
+        data: The data structure to process (dict, list, or other)
+        max_length: Maximum list length before conversion (default: 10)
+
+    Returns:
+        Modified copy of the data structure
+
+    """
+    if isinstance(data, dict):
+        return {
+            key: convert_long_lists(value, max_length) for key, value in data.items()
+        }
+    elif isinstance(data, list):
+        if len(data) > max_length:
+            if isinstance(data[0],list):
+                for i,val in enumerate(data):
+                    if len(val)>max_length:
+                         data[i]=f"hash_{hash(tuple(val))}"
+            else:
+                return f"hash_{hash(tuple(data))}"
+        else:
+            return [convert_long_lists(item, max_length) for item in data]
+    else:
+        return data
+
+
 def assert_no_not_serializable_sentinel(json_str: str) -> None:
     """Assert no not serializable sentinel.
 
@@ -119,6 +148,171 @@ class BMIForcingFixture:
         self.config_options: ConfigOptions = bmi_model._job_meta
         self.wrf_hydro_geo_meta: GeoMetaWrfHydro = bmi_model._wrf_hydro_geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
+
+
+class BMIForcingFixture_Class(BMIForcingFixture):
+    """Test fixture for GeoMod tests. Writers of geomod tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+
+    def __init__(
+        self,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        keys_to_check: tuple[str] = (),
+    ):
+        """Initialize BMIForcingFixture_GeoMod. Writers of geomod tests must call the methods in this order. This is enforced by state attributes.
+
+        Args:
+        ----
+            bmi_model: The BMI model to be used in the test fixture
+            keys_to_check: The keys to check
+
+        """
+        super().__init__(bmi_model=bmi_model)
+
+        self.keys_to_check = keys_to_check
+
+        self.expected_sub_dir = "test_data/expected_results"
+        self.actual_sub_dir = "test_data/actual_results"
+        self.test_dir = os.path.dirname(os.path.abspath(__file__))
+
+    def deserial_actual(
+        self, suffix: str, current_output_step: str = "", write_to_file: bool = True
+    ) -> dict:
+        """Get the actual metadata results as a deserialized dictionary."""
+        deserial_actual = json.loads(serialize_to_json(self.test_class))
+        if self.keys_to_check:
+            deserial_actual = {
+                k: v for k, v in deserial_actual.item() if k in self.keys_to_check
+            }
+        deserial_actual = convert_long_lists(deserial_actual)
+        if write_to_file:
+            self.write_json(
+                deserial_actual,
+                self.actual_results_file_path(suffix, current_output_step),
+            )
+        return deserial_actual
+
+    def write_json(self, dictionary_to_write: dict, json_path: str):
+        """Write the deserialized results to a JSON file."""
+        json_str = serialize_to_json(dictionary_to_write, sort_keys=True)
+        with open(json_path, "w") as f:
+            f.write(json_str)
+
+    def deserial_expected(self, suffix: str, current_output_step: str = "") -> dict:
+        """Get the expected metadata results as a deserialized dictioanry."""
+        ### NOTE this should be rarely used, only when updating the test expected outputs dataset
+        file_path = self.expected_results_file_path(suffix, current_output_step)
+
+        if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
+            # Dump current results to disk, to save it as "expected" results for later test runs.
+            # Should only be used when committing new test results to the repository.
+            logging.warning(f"Writing test data: {file_path}")
+            deserial_expected = self.deserial_actual(
+                suffix, current_output_step, write_to_file=False
+            )
+            with open(file_path, "w") as f:
+                f.write(serialize_to_json(deserial_expected, sort_keys=True))
+            return deserial_expected
+        else:
+            try:
+                with open(file_path) as f:
+                    return json.load(f)
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
+                ) from e
+
+    def after_intitialization_check(self):
+        """Run checks after initialization but before any run has been called.
+
+        This is useful for checking the state of the model immediately after initialization, before any updates have occurred.
+        """
+        self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
+
+    def compare(self, actual: dict, expected: dict):
+        """Compare actual vs expected results."""
+        try:
+            assert_equal_with_tol(expect=expected, actual=actual)
+        except ExpectVsActualError as e:
+            raise RuntimeError(
+                f"Unexpected results compared to {self.regrid_results_file_name_expect}: {e}"
+            ) from e
+
+    def after_bmi_model_update(self, current_output_step: int):
+        """Run checks after bmi_model.update() has been called.
+
+        Args:
+        ----
+        current_output_step: The current output step, which can be used to conditionally run different checks on the first step vs subsequent steps, since the first step behaves differently in some ways.
+
+        """
+        self.compare(
+            self.deserial_actual("after_update", f"_step_{current_output_step}"),
+            self.deserial_expected("after_update", f"_step_{current_output_step}"),
+        )
+
+    def after_finalize(self):
+        """Run checks after bmi_model.finalize() has been called."""
+        self.compare(
+            self.deserial_actual("finalize"), self.deserial_expected("finalize")
+        )
+
+    def actual_results_file_path(
+        self, suffix: str, current_output_step: str = ""
+    ) -> str:
+        """Get the file path for the actual metadata results JSON file."""
+        return f"{self.test_dir}/{self.actual_sub_dir}/test_actual_{self.test_file_name_prefix}_{suffix}{current_output_step}.json"
+
+    def expected_results_file_path(
+        self, suffix: str, current_output_step: str = ""
+    ) -> str:
+        """Get the file path for the expected metadata results JSON file."""
+        return f"{self.test_dir}/{self.expected_sub_dir}/test_expected_{self.test_file_name_prefix}_{suffix}{current_output_step}.json"
+
+
+class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
+    """Test fixture for GeoMod tests. Writers of geomod tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+
+    def __init__(
+        self,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        keys_to_check: tuple = (),
+    ):
+        """Initialize BMIForcingFixture_GeoMod. Writers of geomod tests must call the methods in this order. This is enforced by state attributes.
+
+        Args:
+        ----
+            bmi_model: the BMI model to be used in the test fixture
+            keys_to_chek: The keys to check
+
+        """
+        super().__init__(
+            bmi_model=bmi_model,
+            keys_to_check=keys_to_check,
+        )
+        self.test_class = self.wrf_hydro_geo_meta
+
+        self.test_file_name_prefix = "geomod"
+
+
+class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
+    """Test fixture for InputForcing tests. Writers of input forcing tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+
+    def __init__(
+        self,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        keys_to_check: tuple = (),
+    ):
+        """Initialize BMIForcingFixture_InputForcing. Writers of input forcing tests must call the methods in this order. This is enforced by state attributes.
+
+        Args:
+        ----
+            bmi_model: the BMI model to be used in the test fixture
+            keys_to_chek: The keys to check
+
+        """
+        super().__init__(bmi_model=bmi_model, keys_to_check=keys_to_check)
+        self.test_class = self.input_forcing_mod
+        self.test_file_name_prefix = "input_forcing"
 
 
 class BMIForcingFixture_Regrid(BMIForcingFixture):
