@@ -20,7 +20,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod im
     InputForcings,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
@@ -55,10 +55,10 @@ def convert_long_lists(data, max_length=5):
         }
     elif isinstance(data, list):
         if len(data) > max_length:
-            if isinstance(data[0],list):
-                for i,val in enumerate(data):
-                    if len(val)>max_length:
-                         data[i]=f"hash_{hash(tuple(val))}"
+            if isinstance(data[0], list):
+                for i, val in enumerate(data):
+                    if len(val) > max_length:
+                        data[i] = f"hash_{hash(tuple(val))}"
             else:
                 return f"hash_{hash(tuple(data))}"
         else:
@@ -95,7 +95,7 @@ class ClassAttrFetcher:
     ----------
         fixture_attr_name:
             The name of the high-level fixture attribute that contains
-            the desired child attribute, e.g. "wrf_hydro_geo_meta"
+            the desired child attribute, e.g. "geo_meta"
 
         child_attr_name:
             The name of the child attribute to be collected, e.g. "element_ids".
@@ -146,7 +146,7 @@ class BMIForcingFixture:
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model = bmi_model
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
-        self.wrf_hydro_geo_meta: GeoMetaWrfHydro = bmi_model._wrf_hydro_geo_meta
+        self.geo_meta: GeoMeta = bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
 
@@ -304,7 +304,7 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
             bmi_model=bmi_model,
             keys_to_check=keys_to_check,
         )
-        self.test_class = self.wrf_hydro_geo_meta
+        self.test_class = self.geo_meta
 
         self.test_file_name_prefix = "geomod"
 
@@ -316,6 +316,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple = (),
+        force_key: int = None,
     ):
         """Initialize BMIForcingFixture_InputForcing. Writers of input forcing tests must call the methods in this order. This is enforced by state attributes.
 
@@ -326,7 +327,8 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
 
         """
         super().__init__(bmi_model=bmi_model, keys_to_check=keys_to_check)
-        self.test_class = self.input_forcing_mod
+        self.force_key = force_key
+        self.test_class = self.input_forcing_mod[self.force_key]
         self.test_file_name_prefix = "input_forcing"
 
 
@@ -430,7 +432,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
 
         config_options = self.config_options
         mpi_config = self.mpi_config
-        wrf_hydro_geo_meta = self.wrf_hydro_geo_meta
+        geo_meta = self.geo_meta
         supp_pcp_mod = self.bmi_model._supp_pcp_mod
         output_obj = self.bmi_model._output_obj
         input_forcing_mod = self.bmi_model._input_forcing_mod
@@ -471,7 +473,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         (
             future_time,
             config_options,
-            wrf_hydro_geo_meta,
+            geo_meta,
             input_forcing_mod,
             supp_pcp_mod,
             mpi_config,
@@ -480,7 +482,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         ) = model.loop_through_forcing_products(
             future_time,
             config_options,
-            wrf_hydro_geo_meta,
+            geo_meta,
             input_forcing_mod,
             supp_pcp_mod,
             mpi_config,
@@ -518,9 +520,9 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         #     out_file=f"tmp_regrid_inputs{self.serialized_file_suffix}.json",
         #     sort_keys=True,
         # )
-        # wrf_hydro_geo_meta_json_str = serialize_to_json(
-        #     self.wrf_hydro_geo_meta,
-        #     out_file=f"tmp_wrf_hydro_geo_meta{self.serialized_file_suffix}.json",
+        # geo_meta_json_str = serialize_to_json(
+        #     self.geo_meta,
+        #     out_file=f"tmp_geo_meta{self.serialized_file_suffix}.json",
         #     sort_keys=True,
         # )
 
@@ -530,7 +532,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         self.regrid_func(
             arg1,
             config_options=self.config_options,
-            wrf_hydro_geo_meta=self.wrf_hydro_geo_meta,
+            geo_meta=self.geo_meta,
             mpi_config=self.mpi_config,
         )
         logging.info(f"Done calling regrid function: {self.regrid_func.__name__}")
