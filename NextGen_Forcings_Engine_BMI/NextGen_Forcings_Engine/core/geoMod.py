@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
-
 import numpy as np
 
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -158,12 +157,13 @@ class GeoMeta:
 
     def get_var(self, ds: xr.Dataset, var: str) -> xr.DataArray:
         """Get a variable from a xr.Dataset."""
-        if self.mpi_config.rank == 0:
-            try:
-                return ds.variables[var]
-            except Exception as e:
-                self.config_options.errMsg = f"Unable to extract {var} variable from: {self.config_options.spatial_meta} due to {str(e)}"
-                raise e
+        if var is None:
+            return
+        try:
+            return ds.variables[var]
+        except Exception as e:
+            self.config_options.errMsg = f"Unable to extract {var} variable from: {self.config_options.spatial_meta} due to {str(e)}"
+            raise e
 
     def get_geogrid_var(self, var: str) -> xr.DataArray:
         """Get a variable from the geogrid file."""
@@ -895,18 +895,19 @@ class HydrofabricGeoMeta(GeoMeta):
         super().__init__(config_options, mpi_config)
         for attr in CONSTS[self.__class__.__name__]:
             setattr(self, attr, None)
+        pass
 
     @property
     @lru_cache
     def lat_bounds(self) -> np.ndarray:
         """Get the latitude bounds for the unstructured domain."""
-        return self.get_bound(1)
+        return self.get_bound(1).values
 
     @property
     @lru_cache
     def lon_bounds(self) -> np.ndarray:
         """Get the longitude bounds for the unstructured domain."""
-        return self.get_bound(0)
+        return self.get_bound(0).values
 
     def get_bound(self, dim: int) -> np.ndarray:
         """Get the longitude or latitude bounds for the unstructured domain."""
@@ -918,7 +919,7 @@ class HydrofabricGeoMeta(GeoMeta):
     @lru_cache
     def elementcoords_global(self) -> np.ndarray:
         """Get the global element coordinates for the unstructured domain."""
-        return self.get_geogrid_var(self.config_options.elemcoords_var)
+        return self.get_geogrid_var(self.config_options.elemcoords_var).values
 
     @barrier
     @broadcast
@@ -1015,13 +1016,15 @@ class HydrofabricGeoMeta(GeoMeta):
     @lru_cache
     def slope(self) -> np.ndarray:
         """Get the slopes for the unstructured domain."""
-        return self.slopes_global[self.pet_element_inds]
+        if self.slopes_global is not None:
+            return self.slopes_global[self.pet_element_inds]
 
     @property
     @lru_cache
     def slp_azi(self) -> np.ndarray:
         """Get the slope azimuths for the unstructured domain."""
-        return self.slp_azi_global[self.pet_element_inds]
+        if self.slp_azi_global is not None:
+            return self.slp_azi_global[self.pet_element_inds]
 
     @property
     @lru_cache
@@ -1460,4 +1463,3 @@ class UnstructuredGeoMeta(GeoMeta):
     def ny_local_elem(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
-

@@ -50,6 +50,8 @@ CONSTS = {
             "slp_azi_elem",
             "esmf_lat",
             "esmf_lon",
+            "latitude_grid_elem",
+            "longitude_grid_elem",
         ],
         "GriddedGeoMeta": [
             "nx_local_elem",
@@ -65,6 +67,8 @@ CONSTS = {
             "height_elem",
             "slope_elem",
             "slp_azi_elem",
+            "latitude_grid_elem",
+            "longitude_grid_elem",
         ],
     },
     "bmi_model": {
@@ -187,6 +191,8 @@ CONSTS = {
             "regridded_precip2",
             "regridded_precip1_elem",
             "regridded_precip2_elem",
+            "_grib_vars",
+            "_cycle_freq",
         ],
         "PRODUCT_NAME": {
             1: "NLDAS2_GRIB1",

@@ -148,7 +148,7 @@ class InputForcings:
         """Map the forcing key value to the required GRIB variable names."""
         if self._grib_vars is None:
             # First call to getter, initialize
-            self._grib_vars = [self.keyValue]
+            self._grib_vars = CONSTS["GRIB_VARS"][self.keyValue]
         return self._grib_vars
 
     @grib_vars.setter
