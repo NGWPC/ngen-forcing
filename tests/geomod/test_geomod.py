@@ -42,11 +42,12 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
 FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Output/Forecast_Run/fcst_run1_short_range/forcing_config/short_range_config.yml"
 
 COMPOSITE_KEYS_TO_CHECK = ()
+GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
 
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_geomod",
-    [(RETRO_FORCING_CONFIG_FILE__AORC_CONUS, COMPOSITE_KEYS_TO_CHECK)],
+    [(RETRO_FORCING_CONFIG_FILE__AORC_CONUS, COMPOSITE_KEYS_TO_CHECK, GRID_TYPE)],
     indirect=True,
 )
 def test_geomod(

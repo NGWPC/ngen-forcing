@@ -88,6 +88,7 @@ EXTRA_ATTRS: tuple[ClassAttrFetcher] = (
 COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS
 )
+GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
 
 
 @pytest.mark.parametrize(
@@ -100,6 +101,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
         (
             regrid_conus_hrrr,
@@ -108,6 +110,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
         (
             regrid_conus_rap,
@@ -116,6 +119,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
     ],
     indirect=True,
