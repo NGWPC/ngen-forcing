@@ -73,6 +73,7 @@ def assert_equal_with_tol(
     keys_to_check: tuple | None = None,
     absolute_tolerance: float = 1e-6,
     relative_tolerance: float = 1e-10,
+    new_keys_in_actual_ok: bool = False,
 ):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
@@ -93,10 +94,11 @@ def assert_equal_with_tol(
         errors.append(KeyError(f"Missing keys from actual: {keys_missing_from_actual}"))
 
     keys_missing_from_expected = set(keys_to_check) - set(expect)
-    if keys_missing_from_expected:
-        errors.append(
-            KeyError(f"Missing keys from expected: {keys_missing_from_expected}")
-        )
+    if not new_keys_in_actual_ok:
+        if keys_missing_from_expected:
+            errors.append(
+                KeyError(f"Missing keys from expected: {keys_missing_from_expected}")
+            )
 
     for k in keys_to_check:
         ### Check key existence
