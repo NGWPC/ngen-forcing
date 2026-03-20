@@ -178,11 +178,9 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
     ) -> dict:
         """Get the actual metadata results as a deserialized dictionary."""
-        deserial_actual = json.loads(serialize_to_json(self.test_class))
-        if self.keys_to_check:
-            deserial_actual = {
-                k: v for k, v in deserial_actual.item() if k in self.keys_to_check
-            }
+        deserial_actual = json.loads(
+            serialize_to_json(self.test_class_as_dict, sort_keys=True)
+        )
         deserial_actual = convert_long_lists(deserial_actual)
         if write_to_file:
             self.write_json(
@@ -231,11 +229,28 @@ class BMIForcingFixture_Class(BMIForcingFixture):
     def compare(self, actual: dict, expected: dict):
         """Compare actual vs expected results."""
         try:
-            assert_equal_with_tol(expect=expected, actual=actual)
+            assert_equal_with_tol(
+                expect=expected, actual=actual, new_keys_in_actual_ok=True
+            )
         except ExpectVsActualError as e:
             raise RuntimeError(
-                f"Unexpected results compared to {self.regrid_results_file_name_expect}: {e}"
+                f"Unexpected results compared to the expected results json: {e}"
             ) from e
+
+    @property
+    def test_class_as_dict(self):
+        """Get the attributes of the test class as a dictionary, where the keys are the attribute names and the values are the attribute values.
+
+        This is useful for serializing the test class to JSON for comparison against expected results.
+        """
+        data = {}
+        # parrent_class_dict=self.test_class.__class__.__base__.__dict__
+        # child_class_dict=self.test_class.__class__.__dict__
+        for key in dir(self.test_class):
+            val = getattr(self.test_class, key)
+            if not callable(val) and not key.startswith("__"):
+                data[key] = val
+        return data
 
     def after_bmi_model_update(self, current_output_step: int):
         """Run checks after bmi_model.update() has been called.
