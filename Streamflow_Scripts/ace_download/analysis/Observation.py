@@ -17,8 +17,6 @@ from string import *
 from datetime import datetime, timedelta
 import dateutil.parser
 import pytz
-#import iso8601
-#import Tracer
 from abc import ABCMeta, abstractmethod, abstractproperty
 from TimeSlice import TimeSlice
 

@@ -1,5 +1,6 @@
+#!/usr/bin/env python
 ###############################################################################
-#  File name: make_time_slice_from_usgs_waterml.py
+#  File name: make_time_slice_from_ace.py
 #                                                                             #
 #  Author     : Zhengtao Cui (Zhengtao.Cui@noaa.gov)                          #
 #                                                                             #
@@ -7,7 +8,7 @@
 #                                                                             #
 #  Last modification date:  7/12/2017                                         #
 #                                                                             #
-#  Description: The driver to create NetCDF time slice files from USGS        #
+#  Description: The driver to create NetCDF time slice files from USACE       #
 #               real-time observations                                        #
 #                                                                             #
 ###############################################################################
@@ -18,7 +19,6 @@ from string import *
 from datetime import datetime, timedelta
 from CWMS_Sites import CWMS_Sites
 import csv
-#import Tracer
 
 """
    The driver to parse downloaded waterML 2.0 observations and 
