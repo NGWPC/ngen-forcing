@@ -23,10 +23,9 @@ from USGS_Observation import USGS_Observation
 from TimeSlice import TimeSlice
 from Observation import Observation, All_Observations
 from EmptyDirOrFileException import EmptyDirOrFileException
-#import Tracer
 
 """
-   The driver to parse downloaded waterML Json observations and 
+   The driver to parse downloaded Json observations and 
    create time slices and write to NetCDF files
    Author: Zhengtao Cui (Zhengtao.Cui@noaa.gov)
    Date: Aug. 26, 2015
@@ -79,7 +78,7 @@ if __name__ == "__main__":
 indir = odir[0]
 outdir = odir[1]
 logger.info( 'Input dir is "' + indir + '"')
-logger.info( 'Output dir is "' + outdir + '"')
+logger.info( 'Output dir is "' + outdir + '"\n\n')
 
 #
 # Load USGS observed JSON discharge data
@@ -91,15 +90,16 @@ try:
    if not os.path.isdir( indir ):
            raise RuntimeError( "FATAL ERROR: " + indir + \
                                    " is not a directory or does not exist. ")
-   for file in os.listdir( indir ): 
-        if file.endswith( ".json" ) or file.endswith( ".xml" ) or file.endswith( ".csv" ):
-             logger.info( 'Reading ' + indir + '/' + file + ' ... ' )
-             try:
-                     usgsobvs.append( USGS_Observation( \
-                                           indir + '/' + file ) )
-             except Exception as e:
-                           logger.warning( repr( e ), exc_info=True )
-                           continue
+   for filename in os.listdir( indir ): 
+       file = os.path.join(indir, filename)
+       if file.endswith( ".json" ):
+          #logger.info("\n\n")
+          logger.info(' Reading ' + file + ' ... ' )
+
+          usgsobv = USGS_Observation( file ) 
+
+          if usgsobv.timeValueQuality:
+             usgsobvs.append( usgsobv )
 
    if not usgsobvs:
          raise EmptyDirOrFileException( "Input directory " + indir + \

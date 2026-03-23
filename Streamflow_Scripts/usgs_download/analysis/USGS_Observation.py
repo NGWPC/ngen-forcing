@@ -11,6 +11,7 @@
 #  Description: manage data in a USGS WaterXML 2.0 file                       #
 #                                                                             #
 #  06/11/2024 ChamP - Added loadJSON() function to decode the USGS Json file  #
+#  02/2026    ChamP - Added parseJson() to use new USGS API json structure.   #
 #                                                                             #
 ###############################################################################
 
@@ -20,33 +21,145 @@ from string import *
 from datetime import datetime, timedelta
 import dateutil.parser
 import pytz
-#import iso8601
 import xml.etree.ElementTree as etree
 import json
 from TimeSlice import TimeSlice
-#import Tracer
 from Observation import Observation
 
+logger = logging.getLogger(__name__)
 
 class USGS_Observation(Observation):
         """
-           Store one USGS WaterML2.0 data
+           Store one USGS Water data APIs
         """        
-        def __init__(self, waterml2orcsvfilename ):
+        def __init__(self, waterdatafilename ):
            """
               Initialize the USGS_Observation object with a given
               filename
            """
-           self.source = waterml2orcsvfilename
-           if waterml2orcsvfilename.endswith( '.json' ):
-              self.loadJSON( waterml2orcsvfilename )
-           elif waterml2orcsvfilename.endswith( '.xml' ):
-              self.loadWaterML2( waterml2orcsvfilename )
-           elif waterml2orcsvfilename.endswith( '.csv' ):
-              self.loadCSV( waterml2orcsvfilename )
-           else:
-              raise RuntimeError( "FATAL ERROR: Unknow file type: " + \
-                                 waterml2orcsvfilename )
+           self.source = waterdatafilename
+           self.obvPeriod = None
+           self.stationID = None 
+           self.timeValueQuality = {}
+
+           try:
+              if waterdatafilename.endswith( '.json' ):
+                self.parseJson( waterdatafilename )
+              else:
+                logger.warning("Skipping unknown file type: %s", waterdatafilename)
+                return None
+
+
+           except Exception as e:
+              logger.warning(
+                  "Unexpected error parsing %s: %s",
+                  waterdatafilename,e,exc_info=True)
+              return None
+
+        def parseJson(self, jsonfilename):
+           """
+              Read real-time stream flow data from a given Json file
+              by parsing the JSON file
+
+              Input: jsonfilename - the Json filename
+           """        
+
+           try:
+              logger.info("Parsing file: %s",jsonfilename)
+              with open(jsonfilename, "r") as f:
+                  data = json.load(f)
+
+           # ---------------------------------------------------------
+           # Get features and handle empty features[]
+           # ---------------------------------------------------------
+              features = data.get("features", [])
+              if not features:
+                 logger.warning("No features found in %s, skipping it...\n\n",jsonfilename)
+                 return None
+
+              # Begin and end times
+              beginTime = features[0]["properties"]["time"]
+              endTime = features[-1]["properties"]["time"]
+
+              self._obvPeriod = dateutil.parser.parse( beginTime )\
+                             .astimezone(pytz.utc).replace(tzinfo=None), \
+                              dateutil.parser.parse( endTime )\
+                             .astimezone(pytz.utc).replace(tzinfo=None)
+
+           # ---------------------------------------------------------
+           # Process each feature
+           # ---------------------------------------------------------
+              self._timeValueQuality = {}
+              MISSING_VALUE = -999999.0
+
+              for feature in features:
+                 props = feature.get("properties", {})
+                 #print (f"features={props}")
+
+                 monitoring_location_id = props.get("monitoring_location_id")
+                 #print (f"monitoring_location_id={monitoring_location_id}")
+
+                 self._stationID = monitoring_location_id.replace("USGS-", "")
+                 #print (f"stationID={self._stationID}")
+
+                 valuetime = props.get("time")
+                 #print (f"time={valuetime}")
+
+                 self._unit = props.get("unit_of_measure")
+                 #print (f"unit={self._unit}")
+
+                 if self._unit == "ft^3/s":
+                    unitConvertToM3perSec = 0.028317
+                 elif self._unit == "m^3/s":
+                    unitConvertToM3perSec = 1.0
+                 else:
+                    raise RuntimeError("FATAL ERROR: Unit " + self._unit + " is not known.")
+
+                 qualifier1 = props.get("approval_status")
+
+                 qualifiers = props.get("qualifier") or []
+                 qualifier2 = qualifiers[0] if qualifiers else None
+                 #qualifier2 = qualifiers[1] if len(qualifiers) > 1 else None
+                 #print (f"qualifier1={qualifier1}; qualifier2={qualifier2}")
+
+                 value = props.get("value")
+                 dt = dateutil.parser.parse( valuetime ).astimezone(pytz.utc).replace(tzinfo=None)
+
+                 if (value is None
+                    or (isinstance(value, str) and value.strip().lower() == "null")):
+                    rvalue = MISSING_VALUE
+                    dataquality = 0
+
+                 else:
+                    rvalue = float(value) * unitConvertToM3perSec
+                    dataquality = self.calculateDataQuality(\
+                                  rvalue,\
+                                  qualifier1, qualifier2 )
+
+                 # If no timestep exists yet, store it 
+                 if dt not in self._timeValueQuality:
+                    self._timeValueQuality[ dt ] = (rvalue, dataquality)
+                 else:
+                    old_v = self._timeValueQuality[dt][0]
+
+                    # Replace only if existing value is missing
+                    if old_v == MISSING_VALUE and rvalue != MISSING_VALUE:
+                       self._timeValueQuality[ dt ] = ( rvalue, dataquality )
+
+              logger.info ("Parsed JSON: obvPeriod=%s, ID=%s, unit=%s, NumberTimeSteps=%d",self._obvPeriod,self._stationID,self._unit,len(self._timeValueQuality))
+              for vt, (discharge, quality) in self._timeValueQuality.items():
+                  logger.info("%s  %.6f  %d", vt, float(discharge), int(quality))
+              logger.info("================================\n")
+
+              self.stationID = self._stationID
+              self.obvPeriod = self._obvPeriod
+              self.timeValueQuality = self._timeValueQuality
+
+           except (OSError, json.JSONDecodeError) as e:
+               logger.warning("JSON parse error in %s: %s. Or maybe json file is empty; ==> %s Skipping...\n",\
+                               jsonfilename, e, jsonfilename)
+               return None
+
 
         def loadJSON(self, jsonfilename ):
            """
@@ -368,8 +481,8 @@ class USGS_Observation(Observation):
 #
 #%DATA_AGING_CODES =
 #  (
-#   'P' => ['0', 'P', 'Provisional data subject to revision.'],
-#   'A' => ['0', 'A', 'Approved for publication -- Processing and review
+#   'P' => ['0', 'P', 'PROVISIONAL data subject to revision.'],
+#   'A' => ['0', 'A', 'APPROVED for publication -- Processing and review
 #completed.'],
 #  );
 #
@@ -402,7 +515,7 @@ class USGS_Observation(Observation):
 #   'z' => ['1', 'z', 'Value received from backup recorder.'],
 #
 #   # -- Processing Status Flags
-#   '*' => ['1', '*', 'Value was edited by USGS personnel.'],
+#   '*' => ['1', '*', 'Value was EDITED by USGS personnel.'],
 #
 #   # -- Other Flags (historical UVs only)
 #   'S' => ['1', 'S', 'Value could be a result of a stuck recording instrument.'],
@@ -411,13 +524,13 @@ class USGS_Observation(Observation):
 #   'V' => ['1', 'V', 'Value was an alert value.'],
 #
 #   # -- UV remarks
-#   '&' => ['1', '&', 'Value was computed from affected unit values by unspecified reasons.'],
+#   '&' => ['1', '&', 'Value was computed from affected unit values by UNSPECIFIED reasons.'],
 #   '<' => ['0', '<', 'Actual value is known to be less than reported value.'],
 #   '>' => ['0', '>', 'Actual value is known to be greater than reported value.'],
 #   'C' => ['1', 'C', 'Value is affected by ice at the measurement site.'],
 #   'B' => ['1', 'B', 'Value is affected by backwater at the measurement site.'],
 #   'E' => ['0', 'e', 'Value was computed from estimated unit values.'],
-#   'e' => ['0', 'e', 'Value has been estimated.'],
+#   'e' => ['0', 'e', 'Value has been ESTIMATED.'],
 #   'F' => ['1', 'F', 'Value was modified due to automated filtering.'],
 #   'K' => ['1', 'K', 'Value is affected by instrument calibration drift.'],
 #   'R' => ['1', 'R', 'Rating is undefined for this value.'],
@@ -500,27 +613,20 @@ class USGS_Observation(Observation):
               if value  <= 0 or value > 90000 : # see James' email on Nov. 18 above
                  quality = 0
               else :
-                  if ( qualifier2  and len( qualifier2 ) > 0 ) :
-                     if qualifier1 == 'A' or qualifier1 == 'P' :
-                         if  qualifier2 == 'e' :
+                 if qualifier2:
+                      if qualifier1 in ("Approved", "Provisional"):
+                         if  qualifier2 == 'ESTIMATED':
                              quality = 50
-                         elif qualifier2 == '&' :
+                         elif qualifier2 == 'UNSPECIFIED':
                              quality = 25
-                         elif qualifier2 == '*' :
+                         elif qualifier2 == 'EDITED':
                              quality = 5
-                         elif qualifier2 == 'A' :
-                             quality = 100 
-                         elif qualifier2 == 'P' :
+                         elif qualifier2 in ("APPROVED","PROVISIONAL"):
                              quality = 100 
                          else:
                              quality = 0
-#                     else :
-#                        raise RuntimeError( "ERROR: unknow qualifier: " + \
-#                                qualifier1 )
-                  else:
-                      if qualifier1 == 'A' or qualifier1 == 'P' :
+                 else:
+                      if qualifier1 in ("Approved", "Provisional"):
                            quality = 100
-#                      else:
-#                        raise RuntimeError( "ERROR: unknow qualifier: " + \
-#                                qualiifer1 )
+
               return quality             

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 ##########################################################
-# Test usgs timeslise using xml or json format data file.#
+# Test usgs timeslice using xml or json format data file.#
 # ./runTestUSGSTimeslice.sh <XML or JSON>                #
 #                                                        #
 # 06/12/2024 CPham                                       #

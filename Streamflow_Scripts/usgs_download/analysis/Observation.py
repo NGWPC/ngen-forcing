@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 ###############################################################################
 #  Module name: Observation
 #                                                                             #
@@ -16,8 +17,6 @@ from string import *
 from datetime import datetime, timedelta
 import dateutil.parser
 import pytz
-#import iso8601
-#import Tracer
 from abc import ABCMeta, abstractmethod, abstractproperty
 from TimeSlice import TimeSlice
 
@@ -221,7 +220,7 @@ class All_Observations:
 
             # the time resultions must divide 60 minutes with on remainder                  
             if 3600 % timeresolution.seconds != 0:
-               raise RuntimeError( "FATAL Error: Time slice resolution must "
+               raise RuntimeError( "FATAL ERROR: Time slice resolution must "
                                "divide 60 minutes with no remainder." )
 
             startTime = datetime( self.timePeriod[ 0 ].year,
@@ -234,7 +233,7 @@ class All_Observations:
 
             if startTime > self.timePeriod[ 1 ]: 
                raise RuntimeError(                  \
-                            "FATAL Error: observation time period wrong! " )
+                            "FATAL ERROR: observation time period wrong! " )
 
             count = 0
             while startTime <= self.timePeriod[ 1 ]:

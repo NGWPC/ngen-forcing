@@ -25,7 +25,6 @@ from Observation import Observation, All_Observations
 from CWMS_Sites import CWMS_Sites
 from ACE_Observation import ACE_Observation
 from EmptyDirOrFileException import EmptyDirOrFileException
-#import Tracer
 
 """
    The driver to parse downloaded ACE JSON observations and 
