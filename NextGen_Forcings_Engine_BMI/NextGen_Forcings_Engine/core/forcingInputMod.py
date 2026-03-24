@@ -7,6 +7,7 @@ initializing ESMF grids and regrid objects), etc
 from __future__ import annotations
 
 import logging
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -64,14 +65,10 @@ class InputForcings:
         self.temporal_interpolate_inputs_map = CONSTS["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
 
         self.initialize_config_options()
-        if self.q2dDownscaleOpt > 0:
-            self.handle_humidity_downscaling()
 
         if self.force_count == 8 and 8 in self.input_map_output:
             # TODO: this assumes that LQFRAC (8) is always the last grib var
             self.grib_vars = self.grib_vars[:-1]
-
-        self.initialize_geo_data(self)
 
         # Obtain custom input cycle frequencies
         if self.keyValue == 10 or self.keyValue == 11:
@@ -79,11 +76,10 @@ class InputForcings:
 
     def initialize_config_options(self) -> None:
         """Initialize configuration options from the config_options attribute."""
-        [
-            setattr(self, key, val[self.idx])
-            for key, val in list(vars(self.config_options).items())
-            if isinstance(val, list) and len(val) > 0
-        ]
+        for key, val in list(vars(self.config_options).items()):
+            if isinstance(val, list) and len(val) > 0:
+                setattr(self, key, val[self.idx])
+                LOG.info(key)
 
     @property
     def force_count(self) -> int:
@@ -266,62 +262,68 @@ class InputForcingsGridded(InputForcings):
     ) -> None:
         """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+        for attr in CONSTS[self.__class__.__name__]:
+            setattr(self, attr, None)
 
-    def initialize_geo_data(
-        self,
-        input_forcings: InputForcings,
-    ) -> None:
-        """Initialize geometry-related arrays based on grid type and downscaling options.
-
-        Initialize the local final grid of values. This is represntative
-        of the local grid for this forcing, for a specific output timesetp.
-        This grid will be updated from one output timestep to another, and
-        also through downscaling and bias correction.
-        """
-        input_forcings.final_forcings = np.empty(
+    @property
+    @lru_cache
+    def final_forcings(self):
+        """Initialize the local final grid of values."""
+        return np.empty(
             [
-                input_forcings.force_count,
-                input_forcings.geo_meta.ny_local,
-                input_forcings.geo_meta.nx_local,
+                self.force_count,
+                self.geo_meta.ny_local,
+                self.geo_meta.nx_local,
             ],
             np.float64,
         )
-        input_forcings.height = np.empty(
-            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
-            np.float32,
-        )
-        input_forcings.regridded_mask = np.empty(
-            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
-            np.float32,
-        )
-        input_forcings.regridded_mask_AORC = np.empty(
-            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
-            np.float32,
-        )
-        input_forcings.final_forcings_elem = None
-        input_forcings.height_elem = None
-        input_forcings.regridded_mask_elem = None
-        input_forcings.regridded_mask_elem_AORC = None
 
-    def handle_humidity_downscaling(
-        self,
-        input_forcings: InputForcings,
-    ) -> None:
-        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+    @property
+    @lru_cache
+    def height(self):
+        """Initialize the local height grid."""
+        return np.empty(
+            [self.geo_meta.ny_local, self.geo_meta.nx_local],
+            np.float32,
+        )
 
-        If we have specified specific humidity downscaling, establish arrays to hold
-        temporary temperature arrays that are un-downscaled.
-        """
-        input_forcings.t2dTmp = np.empty(
-            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+    @property
+    @lru_cache
+    def regridded_mask(self):
+        """Initialize the local regridded mask grid."""
+        return np.empty(
+            [self.geo_meta.ny_local, self.geo_meta.nx_local],
             np.float32,
         )
-        input_forcings.psfcTmp = np.empty(
-            [input_forcings.geo_meta.ny_local, input_forcings.geo_meta.nx_local],
+
+    @property
+    @lru_cache
+    def regridded_mask_AORC(self):
+        """Initialize the local regridded AORC mask grid."""
+        return np.empty(
+            [self.geo_meta.ny_local, self.geo_meta.nx_local],
             np.float32,
         )
-        input_forcings.t2dTmp_elem = None
-        input_forcings.psfcTmp_elem = None
+
+    @property
+    @lru_cache
+    def t2dTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty(
+                [self.geo_meta.ny_local, self.geo_meta.nx_local],
+                np.float32,
+            )
+
+    @property
+    @lru_cache
+    def psfcTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty(
+                [self.geo_meta.ny_local, self.geo_meta.nx_local],
+                np.float32,
+            )
 
 
 class InputForcingsHydrofabric(InputForcings):
@@ -341,46 +343,46 @@ class InputForcingsHydrofabric(InputForcings):
     ) -> None:
         """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+        for attr in CONSTS[self.__class__.__name__]:
+            setattr(self, attr, None)
 
-    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
-        """Initialize geometry-related arrays based on grid type and downscaling options.
+    @property
+    @lru_cache
+    def final_forcings(self):
+        """Initialize the local final grid of values."""
+        return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
 
-        From forcingInputMod.py
+    @property
+    @lru_cache
+    def height(self):
+        """Initialize the local height grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
 
-        Initialize the local final grid of values. This is represntative
-        of the local grid for this forcing, for a specific output timesetp.
-        This grid will be updated from one output timestep to another, and
-        also through downscaling and bias correction.
-        """
-        input_forcings.final_forcings = np.empty(
-            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
-        )
-        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
-        input_forcings.regridded_mask = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.regridded_mask_AORC = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.final_forcings_elem = None
-        input_forcings.height_elem = None
-        input_forcings.regridded_mask_elem = None
-        input_forcings.regridded_mask_elem_AORC = None
+    @property
+    @lru_cache
+    def regridded_mask(self):
+        """Initialize the local regridded mask grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
 
-    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
-        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+    @property
+    @lru_cache
+    def regridded_mask_AORC(self):
+        """Initialize the local regridded AORC mask grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
 
-        From forcingInputMod.py
+    @property
+    @lru_cache
+    def t2dTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local], np.float32)
 
-        If we have specified specific humidity downscaling, establish arrays to hold
-        temporary temperature arrays that are un-downscaled.
-        """
-        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
-        input_forcings.psfcTmp = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.t2dTmp_elem = None
-        input_forcings.psfcTmp_elem = None
+    @property
+    @lru_cache
+    def psfcTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local], np.float32)
 
 
 class InputForcingsUnstructured(InputForcings):
@@ -400,59 +402,87 @@ class InputForcingsUnstructured(InputForcings):
     ) -> None:
         """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
+        for attr in CONSTS[self.__class__.__name__]:
+            setattr(self, attr, None)
 
-    def handle_humidity_downscaling(self, input_forcings: InputForcings) -> None:
-        """Initialize temporary arrays for specific humidity downscaling if specified in configuration.
+    @property
+    @lru_cache
+    def t2dTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local], np.float32)
 
-        From forcingInputMod.py
+    @property
+    @lru_cache
+    def psfcTmp(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local], np.float32)
 
-        If we have specified specific humidity downscaling, establish arrays to hold
-        temporary temperature arrays that are un-downscaled.
-        """
-        input_forcings.t2dTmp = np.empty([input_forcings.geo_meta.ny_local], np.float32)
-        input_forcings.psfcTmp = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.t2dTmp_elem = np.empty(
-            [input_forcings.geo_meta.ny_local_elem], np.float32
-        )
-        input_forcings.psfcTmp_elem = np.empty(
-            [input_forcings.geo_meta.ny_local_elem], np.float32
-        )
+    @property
+    @lru_cache
+    def t2dTmp_elem(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local_elem], np.float32)
 
-    def initialize_geo_data(self, input_forcings: InputForcings) -> None:
-        """Initialize geometry-related arrays based on grid type and downscaling options.
+    @property
+    @lru_cache
+    def psfcTmp_elem(self):
+        """Initialize temporary array for specific humidity downscaling."""
+        if self.q2dDownscaleOpt > 0:
+            return np.empty([self.geo_meta.ny_local_elem], np.float32)
 
-        From forcingInputMod.py
+    @property
+    @lru_cache
+    def final_forcings(self):
+        """Initialize the local final grid of values."""
+        return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
 
-        Initialize the local final grid of values. This is represntative
-        of the local grid for this forcing, for a specific output timesetp.
-        This grid will be updated from one output timestep to another, and
-        also through downscaling and bias correction.
-        """
-        input_forcings.final_forcings = np.empty(
-            [input_forcings.force_count, input_forcings.geo_meta.ny_local], np.float64
-        )
-        input_forcings.height = np.empty([input_forcings.geo_meta.ny_local], np.float32)
-        input_forcings.regridded_mask = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.regridded_mask_AORC = np.empty(
-            [input_forcings.geo_meta.ny_local], np.float32
-        )
-        input_forcings.final_forcings_elem = np.empty(
-            [input_forcings.force_count, input_forcings.geo_meta.ny_local_elem],
+    @property
+    @lru_cache
+    def height(self):
+        """Initialize the local height grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @property
+    @lru_cache
+    def regridded_mask(self):
+        """Initialize the local regridded mask grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @property
+    @lru_cache
+    def regridded_mask_AORC(self):
+        """Initialize the local regridded AORC mask grid."""
+        return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @property
+    @lru_cache
+    def final_forcings_elem(self):
+        """Initialize the local final grid of values on elements."""
+        return np.empty(
+            [self.force_count, self.geo_meta.ny_local_elem],
             np.float64,
         )
-        input_forcings.height_elem = np.empty(
-            [input_forcings.geo_meta.ny_local_elem], np.float32
-        )
-        input_forcings.regridded_mask_elem = np.empty(
-            [input_forcings.geo_meta.ny_local_elem], np.float32
-        )
-        input_forcings.regridded_mask_elem_AORC = np.empty(
-            [input_forcings.geo_meta.ny_local_elem], np.float32
-        )
+
+    @property
+    @lru_cache
+    def height_elem(self):
+        """Initialize the local height grid on elements."""
+        return np.empty([self.geo_meta.ny_local_elem], np.float32)
+
+    @property
+    @lru_cache
+    def regridded_mask_elem(self):
+        """Initialize the local regridded mask grid on elements."""
+        return np.empty([self.geo_meta.ny_local_elem], np.float32)
+
+    @property
+    @lru_cache
+    def regridded_mask_elem_AORC(self):
+        """Initialize the local regridded AORC mask grid on elements."""
+        return np.empty([self.geo_meta.ny_local_elem], np.float32)
 
 
 INPUTFORCINGS = {
