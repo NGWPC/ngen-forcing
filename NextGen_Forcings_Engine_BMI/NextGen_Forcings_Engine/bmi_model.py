@@ -216,7 +216,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # If _job_meta was not set by initialize_with_params(), create a default one
         if self._job_meta is None:
             self._job_meta = ConfigOptions(self.cfg_bmi)
-        
+
         # Parse the configuration options
         try:
             self._job_meta.validate_config(self.cfg_bmi)
@@ -279,10 +279,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
         # to have a size of at least 2.
-        if (
-            self.geo_meta.nx_local < 2
-            or self.geo_meta.ny_local < 2
-        ):
+        if self.geo_meta.nx_local < 2 or self.geo_meta.ny_local < 2:
             self._job_meta.errMsg = (
                 "You have specified too many cores for your WRF-Hydro grid. "
                 "Local grid Must have x/y dimension size of 2."
@@ -313,9 +310,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # If we have specified supplemental precipitation products, initialize
         # the supp class.
         if self._job_meta.number_supp_pcp > 0:
-            self._supp_pcp_mod = suppPrecipMod.initDict(
-                self._job_meta, self.geo_meta
-            )
+            self._supp_pcp_mod = suppPrecipMod.initDict(self._job_meta, self.geo_meta)
         else:
             self._supp_pcp_mod = None
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
@@ -1462,6 +1457,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
     # ------------------------------------------------------------
     # ------------------------------------------------------------
 
+
 def parse_config(cfg: dict) -> dict:
     """Parse the provided configuration dictionary (`cfg`) and modifies it based on certain rules.
 
@@ -1572,6 +1568,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__()
+        self.GeoMeta = GriddedGeoMeta
 
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
         """Get the grid ranks for the gridded domain."""
@@ -1615,13 +1612,9 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
             1, 2, GridType.uniform_rectilinear
         )  # Grid 1 is a 2-dimensional grid
         bmi_model.grid_1._grid_y = bmi_model.geo_meta.latitude_grid.flatten()
-        bmi_model.grid_1._grid_x = (
-            bmi_model.geo_meta.longitude_grid.flatten()
-        )
+        bmi_model.grid_1._grid_x = bmi_model.geo_meta.longitude_grid.flatten()
         bmi_model.grid_1._shape = bmi_model.geo_meta.latitude_grid.shape
-        bmi_model.grid_1._size = len(
-            bmi_model.geo_meta.latitude_grid.flatten()
-        )
+        bmi_model.grid_1._size = len(bmi_model.geo_meta.latitude_grid.flatten())
         bmi_model.grid_1._spacing = (
             bmi_model.geo_meta.dx_meters,
             bmi_model.geo_meta.dy_meters,
@@ -1649,6 +1642,7 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__()
+        self.GeoMeta = HydrofabricGeoMeta
 
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
         """Get the grid ranks for the hydrofabric domain."""
@@ -1720,6 +1714,7 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__()
+        self.GeoMeta = UnstructuredGeoMeta
 
     def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
         """Get the grid ranks for the unstructured domain."""
@@ -1818,6 +1813,7 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         bmi_model.grid_2._size = len(self.geo_meta.latitude_grid_elem)
         bmi_model.grid_3._size = len(self.geo_meta.latitude_grid)
         bmi_model._grids = [bmi_model.grid_2, bmi_model.grid_3]
+
 
 BMIMODEL = {
     "gridded": NWMv3_Forcing_Engine_BMI_model_Gridded,
