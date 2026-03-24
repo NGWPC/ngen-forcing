@@ -4,7 +4,9 @@ import json
 import logging
 import os
 import typing
+from collections import OrderedDict
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -16,6 +18,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
     InputForcings,
 )
@@ -30,6 +33,8 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     serialize_to_json,
 )
 
+CONSTS = CONSTS[Path(__file__).stem]
+
 try:
     import esmpy as ESMF
 except ImportError:
@@ -38,7 +43,7 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
-def convert_long_lists(data, max_length=5):
+def convert_long_lists(data, max_length=None):
     """Recursively iterate over a nested data dictionary and convert all lists longer than max_length to a hash.
 
     Args:
@@ -49,6 +54,8 @@ def convert_long_lists(data, max_length=5):
         Modified copy of the data structure
 
     """
+    if max_length is None:
+        return data
     if isinstance(data, dict):
         return {
             key: convert_long_lists(value, max_length) for key, value in data.items()
@@ -181,7 +188,9 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         deserial_actual = json.loads(
             serialize_to_json(self.test_class_as_dict, sort_keys=True)
         )
-        deserial_actual = convert_long_lists(deserial_actual)
+        # order and reverse so private attributes are last
+        deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
+        deserial_actual = convert_long_lists(deserial_actual, 10)
         if write_to_file:
             self.write_json(
                 deserial_actual,
@@ -213,7 +222,17 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         else:
             try:
                 with open(file_path) as f:
-                    return json.load(f)
+                    deserial_expected = json.load(f)
+
+                deserial_expected_new_keys = {}
+                # map old keys to new keys
+                for key, val in deserial_expected.items():
+                    if key in CONSTS["OLD_NEW_VAR_MAP"].keys():
+                        deserial_expected_new_keys[CONSTS["OLD_NEW_VAR_MAP"][key]] = val
+                    else:
+                        deserial_expected_new_keys[key] = val
+                # order and reverse so private attributes are last
+                return OrderedDict(reversed(list(deserial_expected_new_keys.items())))
             except FileNotFoundError as e:
                 raise FileNotFoundError(
                     f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
@@ -248,7 +267,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         # child_class_dict=self.test_class.__class__.__dict__
         for key in dir(self.test_class):
             val = getattr(self.test_class, key)
-            if not callable(val) and not key.startswith("__"):
+            if not callable(val) and not key.startswith("_"):
                 data[key] = val
         return data
 
