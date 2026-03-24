@@ -18,9 +18,10 @@ Set the USGS_API_KEY, DBNROOT and DCOMROOT environmental variables
 For example,
 
 ```
-export USGS_API_KEY=yctQE7jhMlzuIaDykUkrTzgLdTneyWhtqr9OepNy 
-export DCOMROOT=/efs/Zhengtao.Cui/realtimeflow/dcomroot
-export DBNROOT=/efs/Zhengtao.Cui/realtimeflow/dbnroot
+export USGS_API_KEY=[API KEY]
+export DCOMROOT=/path/to/dcomroot
+export DBNROOT=/path/to/dbnroot
+mkdir $DBNROOT/log
 ```
 ## Start the daemon script
 ```
