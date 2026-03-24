@@ -194,6 +194,22 @@ CONSTS = {
             "_grib_vars",
             "_cycle_freq",
         ],
+        "InputForcingsGridded": [
+            "t2dTmp_elem",
+            "psfcTmp_elem",
+            "final_forcings_elem",
+            "height_elem",
+            "regridded_mask_elem",
+            "regridded_mask_elem_AORC",
+        ],
+        "InputForcingsHydrofabric": [
+            "final_forcings_elem",
+            "height_elem",
+            "regridded_mask_elem",
+            "regridded_mask_elem_AORC",
+            "t2dTmp_elem",
+            "psfcTmp_elem",
+        ],
         "PRODUCT_NAME": {
             1: "NLDAS2_GRIB1",
             2: "NARR_GRIB1",
@@ -903,5 +919,22 @@ CONSTS = {
             "NWM": ".LDASIN_DOMAIN1",
             "ZARR": ".zarr",
         },
+    },
+    "test_utils": {
+        "OLD_NEW_VAR_MAP": {
+            "q2dBiasCorrectOpt": "q2BiasCorrectOpt",
+            "paramDir": "dScaleParamDirs",
+            "border": "ignored_border_widths",
+            "regridOpt": "regrid_opt",
+            "userFcstHorizon": "fcst_input_horizons",
+            "inDir": "input_force_dirs",
+            "swDowscaleOpt": "swDownscaleOpt",
+            "t2dBiasCorrectOpt": "t2BiasCorrectOpt",
+            "userCycleOffset": "fcst_input_offsets",
+            "windBiasCorrectOpt": "windBiasCorrect",
+            "timeInterpOpt": "forceTemoralInterp",
+            "enforce": "input_force_mandatory",
+            "file_type": "input_force_types",
+        }
     },
 }
