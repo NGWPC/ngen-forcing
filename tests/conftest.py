@@ -9,7 +9,7 @@ from test_utils import (
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
-    BMIMODEL,
+    # BMIMODEL,
     NWMv3_Forcing_Engine_BMI_model,
 )
 
@@ -59,7 +59,7 @@ def bmi_forcing_fixture_regrid(
         grid_type,
     ) = request.param
 
-    bmi_model = BMIMODEL[grid_type]()
+    bmi_model = NWMv3_Forcing_Engine_BMI_model()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -96,7 +96,7 @@ def bmi_forcing_fixture_geomod(
         grid_type,
     ) = request.param
 
-    bmi_model = BMIMODEL[grid_type]()
+    bmi_model = NWMv3_Forcing_Engine_BMI_model()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -130,7 +130,7 @@ def bmi_forcing_fixture_input_forcing(
         force_key,
     ) = request.param
 
-    bmi_model = BMIMODEL[grid_type]()
+    bmi_model = NWMv3_Forcing_Engine_BMI_model()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,

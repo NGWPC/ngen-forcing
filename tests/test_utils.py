@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import types
 import typing
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -23,7 +24,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod im
     InputForcings,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMeta,
+    GeoMetaWrfHydro,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
@@ -33,6 +34,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     serialize_to_json,
 )
 
+INPUT_FORCING_CONSTS = CONSTS["forcingInputMod"]
 CONSTS = CONSTS[Path(__file__).stem]
 
 try:
@@ -41,6 +43,24 @@ except ImportError:
     import ESMF
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
+
+
+def convert_functions_to_strings(d):
+    """Convert functions in a nexted dictionary to strings."""
+    INPUT_FORCING_CONSTS["REGRID_MAP"]
+    for key, value in d.items():
+        if isinstance(value, dict):
+            # Recursively call the function for nested dictionaries
+            convert_functions_to_strings(value)
+        elif isinstance(value, types.FunctionType):
+            # Convert function to its name string
+            d[key] = value.__name__
+        elif isinstance(value, list):
+            # Handle lists, which might also contain functions in complex structures
+            for i, item in enumerate(value):
+                if isinstance(item, types.FunctionType):
+                    value[i] = item.__name__
+    return d
 
 
 def convert_long_lists(data, max_length=None):
@@ -153,7 +173,7 @@ class BMIForcingFixture:
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model = bmi_model
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
-        self.geo_meta: GeoMeta = bmi_model.geo_meta
+        self.geo_meta: GeoMetaWrfHydro = bmi_model._wrf_hydro_geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
 
@@ -186,10 +206,13 @@ class BMIForcingFixture_Class(BMIForcingFixture):
     ) -> dict:
         """Get the actual metadata results as a deserialized dictionary."""
         deserial_actual = json.loads(
-            serialize_to_json(self.test_class_as_dict, sort_keys=True)
+            serialize_to_json(
+                convert_functions_to_strings(self.test_class_as_dict), sort_keys=True
+            )
         )
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
+        # deserial_actual = convert_functions_to_strings(deserial_actual)
         deserial_actual = convert_long_lists(deserial_actual, 10)
         if write_to_file:
             self.write_json(
