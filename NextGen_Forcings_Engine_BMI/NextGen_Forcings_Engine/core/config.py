@@ -150,8 +150,31 @@ class ConfigOptions:
         self.geopackage = None
 
         self.uid64 = None
-
         self.broadcast_new_64bit_uid()
+
+        self._scratch_dir_has_been_uniquefied = False
+
+    def uniquefy_scratch_dir_as_child(self, uid: str) -> None:
+        """Modify the existing scratch dir by adding the UID string available to all ranks from the MpiConfig class.
+        This may only be called once. Subsequent calls will result in an error.
+        This must be called by all ranks, once."""
+        LOG.debug(f"Uniquefying scratch dir: adding suffix {uid} to {self.scratch_dir}")
+        if not isinstance(uid, str):
+            raise TypeError(f"Expected str, got {type(uid)} for type of uid: {uid}")
+        if self.scratch_dir is None:
+            raise ValueError("This cannot be ran while scratch_dir is None")
+        if self._scratch_dir_has_been_uniquefied is True:
+            raise ValueError(
+                f"scratch_dir path has already been uniquefied: {self.scratch_dir}"
+            )
+        self.scratch_dir = os.path.join(self.scratch_dir, uid)
+        self._scratch_dir_has_been_uniquefied = True
+        self.make_scratch_dir()
+
+    def make_scratch_dir(self) -> None:
+        """Make the scratch dir and its parents."""
+        os.makedirs(self.scratch_dir, exist_ok=True)
+        LOG.debug(f"Scratch dir: {self.scratch_dir}")
 
     def broadcast_new_64bit_uid(self):
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks.
@@ -500,8 +523,8 @@ class ConfigOptions:
             err_out_screen("Unable to locate ScratchDir in the configuration file.", e)
         except configparser.NoOptionError as e:
             err_out_screen("Unable to locate ScratchDir in the configuration file.", e)
-        os.makedirs(self.scratch_dir, exist_ok=True)
-        LOG.debug(f"Scratch dir: {self.scratch_dir}")
+
+        self.make_scratch_dir()
 
         # Read in compression option
         try:
