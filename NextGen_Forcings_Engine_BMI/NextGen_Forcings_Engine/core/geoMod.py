@@ -157,13 +157,12 @@ class GeoMeta:
 
     def get_var(self, ds: xr.Dataset, var: str) -> xr.DataArray:
         """Get a variable from a xr.Dataset."""
-        if var is None:
-            return
-        try:
-            return ds.variables[var]
-        except Exception as e:
-            self.config_options.errMsg = f"Unable to extract {var} variable from: {self.config_options.spatial_meta} due to {str(e)}"
-            raise e
+        if var is not None:
+            try:
+                return ds.variables[var]
+            except Exception as e:
+                self.config_options.errMsg = f"Unable to extract {var} variable from: {self.config_options.spatial_meta} due to {str(e)}"
+                raise e
 
     def get_geogrid_var(self, var: str) -> xr.DataArray:
         """Get a variable from the geogrid file."""
@@ -895,7 +894,6 @@ class HydrofabricGeoMeta(GeoMeta):
         super().__init__(config_options, mpi_config)
         for attr in CONSTS[self.__class__.__name__]:
             setattr(self, attr, None)
-        pass
 
     @property
     @lru_cache
