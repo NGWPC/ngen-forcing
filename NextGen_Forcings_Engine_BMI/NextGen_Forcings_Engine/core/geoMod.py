@@ -17,12 +17,9 @@ try:
 except ImportError:
     import ESMF
 
-import logging
-
-from nextgen_forcings_ewts import MODULE_NAME
-
-LOG = logging.getLogger(MODULE_NAME)
-
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 class GeoMetaWrfHydro:
     """Abstract class for handling information about the WRF-Hydro domain we are processing forcings too."""

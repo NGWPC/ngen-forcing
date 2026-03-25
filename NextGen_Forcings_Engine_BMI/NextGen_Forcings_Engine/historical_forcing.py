@@ -1,7 +1,6 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
-import logging
 import os
 import re
 import typing
@@ -27,11 +26,12 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
+
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 zarr.config.set({"async.concurrency": 100})
-LOG = logging.getLogger(MODULE_NAME)
-
 
 class BaseProcessor:
     """Base class for data processors."""
@@ -83,7 +83,7 @@ class BaseProcessor:
         return self.bounds[3]
 
     @contextmanager
-    def timing_block(self, step_str: str, log_callable: typing.Callable = LOG.debug):
+    def timing_block(self, step_str: str, log_callable: typing.Callable = None):
         """Context manager for timing code execution.
 
         Args:
@@ -91,6 +91,8 @@ class BaseProcessor:
             log_callable: Callable used for sending the log message. Defaults to LOG.debug.
 
         """
+        if log_callable is None:
+            log_callable = LOG.debug
         start = perf_counter()
         log_callable(f"  Starting {step_str}")
         yield

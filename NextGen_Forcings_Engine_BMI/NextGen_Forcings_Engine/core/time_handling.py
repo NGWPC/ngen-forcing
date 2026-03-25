@@ -2,18 +2,17 @@
 # calculations in the forcing engine.
 import datetime
 import glob
-import logging
 import math
 import os
 
 import numpy as np
 import pandas as pd
 
-from nextgen_forcings_ewts import MODULE_NAME
-
 from . import err_handler
 
-LOG = logging.getLogger(MODULE_NAME)
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 NETCDF = "NETCDF"
 

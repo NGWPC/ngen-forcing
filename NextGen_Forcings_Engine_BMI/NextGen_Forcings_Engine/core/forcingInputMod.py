@@ -4,8 +4,6 @@ These parameters include things such as file types, grid definitions (including
 initializing ESMF grids and regrid objects), etc
 """
 
-import logging
-
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -15,11 +13,12 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GeoMetaWrfHydro,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
 
 from . import regrid, time_handling, timeInterpMod
 
-LOG = logging.getLogger(MODULE_NAME)
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class InputForcings:

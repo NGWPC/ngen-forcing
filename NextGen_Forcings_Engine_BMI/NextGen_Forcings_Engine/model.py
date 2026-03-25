@@ -1,5 +1,4 @@
 import datetime
-import logging
 import os
 from contextlib import contextmanager
 from time import time
@@ -29,9 +28,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
-from nextgen_forcings_ewts import MODULE_NAME
 
-LOG = logging.getLogger(MODULE_NAME)
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 @contextmanager
@@ -282,29 +282,6 @@ class NWMv3ForcingEngineModel:
             # reset skips if present
             for force_key in config_options.input_forcings:
                 input_forcing_mod[force_key].skip = False
-
-            # Determine log timestamp
-            if config_options.ana_flag:
-                log_time = config_options.b_date_proc
-            else:
-                log_time = config_options.current_fcst_cycle
-
-            # Compose a path to a log file, which will contain information about this forecast cycle
-            log_filename = (
-                f"LOG_{config_options.nwmConfig}"
-                f"{'_' if config_options.nwmConfig != 'long_range' else f'_mem{config_options.cfsv2EnsMember}_'}"
-                f"{config_options.d_program_init.strftime('%Y%m%d%H%M')}_{log_time.strftime('%Y%m%d%H%M')}"
-                ".log"
-            )
-            config_options.logFile = os.path.join(
-                config_options.scratch_dir, log_filename
-            )
-
-            # Initialize logging
-            try:
-                err_handler.init_log(config_options, mpi_config)
-            except Exception:
-                err_handler.err_out_screen_para(config_options.errMsg, mpi_config)
 
             err_handler.check_program_status(config_options, mpi_config)
         return (

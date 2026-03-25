@@ -53,8 +53,7 @@ build-backend = "setuptools.build_meta"
 where = ["NextGen_Forcings_Engine_BMI", "nextgen_forcings_ewts/src", "."]
 include = ["NextGen_Forcings_Engine*", 
     "Forcing_Extraction_Scripts*", 
-    "ESMF_Mesh_Domain_Configuration_Production*",
-    "nextgen_forcings_ewts*"]
+    "ESMF_Mesh_Domain_Configuration_Production*"]
 namespaces = false
 
 [tool.setuptools.dynamic]
