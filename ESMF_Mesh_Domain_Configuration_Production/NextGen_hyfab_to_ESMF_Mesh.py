@@ -27,17 +27,6 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     :param esmf_mesh_output: Path to the output ESMF mesh file
     :param parquet: Optional parquet file with hydrofabric model attributes
     """
-    # Testing code for removal
-    import geopandas as gpd
-    import netCDF4
-    import numpy as np
-    import pandas as pd
-    import argparse
-    import pathlib
-    import os
-    import uuid
-    hyfab_gpkg = '/home/jeff.wade/ngwpc/data/gpkg/gauge_01123000_nhf.gpkg'
-    esmf_mesh_output = '/home/jeff.wade/ngwpc/data/gpkg/nhf_esmf.nc'
 
     # Open hydrofabric geopackage file and
     # save copy of original cartesian coordinate system
