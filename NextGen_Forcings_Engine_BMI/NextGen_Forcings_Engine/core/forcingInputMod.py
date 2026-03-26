@@ -268,14 +268,22 @@ class InputForcingsGridded(InputForcings):
     @lru_cache
     def final_forcings(self):
         """Initialize the local final grid of values."""
-        return np.empty(
-            [
-                self.force_count,
-                self.geo_meta.ny_local,
-                self.geo_meta.nx_local,
-            ],
-            np.float64,
-        )
+        if self._final_forcings is not None:
+            return self._final_forcings
+        else:
+            return np.empty(
+                [
+                    self.force_count,
+                    self.geo_meta.ny_local,
+                    self.geo_meta.nx_local,
+                ],
+                np.float64,
+            )
+
+    @final_forcings.setter
+    def final_forcings(self, value):
+        "Setter for final_forcings."
+        self._final_forcings = value
 
     @property
     @lru_cache
@@ -308,21 +316,35 @@ class InputForcingsGridded(InputForcings):
     @lru_cache
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
-        if self.q2dDownscaleOpt > 0:
+        if self._t2dTmp is not None:
+            return self._t2dTmp
+        elif self.q2dDownscaleOpt > 0:
             return np.empty(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
                 np.float32,
             )
 
+    @t2dTmp.setter
+    def t2dTmp(self, value):
+        """Setter for t2dTmp"""
+        self._t2dTmp = value
+
     @property
     @lru_cache
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
-        if self.q2dDownscaleOpt > 0:
+        if self._psfcTmp is not None:
+            return self._psfcTmp
+        elif self.q2dDownscaleOpt > 0:
             return np.empty(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
                 np.float32,
             )
+
+    @psfcTmp.setter
+    def psfcTmp(self, value):
+        """Setter for psfcTmp"""
+        self._psfcTmp = value
 
 
 class InputForcingsHydrofabric(InputForcings):
@@ -342,14 +364,22 @@ class InputForcingsHydrofabric(InputForcings):
     ) -> None:
         """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @property
     @lru_cache
     def final_forcings(self):
         """Initialize the local final grid of values."""
-        return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
+        if self._final_forcings is not None:
+            return self._final_forcings
+        else:
+            return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
+
+    @final_forcings.setter
+    def final_forcings(self, value):
+        "Setter for final_forcings."
+        self._final_forcings = value
 
     @property
     @lru_cache
@@ -373,15 +403,29 @@ class InputForcingsHydrofabric(InputForcings):
     @lru_cache
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
-        if self.q2dDownscaleOpt > 0:
+        if self._t2dTmp is not None:
+            return self._t2dTmp
+        elif self.q2dDownscaleOpt > 0:
             return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @t2dTmp.setter
+    def t2dTmp(self, value):
+        """Setter for t2dTmp"""
+        self._t2dTmp = value
 
     @property
     @lru_cache
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
+        if self._psfcTmp is not None:
+            return self._psfcTmp
         if self.q2dDownscaleOpt > 0:
             return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @psfcTmp.setter
+    def psfcTmp(self, value):
+        """Setter for psfcTmp"""
+        self._psfcTmp = value
 
 
 class InputForcingsUnstructured(InputForcings):
@@ -408,15 +452,29 @@ class InputForcingsUnstructured(InputForcings):
     @lru_cache
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
-        if self.q2dDownscaleOpt > 0:
+        if self._t2dTmp is not None:
+            return self._t2dTmp
+        elif self.q2dDownscaleOpt > 0:
             return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @t2dTmp.setter
+    def t2dTmp(self, value):
+        """Setter for t2dTmp"""
+        self._t2dTmp = value
 
     @property
     @lru_cache
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
-        if self.q2dDownscaleOpt > 0:
+        if self._psfcTmp is not None:
+            return self._psfcTmp
+        elif self.q2dDownscaleOpt > 0:
             return np.empty([self.geo_meta.ny_local], np.float32)
+
+    @psfcTmp.setter
+    def psfcTmp(self, value):
+        """Setter for psfcTmp"""
+        self._psfcTmp = value
 
     @property
     @lru_cache
@@ -436,7 +494,15 @@ class InputForcingsUnstructured(InputForcings):
     @lru_cache
     def final_forcings(self):
         """Initialize the local final grid of values."""
-        return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
+        if self._final_forcings is not None:
+            return self._final_forcings
+        else:
+            return np.empty([self.force_count, self.geo_meta.ny_local], np.float64)
+
+    @final_forcings.setter
+    def final_forcings(self, value):
+        """Setter for final_forcings."""
+        self._final_forcings = value
 
     @property
     @lru_cache
