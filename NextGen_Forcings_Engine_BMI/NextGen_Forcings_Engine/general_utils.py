@@ -3,6 +3,7 @@
 import json
 import logging
 import typing
+from collections import OrderedDict
 
 import numpy as np
 
@@ -104,12 +105,16 @@ def assert_equal_with_tol(
         ### Check key existence
         try:
             v_expect = expect[k]
+            if isinstance(v_expect, dict):
+                v_expect = OrderedDict(sorted(list(v_expect.items())))
         except KeyError:
             errors.append(KeyError(f"Key {k} is missing from expected"))
             continue
 
         try:
             v_actual = actual[k]
+            if isinstance(v_actual, dict):
+                v_actual = OrderedDict(sorted(list(v_actual.items())))
         except KeyError:
             msg = f"Key {k} is missing from actual"
             errors.append(KeyError(msg))
@@ -164,7 +169,7 @@ def assert_equal_with_tol(
 
         errors.append(
             ValueError(
-                f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for at least one element. {v_expect} vs {v_actual}."
+                f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for {k}. {v_expect} vs {v_actual}."
             )
         )
 
