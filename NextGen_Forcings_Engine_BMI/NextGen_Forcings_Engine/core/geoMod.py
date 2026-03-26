@@ -24,12 +24,11 @@ import xarray as xr
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOMOD
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
-CONSTS = CONSTS[Path(__file__).stem]
 
 
 def set_none(func) -> Any:
@@ -104,7 +103,7 @@ class GeoMeta:
         """Initialize GeoMeta class variables."""
         self.config_options = config_options
         self.mpi_config = mpi_config
-        for attr in CONSTS[self.__class__.__base__.__name__]:
+        for attr in GEOMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -294,7 +293,7 @@ class GriddedGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in GEOMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @broadcast
@@ -892,7 +891,7 @@ class HydrofabricGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in GEOMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -1069,7 +1068,7 @@ class UnstructuredGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in GEOMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @broadcast

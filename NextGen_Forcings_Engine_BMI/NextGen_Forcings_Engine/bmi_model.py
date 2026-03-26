@@ -28,7 +28,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_grid import Grid, G
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import BMI_MODEL
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     GriddedGeoMeta,
     HydrofabricGeoMeta,
@@ -68,7 +68,6 @@ import logging
 
 from nextgen_forcings_ewts import MODULE_NAME, configure_logging
 
-CONSTS = CONSTS[Path(__file__).stem]
 configure_logging()
 
 
@@ -387,7 +386,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             return  # Already configured or no output object to configure
 
         if self._job_meta.forcing_output == 1:
-            ext = CONSTS["extension_map"].get(self._job_meta.grid_type)
+            ext = BMI_MODEL["extension_map"].get(self._job_meta.grid_type)
 
             if ext is None:
                 raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
@@ -1598,15 +1597,15 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
         if bmi_model.config_options.include_lqfrac == 1:
-            bmi_model._output_var_names = CONSTS["_output_var_names"].append(
+            bmi_model._output_var_names = BMI_MODEL["_output_var_names"].append(
                 "LQFRAC_ELEMENT"
             )
-            bmi_model._var_name_units_map = CONSTS["_var_name_units_map"] | {
+            bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"] | {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
             }
         else:
-            bmi_model._output_var_names = CONSTS["_output_var_names"]
-            bmi_model._var_name_units_map = CONSTS["_var_name_units_map"]
+            bmi_model._output_var_names = BMI_MODEL["_output_var_names"]
+            bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"]
 
         bmi_model.grid_1 = Grid(
             1, 2, GridType.uniform_rectilinear
@@ -1672,18 +1671,18 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         # will support a BMI field for liquid fraction of precipitation
         if bmi_model._job_meta.include_lqfrac == 1:
             bmi_model._output_var_names = (
-                ["CAT-ID"] + CONSTS["_output_var_names"] + ["LQFRAC_ELEMENT"]
+                ["CAT-ID"] + BMI_MODEL["_output_var_names"] + ["LQFRAC_ELEMENT"]
             )
             bmi_model._var_name_units_map = (
                 {"CAT-ID": ["Catchment ID", ""]}
-                | CONSTS["_var_name_units_map"]
+                | BMI_MODEL["_var_name_units_map"]
                 | {
                     "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
                 }
             )
         else:
-            bmi_model._output_var_names = ["CAT-ID"] + CONSTS["_output_var_names"]
-            bmi_model._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | CONSTS[
+            bmi_model._output_var_names = ["CAT-ID"] + BMI_MODEL["_output_var_names"]
+            bmi_model._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | BMI_MODEL[
                 "_var_name_units_map"
             ]
 
@@ -1758,43 +1757,43 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         # will support a BMI field for liquid fraction of precipitation
         if bmi_model._job_meta.include_lqfrac == 1:
             bmi_model._output_var_names = (
-                CONSTS["_output_var_names"]
+                BMI_MODEL["_output_var_names"]
                 + ["LQFRAC_ELEMENT"]
-                + CONSTS["_output_var_names_unstructured"]
+                + BMI_MODEL["_output_var_names_unstructured"]
             )
             +["LQFRAC_NODE"]
 
             bmi_model._var_name_units_map = (
-                CONSTS["_var_name_units_map"]
+                BMI_MODEL["_var_name_units_map"]
                 | {"LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]}
-                | CONSTS["_var_name_units_map_unstructured"]
+                | BMI_MODEL["_var_name_units_map_unstructured"]
                 | {"LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]}
             )
 
             bmi_model._grid_map = (
-                {var_name: bmi_model.grid_2 for var_name in CONSTS["_output_var_names"]}
+                {var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]}
                 | {"LQFRAC_ELEMENT": bmi_model.grid_2}
                 | {
                     var_name: bmi_model.grid_3
-                    for var_name in CONSTS["_output_var_names_unstructured"]
+                    for var_name in BMI_MODEL["_output_var_names_unstructured"]
                 }
                 | {"LQFRAC_NODE": bmi_model.grid_3}
             )
         else:
             bmi_model._output_var_names = (
-                CONSTS["_output_var_names"] + CONSTS["_output_var_names_unstructured"]
+                BMI_MODEL["_output_var_names"] + BMI_MODEL["_output_var_names_unstructured"]
             )
 
             bmi_model._var_name_units_map = (
-                CONSTS["_var_name_units_map"]
-                | CONSTS["_var_name_units_map_unstructured"]
+                BMI_MODEL["_var_name_units_map"]
+                | BMI_MODEL["_var_name_units_map_unstructured"]
             )
 
             bmi_model._grid_map = {
-                var_name: bmi_model.grid_2 for var_name in CONSTS["_output_var_names"]
+                var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]
             } | {
                 var_name: bmi_model.grid_3
-                for var_name in CONSTS["_output_var_names_unstructured"]
+                for var_name in BMI_MODEL["_output_var_names_unstructured"]
             }
 
         bmi_model.grid_2 = Grid(

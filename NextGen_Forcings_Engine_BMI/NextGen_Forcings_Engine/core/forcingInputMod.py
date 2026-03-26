@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import FORCINGINPUTMOD
 
 if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -28,7 +28,6 @@ if TYPE_CHECKING:
 from nextgen_forcings_ewts import MODULE_NAME
 
 LOG = logging.getLogger(MODULE_NAME)
-CONSTS = CONSTS[Path(__file__).stem]
 
 
 class InputForcings:
@@ -57,12 +56,12 @@ class InputForcings:
         self._keyValue = force_key
         self.idx = idx
 
-        for attr in CONSTS[self.__class__.__base__.__name__]:
+        for attr in FORCINGINPUTMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
-        self.find_neighbor_files_map = CONSTS["FIND_NEIGHBOR_FILES_MAP"]
-        self.regrid_map = CONSTS["REGRID_MAP"]
-        self.temporal_interpolate_inputs_map = CONSTS["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
+        self.find_neighbor_files_map = FORCINGINPUTMOD["FIND_NEIGHBOR_FILES_MAP"]
+        self.regrid_map = FORCINGINPUTMOD["REGRID_MAP"]
+        self.temporal_interpolate_inputs_map = FORCINGINPUTMOD["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
 
         self.initialize_config_options()
 
@@ -89,7 +88,7 @@ class InputForcings:
     @property
     def product_name(self) -> str:
         """Map the forcing key value to the product name."""
-        return CONSTS["PRODUCT_NAME"][self.keyValue]
+        return FORCINGINPUTMOD["PRODUCT_NAME"][self.keyValue]
 
     @property
     def keyValue(self) -> int:
@@ -108,7 +107,7 @@ class InputForcings:
     @property
     def file_ext(self) -> str:
         """Map the forcing file type to the file extension."""
-        ext = CONSTS["FILE_EXT"].get(self.input_force_types)
+        ext = FORCINGINPUTMOD["FILE_EXT"].get(self.input_force_types)
         if ext is None:
             raise ValueError(f"Unexpected file_type: {self.input_force_types}")
         self._file_ext = ext
@@ -128,7 +127,7 @@ class InputForcings:
         """Map the forcing key value to the cycle frequency in minutes."""
         if self._cycle_freq is None:
             # First call to getter, initialize
-            self._cycle_freq = CONSTS["CYCLE_FREQ"][self.keyValue]
+            self._cycle_freq = FORCINGINPUTMOD["CYCLE_FREQ"][self.keyValue]
         return self._cycle_freq
 
     @cycle_freq.setter
@@ -144,7 +143,7 @@ class InputForcings:
         """Map the forcing key value to the required GRIB variable names."""
         if self._grib_vars is None:
             # First call to getter, initialize
-            self._grib_vars = CONSTS["GRIB_VARS"][self.keyValue]
+            self._grib_vars = FORCINGINPUTMOD["GRIB_VARS"][self.keyValue]
         return self._grib_vars
 
     @grib_vars.setter
@@ -158,12 +157,12 @@ class InputForcings:
     @property
     def grib_levels(self) -> str:
         """Map the forcing key value to the required GRIB variable levels."""
-        return CONSTS["GRIB_LEVELS"][self.keyValue]
+        return FORCINGINPUTMOD["GRIB_LEVELS"][self.keyValue]
 
     @property
     def netcdf_var_names(self) -> str:
         """Map the forcing key value to the required NetCDF variable names."""
-        return CONSTS["NET_CDF_VARS_NAMES"][self.keyValue]
+        return FORCINGINPUTMOD["NET_CDF_VARS_NAMES"][self.keyValue]
 
     @property
     def grib_mes_idx(self) -> list[int] | None:
@@ -172,17 +171,17 @@ class InputForcings:
         arrays that store the message ids of required forcing variables for each forcing type
         TODO fill these arrays for forcing types other than GFS
         """
-        return CONSTS["GRIB_MES_IDX"][self.keyValue]
+        return FORCINGINPUTMOD["GRIB_MES_IDX"][self.keyValue]
 
     @property
     def input_map_output(self) -> list[int] | None:
         """Map the forcing key value to the input to output variable mapping."""
-        return CONSTS["INPUT_MAP_OUTPUT"][self.keyValue]
+        return FORCINGINPUTMOD["INPUT_MAP_OUTPUT"][self.keyValue]
 
     @property
     def forecast_horizons(self) -> list[int] | None:
         """Map the forcing key value to the forecast horizons list."""
-        return CONSTS["FORECAST_HORIZONS"][self.keyValue]
+        return FORCINGINPUTMOD["FORECAST_HORIZONS"][self.keyValue]
 
     def calc_neighbor_files(
         self, config_options: ConfigOptions, dcurrent, mpi_config: MpiConfig
@@ -262,7 +261,7 @@ class InputForcingsGridded(InputForcings):
     ) -> None:
         """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -402,7 +401,7 @@ class InputForcingsUnstructured(InputForcings):
     ) -> None:
         """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(force_key, idx, config_options, geo_meta, mpi_config)
-        for attr in CONSTS[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @property
