@@ -922,7 +922,7 @@ FORCINGINPUTMOD= {
         "NWM": ".LDASIN_DOMAIN1",
         "ZARR": ".zarr",
     },
-},
+}
 TEST_UTILS={
     "OLD_NEW_VAR_MAP": {
         "q2dBiasCorrectOpt": "q2BiasCorrectOpt",
@@ -939,4 +939,4 @@ TEST_UTILS={
         "enforce": "input_force_mandatory",
         "file_type": "input_force_types",
     }
-},
+}
