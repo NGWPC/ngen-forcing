@@ -1,23 +1,3 @@
-"""pytest tests for InputForcings.
-
-Setup requirements:
-    1. Create the forcing config.yml files using RTE.
-    2. Enter the RTE devcontainer.
-
-Usage:
-    The initial test data was generated using RTE to create a calibration realization
-    for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
-    using RTE's run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
-
-    Run like this for a typical test run (checking against existing test output data)
-        Single processor: ( cd src/ngen-forcing && pytest )
-        Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
-
-    Run like this to create new test output data (created expected outputs for subsequent tests):
-        Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
-        Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
-"""
-
 import importlib.util
 import os
 
