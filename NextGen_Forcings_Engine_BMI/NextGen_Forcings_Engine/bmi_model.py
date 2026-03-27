@@ -247,7 +247,21 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
-            forcing_extraction.retrieve_forcing(self._job_meta)
+            if self._mpi_meta.rank == 0:
+                err_handler.log_msg(
+                    self._job_meta,
+                    self._mpi_meta,
+                    False,
+                    "About to fetch raw forcing data",
+                )
+                forcing_extraction.retrieve_forcing(self._job_meta)
+                err_handler.log_msg(
+                    self._job_meta,
+                    self._mpi_meta,
+                    False,
+                    "Finished fetching raw forcing data",
+                )
+        self._mpi_meta.comm.Barrier()
 
         # Initialize our WRF-Hydro geospatial object, which contains
         # information about the modeling domain, local processor
