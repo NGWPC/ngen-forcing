@@ -184,7 +184,6 @@ FORCINGINPUTMOD= {
         "fcst_hour2",
         "fcst_date1",
         "fcst_date2",
-        "height_elem",
         "tmpFile",
         "tmpFileHeight",
         "regridded_precip1",
@@ -196,6 +195,9 @@ FORCINGINPUTMOD= {
         "_t2dTmp",
         "_psfcTmp",
         "_final_forcings",
+        "_height",
+        "_regridded_mask",
+        "_regridded_mask_AORC"
     ],
     "InputForcingsGridded": [
         "t2dTmp_elem",
@@ -204,6 +206,7 @@ FORCINGINPUTMOD= {
         "height_elem",
         "regridded_mask_elem",
         "regridded_mask_elem_AORC",
+        
     ],
     "InputForcingsHydrofabric": [
         "final_forcings_elem",
@@ -212,6 +215,14 @@ FORCINGINPUTMOD= {
         "regridded_mask_elem_AORC",
         "t2dTmp_elem",
         "psfcTmp_elem",
+    ],
+    "InputForcingsUnstructured":[
+        "_t2dTmp_elem",
+        "_psfcTmp_elem",
+        "_final_forcings_elem",
+        "_height_elem",
+        "_regridded_mask_elem"
+        "_regridded_mask_elem_AORC",
     ],
     "PRODUCT_NAME": {
         1: "NLDAS2_GRIB1",
