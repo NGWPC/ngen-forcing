@@ -1101,33 +1101,33 @@ def init_dict(
         # temporary temperature arrays that are un-downscaled.
         if input_dict[force_key].q2dDownscaleOpt > 0:
             if config_options.grid_type == "gridded":
-                input_dict[force_key].t2dTmp = np.empty(
+                input_dict[force_key].t2dTmp = np.full(
                     [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
-                    np.float32,
+                    np.nan,
                 )
-                input_dict[force_key].psfcTmp = np.empty(
+                input_dict[force_key].psfcTmp = np.full(
                     [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
-                    np.float32,
+                    np.nan,
                 )
             elif config_options.grid_type == "unstructured":
-                input_dict[force_key].t2dTmp = np.empty(
-                    [geo_meta_wrf_hydro.ny_local], np.float32
+                input_dict[force_key].t2dTmp = np.full(
+                    [geo_meta_wrf_hydro.ny_local], np.nan
                 )
-                input_dict[force_key].psfcTmp = np.empty(
-                    [geo_meta_wrf_hydro.ny_local], np.float32
+                input_dict[force_key].psfcTmp = np.full(
+                    [geo_meta_wrf_hydro.ny_local], np.nan
                 )
-                input_dict[force_key].t2dTmp_elem = np.empty(
-                    [geo_meta_wrf_hydro.ny_local_elem], np.float32
+                input_dict[force_key].t2dTmp_elem = np.full(
+                    [geo_meta_wrf_hydro.ny_local_elem], np.nan
                 )
-                input_dict[force_key].psfcTmp_elem = np.empty(
-                    [geo_meta_wrf_hydro.ny_local_elem], np.float32
+                input_dict[force_key].psfcTmp_elem = np.full(
+                    [geo_meta_wrf_hydro.ny_local_elem], np.nan
                 )
             elif config_options.grid_type == "hydrofabric":
-                input_dict[force_key].t2dTmp = np.empty(
-                    [geo_meta_wrf_hydro.ny_local], np.float32
+                input_dict[force_key].t2dTmp = np.full(
+                    [geo_meta_wrf_hydro.ny_local], np.nan
                 )
-                input_dict[force_key].psfcTmp = np.empty(
-                    [geo_meta_wrf_hydro.ny_local], np.float32
+                input_dict[force_key].psfcTmp = np.full(
+                    [geo_meta_wrf_hydro.ny_local], np.nan
                 )
         # Initialize the local final grid of values. This is represntative
         # of the local grid for this forcing, for a specific output timesetp.
