@@ -184,6 +184,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple[str] = (),
+        map_old_to_new_var_names: bool = True,
     ):
         """Initialize BMIForcingFixture_GeoMod. Writers of geomod tests must call the methods in this order. This is enforced by state attributes.
 
@@ -196,6 +197,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         super().__init__(bmi_model=bmi_model)
 
         self.keys_to_check = keys_to_check
+        self.map_old_to_new_var_names = map_old_to_new_var_names
 
         self.expected_sub_dir = "test_data/expected_results"
         self.actual_sub_dir = "test_data/actual_results"
@@ -246,20 +248,26 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             try:
                 with open(file_path) as f:
                     deserial_expected = json.load(f)
-
-                deserial_expected_new_keys = {}
-                # map old keys to new keys
-                for key, val in deserial_expected.items():
-                    if key in CONSTS["OLD_NEW_VAR_MAP"].keys():
-                        deserial_expected_new_keys[CONSTS["OLD_NEW_VAR_MAP"][key]] = val
-                    else:
-                        deserial_expected_new_keys[key] = val
+                if self.map_old_to_new_var_names:
+                    deserial_expected = self.map_old_to_new_variable_names(
+                        deserial_expected
+                    )
                 # order and reverse so private attributes are last
-                return OrderedDict(reversed(list(deserial_expected_new_keys.items())))
+                return OrderedDict(reversed(list(deserial_expected.items())))
             except FileNotFoundError as e:
                 raise FileNotFoundError(
                     f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
                 ) from e
+
+    def map_old_to_new_variable_names(self, data: dict) -> dict:
+        """Map old variable names to new variable names in the expected results data."""
+        data_new_keys = {}
+        for key, val in data.items():
+            if key in CONSTS["OLD_NEW_VAR_MAP"].keys():
+                data_new_keys[CONSTS["OLD_NEW_VAR_MAP"][key]] = val
+            else:
+                data_new_keys[key] = val
+        return data_new_keys
 
     def after_intitialization_check(self):
         """Run checks after initialization but before any run has been called.
@@ -359,6 +367,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple = (),
         force_key: int = None,
+        map_old_to_new_var_names: bool = True,
     ):
         """Initialize BMIForcingFixture_InputForcing. Writers of input forcing tests must call the methods in this order. This is enforced by state attributes.
 
@@ -366,9 +375,15 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         ----
             bmi_model: the BMI model to be used in the test fixture
             keys_to_chek: The keys to check
+            force_key: Key for the forcing type
+            map_old_to_new_var_names: whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
 
         """
-        super().__init__(bmi_model=bmi_model, keys_to_check=keys_to_check)
+        super().__init__(
+            bmi_model=bmi_model,
+            keys_to_check=keys_to_check,
+            map_old_to_new_var_names=map_old_to_new_var_names,
+        )
         self.force_key = force_key
         self.test_class = self.input_forcing_mod[self.force_key]
         self.test_file_name_prefix = "input_forcing"

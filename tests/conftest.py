@@ -109,6 +109,15 @@ def bmi_forcing_fixture_geomod(
     )
 
 
+def pytest_addoption(parser):
+    parser.addoption(
+        "--map_old_to_new_var_names",
+        action="store",
+        dest="map_old_to_new_var_names",
+        help="Argument to specify if old variables names should be mapped to new variable names.",
+    )
+
+
 @pytest.fixture
 def bmi_forcing_fixture_input_forcing(
     request,
@@ -137,8 +146,19 @@ def bmi_forcing_fixture_input_forcing(
         geogrid=None,
         output_path=None,
     )
+    map_old_to_new_var_names = request.config.getoption("map_old_to_new_var_names")
+    if map_old_to_new_var_names is None:
+        map_old_to_new_var_names = True
+    elif map_old_to_new_var_names == "False":
+        map_old_to_new_var_names = False
+    else:
+        raise ValueError(
+            f"Unexpected value for arg: map_old_to_new_var_names. Expected True or False; recieved: {map_old_to_new_var_names}"
+        )
+
     return BMIForcingFixture_InputForcing(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
         force_key=force_key,
+        map_old_to_new_var_names=map_old_to_new_var_names,
     )

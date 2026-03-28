@@ -55,15 +55,15 @@ Run tests for a specific module:
 
 ```bash
 # ESMF regridding tests
-Single processor: (cd src/ngen-forcing && pytest tests/esmf_regrid)
+Single processor: ( cd src/ngen-forcing && pytest tests/esmf_regrid)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/esmf_regrid)
 
 # GeoMod tests
-Single processor: (cd src/ngen-forcing && pytest tests/geomod)
+Single processor: ( cd src/ngen-forcing && pytest tests/geomod)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/geomod)
-
+ 
 # Input forcing tests
-Single processor: (cd src/ngen-forcing && pytest tests/input_forcing)
+Single processor: ( cd src/ngen-forcing && pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/input_forcing)
 ```
 
@@ -80,6 +80,12 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing)
+```
+
+In the rare case where you want to create new `expected` data and run the tests using `old` variable names use the following: 
+```bash
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing --map_old_to_new_var_names False)
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing --map_old_to_new_var_names False)
 ```
 ## Test Configuration
 
