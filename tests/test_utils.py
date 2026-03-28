@@ -317,13 +317,13 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self, suffix: str, current_output_step: str = ""
     ) -> str:
         """Get the file path for the actual metadata results JSON file."""
-        return f"{self.test_dir}/{self.actual_sub_dir}/test_actual_{self.test_file_name_prefix}_{suffix}{current_output_step}.json"
+        return f"{self.test_dir}/{self.actual_sub_dir}/test_actual_{self.test_file_name_prefix}_{suffix}_n{self.mpi_config.size}_rank{self.mpi_config.rank}_{current_output_step}.json"
 
     def expected_results_file_path(
         self, suffix: str, current_output_step: str = ""
     ) -> str:
         """Get the file path for the expected metadata results JSON file."""
-        return f"{self.test_dir}/{self.expected_sub_dir}/test_expected_{self.test_file_name_prefix}_{suffix}{current_output_step}.json"
+        return f"{self.test_dir}/{self.expected_sub_dir}/test_expected_{self.test_file_name_prefix}_{suffix}_n{self.mpi_config.size}_rank{self.mpi_config.rank}_{current_output_step}.json"
 
 
 class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
