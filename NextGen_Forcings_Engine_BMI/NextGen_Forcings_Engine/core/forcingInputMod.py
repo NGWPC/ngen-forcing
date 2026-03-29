@@ -10,7 +10,7 @@ import logging
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
-
+from functools import cached_property
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import FORCINGINPUTMOD
@@ -59,10 +59,6 @@ class InputForcings:
         for attr in FORCINGINPUTMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
-        self.find_neighbor_files_map = FORCINGINPUTMOD["FIND_NEIGHBOR_FILES_MAP"]
-        self.regrid_map = FORCINGINPUTMOD["REGRID_MAP"]
-        self.temporal_interpolate_inputs_map = FORCINGINPUTMOD["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
-
         self.initialize_config_options()
 
         if self.force_count == 8 and 8 in self.input_map_output:
@@ -73,6 +69,18 @@ class InputForcings:
         if self.keyValue == 10 or self.keyValue == 11:
             self.cycle_freq = self.config_options.customFcstFreq[self.custom_count]
 
+    @property
+    def find_neighbor_files_map(self):
+        return FORCINGINPUTMOD["FIND_NEIGHBOR_FILES_MAP"]
+    
+    @property
+    def regrid_map(self):
+        return FORCINGINPUTMOD["REGRID_MAP"]
+    
+    @property
+    def temporal_interpolate_inputs_map(self):
+        return FORCINGINPUTMOD["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
+    
     def initialize_config_options(self) -> None:
         """Initialize configuration options from the config_options attribute."""
         for key, val in list(vars(self.config_options).items()):
@@ -264,8 +272,7 @@ class InputForcingsGridded(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @property
-    @lru_cache
+    @cached_property
     def final_forcings(self):
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
@@ -278,6 +285,7 @@ class InputForcingsGridded(InputForcings):
                     self.geo_meta.nx_local,
                 ],
                 np.nan,
+                dtype=np.float64
             )
 
     @final_forcings.setter
@@ -285,8 +293,7 @@ class InputForcingsGridded(InputForcings):
         "Setter for final_forcings."
         self._final_forcings = value
 
-    @property
-    @lru_cache
+    @cached_property
     def height(self):
         """Initialize the local height grid."""
         if self._height is not None:
@@ -295,6 +302,7 @@ class InputForcingsGridded(InputForcings):
             return np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
                 np.nan,
+                dtype=np.float32
             )
 
     @height.setter
@@ -302,8 +310,7 @@ class InputForcingsGridded(InputForcings):
         """Setter for height"""
         self._height = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask(self):
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
@@ -311,7 +318,7 @@ class InputForcingsGridded(InputForcings):
         else:
             return np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.nan,
+                np.nan,dtype=np.float32
             )
 
     @regridded_mask.setter
@@ -319,8 +326,7 @@ class InputForcingsGridded(InputForcings):
         """Setter for regridded_mask"""
         self._regridded_mask = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask_AORC(self):
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
@@ -328,7 +334,7 @@ class InputForcingsGridded(InputForcings):
         else:
             return np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.nan,
+                np.nan,dtype=np.float32
             )
 
     @regridded_mask_AORC.setter
@@ -336,8 +342,7 @@ class InputForcingsGridded(InputForcings):
         """Setter for regridded_mask_AORC"""
         self._regridded_mask_AORC = value
 
-    @property
-    @lru_cache
+    @cached_property
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
@@ -345,7 +350,7 @@ class InputForcingsGridded(InputForcings):
         elif self.q2dDownscaleOpt > 0:
             return np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.nan,
+                np.nan,dtype=np.float32
             )
 
     @t2dTmp.setter
@@ -353,8 +358,7 @@ class InputForcingsGridded(InputForcings):
         """Setter for t2dTmp"""
         self._t2dTmp = value
 
-    @property
-    @lru_cache
+    @cached_property
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
@@ -362,7 +366,7 @@ class InputForcingsGridded(InputForcings):
         elif self.q2dDownscaleOpt > 0:
             return np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
-                np.nan,
+                np.nan,dtype=np.float32
             )
 
     @psfcTmp.setter
@@ -391,84 +395,78 @@ class InputForcingsHydrofabric(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @property
-    @lru_cache
+    @cached_property
     def final_forcings(self):
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
             return self._final_forcings
         else:
-            return np.full([self.force_count, self.geo_meta.ny_local], np.nan)
+            return np.full([self.force_count, self.geo_meta.ny_local], np.nan,dtype=np.float64)
 
     @final_forcings.setter
     def final_forcings(self, value):
         "Setter for final_forcings."
         self._final_forcings = value
 
-    @property
-    @lru_cache
+    @cached_property
     def height(self):
         """Initialize the local height grid."""
         if self._height is not None:
             return self._height
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @height.setter
     def regridded_mask(self, value):
         """Setter for height."""
         self._height = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask(self):
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
             return self._regridded_mask
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @regridded_mask.setter
     def regridded_mask(self, value):
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask_AORC(self):
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
             return self._regridded_mask_AORC
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @regridded_mask_AORC.setter
     def regridded_mask_AORC(self, value):
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
-    @property
-    @lru_cache
+    @cached_property
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
             return self._t2dTmp
         elif self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @t2dTmp.setter
     def t2dTmp(self, value):
         """Setter for t2dTmp"""
         self._t2dTmp = value
 
-    @property
-    @lru_cache
+    @cached_property
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
             return self._psfcTmp
         if self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @psfcTmp.setter
     def psfcTmp(self, value):
@@ -496,120 +494,111 @@ class InputForcingsUnstructured(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @property
-    @lru_cache
+    @cached_property
     def t2dTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
             return self._t2dTmp
         elif self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @t2dTmp.setter
     def t2dTmp(self, value):
         """Setter for t2dTmp"""
         self._t2dTmp = value
 
-    @property
-    @lru_cache
+    @cached_property
     def psfcTmp(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
             return self._psfcTmp
         elif self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @psfcTmp.setter
     def psfcTmp(self, value):
         """Setter for psfcTmp"""
         self._psfcTmp = value
 
-    @property
-    @lru_cache
+    @cached_property
     def t2dTmp_elem(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp_elem is not None:
             return self._t2dTmp_elem
         elif self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local_elem], np.nan)
+            return np.full([self.geo_meta.ny_local_elem], np.nan,dtype=np.float32)
 
     @t2dTmp_elem.setter
     def t2dTmp_elem(self, value):
         """Setter for t2dTmp_elem"""
         self._t2dTmp_elem = value
 
-    @property
-    @lru_cache
+    @cached_property
     def psfcTmp_elem(self):
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp_elem is not None:
             return self._psfcTmp_elem
         elif self.q2dDownscaleOpt > 0:
-            return np.full([self.geo_meta.ny_local_elem], np.nan)
+            return np.full([self.geo_meta.ny_local_elem], np.nan,dtype=np.float32)
 
     @psfcTmp_elem.setter
     def psfcTmp_elem(self, value):
         """Setter for psfcTmp_elem"""
         self._psfcTmp_elem = value
 
-    @property
-    @lru_cache
+    @cached_property
     def final_forcings(self):
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
             return self._final_forcings
         else:
-            return np.full([self.force_count, self.geo_meta.ny_local], np.nan)
+            return np.full([self.force_count, self.geo_meta.ny_local], np.nan,dtype=np.float64)
 
     @final_forcings.setter
     def final_forcings(self, value):
         """Setter for final_forcings."""
         self._final_forcings = value
 
-    @property
-    @lru_cache
+    @cached_property
     def height(self):
         """Initialize the local height grid."""
         if self._height is not None:
             return self._height
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @height.setter
     def height(self, value):
         """Setter for height."""
         self._height = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask(self):
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
             return self._regridded_mask
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @regridded_mask.setter
     def regridded_mask(self, value):
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask_AORC(self):
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
             return self._regridded_mask_AORC
         else:
-            return np.full([self.geo_meta.ny_local], np.nan)
+            return np.full([self.geo_meta.ny_local], np.nan,dtype=np.float32)
 
     @regridded_mask_AORC.setter
     def regridded_mask_AORC(self, value):
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
-    @property
-    @lru_cache
+    @cached_property
     def final_forcings_elem(self):
         """Initialize the local final grid of values on elements."""
         if self._final_forcings_elem is not None:
@@ -617,7 +606,7 @@ class InputForcingsUnstructured(InputForcings):
         else:
             return np.full(
                 [self.force_count, self.geo_meta.ny_local_elem],
-                np.nan,
+                np.nan,dtype=np.float64
             )
 
     @final_forcings_elem.setter
@@ -625,42 +614,39 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for final_forcings_elem."""
         self._final_forcings_elem = value
 
-    @property
-    @lru_cache
+    @cached_property
     def height_elem(self):
         """Initialize the local height grid on elements."""
         if self._height_elem is not None:
             return self._height_elem
         else:
-            return np.full([self.geo_meta.ny_local_elem], np.nan)
+            return np.full([self.geo_meta.ny_local_elem], np.nan,dtype=np.float32)
 
     @height_elem.setter
     def height_elem(self, value):
         """Setter for height_elem."""
         self._height_elem = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask_elem(self):
         """Initialize the local regridded mask grid on elements."""
         if self._regridded_mask_elem is not None:
             return self._regridded_mask_elem
         else:
-            return np.full([self.geo_meta.ny_local_elem], np.nan)
+            return np.full([self.geo_meta.ny_local_elem], np.nan,dtype=np.float32)
 
     @regridded_mask_elem.setter
     def regridded_mask_elem(self, value):
         """Setter for regridded_mask_elem."""
         self._regridded_mask_elem = value
 
-    @property
-    @lru_cache
+    @cached_property
     def regridded_mask_elem_AORC(self):
         """Initialize the local regridded AORC mask grid on elements."""
         if self._regridded_mask_elem_AORC is not None:
             return self._regridded_mask_elem_AORC
         else:
-            return np.full([self.geo_meta.ny_local_elem], np.nan)
+            return np.full([self.geo_meta.ny_local_elem], np.nan,dtype=np.float32)
 
     @regridded_mask_elem_AORC.setter
     def regridded_mask_elem_AORC(self, value):
