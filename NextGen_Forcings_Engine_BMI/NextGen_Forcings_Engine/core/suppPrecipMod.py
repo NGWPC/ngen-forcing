@@ -28,10 +28,9 @@ LOG = logging.getLogger(MODULE_NAME)
 
 
 class SupplementalPrecip:
-    """Supplemental precipitation abstract class.
+    """Supplemental precipitation class.
 
-    This is an abstract class that will define all the parameters
-    of a single supplemental precipitation product.
+    This class defines all the parameters of a single supplemental precipitation product.
     """
 
     def __init__(self, idx: int, config_options: ConfigOptions, geo_meta: GeoMeta):
@@ -74,6 +73,7 @@ class SupplementalPrecip:
 
     @property
     def rqiMethod(self) -> int | float:
+        """Get the RQI method for this supplemental precipitation product."""
         if self.config_options.rqiMethod is not None:
             return self.config_options.rqiMethod[self.idx]
         else:
@@ -81,6 +81,7 @@ class SupplementalPrecip:
 
     @property
     def rqiThresh(self) -> int | float:
+        """Get the RQI threshold for this supplemental precipitation product."""
         if self.config_options.rqiMethod is not None:
             return self.config_options.rqiThresh[self.idx]
         else:
@@ -88,6 +89,7 @@ class SupplementalPrecip:
 
     @property
     def product_name(self) -> str:
+        """Get the product name for this supplemental precipitation product."""
         return SUPPPRECIPMOD["PRODUCT_NAMES"][self.keyValue]
 
         ## DEFINED IN CONFIG
@@ -102,30 +104,37 @@ class SupplementalPrecip:
 
     @property
     def file_ext(self) -> str:
+        """Get the file extension for this supplemental precipitation product."""
         return SUPPPRECIPMOD["FILE_EXT"][self.file_type]
 
     @property
     def grib_vars(self) -> None:
+        """Get the GRIB variable names for this supplemental precipitation product."""
         return SUPPPRECIPMOD["GRIB_VARS"][self.keyValue]
 
     @property
     def grib_levels(self) -> list[str]:
+        """Get the GRIB levels for this supplemental precipitation product."""
         return SUPPPRECIPMOD["GRIB_LEVELS"][self.keyValue]
 
     @property
     def netcdf_var_names(self) -> list[str]:
+        """Get the NetCDF variable names for this supplemental precipitation product."""
         return SUPPPRECIPMOD["NET_CDF_VARS_NAMES"][self.keyValue]
 
     @property
     def rqi_netcdf_var_names(self) -> list[str] | None:
+        """Get the RQI NetCDF variable names for this supplemental precipitation product."""
         return SUPPPRECIPMOD["RQI_NETCDF_VAR_NAMES"][self.keyValue]
 
     @property
     def output_var_idx(self) -> int:
+        """Get the output variable index for this supplemental precipitation product."""
         return SUPPPRECIPMOD["OUTPUT_VAR_IDX"][self.keyValue]
 
     @property
     def find_neighbor_files(self) -> dict:
+        """Get the function to find neighbor supplemental precipitation files for this supplemental precipitation product."""
         return SUPPPRECIPMOD["FIND_NEIGHBOR_FILES_MAP"]
 
     def calc_neighbor_files(
@@ -146,6 +155,7 @@ class SupplementalPrecip:
 
     @property
     def regrid_map(self) -> dict:
+        """Get the function to regrid input forcings to the supplemental precipitation grids for this supplemental precipitation product."""
         return SUPPPRECIPMOD["REGRID_MAP"]
 
     def regrid_inputs(
@@ -167,6 +177,7 @@ class SupplementalPrecip:
 
     @property
     def temporal_interpolate_inputs_map(self) -> dict:
+        """Get the function to temporal interpolate input forcings to the supplemental precipitation grids for this supplemental precipitation product."""
         return SUPPPRECIPMOD["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
 
     def temporal_interpolate_inputs(
@@ -189,19 +200,22 @@ class SupplementalPrecip:
 
 
 class SupplementalPrecipGridded(SupplementalPrecip):
+    """Supplemental precipitation class for gridded products."""
+
     def __init__(
         self,
         idx: int = None,
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
     ) -> None:
-        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize SupplementalPrecipGridded with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(idx, config_options, geo_meta)
         for attr in SUPPPRECIPMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
+        """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is not None:
             return self._final_supp_precip
         else:
@@ -218,6 +232,7 @@ class SupplementalPrecipGridded(SupplementalPrecip):
 
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
+        """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is not None:
             return self._regridded_mask
         else:
@@ -232,19 +247,22 @@ class SupplementalPrecipGridded(SupplementalPrecip):
 
 
 class SupplementalPrecipHydrofabric(SupplementalPrecip):
+    """Supplemental precipitation class for hydrofabric grids."""
+
     def __init__(
         self,
         idx: int = None,
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
     ) -> None:
-        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize SupplementalPrecipHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
         super().__init__(idx, config_options, geo_meta)
         for attr in SUPPPRECIPMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
+        """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is not None:
             return self._final_supp_precip
         else:
@@ -257,6 +275,7 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
 
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
+        """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is not None:
             return self._regridded_mask
         else:
@@ -269,6 +288,8 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
 
 
 class SupplementalPrecipUnstructured(SupplementalPrecip):
+    """Supplemental precipitation class for unstructured grids."""
+
     def __init__(
         self,
         idx: int = None,
@@ -282,6 +303,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
 
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
+        """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is not None:
             return self._final_supp_precip
         else:
@@ -294,6 +316,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
 
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
+        """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is not None:
             return self._regridded_mask
         else:
@@ -306,6 +329,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
 
     @cached_property
     def final_supp_precip_elem(self) -> np.ndarray | Any:
+        """Get the final supplemental precipitation grid after regridding and temporal interpolation for unstructured grids."""
         if self._final_supp_precip_elem is not None:
             return self._final_supp_precip_elem
         else:
@@ -318,6 +342,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
 
     @cached_property
     def regridded_mask_elem(self) -> np.ndarray | Any:
+        """Get the regridded mask after regridding input forcings to the supplemental precipitation grids for unstructured grids."""
         if self._regridded_mask_elem is not None:
             return self._regridded_mask_elem
         else:
