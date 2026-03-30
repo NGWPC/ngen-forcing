@@ -55,10 +55,12 @@ class InputForcings:
         self._keyValue = config_options.input_forcings[idx]
         self.idx = idx
 
+        # set list of attibutes from consts.py to None.
+        # These are indexed from the consts dictionary using the class name
         for attr in FORCINGINPUTMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
-        self.initialize_config_options()
+        self._initialize_config_options()
 
         if self.force_count == 8 and 8 in self.input_map_output:
             # TODO: this assumes that LQFRAC (8) is always the last grib var
