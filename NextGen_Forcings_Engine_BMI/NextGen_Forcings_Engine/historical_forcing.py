@@ -394,10 +394,11 @@ class AORCConusProcessor(BaseProcessor):
                             return xr.open_dataset(self.nc_path)
                         except Exception as e:
                             warnings.warn(
-                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
                             )
                             sleep(1)
                             c += 1
+                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(
@@ -635,10 +636,11 @@ class NWMV3OConusProcessor(NWMV3Processor):
                             return xr.open_dataset(self.nc_path)
                         except Exception as e:
                             warnings.warn(
-                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
                             )
                             sleep(1)
                             c += 1
+                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
@@ -698,11 +700,11 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
                             return xr.open_dataset(self.nc_path)
                         except Exception as e:
                             warnings.warn(
-                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
                             )
                             sleep(1)
                             c += 1
-
+                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
