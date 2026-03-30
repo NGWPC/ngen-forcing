@@ -27,7 +27,7 @@ os.environ["MFE_SILENT"] = "true"
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
 )
-FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Output/Forecast_Run/fcst_run1_short_range/forcing_config/short_range_config.yml"
+FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Output/Forecast_Run/fcst_run1_short_range/Input/forcing_config/short_range_config.yml"
 
 
 ### These are output arrays which can contain extra unused elements which need to be removed during an equality check.
@@ -61,9 +61,7 @@ REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 ### While the InputForcings class instance is the primary source of test results data,
 ### this is used to add supplemental attributes to the results data,
 ### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
-EXTRA_ATTRS: tuple[ClassAttrFetcher] = (
-    ClassAttrFetcher("wrf_hydro_geo_meta", "element_ids"),
-)
+EXTRA_ATTRS: tuple[ClassAttrFetcher] = (ClassAttrFetcher("geo_meta", "element_ids"),)
 
 COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS

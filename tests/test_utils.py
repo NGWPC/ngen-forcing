@@ -589,7 +589,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         self.regrid_func(
             arg1,
             config_options=self.config_options,
-            geo_meta=self.geo_meta,
+            wrf_hydro_geo_meta=self.geo_meta,
             mpi_config=self.mpi_config,
         )
         logging.info(f"Done calling regrid function: {self.regrid_func.__name__}")
