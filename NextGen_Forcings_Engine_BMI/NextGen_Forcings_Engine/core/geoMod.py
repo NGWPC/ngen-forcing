@@ -542,13 +542,13 @@ class GriddedGeoMeta(GeoMeta):
         if self.config_options.hgt_var is not None:
             if self.mpi_config.rank == 0:
                 if self.hgt_var.ndim == 3:
-                    height = self.hgt_grid_from_geogrid_n3
+                    hgt = self.hgt_grid_from_geogrid_n3
                 else:
-                    height = self.hgt_var[:, :]
+                    hgt = self.hgt_var[:, :]
             else:
-                height = None
+                hgt = None
 
-            return height, "height", self.config_options, False
+            return hgt, "height", self.config_options, False
 
     @property
     @lru_cache
