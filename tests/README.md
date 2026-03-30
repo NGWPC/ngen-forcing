@@ -17,17 +17,20 @@ The test suite is organized into the following modules:
 - **`conftest.py`** - Pytest configuration and shared fixtures
 
 ## Prerequisites
+### Setup requirements:
+    1. Create the forcing config.yml files using RTE.
+    2. Enter the RTE devcontainer.
 
 ### Required Dependencies
 
-The test suite requires Python 3.11 or higher. Install the package with test dependencies:
+The test suite requires Python 3.11 or higher. Install the package with test dependencies inside of the dev container:
 
 ```bash
 # From the repository root directory
 pip install -e ".[develop]"
 ```
 
-Or install pytest directly:
+Or install pytest directly inside of the dev container:
 
 ```bash
 pip install pytest
@@ -35,7 +38,7 @@ pip install pytest
 
 ### Additional Requirements
 
-Ensure all main package dependencies are installed. From the repository root:
+Ensure all main package dependencies are installed inside of the devconatiner (this typically should happen when the dev conatiner is built):
 
 ```bash
 pip install -e .
@@ -43,13 +46,13 @@ pip install -e .
 
 ## Running Tests
 
-### Run All Tests
+### Run All Tests From the Dev Container
 
 ```bash
 Single processor: (cd src/ngen-forcing && pytest )
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
 ```
-### Run Specific Test Modules
+### Run Specific Test Modules From the Dev Container
 
 Run tests for a specific module:
 
