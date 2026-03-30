@@ -41,6 +41,9 @@ class SupplementalPrecip:
         self.idx = idx
         self.config_options = config_options
         self.geo_mdeta = geo_meta
+
+        # set list of attibutes from consts.py to None.
+        # These are indexed from the consts dictionary using the class name
         for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
