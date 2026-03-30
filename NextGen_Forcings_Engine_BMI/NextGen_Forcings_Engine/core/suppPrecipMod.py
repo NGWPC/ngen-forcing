@@ -44,7 +44,7 @@ class SupplementalPrecip:
         for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
-        self.initialize_config_options()
+        self._initialize_config_options()
 
     @property
     def keyValue(self) -> int:
@@ -60,8 +60,14 @@ class SupplementalPrecip:
             raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
         self._keyValue = val
 
-    def initialize_config_options(self) -> None:
-        """Initialize configuration options from the config_options attribute."""
+    def _initialize_config_options(self) -> None:
+        """Initialize configuration options from the config_options attribute.
+
+        Map attibutes from config_options to attibutes of this class if
+        they are a list with a length greater than 0.
+
+        Check if the attibute allready exists before setting.
+        """
         for key, val in list(vars(self.config_options).items()):
             if (
                 isinstance(val, list)
