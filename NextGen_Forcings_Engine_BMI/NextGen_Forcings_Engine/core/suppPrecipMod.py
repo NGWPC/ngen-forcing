@@ -74,8 +74,9 @@ class SupplementalPrecip:
                 and len(val) > 0
                 and key not in ["rqiMethod", "rqiThresh"]
             ):
+                if self.hasattr(self, key):
+                    raise ValueError(f"Attribute {key} has already been set.")
                 setattr(self, key, val[self.idx])
-                LOG.info(key)
 
     @property
     def rqiMethod(self) -> int | float:
