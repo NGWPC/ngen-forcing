@@ -50,7 +50,6 @@ class InputForcings:
         self.geo_meta = geo_meta
         self.mpi_config = mpi_config
         self.regridComplete = False
-        self.regridComplete = False
         self.rstFlag = 0
         self.skip = False
         self._keyValue = config_options.input_forcings[idx]
