@@ -83,12 +83,19 @@ class InputForcings:
         """Map for temporal interpolation functions."""
         return FORCINGINPUTMOD["TEMPORAL_INTERPOLATE_INPUTS_MAP"]
 
-    def initialize_config_options(self) -> None:
-        """Initialize configuration options from the config_options attribute."""
+    def _initialize_config_options(self) -> None:
+        """Initialize configuration options from the config_options attribute.
+
+        Map attibutes from config_options to attibutes of this class if
+        they are a list with a length greater than 0.
+
+        Check if the attibute allready exists before setting.
+        """
         for key, val in list(vars(self.config_options).items()):
             if isinstance(val, list) and len(val) > 0:
+                if self.hasattr(self, key):
+                    raise ValueError(f"Attribute {key} has already been set.")
                 setattr(self, key, val[self.idx])
-                LOG.info(key)
 
     @property
     def force_count(self) -> int:
