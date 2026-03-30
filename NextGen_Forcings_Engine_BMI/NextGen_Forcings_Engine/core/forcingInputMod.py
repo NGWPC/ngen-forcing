@@ -70,12 +70,12 @@ class InputForcings:
 
     @property
     def find_neighbor_files_map(self) -> dict:
-        "Map for finding neighbor files functions."
+        """Map for finding neighbor files functions."""
         return FORCINGINPUTMOD["FIND_NEIGHBOR_FILES_MAP"]
 
     @property
     def regrid_map(self) -> dict:
-        "Map for regrid functions."
+        """Map for regrid functions."""
         return FORCINGINPUTMOD["REGRID_MAP"]
 
     @property
