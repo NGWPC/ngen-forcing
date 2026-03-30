@@ -10,9 +10,9 @@ using RTE's run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
 The test suite is organized into the following modules:
 
 - **`esmf_regrid/`** - Tests for ESMF regridding functionality
-- **`geomod/`** - Tests for geographic modeling components
+- **`geomod/`** - Tests for geomod components
 - **`input_forcing/`** - Tests for input forcing data processing
-- **`nextgen_forcings_ewts/`** - Tests for EWTS (Early Warning Tactical System) forcings
+- **`nextgen_forcings_ewts/`** - Tests for EWTS (Error, Warning, and Trapping System) forcings
 - **`test_utils.py`** - Shared test utilities and fixtures
 - **`conftest.py`** - Pytest configuration and shared fixtures
 
