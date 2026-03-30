@@ -16,7 +16,7 @@ except ImportError:
     import ESMF
 
 import logging
-from functools import lru_cache, wraps
+from functools import cached_property, wraps
 from typing import Any
 
 import xarray as xr
@@ -106,8 +106,7 @@ class GeoMeta:
         for attr in GEOMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
-    @property
-    @lru_cache
+    @cached_property
     def spatial_metadata_exists(self) -> bool:
         """Check to make sure the geospatial metadata file exists."""
         if self.config_options.spatial_meta is None:
@@ -115,8 +114,7 @@ class GeoMeta:
         else:
             return True
 
-    @property
-    @lru_cache
+    @cached_property
     def geogrid_ds(self) -> xr.Dataset:
         """Get the geogrid file path."""
         try:
@@ -126,8 +124,7 @@ class GeoMeta:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def esmf_ds(self) -> xr.Dataset:
         """Open the geospatial metadata file and return the xarray dataset object."""
@@ -171,22 +168,19 @@ class GeoMeta:
         """Get a variable from the geospatial metadata file."""
         return self.get_var(self.esmf_ds, var)
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def _crs_att_names(self) -> list:
         """Extract crs attribute names from the geospatial metadata file."""
         return self.ncattrs("crs")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def _x_coord_att_names(self) -> list:
         """Extract x coordinate attribute names from the geospatial metadata file."""
         return self.ncattrs("x")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def _y_coord_att_names(self) -> list:
         """Extract y coordinate attribute names from the geospatial metadata file."""
@@ -198,29 +192,25 @@ class GeoMeta:
             item: self.get_esmf_var(var).getncattr(item) for item in self.ncattrs(var)
         }
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def x_coord_atts(self) -> dict:
         """Extract x coordinate attribute values from the geospatial metadata file."""
         return self.getncattr("x")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def y_coord_atts(self) -> dict:
         """Extract y coordinate attribute values from the geospatial metadata file."""
         return self.getncattr("y")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def crs_atts(self) -> dict:
         """Extract crs coordinate attribute values from the geospatial metadata file."""
         return self.getncattr("crs")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def _global_att_names(self) -> list:
         """Extract global attribute values from the geospatial metadata file."""
@@ -231,8 +221,7 @@ class GeoMeta:
                 self.config_options.errMsg = f"Unable to extract global attribute names from: {self.config_options.spatial_meta}"
                 raise e
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def spatial_global_atts(self) -> dict:
         """Extract global attribute values from the geospatial metadata file."""
@@ -254,15 +243,13 @@ class GeoMeta:
             elif len(self.get_esmf_var(dimension).shape) == 2:
                 return self.get_esmf_var(dimension)[:, :].data
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def x_coords(self) -> np.ndarray:
         """Extract x coordinate values from the geospatial metadata file."""
         return self.extract_coords("x")
 
-    @property
-    @lru_cache
+    @cached_property
     @set_none
     def y_coords(self) -> np.ndarray:
         """Extract y coordinate values from the geospatial metadata file.
@@ -297,8 +284,7 @@ class GriddedGeoMeta(GeoMeta):
             setattr(self, attr, None)
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def nx_global(self) -> int:
         """Get the global x dimension size for the gridded domain."""
         if self.mpi_config.rank == 0:
@@ -315,8 +301,7 @@ class GriddedGeoMeta(GeoMeta):
                 raise e
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def ny_global(self) -> int:
         """Get the global y dimension size for the gridded domain."""
         if self.mpi_config.rank == 0:
@@ -329,21 +314,18 @@ class GriddedGeoMeta(GeoMeta):
                 self.config_options.errMsg = f"Unable to extract Y dimension size from latitude in: {self.config_options.geogrid}"
                 raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def ndim_lat(self) -> int:
         """Get the number of dimensions for the latitude variable."""
         return self.lat_var.ndim
 
-    @property
-    @lru_cache
+    @cached_property
     def ndim_lon(self) -> int:
         """Get the number of dimensions for the longitude variable."""
         return self.lon_var.ndim
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def dy_meters(self) -> float:
         """Get the DY distance in meters for the latitude variable."""
         if self.mpi_config.rank == 0:
@@ -364,8 +346,7 @@ class GriddedGeoMeta(GeoMeta):
                 raise e
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def dx_meters(self) -> float:
         """Get the DX distance in meters for the longitude variable."""
         if self.mpi_config.rank == 0:
@@ -385,8 +366,7 @@ class GriddedGeoMeta(GeoMeta):
                 self.config_options.errMsg = f"Unable to extract dx metadata attribute in: {self.config_options.geogrid}"
                 raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def esmf_grid(self) -> ESMF.Grid:
         """Create the ESMF grid object for the gridded domain."""
         try:
@@ -399,16 +379,14 @@ class GriddedGeoMeta(GeoMeta):
             self.config_options.errMsg = f"Unable to create ESMF grid for WRF-Hydro geogrid: {self.config_options.geogrid}"
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def esmf_lat(self) -> np.ndarray:
         """Get the ESMF latitude grid."""
         esmf_lat = self.esmf_grid.get_coords(1)
         esmf_lat[:, :] = self.latitude_grid
         return esmf_lat
 
-    @property
-    @lru_cache
+    @cached_property
     def esmf_lon(self) -> np.ndarray:
         """Get the ESMF longitude grid."""
         esmf_lon = self.esmf_grid.get_coords(0)
@@ -416,8 +394,7 @@ class GriddedGeoMeta(GeoMeta):
         return esmf_lon
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def latitude_grid(self) -> np.ndarray:
         """Get the latitude grid for the gridded domain."""
         # Scatter global XLAT_M grid to processors..
@@ -438,21 +415,18 @@ class GriddedGeoMeta(GeoMeta):
             var_tmp = None
         return var_tmp, "latitude_grid", self.config_options, False
 
-    @property
-    @lru_cache
+    @cached_property
     def lon_var(self) -> xr.DataArray:
         """Get the longitude variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.lon_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def lat_var(self) -> xr.DataArray:
         """Get the latitude variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.lat_var)
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def longitude_grid(self) -> np.ndarray:
         """Get the longitude grid for the gridded domain."""
         # Scatter global XLONG_M grid to processors..
@@ -474,15 +448,13 @@ class GriddedGeoMeta(GeoMeta):
 
         return var_tmp, "longitude_grid", self.config_options, False
 
-    @property
-    @lru_cache
+    @cached_property
     def cosalpha_var(self) -> xr.DataArray:
         """Get the COSALPHA variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.cosalpha_var)
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def cosa_grid(self) -> np.ndarray:
         """Get the COSALPHA grid for the gridded domain."""
         if (
@@ -501,14 +473,12 @@ class GriddedGeoMeta(GeoMeta):
 
             return cosa, "cosa", self.config_options, True
 
-    @property
-    @lru_cache
+    @cached_property
     def sinalpha_var(self) -> xr.DataArray:
         """Get the SINALPHA variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.sinalpha_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def sina_grid(self) -> np.ndarray:
         """Get the SINALPHA grid for the gridded domain."""
         if (
@@ -525,15 +495,13 @@ class GriddedGeoMeta(GeoMeta):
 
             return sina, "sina", self.config_options, True
 
-    @property
-    @lru_cache
+    @cached_property
     def hgt_var(self) -> xr.DataArray:
         """Get the HGT variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.hgt_var)
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def height(self) -> np.ndarray:
         """Get the height grid for the gridded domain.
 
@@ -550,20 +518,17 @@ class GriddedGeoMeta(GeoMeta):
 
             return hgt, "height", self.config_options, False
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_var(self) -> xr.DataArray:
         """Get the slope variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.slope_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_azimuth_var(self) -> xr.DataArray:
         """Get the slope azimuth variable from the geospatial metadata file."""
         return self.get_geogrid_var(self.config_options.slope_azimuth_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def dx(self) -> np.ndarray:
         """Calculate the dx distance in meters for the longitude variable."""
         dx = np.empty(
@@ -576,8 +541,7 @@ class GriddedGeoMeta(GeoMeta):
         dx[:] = self.lon_var.dx
         return dx
 
-    @property
-    @lru_cache
+    @cached_property
     def dy(self) -> np.ndarray:
         """Calculate the dy distance in meters for the latitude variable."""
         dy = np.empty(
@@ -590,8 +554,7 @@ class GriddedGeoMeta(GeoMeta):
         dy[:] = self.lat_var.dy
         return dy
 
-    @property
-    @lru_cache
+    @cached_property
     def dz(self) -> np.ndarray:
         """Calculate the dz distance in meters for the height variable."""
         dz_init = np.diff(self.hgt_var, axis=0)
@@ -601,8 +564,7 @@ class GriddedGeoMeta(GeoMeta):
         return dz
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def slope(self) -> np.ndarray:
         """Calculate slope grids needed for incoming shortwave radiation downscaling.
 
@@ -634,8 +596,7 @@ class GriddedGeoMeta(GeoMeta):
         return slope, "slope", self.config_options, True
 
     @scatter
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi(self) -> np.ndarray:
         """Calculate slope azimuth grids needed for incoming shortwave radiation downscaling.
 
@@ -663,8 +624,7 @@ class GriddedGeoMeta(GeoMeta):
 
         return slp_azi, "slp_azi", self.config_options, True
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi_from_slope_azimuth(self) -> np.ndarray:
         """Calculate slope azimuth from slope and slope azimuth variables."""
         if self.mpi_config.rank == 0:
@@ -673,22 +633,19 @@ class GriddedGeoMeta(GeoMeta):
             else:
                 return self.slope_azimuth_var[:, :]
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi_from_height(self) -> np.ndarray:
         """Calculate slope azimuth from height variable."""
         if self.mpi_config.rank == 0:
             return (180 / np.pi) * np.arctan(self.dx / self.dy)
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_from_height(self) -> np.ndarray:
         """Calculate slope from height variable."""
         if self.mpi_config.rank == 0:
             return self.dz / np.sqrt((self.dx**2) + (self.dy**2))
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_from_slope_azimuth(self) -> np.ndarray:
         """Calculate slope from slope and slope azimuth variables."""
         if self.mpi_config.rank == 0:
@@ -697,8 +654,7 @@ class GriddedGeoMeta(GeoMeta):
             else:
                 return self.slope_var[:, :]
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_from_cosalpha_sinalpha(self) -> np.ndarray:
         """Calculate slope from COSALPHA and SINALPHA variables."""
         if self.mpi_config.rank == 0:
@@ -708,8 +664,7 @@ class GriddedGeoMeta(GeoMeta):
             slope_tmp[np.where(slope_tmp < 1e-4)] = 0.0
             return slope_tmp
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi_from_cosalpha_sinalpha(self) -> np.ndarray:
         """Calculate slope azimuth from COSALPHA and SINALPHA variables."""
         if self.mpi_config.rank == 0:
@@ -729,14 +684,12 @@ class GriddedGeoMeta(GeoMeta):
             )
             return slp_azi
 
-    @property
-    @lru_cache
+    @cached_property
     def ind_orig(self) -> tuple[np.ndarray, np.ndarray]:
         """Calculate the indices of the original grid points for the height variable."""
         return np.where(self.hgt_grid_from_geogrid_n3 == self.hgt_grid_from_geogrid_n3)
 
-    @property
-    @lru_cache
+    @cached_property
     def hx(self) -> np.ndarray:
         """Calculate the slope in the x direction from the height variable."""
         rdx = 1.0 / self.dx_meters
@@ -766,8 +719,7 @@ class GriddedGeoMeta(GeoMeta):
         hx[self.ind_orig] = toposlpx[self.ind_orig]
         return hx
 
-    @property
-    @lru_cache
+    @cached_property
     def hy(self) -> np.ndarray:
         """Calculate the slope in the y direction from the height variable."""
         rdy = 1.0 / self.dy_meters
@@ -796,44 +748,37 @@ class GriddedGeoMeta(GeoMeta):
         hy[self.ind_orig] = toposlpy[self.ind_orig]
         return hy
 
-    @property
-    @lru_cache
+    @cached_property
     def x_lower_bound(self) -> float:
         """Get the local x lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][1]
 
-    @property
-    @lru_cache
+    @cached_property
     def x_upper_bound(self) -> float:
         """Get the local x upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][1]
 
-    @property
-    @lru_cache
+    @cached_property
     def y_lower_bound(self) -> float:
         """Get the local y lower bound for this processor."""
         return self.esmf_grid.lower_bounds[ESMF.StaggerLoc.CENTER][0]
 
-    @property
-    @lru_cache
+    @cached_property
     def y_upper_bound(self) -> float:
         """Get the local y upper bound for this processor."""
         return self.esmf_grid.upper_bounds[ESMF.StaggerLoc.CENTER][0]
 
-    @property
-    @lru_cache
+    @cached_property
     def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return self.x_upper_bound - self.x_lower_bound
 
-    @property
-    @lru_cache
+    @cached_property
     def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return self.y_upper_bound - self.y_lower_bound
 
-    @property
-    @lru_cache
+    @cached_property
     def sina_grid_from_geogrid_n3(self) -> np.ndarray:
         """Get the SINALPHA grid for the gridded domain directly from the geogrid file."""
         try:
@@ -853,8 +798,7 @@ class GriddedGeoMeta(GeoMeta):
             raise Exception
         return grid
 
-    @property
-    @lru_cache
+    @cached_property
     def cosa_grid_from_geogrid_n3(self) -> np.ndarray:
         """Get the COSALPHA grid for the gridded domain directly from the geogrid file."""
         try:
@@ -865,8 +809,7 @@ class GriddedGeoMeta(GeoMeta):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def hgt_grid_from_geogrid_n3(self) -> np.ndarray:
         """Get the HGT_M grid for the gridded domain directly from the geogrid file."""
         try:
@@ -894,14 +837,12 @@ class HydrofabricGeoMeta(GeoMeta):
         for attr in GEOMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @property
-    @lru_cache
+    @cached_property
     def lat_bounds(self) -> np.ndarray:
         """Get the latitude bounds for the unstructured domain."""
         return self.get_bound(1).values
 
-    @property
-    @lru_cache
+    @cached_property
     def lon_bounds(self) -> np.ndarray:
         """Get the longitude bounds for the unstructured domain."""
         return self.get_bound(0).values
@@ -912,24 +853,21 @@ class HydrofabricGeoMeta(GeoMeta):
             return self.get_geogrid_var(self.config_options.nodecoords_var)[:, dim]
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def elementcoords_global(self) -> np.ndarray:
         """Get the global element coordinates for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.elemcoords_var).values
 
     @barrier
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def nx_global(self) -> int:
         """Get the global x dimension size for the unstructured domain."""
         return self.elementcoords_global.shape[0]
 
     @barrier
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def ny_global(self) -> int:
         """Get the global y dimension size for the unstructured domain.
 
@@ -937,8 +875,7 @@ class HydrofabricGeoMeta(GeoMeta):
         """
         return self.nx_global
 
-    @property
-    @lru_cache
+    @cached_property
     def esmf_grid(self) -> ESMF.Mesh:
         """Create the ESMF Mesh object for the unstructured domain."""
         try:
@@ -952,20 +889,17 @@ class HydrofabricGeoMeta(GeoMeta):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def latitude_grid(self) -> np.ndarray:
         """Get the latitude grid for the unstructured domain."""
         return self.esmf_grid.coords[1][1]
 
-    @property
-    @lru_cache
+    @cached_property
     def longitude_grid(self) -> np.ndarray:
         """Get the longitude grid for the unstructured domain."""
         return self.esmf_grid.coords[1][0]
 
-    @property
-    @lru_cache
+    @cached_property
     def pet_element_inds(self) -> np.ndarray:
         """Get the PET element indices for the unstructured domain."""
         if self.mpi_config.rank == 0:
@@ -981,75 +915,64 @@ class HydrofabricGeoMeta(GeoMeta):
                 )
                 raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def element_ids(self) -> np.ndarray:
         """Get the element IDs for the unstructured domain."""
         return self.element_ids_global[self.pet_element_inds]
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def element_ids_global(self) -> np.ndarray:
         """Get the global element IDs for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.element_id_var).values
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def heights_global(self) -> np.ndarray:
         """Get the global heights for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.hgt_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def height(self) -> np.ndarray:
         """Get the height grid for the unstructured domain."""
         if self.mpi_config.rank == 0:
             if self.config_options.hgt_var is not None:
                 return self.heights_global[self.pet_element_inds]
 
-    @property
-    @lru_cache
+    @cached_property
     def slope(self) -> np.ndarray:
         """Get the slopes for the unstructured domain."""
         if self.slopes_global is not None:
             return self.slopes_global[self.pet_element_inds]
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi(self) -> np.ndarray:
         """Get the slope azimuths for the unstructured domain."""
         if self.slp_azi_global is not None:
             return self.slp_azi_global[self.pet_element_inds]
 
-    @property
-    @lru_cache
+    @cached_property
     def mesh_inds(self) -> np.ndarray:
         """Get the mesh indices for the unstructured domain."""
         return self.pet_element_inds
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def slopes_global(self) -> np.ndarray:
         """Get the global slopes for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.slope_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi_global(self) -> np.ndarray:
         """Get the global slope azimuths for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.slope_azimuth_var)
 
-    @property
-    @lru_cache
+    @cached_property
     def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
-    @property
-    @lru_cache
+    @cached_property
     def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
@@ -1072,41 +995,35 @@ class UnstructuredGeoMeta(GeoMeta):
             setattr(self, attr, None)
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def nx_global(self) -> int:
         """Get the global x dimension size for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.nodecoords_var).shape[0]
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def ny_global(self) -> int:
         """Get the global y dimension size for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.nodecoords_var).shape[0]
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def nx_global_elem(self) -> int:
         """Get the global x dimension size for the unstructured domain elements."""
         return self.get_esmf_var(self.config_options.elemcoords_var).shape[0]
 
     @broadcast
-    @property
-    @lru_cache
+    @cached_property
     def ny_global_elem(self) -> int:
         """Get the global y dimension size for the unstructured domain elements."""
         return self.get_esmf_var(self.config_options.elemcoords_var).shape[0]
 
-    @property
-    @lru_cache
+    @cached_property
     def lon_bounds(self) -> np.ndarray:
         """Get the longitude bounds for the unstructured domain."""
         return self.get_bound(0)
 
-    @property
-    @lru_cache
+    @cached_property
     def lat_bounds(self) -> np.ndarray:
         """Get the latitude bounds for the unstructured domain."""
         return self.get_bound(1)
@@ -1118,8 +1035,7 @@ class UnstructuredGeoMeta(GeoMeta):
             if self.config_options.aws:
                 return self.get_esmf_var(self.config_options.nodecoords_var)[:][:, dim]
 
-    @property
-    @lru_cache
+    @cached_property
     def esmf_grid(self) -> ESMF.Mesh:
         """Create the ESMF grid object for the unstructured domain.
 
@@ -1135,8 +1051,7 @@ class UnstructuredGeoMeta(GeoMeta):
             self.config_options.errMsg = f"Unable to create ESMF Mesh from geogrid file: {self.config_options.geogrid}"
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def latitude_grid(self) -> np.ndarray:
         """Get the latitude grid for the unstructured domain.
 
@@ -1145,8 +1060,7 @@ class UnstructuredGeoMeta(GeoMeta):
         """
         return self.esmf_grid.coords[0][1]
 
-    @property
-    @lru_cache
+    @cached_property
     def latitude_grid_elem(self) -> np.ndarray:
         """Get the latitude grid for the unstructured domain elements.
 
@@ -1155,8 +1069,7 @@ class UnstructuredGeoMeta(GeoMeta):
         """
         return self.esmf_grid.coords[1][1]
 
-    @property
-    @lru_cache
+    @cached_property
     def longitude_grid(self) -> np.ndarray:
         """Get the longitude grid for the unstructured domain.
 
@@ -1165,8 +1078,7 @@ class UnstructuredGeoMeta(GeoMeta):
         """
         return self.esmf_grid.coords[0][0]
 
-    @property
-    @lru_cache
+    @cached_property
     def longitude_grid_elem(self) -> np.ndarray:
         """Get the longitude grid for the unstructured domain elements.
 
@@ -1175,8 +1087,7 @@ class UnstructuredGeoMeta(GeoMeta):
         """
         return self.esmf_grid.coords[1][0]
 
-    @property
-    @lru_cache
+    @cached_property
     def pet_element_inds(self) -> np.ndarray:
         """Get the local node indices for the unstructured domain elements."""
         # Get lat and lon global variables for pet extraction of indices
@@ -1190,8 +1101,7 @@ class UnstructuredGeoMeta(GeoMeta):
         pet_elementcoords[:, 1] = self.latitude_grid_elem
         return spatial.KDTree(elementcoords_global).query(pet_elementcoords)[1]
 
-    @property
-    @lru_cache
+    @cached_property
     def pet_node_inds(self) -> np.ndarray:
         """Get the local node indices for the unstructured domain nodes."""
         # Get lat and lon global variables for pet extraction of indices
@@ -1217,8 +1127,7 @@ class UnstructuredGeoMeta(GeoMeta):
     # self.slope = slope_node_tmp[pet_node_inds]
     # self.slp_azi = slp_azi_node_tmp[pet_node_inds]
 
-    @property
-    @lru_cache
+    @cached_property
     def slope(self) -> np.ndarray:
         """Get the slope grid for the unstructured domain."""
         if (
@@ -1234,8 +1143,7 @@ class UnstructuredGeoMeta(GeoMeta):
                 / np.sqrt((self.dx_node**2) + (self.dy_node**2))[self.pet_node_inds]
             )
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi(self) -> np.ndarray:
         """Get the slope azimuth grid for the unstructured domain."""
         if (
@@ -1250,8 +1158,7 @@ class UnstructuredGeoMeta(GeoMeta):
                 self.pet_node_inds
             ]
 
-    @property
-    @lru_cache
+    @cached_property
     def slope_elem(self) -> np.ndarray:
         """Get the slope grid for the unstructured domain elements."""
         if (
@@ -1267,8 +1174,7 @@ class UnstructuredGeoMeta(GeoMeta):
                 / np.sqrt((self.dx_elem**2) + (self.dy_elem**2))[self.pet_element_inds]
             )
 
-    @property
-    @lru_cache
+    @cached_property
     def slp_azi_elem(self) -> np.ndarray:
         """Get the slope azimuth grid for the unstructured domain elements."""
         if (
@@ -1283,8 +1189,7 @@ class UnstructuredGeoMeta(GeoMeta):
                 self.pet_element_inds
             ]
 
-    @property
-    @lru_cache
+    @cached_property
     def height(self) -> np.ndarray:
         """Get the height grid for the unstructured domain nodes."""
         if (
@@ -1299,8 +1204,7 @@ class UnstructuredGeoMeta(GeoMeta):
                 self.pet_node_inds
             ]
 
-    @property
-    @lru_cache
+    @cached_property
     def height_elem(self) -> np.ndarray:
         """Get the height grid for the unstructured domain elements."""
         if (
@@ -1315,38 +1219,32 @@ class UnstructuredGeoMeta(GeoMeta):
                 self.pet_element_inds
             ]
 
-    @property
-    @lru_cache
+    @cached_property
     def node_lons(self) -> np.ndarray:
         """Get the longitude grid for the unstructured domain nodes."""
         return self.get_geogrid_var(self.config_options.nodecoords_var)[:][:, 0]
 
-    @property
-    @lru_cache
+    @cached_property
     def node_lats(self) -> np.ndarray:
         """Get the latitude grid for the unstructured domain nodes."""
         return self.get_geogrid_var(self.config_options.nodecoords_var)[:][:, 1]
 
-    @property
-    @lru_cache
+    @cached_property
     def elem_lons(self) -> np.ndarray:
         """Get the longitude grid for the unstructured domain elements."""
         return self.get_geogrid_var(self.config_options.elemcoords_var)[:][:, 0]
 
-    @property
-    @lru_cache
+    @cached_property
     def elem_lats(self) -> np.ndarray:
         """Get the latitude grid for the unstructured domain elements."""
         return self.get_geogrid_var(self.config_options.elemcoords_var)[:][:, 1]
 
-    @property
-    @lru_cache
+    @cached_property
     def elem_conn(self) -> np.ndarray:
         """Get the element connectivity for the unstructured domain."""
         return self.get_geogrid_var(self.config_options.elemconn_var)[:][:, 0]
 
-    @property
-    @lru_cache
+    @cached_property
     def node_heights(self) -> np.ndarray:
         """Get the height grid for the unstructured domain nodes."""
         node_heights = self.get_geogrid_var(self.config_options.hgt_var)[:]
@@ -1358,8 +1256,7 @@ class UnstructuredGeoMeta(GeoMeta):
             raise Exception
         return node_heights
 
-    @property
-    @lru_cache
+    @cached_property
     def elem_heights(self) -> np.ndarray:
         """Get the height grid for the unstructured domain elements."""
         elem_heights = self.get_var(self.geogrid_ds, self.config_options.hgt_elem_var)[
@@ -1373,8 +1270,7 @@ class UnstructuredGeoMeta(GeoMeta):
             raise Exception
         return elem_heights
 
-    @property
-    @lru_cache
+    @cached_property
     def dx_elem(self) -> np.ndarray:
         """Calculate the dx distance in meters for the longitude variable for the unstructured domain elements."""
         dx = (
@@ -1385,22 +1281,19 @@ class UnstructuredGeoMeta(GeoMeta):
         )
         return np.append(dx, dx[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def dy_elem(self) -> np.ndarray:
         """Calculate the dy distance in meters for the latitude variable for the unstructured domain elements."""
         dy = np.diff(self.elem_lats) * 40008000 / 360
         return np.append(dy, dy[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def dz_elem(self) -> np.ndarray:
         """Calculate the dz distance in meters for the height variable for the unstructured domain elements."""
         dz = np.diff(self.elem_heights)
         return np.append(dz, dz[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def dx_node(self) -> np.ndarray:
         """Calculate the dx distance in meters for the longitude variable for the unstructured domain nodes."""
         dx = (
@@ -1411,52 +1304,44 @@ class UnstructuredGeoMeta(GeoMeta):
         )
         return np.append(dx, dx[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def dy_node(self) -> np.ndarray:
         """Calculate the dy distance in meters for the latitude variable for the unstructured domain nodes."""
         dy = np.diff(self.node_lats) * 40008000 / 360
         return np.append(dy, dy[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def dz_node(self) -> np.ndarray:
         """Calculate the dz distance in meters for the height variable for the unstructured domain nodes."""
         dz = np.diff(self.node_heights)
         return np.append(dz, dz[-1])
 
-    @property
-    @lru_cache
+    @cached_property
     def mesh_inds(self) -> np.ndarray:
         """Get the local mesh node indices for the unstructured domain."""
         return self.pet_node_inds
 
-    @property
-    @lru_cache
+    @cached_property
     def mesh_inds_elem(self) -> np.ndarray:
         """Get the local mesh element indices for the unstructured domain."""
         return self.pet_element_inds
 
-    @property
-    @lru_cache
+    @cached_property
     def nx_local(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[0][1])
 
-    @property
-    @lru_cache
+    @cached_property
     def ny_local(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[0][1])
 
-    @property
-    @lru_cache
+    @cached_property
     def nx_local_elem(self) -> int:
         """Get the local x dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
 
-    @property
-    @lru_cache
+    @cached_property
     def ny_local_elem(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
