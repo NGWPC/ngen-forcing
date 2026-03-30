@@ -1,15 +1,22 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
+import hashlib
 import os
 import re
+import shutil
+import tempfile
 import typing
+import warnings
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import cached_property
-from time import perf_counter
+from time import perf_counter, sleep
 
 import dask
+
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,11 +34,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 zarr.config.set({"async.concurrency": 100})
+
 
 class BaseProcessor:
     """Base class for data processors."""
@@ -148,7 +154,17 @@ class BaseProcessor:
     @property
     def nc_path(self) -> str:
         """Construct file path for cached netcdf files."""
-        return f"/tmp/{self.dataset_name}_{self.gpkg_name}_{self.current_time_str}_{self.end_time_str}.nc"
+        return f"/tmp/{self.cache_key}.nc"
+
+    @property
+    def cache_key(self):
+        return f"{self.dataset_name}_{self.gpkg_name}_{self.current_time_str}_{self.end_time_str}"
+
+    @property
+    def nc_tmp_hash_path(self) -> str:
+        """Construct file path for cached netcdf files."""
+        cache_hash = hashlib.md5(self.cache_key.encode()).hexdigest()[:8]
+        return f"/tmp/{cache_hash}.nc"
 
     @property
     def end_time_datetime(self) -> pd.Timestamp:
@@ -243,7 +259,9 @@ class BaseProcessor:
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
-            ds.to_netcdf(self.nc_path)
+            ds.to_netcdf(self.nc_tmp_hash_path)
+            shutil.copy(self.nc_tmp_hash_path, self.nc_path)
+            os.remove(self.nc_tmp_hash_path)
         return ds
 
     @cached_property
@@ -370,7 +388,16 @@ class AORCConusProcessor(BaseProcessor):
         try:
             if os.path.exists(self.nc_path):
                 with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    return xr.open_dataset(self.nc_path)
+                    c = 0
+                    while c < 10:
+                        try:
+                            return xr.open_dataset(self.nc_path)
+                        except Exception as e:
+                            warnings.warn(
+                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                            )
+                            sleep(1)
+                            c += 1
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(
@@ -602,7 +629,16 @@ class NWMV3OConusProcessor(NWMV3Processor):
         try:
             if os.path.exists(self.nc_path):
                 with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    return xr.open_dataset(self.nc_path)
+                    c = 0
+                    while c < 10:
+                        try:
+                            return xr.open_dataset(self.nc_path)
+                        except Exception as e:
+                            warnings.warn(
+                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                            )
+                            sleep(1)
+                            c += 1
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
@@ -656,7 +692,17 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         try:
             if os.path.exists(self.nc_path):
                 with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    return xr.open_dataset(self.nc_path)
+                    c = 0
+                    while c < 10:
+                        try:
+                            return xr.open_dataset(self.nc_path)
+                        except Exception as e:
+                            warnings.warn(
+                                f"loc on cache file; sleeping 1s({c}). Error: {e}"
+                            )
+                            sleep(1)
+                            c += 1
+
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
