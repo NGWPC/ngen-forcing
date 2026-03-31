@@ -1596,17 +1596,13 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         """
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
+        bmi_model._output_var_names = BMI_MODEL["_output_var_names"]
+        bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"]
         if bmi_model.config_options.include_lqfrac == 1:
-            bmi_model._output_var_names = BMI_MODEL["_output_var_names"].append(
-                "LQFRAC_ELEMENT"
-            )
-            bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"] | {
+            bmi_model._output_var_names += ["LQFRAC_ELEMENT"]
+            bmi_model._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
             }
-        else:
-            bmi_model._output_var_names = BMI_MODEL["_output_var_names"]
-            bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"]
-
         bmi_model.grid_1 = Grid(
             1, 2, GridType.uniform_rectilinear
         )  # Grid 1 is a 2-dimensional grid
@@ -1669,22 +1665,16 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         """
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
+        bmi_model._output_var_names = ["CAT-ID"] + BMI_MODEL["_output_var_names"]
+        bmi_model._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | BMI_MODEL[
+            "_var_name_units_map"
+        ]
+
         if bmi_model._job_meta.include_lqfrac == 1:
-            bmi_model._output_var_names = (
-                ["CAT-ID"] + BMI_MODEL["_output_var_names"] + ["LQFRAC_ELEMENT"]
-            )
-            bmi_model._var_name_units_map = (
-                {"CAT-ID": ["Catchment ID", ""]}
-                | BMI_MODEL["_var_name_units_map"]
-                | {
-                    "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
-                }
-            )
-        else:
-            bmi_model._output_var_names = ["CAT-ID"] + BMI_MODEL["_output_var_names"]
-            bmi_model._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | BMI_MODEL[
-                "_var_name_units_map"
-            ]
+            bmi_model._output_var_names += ["LQFRAC_ELEMENT"]
+            bmi_model._var_name_units_map |= {
+                "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
+            }
 
         bmi_model.grid_4 = Grid(
             4, 2, GridType.unstructured
@@ -1756,45 +1746,46 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
         if bmi_model._job_meta.include_lqfrac == 1:
-            bmi_model._output_var_names = (
-                BMI_MODEL["_output_var_names"]
-                + ["LQFRAC_ELEMENT"]
-                + BMI_MODEL["_output_var_names_unstructured"]
-            )
-            +["LQFRAC_NODE"]
+            output_var_names_position1 = ["LQFRAC_ELEMENT"]
+            var_name_units_map_position1 = {
+                "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
+            }
+            var_name_units_map_position3 = {
+                "LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]
+            }
+            grid_map_position1 = {"LQFRAC_ELEMENT": bmi_model.grid_2}
+            grid_map_position3 = {"LQFRAC_NODE": bmi_model.grid_3}
 
-            bmi_model._var_name_units_map = (
-                BMI_MODEL["_var_name_units_map"]
-                | {"LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]}
-                | BMI_MODEL["_var_name_units_map_unstructured"]
-                | {"LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]}
-            )
-
-            bmi_model._grid_map = (
-                {var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]}
-                | {"LQFRAC_ELEMENT": bmi_model.grid_2}
-                | {
-                    var_name: bmi_model.grid_3
-                    for var_name in BMI_MODEL["_output_var_names_unstructured"]
-                }
-                | {"LQFRAC_NODE": bmi_model.grid_3}
-            )
         else:
-            bmi_model._output_var_names = (
-                BMI_MODEL["_output_var_names"] + BMI_MODEL["_output_var_names_unstructured"]
-            )
+            output_var_names_position1 = []
+            (
+                output_var_names_position1,
+                var_name_units_map_position1,
+                var_name_units_map_position3,
+                grid_map_position1,
+                grid_map_position3,
+            ) = [[]] + [{}] * 4
 
-            bmi_model._var_name_units_map = (
-                BMI_MODEL["_var_name_units_map"]
-                | BMI_MODEL["_var_name_units_map_unstructured"]
-            )
-
-            bmi_model._grid_map = {
-                var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]
-            } | {
+        bmi_model._output_var_names = (
+            BMI_MODEL["_output_var_names"]
+            + output_var_names_position1
+            + BMI_MODEL["_output_var_names_unstructured"]
+        )
+        bmi_model._var_name_units_map = (
+            BMI_MODEL["_var_name_units_map"]
+            | var_name_units_map_position1
+            | BMI_MODEL["_output_var_names_unstructured"]
+            | var_name_units_map_position3
+        )
+        bmi_model._grid_map = (
+            {var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]}
+            | grid_map_position1
+            | {
                 var_name: bmi_model.grid_3
                 for var_name in BMI_MODEL["_output_var_names_unstructured"]
             }
+            | grid_map_position3
+        )
 
         bmi_model.grid_2 = Grid(
             2, 2, GridType.unstructured
