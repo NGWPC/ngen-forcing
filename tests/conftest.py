@@ -110,10 +110,11 @@ def bmi_forcing_fixture_geomod(
 
 
 def pytest_addoption(parser):
+    """Add command line options to pytest."""
     parser.addoption(
         "--map_old_to_new_var_names",
         action="store",
-        dest="map_old_to_new_var_names",
+        default=True,
         help="Argument to specify if old variables names should be mapped to new variable names.",
     )
 
@@ -146,8 +147,8 @@ def bmi_forcing_fixture_input_forcing(
         geogrid=None,
         output_path=None,
     )
-    map_old_to_new_var_names = request.config.getoption("map_old_to_new_var_names")
-    if map_old_to_new_var_names is None:
+    map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
+    if map_old_to_new_var_names == "True":
         map_old_to_new_var_names = True
     elif map_old_to_new_var_names == "False":
         map_old_to_new_var_names = False
