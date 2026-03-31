@@ -95,7 +95,7 @@ class InputForcings:
         """
         for key, val in list(vars(self.config_options).items()):
             if isinstance(val, list) and len(val) > 0:
-                if self.hasattr(self, key):
+                if hasattr(self, key):
                     raise ValueError(f"Attribute {key} has already been set.")
                 setattr(self, key, val[self.idx])
 
