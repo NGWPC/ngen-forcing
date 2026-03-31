@@ -21,7 +21,7 @@ ForecastShift: 0
 ForecastInputHorizons: [4260]
 ForecastInputOffsets: [0]
 Geopackage: /workspaces/nwm-rte/src/ngen-forcing/tests/test_data/gpkg/gauge_01123000.gpkg
-GeogridIn: /workspaces/nwm-rte/src/ngen-forcing/tests/test_data/esmf_mesh/4aaa1d802bdf9640_gauge_01123000_ESMF_Mesh.nc
+GeogridIn: /workspaces/nwm-rte/src/ngen-forcing/tests/test_data/esmf_mesh/gauge_01123000_ESMF_Mesh.nc
 SpatialMetaIn: ''
 GRID_TYPE: hydrofabric
 NodeCoords: nodeCoords
