@@ -45,9 +45,8 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
-def convert_functions_to_strings(d):
-    """Convert functions in a nexted dictionary to strings."""
-    INPUT_FORCING_CONSTS["REGRID_MAP"]
+def convert_functions_to_strings(d: dict) -> dict:
+    """Convert functions in a nested dictionary to strings."""
     for key, value in d.items():
         if isinstance(value, dict):
             # Recursively call the function for nested dictionaries
@@ -63,7 +62,7 @@ def convert_functions_to_strings(d):
     return d
 
 
-def convert_long_lists(data, max_length=None):
+def convert_long_lists(data: typing.Any, max_length: int = 10) -> typing.Any:
     """Recursively iterate over a nested data dictionary and convert all lists longer than max_length to a hash.
 
     Args:
@@ -168,7 +167,7 @@ class BMIForcingFixture:
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
     """
 
-    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
+    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
         """Initialize BMIForcingFixture."""
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model = bmi_model
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
@@ -178,21 +177,21 @@ class BMIForcingFixture:
 
 
 class BMIForcingFixture_Class(BMIForcingFixture):
-    """Test fixture for GeoMod tests. Writers of geomod tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+    """Test fixture for Class-based tests."""
 
     def __init__(
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple[str] = (),
         map_old_to_new_var_names: bool = True,
-    ):
-        """Initialize BMIForcingFixture_GeoMod. Writers of geomod tests must call the methods in this order. This is enforced by state attributes.
+    ) -> None:
+        """Initialize BMIForcingFixture_Class.
 
         Args:
         ----
             bmi_model: The BMI model to be used in the test fixture
             keys_to_check: The keys to check
-
+            map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
         """
         super().__init__(bmi_model=bmi_model)
 
@@ -223,15 +222,14 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             )
         return deserial_actual
 
-    def write_json(self, dictionary_to_write: dict, json_path: str):
+    def write_json(self, dictionary_to_write: dict, json_path: str) -> None:
         """Write the deserialized results to a JSON file."""
         json_str = serialize_to_json(dictionary_to_write, sort_keys=True)
         with open(json_path, "w") as f:
             f.write(json_str)
 
     def deserial_expected(self, suffix: str, current_output_step: str = "") -> dict:
-        """Get the expected metadata results as a deserialized dictioanry."""
-        ### NOTE this should be rarely used, only when updating the test expected outputs dataset
+        """Get the expected metadata results as a deserialized dictionary."""
         file_path = self.expected_results_file_path(suffix, current_output_step)
 
         if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
@@ -243,6 +241,10 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             )
             with open(file_path, "w") as f:
                 f.write(serialize_to_json(deserial_expected, sort_keys=True))
+            if self.map_old_to_new_var_names:
+                deserial_expected = self.map_old_to_new_variable_names(
+                    deserial_expected
+                )
             return deserial_expected
         else:
             try:
@@ -269,14 +271,14 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 data_new_keys[key] = val
         return data_new_keys
 
-    def after_intitialization_check(self):
+    def after_intitialization_check(self) -> None:
         """Run checks after initialization but before any run has been called.
 
         This is useful for checking the state of the model immediately after initialization, before any updates have occurred.
         """
         self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
 
-    def compare(self, actual: dict, expected: dict):
+    def compare(self, actual: dict, expected: dict) -> None:
         """Compare actual vs expected results."""
         try:
             assert_equal_with_tol(
@@ -288,7 +290,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             ) from e
 
     @property
-    def test_class_as_dict(self):
+    def test_class_as_dict(self) -> dict:
         """Get the attributes of the test class as a dictionary, where the keys are the attribute names and the values are the attribute values.
 
         This is useful for serializing the test class to JSON for comparison against expected results.
@@ -302,7 +304,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 data[key] = val
         return data
 
-    def after_bmi_model_update(self, current_output_step: int):
+    def after_bmi_model_update(self, current_output_step: int) -> None:
         """Run checks after bmi_model.update() has been called.
 
         Args:
@@ -315,7 +317,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             self.deserial_expected("after_update", f"_step_{current_output_step}"),
         )
 
-    def after_finalize(self):
+    def after_finalize(self) -> None:
         """Run checks after bmi_model.finalize() has been called."""
         self.compare(
             self.deserial_actual("finalize"), self.deserial_expected("finalize")
@@ -335,14 +337,14 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
 
 class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
-    """Test fixture for GeoMod tests. Writers of geomod tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+    """Test fixture for GeoMod tests."""
 
     def __init__(
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple = (),
-    ):
-        """Initialize BMIForcingFixture_GeoMod. Writers of geomod tests must call the methods in this order. This is enforced by state attributes.
+    ) -> None:
+        """Initialize BMIForcingFixture_GeoMod.
 
         Args:
         ----
@@ -360,7 +362,7 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
 
 
 class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
-    """Test fixture for InputForcing tests. Writers of input forcing tests should use this class as the basis for their test fixtures, and call the methods in the order specified in the docstring of __init__(). This is enforced by state attributes."""
+    """Test fixture for InputForcing tests."""
 
     def __init__(
         self,
@@ -368,8 +370,8 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         keys_to_check: tuple = (),
         force_key: int = None,
         map_old_to_new_var_names: bool = True,
-    ):
-        """Initialize BMIForcingFixture_InputForcing. Writers of input forcing tests must call the methods in this order. This is enforced by state attributes.
+    ) -> None:
+        """Initialize BMIForcingFixture_InputForcing.
 
         Args:
         ----
@@ -398,7 +400,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         extra_attrs: tuple[ClassAttrFetcher],
         regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
-    ):
+    ) -> None:
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
 
             self.pre_regrid()
