@@ -8,8 +8,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.timeInterpMod impo
     weighted_average,
 )
 
-
-GEOMOD= {
+GEOMOD = {
     "GeoMeta": [
         "nodeCoords",
         "centerCoords",
@@ -71,7 +70,7 @@ GEOMOD= {
         "longitude_grid_elem",
     ],
 }
-BMI_MODEL= {
+BMI_MODEL = {
     "extension_map": {
         "gridded": "GRIDDED",
         "hydrofabric": "HYDROFABRIC",
@@ -131,7 +130,7 @@ BMI_MODEL= {
         "RAINRATE_NODE": ["Surface Precipitation Rate", "mm/s"],
     },
 }
-FORCINGINPUTMOD= {
+FORCINGINPUTMOD = {
     "InputForcings": [
         "nx_global",
         "ny_global",
@@ -197,7 +196,7 @@ FORCINGINPUTMOD= {
         "_final_forcings",
         "_height",
         "_regridded_mask",
-        "_regridded_mask_AORC"
+        "_regridded_mask_AORC",
     ],
     "InputForcingsGridded": [
         "t2dTmp_elem",
@@ -206,7 +205,6 @@ FORCINGINPUTMOD= {
         "height_elem",
         "regridded_mask_elem",
         "regridded_mask_elem_AORC",
-        
     ],
     "InputForcingsHydrofabric": [
         "final_forcings_elem",
@@ -216,12 +214,12 @@ FORCINGINPUTMOD= {
         "t2dTmp_elem",
         "psfcTmp_elem",
     ],
-    "InputForcingsUnstructured":[
+    "InputForcingsUnstructured": [
         "_t2dTmp_elem",
         "_psfcTmp_elem",
         "_final_forcings_elem",
         "_height_elem",
-        "_regridded_mask_elem"
+        "_regridded_mask_elem",
         "_regridded_mask_elem_AORC",
     ],
     "PRODUCT_NAME": {
@@ -934,7 +932,7 @@ FORCINGINPUTMOD= {
         "ZARR": ".zarr",
     },
 }
-TEST_UTILS={
+TEST_UTILS = {
     "OLD_NEW_VAR_MAP": {
         "q2dBiasCorrectOpt": "q2BiasCorrectOpt",
         "paramDir": "dScaleParamDirs",
