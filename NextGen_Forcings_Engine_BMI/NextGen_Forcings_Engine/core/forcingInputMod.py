@@ -285,7 +285,7 @@ class InputForcingsGridded(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def final_forcings(self) -> np.ndarray | Any:
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
@@ -306,7 +306,7 @@ class InputForcingsGridded(InputForcings):
         """Setter for final_forcings."""
         self._final_forcings = value
 
-    @cached_property
+    @property
     def height(self) -> np.ndarray | Any:
         """Initialize the local height grid."""
         if self._height is not None:
@@ -320,10 +320,10 @@ class InputForcingsGridded(InputForcings):
 
     @height.setter
     def height(self, value: Any) -> Any:
-        """Setter for height"""
+        """Setter for height."""
         self._height = value
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
@@ -337,10 +337,10 @@ class InputForcingsGridded(InputForcings):
 
     @regridded_mask.setter
     def regridded_mask(self, value: Any) -> Any:
-        """Setter for regridded_mask"""
+        """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @cached_property
+    @property
     def regridded_mask_AORC(self) -> np.ndarray | Any:
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
@@ -354,10 +354,10 @@ class InputForcingsGridded(InputForcings):
 
     @regridded_mask_AORC.setter
     def regridded_mask_AORC(self, value: Any) -> Any:
-        """Setter for regridded_mask_AORC"""
+        """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
-    @cached_property
+    @property
     def t2dTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
@@ -371,10 +371,10 @@ class InputForcingsGridded(InputForcings):
 
     @t2dTmp.setter
     def t2dTmp(self, value: Any) -> Any:
-        """Setter for t2dTmp"""
+        """Setter for t2dTmp."""
         self._t2dTmp = value
 
-    @cached_property
+    @property
     def psfcTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
@@ -388,7 +388,7 @@ class InputForcingsGridded(InputForcings):
 
     @psfcTmp.setter
     def psfcTmp(self, value: Any) -> Any:
-        """Setter for psfcTmp"""
+        """Setter for psfcTmp."""
         self._psfcTmp = value
 
 
@@ -411,7 +411,7 @@ class InputForcingsHydrofabric(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def final_forcings(self) -> np.ndarray | Any:
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
@@ -426,7 +426,7 @@ class InputForcingsHydrofabric(InputForcings):
         """Setter for final_forcings."""
         self._final_forcings = value
 
-    @cached_property
+    @property
     def height(self) -> np.ndarray | Any:
         """Initialize the local height grid."""
         if self._height is not None:
@@ -434,7 +434,7 @@ class InputForcingsHydrofabric(InputForcings):
         else:
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
@@ -447,7 +447,7 @@ class InputForcingsHydrofabric(InputForcings):
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @cached_property
+    @property
     def regridded_mask_AORC(self) -> np.ndarray | Any:
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
@@ -460,7 +460,7 @@ class InputForcingsHydrofabric(InputForcings):
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
-    @cached_property
+    @property
     def t2dTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
@@ -470,10 +470,10 @@ class InputForcingsHydrofabric(InputForcings):
 
     @t2dTmp.setter
     def t2dTmp(self, value: Any) -> Any:
-        """Setter for t2dTmp"""
+        """Setter for t2dTmp."""
         self._t2dTmp = value
 
-    @cached_property
+    @property
     def psfcTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
@@ -483,7 +483,7 @@ class InputForcingsHydrofabric(InputForcings):
 
     @psfcTmp.setter
     def psfcTmp(self, value: Any) -> Any:
-        """Setter for psfcTmp"""
+        """Setter for psfcTmp."""
         self._psfcTmp = value
 
 
@@ -506,7 +506,7 @@ class InputForcingsUnstructured(InputForcings):
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def t2dTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp is not None:
@@ -516,10 +516,10 @@ class InputForcingsUnstructured(InputForcings):
 
     @t2dTmp.setter
     def t2dTmp(self, value: Any) -> Any:
-        """Setter for t2dTmp"""
+        """Setter for t2dTmp."""
         self._t2dTmp = value
 
-    @cached_property
+    @property
     def psfcTmp(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp is not None:
@@ -529,10 +529,10 @@ class InputForcingsUnstructured(InputForcings):
 
     @psfcTmp.setter
     def psfcTmp(self, value: Any) -> Any:
-        """Setter for psfcTmp"""
+        """Setter for psfcTmp."""
         self._psfcTmp = value
 
-    @cached_property
+    @property
     def t2dTmp_elem(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._t2dTmp_elem is not None:
@@ -542,10 +542,10 @@ class InputForcingsUnstructured(InputForcings):
 
     @t2dTmp_elem.setter
     def t2dTmp_elem(self, value: Any) -> Any:
-        """Setter for t2dTmp_elem"""
+        """Setter for t2dTmp_elem."""
         self._t2dTmp_elem = value
 
-    @cached_property
+    @property
     def psfcTmp_elem(self) -> np.ndarray | Any:
         """Initialize temporary array for specific humidity downscaling."""
         if self._psfcTmp_elem is not None:
@@ -555,10 +555,10 @@ class InputForcingsUnstructured(InputForcings):
 
     @psfcTmp_elem.setter
     def psfcTmp_elem(self, value: Any) -> Any:
-        """Setter for psfcTmp_elem"""
+        """Setter for psfcTmp_elem."""
         self._psfcTmp_elem = value
 
-    @cached_property
+    @property
     def final_forcings(self) -> np.ndarray | Any:
         """Initialize the local final grid of values."""
         if self._final_forcings is not None:
@@ -573,7 +573,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for final_forcings."""
         self._final_forcings = value
 
-    @cached_property
+    @property
     def height(self) -> np.ndarray | Any:
         """Initialize the local height grid."""
         if self._height is not None:
@@ -586,7 +586,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for height."""
         self._height = value
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Initialize the local regridded mask grid."""
         if self._regridded_mask is not None:
@@ -599,7 +599,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @cached_property
+    @property
     def regridded_mask_AORC(self) -> np.ndarray | Any:
         """Initialize the local regridded AORC mask grid."""
         if self._regridded_mask_AORC is not None:
@@ -612,7 +612,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
-    @cached_property
+    @property
     def final_forcings_elem(self) -> np.ndarray | Any:
         """Initialize the local final grid of values on elements."""
         if self._final_forcings_elem is not None:
@@ -629,7 +629,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for final_forcings_elem."""
         self._final_forcings_elem = value
 
-    @cached_property
+    @property
     def height_elem(self) -> np.ndarray | Any:
         """Initialize the local height grid on elements."""
         if self._height_elem is not None:
@@ -642,7 +642,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for height_elem."""
         self._height_elem = value
 
-    @cached_property
+    @property
     def regridded_mask_elem(self) -> np.ndarray | Any:
         """Initialize the local regridded mask grid on elements."""
         if self._regridded_mask_elem is not None:
@@ -655,7 +655,7 @@ class InputForcingsUnstructured(InputForcings):
         """Setter for regridded_mask_elem."""
         self._regridded_mask_elem = value
 
-    @cached_property
+    @property
     def regridded_mask_elem_AORC(self) -> np.ndarray | Any:
         """Initialize the local regridded AORC mask grid on elements."""
         if self._regridded_mask_elem_AORC is not None:
