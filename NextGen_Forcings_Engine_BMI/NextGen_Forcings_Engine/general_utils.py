@@ -162,11 +162,29 @@ def assert_equal_with_tol(
         except np.exceptions.DTypePromotionError:
             errors.append(
                 ValueError(
-                    f"Expected not equal to actual, and could not apply np.allclose. expect={expect}, actual={actual}."
+                    f"Expected not equal to actual, and could not apply np.allclose. key={k}, expect={expect}, actual={actual}."
                 )
             )
             continue
-
+        except TypeError:
+            if isinstance(v_expect, (dict, OrderedDict)) and isinstance(
+                v_actual, (dict, OrderedDict)
+            ):
+                keys_not_in_v_actual = set(dict(v_expect)) - set(dict(v_actual))
+                keys_in_v_expect_and_v_actual = set(dict(v_expect)) & set(
+                    dict(v_actual)
+                )
+                keys_with_vals_not_matching = [
+                    key
+                    for key in keys_in_v_expect_and_v_actual
+                    if v_expect[key] != v_actual[key]
+                ]
+                errors.append(
+                    ValueError(
+                        f"Expected not equal to actual for key: {k}. Keys not in actual for {k}: {keys_not_in_v_actual} | keys in actual with values not matching expected for {k}: {keys_with_vals_not_matching}"
+                    )
+                )
+                continue
         errors.append(
             ValueError(
                 f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for {k}. {v_expect} vs {v_actual}."
