@@ -260,20 +260,22 @@ class BaseProcessor:
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
-            e = c = 0
-            while c < 10:
-                try:
-                    ds.to_netcdf(self.nc_path)
-                except Exception as e:
-                    warnings.warn(
-                        f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c})."
+            if not os.path.exists(self.nc_path):
+                c = 0
+                while c < 10:
+                    try:
+                        ds.to_netcdf(self.nc_path, "w")
+                        break
+                    except Exception as e:
+                        warnings.warn(
+                            f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c}). | Error: {e}"
+                        )
+                        sleep(1)
+                        c += 1
+                if c == 10:
+                    raise PermissionError(
+                        f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
                     )
-                    sleep(1)
-                    c += 1
-            if c == 10:
-                raise PermissionError(
-                    f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path} | Error: {e}"
-                )
         return ds
 
     @cached_property
@@ -403,7 +405,8 @@ class AORCConusProcessor(BaseProcessor):
                 while c < 10:
                     try:
                         with xr.open_dataset(self.nc_path, engine="netcdf4") as ds:
-                            return ds.load()
+                            dataset = ds.load()
+                        return dataset
                     except Exception as e:
                         warnings.warn(
                             f"Lock on cache file; sleeping 1s({c}). Error: {e}"
@@ -411,19 +414,20 @@ class AORCConusProcessor(BaseProcessor):
                         sleep(1)
                         c += 1
                 if c == 10:
-                    error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                    LOG.critical(error_message)
-                    raise ValueError(error_message)
-        else:
-            try:
-                with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    return self.slice_ds(
-                        self.s3_lazy_ds[self.current_time.year]
-                    ).rename({self.x_label: "x", self.y_label: "y"})
-            except Exception as e:
-                error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
-                LOG.critical(error_message)
-                raise ValueError(error_message)
+                    error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}. Deleteing the cache file and recreating from s3"
+                    warnings.warn(error_message)
+                    os.remove(self.nc_path)
+                    # LOG.critical(error_message)
+                    # raise ValueError(error_message)
+        try:
+            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                return self.slice_ds(self.s3_lazy_ds[self.current_time.year]).rename(
+                    {self.x_label: "x", self.y_label: "y"}
+                )
+        except Exception as e:
+            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            LOG.critical(error_message)
+            raise ValueError(error_message)
 
     @cached_property
     def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
