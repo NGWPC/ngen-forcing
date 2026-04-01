@@ -260,7 +260,7 @@ class BaseProcessor:
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
-            c = 0
+            e = c = 0
             while c < 10:
                 try:
                     ds.to_netcdf(self.nc_path)
