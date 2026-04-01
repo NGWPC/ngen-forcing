@@ -1,0 +1,36 @@
+FORCING_EXTRACTION = {
+    # Set mapping between InputForcings codes and forcing extraction scripts
+    "forcing_src": {
+        3: "Global/get_prod_GFS.py",
+        5: "CONUS/get_conus_HRRR.py",
+        6: "CONUS/get_conus_RAP.py",
+        7: "Global/get_CFSv2.py",
+        13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
+        14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico.py",
+        19: "Alaska/get_Alaska_HRRR.py",
+        24: "CONUS/get_prod_NBM_Conus.py",
+        "supp8": "CONUS/get_prod_NBM_Conus.py",
+        "supp9": "Alaska/get_prod_NBM_Alaska.py",
+        "supp11": "Alaska/get_Alaska_StageIV.py",
+        "supp12": "CONUS/get_conus_StageIV.py",
+        "supp15": "Puerto_Rico/get_prod_NBM_Puerto_Rico.py",
+        "supp16": "Hawaii/get_prod_NBM_Hawaii.py",
+    },
+    # Set mapping between InputForcings codes and forcing extraction scripts
+    "forcing_ana_src": {
+        5: "CONUS/get_conus_HRRR_AnA.py",
+        6: "CONUS/get_conus_RAP_AnA.py",
+        13: "Hawaii/get_prod_NAM_Nest_Hawaii.py",
+        14: "Puerto_Rico/get_prod_NAM_Nest_Puerto_Rico_AnA.py",
+        19: "Alaska/get_Alaska_HRRR.py",
+        20: "Alaska/get_Alaska_HRRR_AnA.py",
+        "supp1": "CONUS/get_conus_MRMS_Radar.py",
+        "supp2": "CONUS/get_conus_MRMS_MultiSensor.py",
+        "supp6": "Hawaii/get_MRMS_MultiSensor_Hawaii.py",
+        "supp10": "Alaska/get_MRMS_MultiSensor_Alaska.py",
+        "supp11": "Alaska/get_Alaska_StageIV.py",
+        "supp12": "CONUS/get_conus_StageIV.py",
+        "supp15": "Puerto_Rico/get_prod_NBM_Puerto_Rico_AnA.py",
+    },
+    "extraction_script_path": "/ngen-app/ngen-forcing/Forcing_Extraction_Scripts",
+}
