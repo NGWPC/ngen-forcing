@@ -264,15 +264,16 @@ class BaseProcessor:
             while c < 10:
                 try:
                     ds.to_netcdf(self.nc_path)
-                except PermissionError:
+                except Exception as e:
                     warnings.warn(
                         f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c})."
                     )
                     sleep(1)
                     c += 1
-            raise PermissionError(
-                f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
-            )
+            if c == 10:
+                raise PermissionError(
+                    f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path} | Error: {e}"
+                )
         return ds
 
     @cached_property
@@ -401,16 +402,17 @@ class AORCConusProcessor(BaseProcessor):
                 c = 0
                 while c < 10:
                     try:
-                        return xr.open_dataset(self.nc_path)
+                        return xr.open_dataset(self.nc_path, engine="netcdf4")
                     except Exception as e:
                         warnings.warn(
                             f"Lock on cache file; sleeping 1s({c}). Error: {e}"
                         )
                         sleep(1)
                         c += 1
-                error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                LOG.critical(error_message)
-                raise ValueError(error_message)
+                if c == 10:
+                    error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                    LOG.critical(error_message)
+                    raise ValueError(error_message)
         else:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
@@ -652,9 +654,10 @@ class NWMV3OConusProcessor(NWMV3Processor):
                             )
                             sleep(1)
                             c += 1
-                    raise ValueError(
-                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                    )
+                    if c == 10:
+                        raise ValueError(
+                            f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                        )
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
@@ -718,9 +721,10 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
                             )
                             sleep(1)
                             c += 1
-                    raise ValueError(
-                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                    )
+                    if c == 10:
+                        raise ValueError(
+                            f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                        )
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
