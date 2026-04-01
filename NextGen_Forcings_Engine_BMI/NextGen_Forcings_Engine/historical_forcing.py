@@ -396,32 +396,31 @@ class AORCConusProcessor(BaseProcessor):
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
-        try:
-            if os.path.exists(self.nc_path):
-                with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    c = 0
-                    while c < 10:
-                        try:
-                            return xr.open_dataset(self.nc_path)
-                        except Exception as e:
-                            warnings.warn(
-                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
-                            )
-                            sleep(1)
-                            c += 1
-                    raise ValueError(
-                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                    )
-            else:
+        if os.path.exists(self.nc_path):
+            with self.timing_block(f"opening local dataset {self.nc_path}"):
+                c = 0
+                while c < 10:
+                    try:
+                        return xr.open_dataset(self.nc_path)
+                    except Exception as e:
+                        warnings.warn(
+                            f"Lock on cache file; sleeping 1s({c}). Error: {e}"
+                        )
+                        sleep(1)
+                        c += 1
+                error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                LOG.critical(error_message)
+                raise ValueError(error_message)
+        else:
+            try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(
                         self.s3_lazy_ds[self.current_time.year]
                     ).rename({self.x_label: "x", self.y_label: "y"})
-        except Exception as e:
-            LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
-            )
-            raise e
+            except Exception as e:
+                error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+                LOG.critical(error_message)
+                raise ValueError(error_message)
 
     @cached_property
     def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
