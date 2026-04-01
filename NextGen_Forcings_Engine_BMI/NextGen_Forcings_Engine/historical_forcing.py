@@ -154,17 +154,18 @@ class BaseProcessor:
     @property
     def nc_path(self) -> str:
         """Construct file path for cached netcdf files."""
-        return f"/tmp/{self.cache_key}.nc"
+        return f"/tmp/{self.cache_filename}.nc"
 
     @property
-    def cache_key(self):
+    def cache_filename(self):
+        """Cache filename."""
         return f"{self.dataset_name}_{self.gpkg_name}_{self.current_time_str}_{self.end_time_str}"
 
-    @property
-    def nc_tmp_hash_path(self) -> str:
-        """Construct file path for cached netcdf files."""
-        cache_hash = hashlib.md5(self.cache_key.encode()).hexdigest()[:8]
-        return f"/tmp/{cache_hash}.nc"
+    # @property
+    # def nc_tmp_hash_path(self) -> str:
+    #     """Construct file path for cached netcdf files."""
+    #     cache_hash = hashlib.md5(self.cache_key.encode()).hexdigest()[:8]
+    #     return f"/tmp/{cache_hash}.nc"
 
     @property
     def end_time_datetime(self) -> pd.Timestamp:
@@ -259,9 +260,19 @@ class BaseProcessor:
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
-            ds.to_netcdf(self.nc_tmp_hash_path)
-            shutil.copy(self.nc_tmp_hash_path, self.nc_path)
-            os.remove(self.nc_tmp_hash_path)
+            c = 0
+            while c < 10:
+                try:
+                    ds.to_netcdf(self.nc_path)
+                except PermissionError:
+                    warnings.warn(
+                        f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c})."
+                    )
+                    sleep(1)
+                    c += 1
+            raise PermissionError(
+                f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
+            )
         return ds
 
     @cached_property
@@ -398,7 +409,9 @@ class AORCConusProcessor(BaseProcessor):
                             )
                             sleep(1)
                             c += 1
-                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
+                    raise ValueError(
+                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                    )
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(
@@ -640,7 +653,9 @@ class NWMV3OConusProcessor(NWMV3Processor):
                             )
                             sleep(1)
                             c += 1
-                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
+                    raise ValueError(
+                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                    )
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
@@ -704,7 +719,9 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
                             )
                             sleep(1)
                             c += 1
-                    raise ValueError(f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}")
+                    raise ValueError(
+                        f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
+                    )
             else:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
                     return self.slice_ds(self.s3_lazy_ds).rename(
