@@ -402,7 +402,8 @@ class AORCConusProcessor(BaseProcessor):
                 c = 0
                 while c < 10:
                     try:
-                        return xr.open_dataset(self.nc_path, engine="netcdf4")
+                        with xr.open_dataset(self.nc_path, engine="netcdf4") as ds:
+                            return ds.load()
                     except Exception as e:
                         warnings.warn(
                             f"Lock on cache file; sleeping 1s({c}). Error: {e}"
