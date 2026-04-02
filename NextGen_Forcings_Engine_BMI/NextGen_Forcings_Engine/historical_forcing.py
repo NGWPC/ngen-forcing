@@ -1,19 +1,13 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
-import hashlib
+import gc
 import os
-import re
-import shutil
-import tempfile
 import typing
-import warnings
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import cached_property
 from time import perf_counter, sleep
-
-import dask
 
 # Use the Error, Warning, and Trapping System Package for logging
 import ewts
@@ -161,12 +155,6 @@ class BaseProcessor:
         """Cache filename."""
         return f"{self.dataset_name}_{self.gpkg_name}_{self.current_time_str}_{self.end_time_str}"
 
-    # @property
-    # def nc_tmp_hash_path(self) -> str:
-    #     """Construct file path for cached netcdf files."""
-    #     cache_hash = hashlib.md5(self.cache_key.encode()).hexdigest()[:8]
-    #     return f"/tmp/{cache_hash}.nc"
-
     @property
     def end_time_datetime(self) -> pd.Timestamp:
         """Datetime object for the end time step."""
@@ -256,7 +244,7 @@ class BaseProcessor:
         ds = None
         if self.mpi_config.rank == 0:
             with self.timing_block("computing dataset", LOG.info):
-                ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
+                ds = self.sliced_ds.rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
@@ -267,14 +255,14 @@ class BaseProcessor:
                         ds.to_netcdf(self.nc_path, "w")
                         break
                     except Exception as e:
-                        warnings.warn(
+                        LOG.warning(
                             f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c}). | Error: {e}"
                         )
                         sleep(1)
                         c += 1
-                if c == 10:
+                else:
                     raise PermissionError(
-                        f"Could write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
+                        f"Could not write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
                     )
         return ds
 
@@ -354,6 +342,27 @@ class BaseProcessor:
                 )
         return sliced_ds
 
+    def load_cache(self) -> xr.Dataset | None:
+        """Load the cahed netcdf file."""
+        if os.path.exists(self.nc_path):
+            with self.timing_block(f"opening local dataset {self.nc_path}"):
+                c = 0
+                while c < 10:
+                    try:
+                        ds = xr.open_dataset(self.nc_path)
+                        dataset = ds.load()
+                        ds.close()
+                        gc.collect()
+                        return dataset
+                    except Exception as e:
+                        LOG.warning(f"Lock on cache file; sleeping 1s({c}). Error: {e}")
+                        sleep(1)
+                        c += 1
+
+                error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}. Deleteing the cache file and recreating from s3"
+                LOG.warning(error_message)
+                os.remove(self.nc_path)
+
 
 class AORCConusProcessor(BaseProcessor):
     """Processor for CONUS AORC data."""
@@ -399,30 +408,15 @@ class AORCConusProcessor(BaseProcessor):
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
-        if os.path.exists(self.nc_path):
-            with self.timing_block(f"opening local dataset {self.nc_path}"):
-                c = 0
-                while c < 10:
-                    try:
-                        with xr.open_dataset(self.nc_path, engine="netcdf4") as ds:
-                            dataset = ds.load()
-                        return dataset
-                    except Exception as e:
-                        warnings.warn(
-                            f"Lock on cache file; sleeping 1s({c}). Error: {e}"
-                        )
-                        sleep(1)
-                        c += 1
-                if c == 10:
-                    error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}. Deleteing the cache file and recreating from s3"
-                    warnings.warn(error_message)
-                    os.remove(self.nc_path)
-                    # LOG.critical(error_message)
-                    # raise ValueError(error_message)
+        cached_data = self.load_cache()
+        if cached_data is not None:
+            return cached_data
         try:
             with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                return self.slice_ds(self.s3_lazy_ds[self.current_time.year]).rename(
-                    {self.x_label: "x", self.y_label: "y"}
+                return (
+                    self.slice_ds(self.s3_lazy_ds[self.current_time.year])
+                    .rename({self.x_label: "x", self.y_label: "y"})
+                    .load()
                 )
         except Exception as e:
             error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
@@ -495,8 +489,10 @@ class AORCAlaskaProcessor(BaseProcessor):
                     s3 = s3fs.S3FileSystem()
                     with s3.open(self.url(date)) as f:
                         ds = xr.open_dataset(f, engine="h5netcdf")
+                        dataset = ds.load()
+                        ds.close()
                         datasets.append(
-                            self.slice_ds(ds, date, date + np.timedelta64(1, "h"))
+                            self.slice_ds(dataset, date, date + np.timedelta64(1, "h"))
                         )
             except Exception as e:
                 LOG.critical(
@@ -646,33 +642,20 @@ class NWMV3OConusProcessor(NWMV3Processor):
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
+        cached_data = self.load_cache()
+        if cached_data is not None:
+            return cached_data
         try:
-            if os.path.exists(self.nc_path):
-                with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    c = 0
-                    while c < 10:
-                        try:
-                            return xr.open_dataset(self.nc_path)
-                        except Exception as e:
-                            warnings.warn(
-                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
-                            )
-                            sleep(1)
-                            c += 1
-                    if c == 10:
-                        raise ValueError(
-                            f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                        )
-            else:
-                with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    return self.slice_ds(self.s3_lazy_ds).rename(
-                        {self.x_label: "x", self.y_label: "y"}
-                    )
+            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                return (
+                    self.slice_ds(self.s3_lazy_ds)
+                    .rename({self.x_label: "x", self.y_label: "y"})
+                    .load()
+                )
         except Exception as e:
-            LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
-            )
-            raise e
+            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            LOG.critical(error_message)
+            raise ValueError(error_message)
 
     @cached_property
     def s3_lazy_ds(self) -> xr.Dataset:
@@ -713,33 +696,20 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
+        cached_data = self.load_cache()
+        if cached_data is not None:
+            return cached_data
         try:
-            if os.path.exists(self.nc_path):
-                with self.timing_block(f"opening local dataset {self.nc_path}"):
-                    c = 0
-                    while c < 10:
-                        try:
-                            return xr.open_dataset(self.nc_path)
-                        except Exception as e:
-                            warnings.warn(
-                                f"Lock on cache file; sleeping 1s({c}). Error: {e}"
-                            )
-                            sleep(1)
-                            c += 1
-                    if c == 10:
-                        raise ValueError(
-                            f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}"
-                        )
-            else:
-                with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    return self.slice_ds(self.s3_lazy_ds).rename(
-                        {self.x_label: "x", self.y_label: "y"}
-                    )
+            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                return (
+                    self.slice_ds(self.s3_lazy_ds)
+                    .rename({self.x_label: "x", self.y_label: "y"})
+                    .load()
+                )
         except Exception as e:
-            LOG.critical(
-                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
-            )
-            raise e
+            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            LOG.critical(error_message)
+            raise ValueError(error_message)
 
     @cached_property
     def src_crs(self) -> CRS:
