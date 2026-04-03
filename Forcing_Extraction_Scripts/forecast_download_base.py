@@ -37,14 +37,14 @@ class ForecastDownloader(ABC):
 
     def __init__(
         self,
-        out_dir,
-        start_time,
-        lookback_hours,
-        cleanback_hours,
-        lagback_hours,
-        ens_number,
+        out_dir: str,
+        start_time: datetime,
+        lookback_hours: int | None,
+        cleanback_hours: int | None,
+        lagback_hours: int | None,
+        ens_number: int | None,
         input_horizon=None,
-    ):
+    ) -> None:
         """Initialize downloader with common configuration.
 
         :param out_dir: Root output directory where files are saved
@@ -52,7 +52,8 @@ class ForecastDownloader(ABC):
         :param lookback_hours: How many hours back to fetch forecasts
         :param cleanback_hours: How far back to clean old files
         :param lagback_hours: How many hours to lag before starting to fetch
-        :param input_horizon: Maximum forecast hour to downlaod (None = download all available timesteps)
+        :param ens_number: Ensemble number to fetch (if applicable)
+        :param input_horizon: Maximum forecast hour to download (None = download all available timesteps)
         """
         global LOG
         if hasattr(LOG, "bind"):
