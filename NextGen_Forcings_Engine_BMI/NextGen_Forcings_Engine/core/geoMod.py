@@ -32,11 +32,11 @@ LOG = logging.getLogger(MODULE_NAME)
 
 
 def set_none(func) -> Any:
-    """Set the output of a function to None if an exception is raised."""
+    """Set the output of a function to None if spatial_metadata_exists is false."""
 
     @wraps(func)
     def wrapper(self) -> Any:
-        """Set the output of a function to None if an exception is raised."""
+        """Set the output of a function to None if spatial_metadata_exists is false."""
         if self.spatial_metadata_exists:
             return func(self)
         else:
@@ -108,7 +108,7 @@ class GeoMeta:
 
     @cached_property
     def spatial_metadata_exists(self) -> bool:
-        """Check to make sure the geospatial metadata file exists."""
+        """Check to make sure the geospatial metadata file exists in the config_options."""
         if self.config_options.spatial_meta is None:
             return False
         else:
