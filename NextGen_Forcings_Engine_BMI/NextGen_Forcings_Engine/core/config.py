@@ -1,11 +1,13 @@
 import configparser
 import json
 import logging
-import re
 import os
-from datetime import datetime, timedelta, timezone
+import re
 import uuid
+from datetime import datetime, timedelta, timezone
 
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
@@ -17,8 +19,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
 
 from . import mpi_utils
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 FORCE_COUNT = 27
@@ -1755,9 +1755,9 @@ class ConfigOptions:
             # Check to make sure supplemental precip options make sense. Also read in the RQI threshold
             # if any radar products where chosen.
             for suppOpt in self.supp_precip_forcings:
-                if suppOpt < 0 or suppOpt > 15:
+                if suppOpt < 0 or suppOpt > 16:
                     err_out_screen(
-                        "Please specify SuppForcing values between 1 and 15."
+                        "Please specify SuppForcing values between 1 and 16."
                     )
                 # Read in RQI threshold to apply to radar products.
                 if suppOpt in (1, 2, 7, 10, 11, 12):
