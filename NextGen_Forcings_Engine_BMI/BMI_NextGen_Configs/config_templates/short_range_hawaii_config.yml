@@ -21,7 +21,7 @@ ForecastShift: 0
 ForecastInputHorizons: [2880]
 ForecastInputOffsets: [0]
 Geopackage: "{root_dir}/gpkg/hawaii{gage}.gpkg"
-GeogridIn: "{root_dir}/esmf_mesh{gage}_ESMF_Mesh.nc"
+GeogridIn: "{root_dir}/esmf_mesh/{gage}_ESMF_Mesh.nc"
 SpatialMetaIn: ""
 GRID_TYPE: "hydrofabric"
 NodeCoords: 'nodeCoords'
