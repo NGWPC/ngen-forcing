@@ -3,6 +3,7 @@
 import json
 import logging
 import typing
+import uuid
 
 import numpy as np
 
@@ -168,3 +169,14 @@ def assert_equal_with_tol(
 
     if errors:
         raise ExpectVsActualError(errors)
+
+
+def rand_str(length: int) -> str:
+    """Build and return a random string of length up to 32.
+    Note that if this is called by different MPI ranks, each rank will receive a different random string.
+    The string is not broadcasted."""
+    if not (0 < length <= 32):
+        raise ValueError(
+            f"length requested was {length}, but this function only supports length 1 through 32"
+        )
+    return str(uuid.uuid4()).replace("-", "")[:length]

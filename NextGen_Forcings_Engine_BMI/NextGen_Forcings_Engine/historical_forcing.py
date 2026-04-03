@@ -23,6 +23,7 @@ from dotenv import find_dotenv, load_dotenv
 from pyproj import CRS
 from zarr.storage import ObjectStore
 
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
@@ -249,10 +250,17 @@ class BaseProcessor:
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
             if not os.path.exists(self.nc_path):
+                tmp_file = (
+                    f"{self.nc_path}.{rand_str(12)}{os.path.splitext(self.nc_path)[1]}"
+                )
                 c = 0
                 while c < 10:
+                    LOG.info(f"Writing tmp file: {tmp_file}")
                     try:
-                        ds.to_netcdf(self.nc_path, "w")
+                        ds.to_netcdf(tmp_file, "w")
+                        LOG.info(f"Renaming: {tmp_file} -> {self.nc_path}")
+                        os.replace(tmp_file, self.nc_path)
+                        LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
                         break
                     except Exception as e:
                         LOG.warning(
