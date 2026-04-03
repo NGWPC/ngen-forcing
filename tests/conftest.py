@@ -148,7 +148,7 @@ def bmi_forcing_fixture_input_forcing(
         output_path=None,
     )
     map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
-    if map_old_to_new_var_names == "True" or map_old_to_new_var_names:
+    if map_old_to_new_var_names == "True" or map_old_to_new_var_names is True:
         map_old_to_new_var_names = True
     elif map_old_to_new_var_names == "False" or map_old_to_new_var_names is False:
         map_old_to_new_var_names = False
