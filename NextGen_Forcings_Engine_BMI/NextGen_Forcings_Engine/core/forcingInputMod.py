@@ -7,7 +7,6 @@ initializing ESMF grids and regrid objects), etc
 from __future__ import annotations
 
 import logging
-from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -45,7 +44,15 @@ class InputForcings:
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
     ) -> None:
-        """Initialize InputForcings with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize InputForcings with configuration options, geospatial metadata, and MPI configuration.
+
+        Args:
+            idx (int, optional): Index of the input forcing product. Defaults to None.
+            config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
+            geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
+            mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+
+        """
         self.config_options = config_options
         self.geo_meta = geo_meta
         self.mpi_config = mpi_config
