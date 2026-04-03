@@ -7,11 +7,11 @@ This directory contains tests for the NextGen Forcing BMI Engine.
 Tests data is included in the `test_data` directory and includes configs, gpkgs, esmf_meshes, expected results and actual results. While the configs, gpkgs, esmf_meshes and expectd results are included in the repo and can be used as is, the following steps can be taken to re-create these test inputs.
 
 ---   
-The initial test data was generated using RTE to create a calibration realization
+The initial test data was generated using `nwm-rte` to create a calibration realization
 for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
-using RTE's run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
+using `nwm-rte's` run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
 
-More specifically the initial expected test data was developed with these specific configurations in config_bash.rc. 
+More specifically the initial expected test data was developed with these specific configurations in `config.bashrc`. 
 ```
 REPO_TAG_FCST_MGR="856fc0e1201076df909e56c7cd384f58e82965a2"
 REPO_TAG_MSW_MGR="693c206a22b5e9ffcca3103166c0ca59e2b11b25"
@@ -21,7 +21,7 @@ NGEN_SOURCE_MODE="ghcr"
 NGEN_BASE__REMOTE_GHCR_TAG="844c5f6"
 ```
 
-And these two commands in RTE's `run_suite.sh`:
+And these two commands in `nwm-rte's` `run_suite.sh`:
 ```bash
 docker_run python "/ngen-app/bin/bin_mounted/run_calibration.py" -n 2 -fsrc "aorc" -start "2013-07-01 00:00:00" -dur 3
 
@@ -45,14 +45,14 @@ The test suite is organized into the following modules:
 
 ### Required Dependencies
 
-The test suite requires Python 3.11 or higher. Install the package with test dependencies inside of the dev container:
+The test suite requires Python 3.11 or higher. Install the package with test dependencies inside of the `dev container`:
 
 ```bash
 # From the repository root directory
 pip install -e ".[develop]"
 ```
 
-Or install pytest directly inside of the dev container:
+Or install pytest directly inside of the `dev container`:
 
 ```bash
 pip install pytest
@@ -60,7 +60,7 @@ pip install pytest
 
 ### Additional Requirements
 
-Ensure all main package dependencies are installed inside of the devconatiner (this typically should happen when the dev conatiner is built):
+Ensure all main package dependencies are installed inside of the `dev container` (this typically should happen when the `dev container` is built):
 
 ```bash
 pip install -e .
