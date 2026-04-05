@@ -854,37 +854,35 @@ class HydrofabricGeoMeta(GeoMeta):
 
     @cached_property
     def lat_bounds(self) -> np.ndarray:
-        """Get the latitude bounds for the unstructured domain."""
-        return self.get_bound(1).values
+        """Get the latitude bounds for the hydrofabric domain."""
 
     @cached_property
     def lon_bounds(self) -> np.ndarray:
-        """Get the longitude bounds for the unstructured domain."""
-        return self.get_bound(0).values
+        """Get the longitude bounds for the hydrofabric domain."""
 
     def get_bound(self, dim: int) -> np.ndarray:
-        """Get the longitude or latitude bounds for the unstructured domain."""
+        """Get the longitude or latitude bounds for the hydrofabric domain."""
         if self.config_options.aws:
             return self.get_geogrid_var(self.config_options.nodecoords_var)[:, dim]
 
     @broadcast
     @cached_property
     def elementcoords_global(self) -> np.ndarray:
-        """Get the global element coordinates for the unstructured domain."""
+        """Get the global element coordinates for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.elemcoords_var).values
 
     @barrier
     @broadcast
     @cached_property
     def nx_global(self) -> int:
-        """Get the global x dimension size for the unstructured domain."""
+        """Get the global x dimension size for the hydrofabric domain."""
         return self.elementcoords_global.shape[0]
 
     @barrier
     @broadcast
     @cached_property
     def ny_global(self) -> int:
-        """Get the global y dimension size for the unstructured domain.
+        """Get the global y dimension size for the hydrofabric domain.
 
         Same as nx_global.
         """
@@ -892,7 +890,7 @@ class HydrofabricGeoMeta(GeoMeta):
 
     @cached_property
     def esmf_grid(self) -> ESMF.Mesh:
-        """Create the ESMF Mesh object for the unstructured domain."""
+        """Create the ESMF Mesh object for the hydrofabric domain."""
         try:
             return ESMF.Mesh(
                 filename=self.config_options.geogrid, filetype=ESMF.FileFormat.ESMFMESH
@@ -906,80 +904,65 @@ class HydrofabricGeoMeta(GeoMeta):
 
     @cached_property
     def latitude_grid(self) -> np.ndarray:
-        """Get the latitude grid for the unstructured domain."""
+        """Get the latitude grid for the hydrofabric domain."""
         return self.esmf_grid.coords[1][1]
 
     @cached_property
     def longitude_grid(self) -> np.ndarray:
-        """Get the longitude grid for the unstructured domain."""
+        """Get the longitude grid for the hydrofabric domain."""
         return self.esmf_grid.coords[1][0]
 
     @cached_property
     def pet_element_inds(self) -> np.ndarray:
-        """Get the PET element indices for the unstructured domain."""
-        if self.mpi_config.rank == 0:
-            try:
-                tree = spatial.KDTree(self.elementcoords_global)
-                return tree.query(
-                    np.column_stack([self.longitude_grid, self.latitude_grid])
-                )[1]
-            except Exception as e:
-                LOG.critical(
-                    f"Failed to open mesh file: {self.config_options.geogrid} "
-                    f"due to {str(e)}"
-                )
-                raise e
+        """Get the PET element indices for the hydrofabric domain."""
 
     @cached_property
     def element_ids(self) -> np.ndarray:
-        """Get the element IDs for the unstructured domain."""
+        """Get the element IDs for the hydrofabric domain."""
         return self.element_ids_global[self.pet_element_inds]
 
     @broadcast
     @cached_property
     def element_ids_global(self) -> np.ndarray:
-        """Get the global element IDs for the unstructured domain."""
+        """Get the global element IDs for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.element_id_var).values
 
     @broadcast
     @cached_property
     def heights_global(self) -> np.ndarray:
-        """Get the global heights for the unstructured domain."""
+        """Get the global heights for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.hgt_var)
 
     @cached_property
     def height(self) -> np.ndarray:
-        """Get the height grid for the unstructured domain."""
-        if self.mpi_config.rank == 0:
-            if self.config_options.hgt_var is not None:
-                return self.heights_global[self.pet_element_inds]
+        """Get the height grid for the hydrofabric domain."""
 
     @cached_property
     def slope(self) -> np.ndarray:
-        """Get the slopes for the unstructured domain."""
+        """Get the slopes for the hydrofabric domain."""
         if self.slopes_global is not None:
             return self.slopes_global[self.pet_element_inds]
 
     @cached_property
     def slp_azi(self) -> np.ndarray:
-        """Get the slope azimuths for the unstructured domain."""
+        """Get the slope azimuths for the hydrofabric domain."""
         if self.slp_azi_global is not None:
             return self.slp_azi_global[self.pet_element_inds]
 
     @cached_property
     def mesh_inds(self) -> np.ndarray:
-        """Get the mesh indices for the unstructured domain."""
+        """Get the mesh indices for the hydrofabric domain."""
         return self.pet_element_inds
 
     @broadcast
     @cached_property
     def slopes_global(self) -> np.ndarray:
-        """Get the global slopes for the unstructured domain."""
+        """Get the global slopes for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.slope_var)
 
     @cached_property
     def slp_azi_global(self) -> np.ndarray:
-        """Get the global slope azimuths for the unstructured domain."""
+        """Get the global slope azimuths for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.slope_azimuth_var)
 
     @cached_property
