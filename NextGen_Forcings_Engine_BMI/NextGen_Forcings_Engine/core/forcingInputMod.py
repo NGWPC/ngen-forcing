@@ -287,7 +287,15 @@ class InputForcingsGridded(InputForcings):
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
     ) -> None:
-        """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration.
+
+        Args:
+            idx (int, optional): Index of the input forcing product. Defaults to None.
+            config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
+            geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
+            mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+
+        """
         super().__init__(idx, config_options, geo_meta, mpi_config)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
@@ -413,7 +421,15 @@ class InputForcingsHydrofabric(InputForcings):
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
     ) -> None:
-        """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration.
+
+        Args:
+            idx (int, optional): Index of the input forcing product. Defaults to None.
+            config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
+            geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
+            mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+
+        """
         super().__init__(idx, config_options, geo_meta, mpi_config)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
@@ -508,7 +524,15 @@ class InputForcingsUnstructured(InputForcings):
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
     ) -> None:
-        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration.
+
+        Args:
+            idx (int, optional): Index of the input forcing product. Defaults to None.
+            config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
+            geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
+            mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+
+        """
         super().__init__(idx, config_options, geo_meta, mpi_config)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
