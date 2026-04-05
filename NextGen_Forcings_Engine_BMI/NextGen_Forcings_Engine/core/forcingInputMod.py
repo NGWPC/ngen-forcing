@@ -124,7 +124,7 @@ class InputForcings:
         return self._keyValue
 
     @keyValue.setter
-    def keyValue(self, val: int) -> int:
+    def keyValue(self, val: int) -> None:
         """Set the forcing key value."""
         if self._keyValue is not None:
             raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
@@ -141,7 +141,7 @@ class InputForcings:
         return self._file_ext
 
     @file_ext.setter
-    def file_ext(self, val: str) -> str:
+    def file_ext(self, val: str) -> None:
         """Setter for file_ext."""
         if val is None:
             raise TypeError(
@@ -158,8 +158,8 @@ class InputForcings:
         return self._cycle_freq
 
     @cycle_freq.setter
-    def cycle_freq(self, val: int) -> int:
-        """Setter for cycle_freq"""
+    def cycle_freq(self, val: int) -> None:
+        """Setter for cycle_freq."""
         if val is None:
             raise TypeError(
                 "Cannot set cycle_freq to None since that value indicates an uninitialized state"
@@ -175,7 +175,7 @@ class InputForcings:
         return self._grib_vars
 
     @grib_vars.setter
-    def grib_vars(self, val: list[str]) -> list[str] | None:
+    def grib_vars(self, val: list[str]) -> None:
         """Setter for grib_vars."""
         if val is None:
             raise TypeError(
@@ -184,12 +184,12 @@ class InputForcings:
         self._grib_vars = val
 
     @property
-    def grib_levels(self) -> str:
+    def grib_levels(self) -> list[str | None]:
         """Map the forcing key value to the required GRIB variable levels."""
         return FORCINGINPUTMOD["GRIB_LEVELS"][self.keyValue]
 
     @property
-    def netcdf_var_names(self) -> str:
+    def netcdf_var_names(self) -> list[str] | None:
         """Map the forcing key value to the required NetCDF variable names."""
         return FORCINGINPUTMOD["NET_CDF_VARS_NAMES"][self.keyValue]
 
@@ -309,7 +309,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @final_forcings.setter
-    def final_forcings(self, value: Any) -> Any:
+    def final_forcings(self, value: Any) -> None:
         """Setter for final_forcings."""
         self._final_forcings = value
 
@@ -326,7 +326,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @height.setter
-    def height(self, value: Any) -> Any:
+    def height(self, value: Any) -> None:
         """Setter for height."""
         self._height = value
 
@@ -343,7 +343,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @regridded_mask.setter
-    def regridded_mask(self, value: Any) -> Any:
+    def regridded_mask(self, value: Any) -> None:
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
@@ -360,7 +360,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @regridded_mask_AORC.setter
-    def regridded_mask_AORC(self, value: Any) -> Any:
+    def regridded_mask_AORC(self, value: Any) -> None:
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
@@ -377,7 +377,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @t2dTmp.setter
-    def t2dTmp(self, value: Any) -> Any:
+    def t2dTmp(self, value: Any) -> None:
         """Setter for t2dTmp."""
         self._t2dTmp = value
 
@@ -394,7 +394,7 @@ class InputForcingsGridded(InputForcings):
             )
 
     @psfcTmp.setter
-    def psfcTmp(self, value: Any) -> Any:
+    def psfcTmp(self, value: Any) -> None:
         """Setter for psfcTmp."""
         self._psfcTmp = value
 
@@ -429,7 +429,7 @@ class InputForcingsHydrofabric(InputForcings):
             )
 
     @final_forcings.setter
-    def final_forcings(self, value: Any) -> Any:
+    def final_forcings(self, value: Any) -> None:
         """Setter for final_forcings."""
         self._final_forcings = value
 
@@ -450,7 +450,7 @@ class InputForcingsHydrofabric(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @regridded_mask.setter
-    def regridded_mask(self, value: Any) -> Any:
+    def regridded_mask(self, value: Any) -> None:
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
@@ -463,7 +463,7 @@ class InputForcingsHydrofabric(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @regridded_mask_AORC.setter
-    def regridded_mask_AORC(self, value: Any) -> Any:
+    def regridded_mask_AORC(self, value: Any) -> None:
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
@@ -476,7 +476,7 @@ class InputForcingsHydrofabric(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @t2dTmp.setter
-    def t2dTmp(self, value: Any) -> Any:
+    def t2dTmp(self, value: Any) -> None:
         """Setter for t2dTmp."""
         self._t2dTmp = value
 
@@ -489,7 +489,7 @@ class InputForcingsHydrofabric(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @psfcTmp.setter
-    def psfcTmp(self, value: Any) -> Any:
+    def psfcTmp(self, value: Any) -> None:
         """Setter for psfcTmp."""
         self._psfcTmp = value
 
@@ -522,7 +522,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @t2dTmp.setter
-    def t2dTmp(self, value: Any) -> Any:
+    def t2dTmp(self, value: Any) -> None:
         """Setter for t2dTmp."""
         self._t2dTmp = value
 
@@ -535,7 +535,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @psfcTmp.setter
-    def psfcTmp(self, value: Any) -> Any:
+    def psfcTmp(self, value: Any) -> None:
         """Setter for psfcTmp."""
         self._psfcTmp = value
 
@@ -548,7 +548,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
 
     @t2dTmp_elem.setter
-    def t2dTmp_elem(self, value: Any) -> Any:
+    def t2dTmp_elem(self, value: Any) -> None:
         """Setter for t2dTmp_elem."""
         self._t2dTmp_elem = value
 
@@ -561,7 +561,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
 
     @psfcTmp_elem.setter
-    def psfcTmp_elem(self, value: Any) -> Any:
+    def psfcTmp_elem(self, value: Any) -> None:
         """Setter for psfcTmp_elem."""
         self._psfcTmp_elem = value
 
@@ -576,7 +576,7 @@ class InputForcingsUnstructured(InputForcings):
             )
 
     @final_forcings.setter
-    def final_forcings(self, value: Any) -> Any:
+    def final_forcings(self, value: Any) -> None:
         """Setter for final_forcings."""
         self._final_forcings = value
 
@@ -589,7 +589,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @height.setter
-    def height(self, value: Any) -> Any:
+    def height(self, value: Any) -> None:
         """Setter for height."""
         self._height = value
 
@@ -602,7 +602,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @regridded_mask.setter
-    def regridded_mask(self, value: Any) -> Any:
+    def regridded_mask(self, value: Any) -> None:
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
@@ -615,7 +615,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
     @regridded_mask_AORC.setter
-    def regridded_mask_AORC(self, value: Any) -> Any:
+    def regridded_mask_AORC(self, value: Any) -> None:
         """Setter for regridded_mask_AORC."""
         self._regridded_mask_AORC = value
 
@@ -632,7 +632,7 @@ class InputForcingsUnstructured(InputForcings):
             )
 
     @final_forcings_elem.setter
-    def final_forcings_elem(self, value: Any) -> Any:
+    def final_forcings_elem(self, value: Any) -> None:
         """Setter for final_forcings_elem."""
         self._final_forcings_elem = value
 
@@ -645,7 +645,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
 
     @height_elem.setter
-    def height_elem(self, value: Any) -> Any:
+    def height_elem(self, value: Any) -> None:
         """Setter for height_elem."""
         self._height_elem = value
 
@@ -658,7 +658,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
 
     @regridded_mask_elem.setter
-    def regridded_mask_elem(self, value: Any) -> Any:
+    def regridded_mask_elem(self, value: Any) -> None:
         """Setter for regridded_mask_elem."""
         self._regridded_mask_elem = value
 
@@ -671,7 +671,7 @@ class InputForcingsUnstructured(InputForcings):
             return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
 
     @regridded_mask_elem_AORC.setter
-    def regridded_mask_elem_AORC(self, value: Any) -> Any:
+    def regridded_mask_elem_AORC(self, value: Any) -> None:
         """Setter for regridded_mask_elem_AORC."""
         self._regridded_mask_elem_AORC = value
 
