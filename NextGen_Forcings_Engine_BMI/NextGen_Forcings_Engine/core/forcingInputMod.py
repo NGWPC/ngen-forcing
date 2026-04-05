@@ -69,14 +69,6 @@ class InputForcings:
 
         self._initialize_config_options()
 
-        if self.force_count == 8 and 8 in self.input_map_output:
-            # TODO: this assumes that LQFRAC (8) is always the last grib var
-            self.grib_vars = self.grib_vars[:-1]
-
-        # Obtain custom input cycle frequencies
-        if self.keyValue == 10 or self.keyValue == 11:
-            self.cycle_freq = self.config_options.customFcstFreq[self.custom_count]
-
     @property
     def find_neighbor_files_map(self) -> dict:
         """Map for finding neighbor files functions."""
@@ -153,8 +145,12 @@ class InputForcings:
     def cycle_freq(self) -> int:
         """Map the forcing key value to the cycle frequency in minutes."""
         if self._cycle_freq is None:
-            # First call to getter, initialize
-            self._cycle_freq = FORCINGINPUTMOD["CYCLE_FREQ"][self.keyValue]
+            # Obtain custom input cycle frequencies
+            if self.keyValue in [10, 11]:
+                self._cycle_freq = self.config_options.customFcstFreq[self.custom_count]
+            else:
+                # First call to getter, initialize
+                self._cycle_freq = FORCINGINPUTMOD["CYCLE_FREQ"][self.keyValue]
         return self._cycle_freq
 
     @cycle_freq.setter
@@ -172,6 +168,13 @@ class InputForcings:
         if self._grib_vars is None:
             # First call to getter, initialize
             self._grib_vars = FORCINGINPUTMOD["GRIB_VARS"][self.keyValue]
+        if self.force_count == 8 and 8 in self.input_map_output:
+            # TODO: this assumes that LQFRAC (8) is always the last grib var
+            if "LQFRAC" not in self.grib_vars[-1]:
+                raise ValueError(
+                    f"Expected LQFRAC to be the 8th variable; recieved: {self.grib_vars[-1]}"
+                )
+            self._grib_vars = self._grib_vars[:-1]
         return self._grib_vars
 
     @grib_vars.setter
