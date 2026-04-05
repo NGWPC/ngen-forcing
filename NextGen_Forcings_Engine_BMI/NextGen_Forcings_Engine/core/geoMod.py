@@ -446,11 +446,13 @@ class GriddedGeoMeta(GeoMeta):
         """Get the longitude grid for the gridded domain."""
         # Scatter global XLONG_M grid to processors..
         if self.mpi_config.rank == 0:
-            if self.ndim_lat == 3:
+            if (
+                self.ndim_lat == 3
+            ):  # NOTE The original code has lat here... should it maybe be lon instead?
                 var_tmp = self.lon_var[0, :, :]
-            elif self.ndim_lat == 2:
+            elif self.ndim_lon == 2:
                 var_tmp = self.lon_var[:, :]
-            elif self.ndim_lat == 1:
+            elif self.ndim_lon == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
                 var_tmp = np.meshgrid(lon, lat)[0]
