@@ -25,6 +25,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOMOD
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
+    log_critical,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from nextgen_forcings_ewts import MODULE_NAME
 
@@ -87,6 +90,7 @@ def scatter(prop) -> Any:
             self.config_options.errMsg = (
                 f"Unable to subset {name} from geogrid file into ESMF object"
             )
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     return property(wrapper)
@@ -116,12 +120,13 @@ class GeoMeta:
 
     @cached_property
     def geogrid_ds(self) -> xr.Dataset:
-        """Get the geogrid file path."""
+        """Open the geogrid file and return the xarray dataset object."""
         try:
             with xr.open_dataset(self.config_options.geogrid) as ds:
-                return ds
+                return ds.load()
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     @cached_property
@@ -135,6 +140,7 @@ class GeoMeta:
             self.config_options.errMsg = (
                 f"Unable to open esmf file: {self.config_options.spatial_meta}"
             )
+            log_critical(self.config_options, self.mpi_config)
             raise e
         self._check_variables_exist(esmf_ds)
         return esmf_ds
@@ -145,6 +151,7 @@ class GeoMeta:
             for var in ["crs", "x", "y"]:
                 if var not in esmf_ds.variables.keys():
                     self.config_options.errMsg = f"Unable to locate {var} variable in: {self.config_options.spatial_meta}"
+                    log_critical(self.config_options, self.mpi_config)
                     raise Exception
 
     def ncattrs(self, var: str) -> list:
@@ -158,6 +165,7 @@ class GeoMeta:
                 return ds.variables[var]
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract {var} variable from: {self.config_options.spatial_meta} due to {str(e)}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     def get_geogrid_var(self, var: str) -> xr.DataArray:
@@ -219,6 +227,7 @@ class GeoMeta:
                 return self.esmf_ds.ncattrs()
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract global attribute names from: {self.config_options.spatial_meta}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     @cached_property
@@ -233,6 +242,7 @@ class GeoMeta:
                 }
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract global attributes from: {self.config_options.spatial_meta}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     def extract_coords(self, dimension: str) -> np.ndarray:
@@ -297,7 +307,8 @@ class GriddedGeoMeta(GeoMeta):
                     # NOTE Is this correct? using lon_var
                     return self.lon_var.shape[0]
             except Exception as e:
-                self.config_options.errMsg = f"Unable to extract X dimension size from longitude variable in: {self.config_options.geogrid}"
+                self.config_options.errMsg = f"Unable to extract X dimension size from {self.config_options.lon_var} in: {self.config_options.geogrid}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     @broadcast
@@ -311,7 +322,8 @@ class GriddedGeoMeta(GeoMeta):
                 else:
                     return self.lat_var.shape[0]
             except Exception as e:
-                self.config_options.errMsg = f"Unable to extract Y dimension size from latitude in: {self.config_options.geogrid}"
+                self.config_options.errMsg = f"Unable to extract Y dimension size from {self.config_options.lat_var} in: {self.config_options.geogrid}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     @cached_property
@@ -343,6 +355,7 @@ class GriddedGeoMeta(GeoMeta):
                         return 31000
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract DY global attribute in: {self.config_options.geogrid}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     @broadcast
@@ -364,6 +377,7 @@ class GriddedGeoMeta(GeoMeta):
                         return 31000
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract dx metadata attribute in: {self.config_options.geogrid}"
+                log_critical(self.config_options, self.mpi_config)
                 raise e
 
     @cached_property
@@ -377,6 +391,7 @@ class GriddedGeoMeta(GeoMeta):
             )
         except Exception as e:
             self.config_options.errMsg = f"Unable to create ESMF grid for WRF-Hydro geogrid: {self.config_options.geogrid}"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     @cached_property
@@ -784,9 +799,8 @@ class GriddedGeoMeta(GeoMeta):
         try:
             return self.check_grid(self.sinalpha_var[0, :, :])
         except Exception as e:
-            self.config_options.errMsg = (
-                f"Unable to extract SINALPHA from: {self.config_options.geogrid}"
-            )
+            self.config_options.errMsg = f"Unable to extract {self.config_options.sinalpha_var} from: {self.config_options.geogrid}"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     def check_grid(self, grid: np.ndarray) -> np.ndarray:
@@ -795,7 +809,8 @@ class GriddedGeoMeta(GeoMeta):
             self.config_options.errMsg = (
                 f"Grid dimensions mismatch in: {self.config_options.geogrid}"
             )
-            raise Exception
+            log_critical(self.config_options, self.mpi_config)
+            raise ValueError(self.config_options.errMsg)
         return grid
 
     @cached_property
@@ -804,9 +819,8 @@ class GriddedGeoMeta(GeoMeta):
         try:
             return self.check_grid(self.cosalpha_var[0, :, :])
         except Exception as e:
-            self.config_options.errMsg = (
-                f"Unable to extract COSALPHA from: {self.config_options.geogrid}"
-            )
+            self.config_options.errMsg = f"Unable to extract {self.config_options.cosalpha_var} from: {self.config_options.geogrid}"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     @cached_property
@@ -815,9 +829,8 @@ class GriddedGeoMeta(GeoMeta):
         try:
             return self.check_grid(self.hgt_var[0, :, :])
         except Exception as e:
-            self.config_options.errMsg = (
-                f"Unable to extract HGT_M from: {self.config_options.geogrid}"
-            )
+            self.config_options.errMsg = f"Unable to extract {self.congi_options.hgt_var} from: {self.config_options.geogrid}"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
 
@@ -1049,6 +1062,7 @@ class UnstructuredGeoMeta(GeoMeta):
             )
         except Exception as e:
             self.config_options.errMsg = f"Unable to create ESMF Mesh from geogrid file: {self.config_options.geogrid}"
+            log_critical(self.config_options, self.mpi_config)
             raise e
 
     @cached_property
@@ -1253,6 +1267,7 @@ class UnstructuredGeoMeta(GeoMeta):
             self.config_options.errMsg = (
                 f"HGT_M dimension mismatch in: {self.config_options.geogrid}"
             )
+            log_critical(self.config_options, self.mpi_config)
             raise Exception
         return node_heights
 
@@ -1267,6 +1282,7 @@ class UnstructuredGeoMeta(GeoMeta):
             self.config_options.errMsg = (
                 f"HGT_M_ELEM dimension mismatch in: {self.config_options.geogrid}"
             )
+            log_critical(self.config_options, self.mpi_config)
             raise Exception
         return elem_heights
 
