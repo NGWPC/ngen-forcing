@@ -460,6 +460,11 @@ class InputForcingsHydrofabric(InputForcings):
         else:
             return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
 
+    @height.setter
+    def height(self, value: Any) -> None:
+        """Setter for height."""
+        self._height = value
+
     @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Initialize the local regridded mask grid."""
