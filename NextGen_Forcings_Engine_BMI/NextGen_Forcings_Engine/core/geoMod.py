@@ -855,10 +855,16 @@ class HydrofabricGeoMeta(GeoMeta):
     @cached_property
     def lat_bounds(self) -> np.ndarray:
         """Get the latitude bounds for the hydrofabric domain."""
+        bounds = self.get_bound(1)
+        if bounds is not None:
+            return bounds.values
 
     @cached_property
     def lon_bounds(self) -> np.ndarray:
         """Get the longitude bounds for the hydrofabric domain."""
+        bounds = self.get_bound(0)
+        if bounds is not None:
+            return bounds.values
 
     def get_bound(self, dim: int) -> np.ndarray:
         """Get the longitude or latitude bounds for the hydrofabric domain."""
@@ -1019,12 +1025,16 @@ class UnstructuredGeoMeta(GeoMeta):
     @cached_property
     def lon_bounds(self) -> np.ndarray:
         """Get the longitude bounds for the unstructured domain."""
-        return self.get_bound(0)
+        bounds = self.get_bound(0)
+        if bounds is not None:
+            return bounds.values
 
     @cached_property
     def lat_bounds(self) -> np.ndarray:
         """Get the latitude bounds for the unstructured domain."""
-        return self.get_bound(1)
+        bounds = self.get_bound(1)
+        if bounds is not None:
+            return bounds.values
 
     def get_bound(self, dim: int) -> np.ndarray:
         """Get the longitude or latitude bounds for the unstructured domain."""
