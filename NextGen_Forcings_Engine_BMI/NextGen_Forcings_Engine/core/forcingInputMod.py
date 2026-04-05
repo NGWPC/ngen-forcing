@@ -1104,30 +1104,32 @@ def init_dict(
                 input_dict[force_key].t2dTmp = np.full(
                     [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
                     np.nan,
+                    dtype=np.float32,
                 )
                 input_dict[force_key].psfcTmp = np.full(
                     [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
                     np.nan,
+                    dtype=np.float32,
                 )
             elif config_options.grid_type == "unstructured":
                 input_dict[force_key].t2dTmp = np.full(
-                    [geo_meta_wrf_hydro.ny_local], np.nan
+                    [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
                 )
                 input_dict[force_key].psfcTmp = np.full(
-                    [geo_meta_wrf_hydro.ny_local], np.nan
+                    [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
                 )
                 input_dict[force_key].t2dTmp_elem = np.full(
-                    [geo_meta_wrf_hydro.ny_local_elem], np.nan
+                    [geo_meta_wrf_hydro.ny_local_elem], np.nan, dtype=np.float32
                 )
                 input_dict[force_key].psfcTmp_elem = np.full(
-                    [geo_meta_wrf_hydro.ny_local_elem], np.nan
+                    [geo_meta_wrf_hydro.ny_local_elem], np.nan, dtype=np.float32
                 )
             elif config_options.grid_type == "hydrofabric":
                 input_dict[force_key].t2dTmp = np.full(
-                    [geo_meta_wrf_hydro.ny_local], np.nan
+                    [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
                 )
                 input_dict[force_key].psfcTmp = np.full(
-                    [geo_meta_wrf_hydro.ny_local], np.nan
+                    [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
                 )
         # Initialize the local final grid of values. This is represntative
         # of the local grid for this forcing, for a specific output timesetp.
@@ -1142,53 +1144,62 @@ def init_dict(
             input_dict[force_key].final_forcings = np.full(
                 [force_count, geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
                 np.nan,
+                dtype=np.float64,
             )
             input_dict[force_key].height = np.full(
-                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.nan
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
+                np.nan,
+                dtype=np.float32,
             )
             input_dict[force_key].regridded_mask = np.full(
-                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.nan
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
+                np.nan,
+                dtype=np.float32,
             )
             input_dict[force_key].regridded_mask_AORC = np.full(
-                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local], np.nan
+                [geo_meta_wrf_hydro.ny_local, geo_meta_wrf_hydro.nx_local],
+                np.nan,
+                dtype=np.float32,
             )
         elif config_options.grid_type == "unstructured":
             input_dict[force_key].final_forcings = np.full(
-                [force_count, geo_meta_wrf_hydro.ny_local], np.nan
+                [force_count, geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float64
             )
             input_dict[force_key].height = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask_AORC = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
             input_dict[force_key].final_forcings_elem = np.full(
-                [force_count, geo_meta_wrf_hydro.ny_local_elem], np.nan
+                [force_count, geo_meta_wrf_hydro.ny_local_elem],
+                np.nan,
+                dtype=np.float64,
             )
             input_dict[force_key].height_elem = np.full(
-                [geo_meta_wrf_hydro.ny_local_elem], np.nan
+                [geo_meta_wrf_hydro.ny_local_elem], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask_elem = np.full(
-                [geo_meta_wrf_hydro.ny_local_elem], np.nan
+                [geo_meta_wrf_hydro.ny_local_elem], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask_elem_AORC = np.full(
-                [geo_meta_wrf_hydro.ny_local_elem], np.nan
+                [geo_meta_wrf_hydro.ny_local_elem], np.nan, dtype=np.float32
             )
         elif config_options.grid_type == "hydrofabric":
             input_dict[force_key].final_forcings = np.full(
-                [force_count, geo_meta_wrf_hydro.ny_local], np.nan
+                [force_count, geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float64
             )
             input_dict[force_key].height = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
             input_dict[force_key].regridded_mask_AORC = np.full(
-                [geo_meta_wrf_hydro.ny_local], np.nan
+                [geo_meta_wrf_hydro.ny_local], np.nan, dtype=np.float32
             )
         # Obtain custom input cycle frequencies
         if force_key == 10 or force_key == 11:
