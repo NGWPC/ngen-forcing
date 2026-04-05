@@ -1115,20 +1115,19 @@ class UnstructuredGeoMeta(GeoMeta):
 
         return spatial.KDTree(nodecoords_global).query(pet_nodecoords)[1]
 
-    # NOTE this is a note/commented out code from before refactor on 2/19/2026.
-    # Not accepting cosalpha and sinalpha at this time for unstructured meshes, only
-    # accepting the pre-calculated slope and slope azmiuth variables if available,
-    # otherwise calculate slope from height estimates
-    # if(config_options.cosalpha_var != None and config_options.sinalpha_var != None):
-    # self.cosa_grid = esmf_ds.variables[config_options.cosalpha_var][:].data[pet_node_inds]
-    # self.sina_grid = esmf_ds.variables[config_options.sinalpha_var][:].data[pet_node_inds]
-    # slope_tmp, slp_azi_tmp = self.calc_slope(esmf_ds,config_options)
-    # self.slope = slope_node_tmp[pet_node_inds]
-    # self.slp_azi = slp_azi_node_tmp[pet_node_inds]
-
     @cached_property
     def slope(self) -> np.ndarray:
         """Get the slope grid for the unstructured domain."""
+        # NOTE this is a note/commented out code from before refactor on 2/19/2026.
+        # Not accepting cosalpha and sinalpha at this time for unstructured meshes, only
+        # accepting the pre-calculated slope and slope azmiuth variables if available,
+        # otherwise calculate slope from height estimates
+        # if(config_options.cosalpha_var != None and config_options.sinalpha_var != None):
+        # self.cosa_grid = esmf_ds.variables[config_options.cosalpha_var][:].data[pet_node_inds]
+        # self.sina_grid = esmf_ds.variables[config_options.sinalpha_var][:].data[pet_node_inds]
+        # slope_tmp, slp_azi_tmp = self.calc_slope(esmf_ds,config_options)
+        # self.slope = slope_node_tmp[pet_node_inds]
+        # self.slp_azi = slp_azi_node_tmp[pet_node_inds]
         if (
             self.config_options.slope_var is not None
             and self.config_options.slp_azi_var is not None
@@ -1140,6 +1139,10 @@ class UnstructuredGeoMeta(GeoMeta):
             return (
                 self.dz_node
                 / np.sqrt((self.dx_node**2) + (self.dy_node**2))[self.pet_node_inds]
+            )
+        else:
+            raise ValueError(
+                "Unable to calculate slope grid for incoming shortwave radiation downscaling. No geospatial metadata variables provided to calculate slope."
             )
 
     @cached_property
