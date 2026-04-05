@@ -260,7 +260,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         # Assign grid type to BMI class for grid information
         self._grid_type = self._job_meta.grid_type.lower()
-        self.set_var_names(self)
+        self.set_var_names()
 
         # ----- Create some lookup tabels from the long variable names --------#
         self._var_name_map_long_first = {
@@ -318,7 +318,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         for parm in self._model_parameters_list:
             self._values[self._var_name_map_short_first[parm]] = self.cfg_bmi[parm]
 
-        self.get_size_of_arrays(self)
+        self.get_size_of_arrays()
 
         # for model_input in self.get_input_var_names():
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
@@ -1569,24 +1569,22 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         super().__init__()
         self.GeoMeta = GriddedGeoMeta
 
-    def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
+    def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the gridded domain."""
-        return [bmi_model.grid_4.rank]
+        return [self.grid_4.rank]
 
-    def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
+    def grid_ids(self) -> list[int]:
         """Get the grid IDs for the gridded domain."""
-        return [bmi_model.grid_1.id]
+        return [self.grid_1.id]
 
-    def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
+    def get_size_of_arrays(self) -> None:
         """Get the size of the flattened 2D arrays from the gridded domain."""
-        bmi_model._varsize = len(
-            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
-        )
+        self._varsize = len(np.zeros(self.geo_meta.latitude_grid.shape).flatten())
 
-        for model_output in bmi_model.get_output_var_names():
-            bmi_model._values[model_output] = np.zeros(bmi_model._varsize, dtype=float)
+        for model_output in self.get_output_var_names():
+            self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
-    def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
+    def set_var_names(self) -> None:
         """Set the variable names for the BMI model based on the geospatial metadata.
 
         Create a Python dictionary that maps CSDMS Standard
@@ -1596,31 +1594,29 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         """
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
-        bmi_model._output_var_names = BMI_MODEL["_output_var_names"]
-        bmi_model._var_name_units_map = BMI_MODEL["_var_name_units_map"]
-        if bmi_model.config_options.include_lqfrac == 1:
-            bmi_model._output_var_names += ["LQFRAC_ELEMENT"]
-            bmi_model._var_name_units_map |= {
+        self._output_var_names = BMI_MODEL["_output_var_names"]
+        self._var_name_units_map = BMI_MODEL["_var_name_units_map"]
+        if self.config_options.include_lqfrac == 1:
+            self._output_var_names += ["LQFRAC_ELEMENT"]
+            self._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
             }
-        bmi_model.grid_1 = Grid(
+        self.grid_1 = Grid(
             1, 2, GridType.uniform_rectilinear
         )  # Grid 1 is a 2-dimensional grid
-        bmi_model.grid_1._grid_y = bmi_model.geo_meta.latitude_grid.flatten()
-        bmi_model.grid_1._grid_x = bmi_model.geo_meta.longitude_grid.flatten()
-        bmi_model.grid_1._shape = bmi_model.geo_meta.latitude_grid.shape
-        bmi_model.grid_1._size = len(bmi_model.geo_meta.latitude_grid.flatten())
-        bmi_model.grid_1._spacing = (
-            bmi_model.geo_meta.dx_meters,
-            bmi_model.geo_meta.dy_meters,
+        self.grid_1._grid_y = self.geo_meta.latitude_grid.flatten()
+        self.grid_1._grid_x = self.geo_meta.longitude_grid.flatten()
+        self.grid_1._shape = self.geo_meta.latitude_grid.shape
+        self.grid_1._size = len(self.geo_meta.latitude_grid.flatten())
+        self.grid_1._spacing = (
+            self.geo_meta.dx_meters,
+            self.geo_meta.dy_meters,
         )
-        bmi_model.grid_1._units = "m"
-        bmi_model.grid_1._origin = None
+        self.grid_1._units = "m"
+        self.grid_1._origin = None
 
-        bmi_model._grids = [bmi_model.grid_1]
-        bmi_model._grid_map = {
-            var_name: bmi_model.grid_1 for var_name in bmi_model._output_var_names
-        }
+        self._grids = [self.grid_1]
+        self._grid_map = {var_name: self.grid_1 for var_name in self._output_var_names}
 
 
 class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model):
@@ -1639,23 +1635,21 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         super().__init__()
         self.GeoMeta = HydrofabricGeoMeta
 
-    def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
+    def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the hydrofabric domain."""
-        return [bmi_model.grid_4.rank]
+        return [self.grid_4.rank]
 
-    def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
+    def grid_ids(self) -> list[int]:
         """Get the grid IDs for the hydrofabric domain."""
-        return [bmi_model.grid_4.id]
+        return [self.grid_4.id]
 
-    def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
+    def get_size_of_arrays(self):
         """Get the size of the flattened 1D arrays from the hydrofabric domain."""
-        bmi_model._varsize = len(
-            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
-        )
-        for model_output in bmi_model.get_output_var_names():
-            bmi_model._values[model_output] = np.zeros(bmi_model._varsize, dtype=float)
+        self._varsize = len(np.zeros(self.geo_meta.latitude_grid.shape).flatten())
+        for model_output in self.get_output_var_names():
+            self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
-    def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model):
+    def set_var_names(self):
         """Set the variables for the hydrofabric geospatial metadata.
 
         Create a Python dictionary that maps CSDMS Standard
@@ -1665,28 +1659,26 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         """
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
-        bmi_model._output_var_names = ["CAT-ID"] + BMI_MODEL["_output_var_names"]
-        bmi_model._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | BMI_MODEL[
+        self._output_var_names = ["CAT-ID"] + BMI_MODEL["_output_var_names"]
+        self._var_name_units_map = {"CAT-ID": ["Catchment ID", ""]} | BMI_MODEL[
             "_var_name_units_map"
         ]
 
-        if bmi_model._job_meta.include_lqfrac == 1:
-            bmi_model._output_var_names += ["LQFRAC_ELEMENT"]
-            bmi_model._var_name_units_map |= {
+        if self._job_meta.include_lqfrac == 1:
+            self._output_var_names += ["LQFRAC_ELEMENT"]
+            self._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"],
             }
 
-        bmi_model.grid_4 = Grid(
+        self.grid_4 = Grid(
             4, 2, GridType.unstructured
         )  # Grid 1 is a 2-dimensional grid
 
-        bmi_model.grid_4._grid_y = bmi_model.geo_meta.latitude_grid
-        bmi_model.grid_4._grid_x = bmi_model.geo_meta.longitude_grid
-        bmi_model.grid_4._size = len(bmi_model.geo_meta.latitude_grid)
-        bmi_model._grids = [bmi_model.grid_4]
-        bmi_model._grid_map = {
-            var_name: bmi_model.grid_4 for var_name in bmi_model._output_var_names
-        }
+        self.grid_4._grid_y = self.geo_meta.latitude_grid
+        self.grid_4._grid_x = self.geo_meta.longitude_grid
+        self.grid_4._size = len(self.geo_meta.latitude_grid)
+        self._grids = [self.grid_4]
+        self._grid_map = {var_name: self.grid_4 for var_name in self._output_var_names}
 
 
 class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model):
@@ -1705,37 +1697,28 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         super().__init__()
         self.GeoMeta = UnstructuredGeoMeta
 
-    def grid_ranks(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
+    def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the unstructured domain."""
-        return [bmi_model.grid_2.rank, bmi_model.grid_3.rank]
+        return [self.grid_2.rank, self.grid_3.rank]
 
-    def grid_ids(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> list[int]:
-        """Get the grid IDs for the unstructured domain.
+    def grid_ids(self) -> list[int]:
+        """Get the grid IDs for the unstructured domain."""
+        return [self.grid_2.id, self.grid_3.id]
 
-        From bmi_model.py.
-        """
-        return [bmi_model.grid_2.id, bmi_model.grid_3.id]
-
-    def get_size_of_arrays(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
+    def get_size_of_arrays(self) -> None:
         """Get the size of the flattened 1D arrays for the unstructured domain."""
-        bmi_model._varsize = len(
-            np.zeros(bmi_model.geo_meta.latitude_grid.shape).flatten()
-        )
-        bmi_model._varsize_elem = len(
-            np.zeros(bmi_model.geo_meta.latitude_grid_elem.shape).flatten()
+        self._varsize = len(np.zeros(self.geo_meta.latitude_grid.shape).flatten())
+        self._varsize_elem = len(
+            np.zeros(self.geo_meta.latitude_grid_elem.shape).flatten()
         )
 
-        for model_output in bmi_model.get_output_var_names():
+        for model_output in self.get_output_var_names():
             if "ELEMENT" in model_output:
-                bmi_model._values[model_output] = np.zeros(
-                    bmi_model._varsize_elem, dtype=float
-                )
+                self._values[model_output] = np.zeros(self._varsize_elem, dtype=float)
             else:
-                bmi_model._values[model_output] = np.zeros(
-                    bmi_model._varsize, dtype=float
-                )
+                self._values[model_output] = np.zeros(self._varsize, dtype=float)
 
-    def set_var_names(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
+    def set_var_names(self) -> None:
         """Set the variable names for the unstructured domain.
 
         Create a Python dictionary that maps CSDMS Standard
@@ -1745,7 +1728,7 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         """
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
-        if bmi_model._job_meta.include_lqfrac == 1:
+        if self._job_meta.include_lqfrac == 1:
             output_var_names_position1 = ["LQFRAC_ELEMENT"]
             var_name_units_map_position1 = {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
@@ -1753,8 +1736,8 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
             var_name_units_map_position3 = {
                 "LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]
             }
-            grid_map_position1 = {"LQFRAC_ELEMENT": bmi_model.grid_2}
-            grid_map_position3 = {"LQFRAC_NODE": bmi_model.grid_3}
+            grid_map_position1 = {"LQFRAC_ELEMENT": self.grid_2}
+            grid_map_position3 = {"LQFRAC_NODE": self.grid_3}
 
         else:
             output_var_names_position1 = []
@@ -1766,43 +1749,43 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
                 grid_map_position3,
             ) = [[]] + [{}] * 4
 
-        bmi_model._output_var_names = (
+        self._output_var_names = (
             BMI_MODEL["_output_var_names"]
             + output_var_names_position1
             + BMI_MODEL["_output_var_names_unstructured"]
         )
-        bmi_model._var_name_units_map = (
+        self._var_name_units_map = (
             BMI_MODEL["_var_name_units_map"]
             | var_name_units_map_position1
             | BMI_MODEL["_output_var_names_unstructured"]
             | var_name_units_map_position3
         )
-        bmi_model._grid_map = (
-            {var_name: bmi_model.grid_2 for var_name in BMI_MODEL["_output_var_names"]}
+        self._grid_map = (
+            {var_name: self.grid_2 for var_name in BMI_MODEL["_output_var_names"]}
             | grid_map_position1
             | {
-                var_name: bmi_model.grid_3
+                var_name: self.grid_3
                 for var_name in BMI_MODEL["_output_var_names_unstructured"]
             }
             | grid_map_position3
         )
 
-        bmi_model.grid_2 = Grid(
+        self.grid_2 = Grid(
             2, 2, GridType.unstructured
         )  # Grid 1 is a 2-dimensional grid
-        bmi_model.grid_3 = Grid(
+        self.grid_3 = Grid(
             3, 2, GridType.unstructured
         )  # Grid 1 is a 2-dimensional grid
 
-        bmi_model.grid_2._grid_y = self.geo_meta.latitude_grid_elem
-        bmi_model.grid_2._grid_x = self.geo_meta.longitude_grid_elem
+        self.grid_2._grid_y = self.geo_meta.latitude_grid_elem
+        self.grid_2._grid_x = self.geo_meta.longitude_grid_elem
 
-        bmi_model.grid_3._grid_y = self.geo_meta.latitude_grid
-        bmi_model.grid_3._grid_x = self.geo_meta.longitude_grid
+        self.grid_3._grid_y = self.geo_meta.latitude_grid
+        self.grid_3._grid_x = self.geo_meta.longitude_grid
 
-        bmi_model.grid_2._size = len(self.geo_meta.latitude_grid_elem)
-        bmi_model.grid_3._size = len(self.geo_meta.latitude_grid)
-        bmi_model._grids = [bmi_model.grid_2, bmi_model.grid_3]
+        self.grid_2._size = len(self.geo_meta.latitude_grid_elem)
+        self.grid_3._size = len(self.geo_meta.latitude_grid)
+        self._grids = [self.grid_2, self.grid_3]
 
 
 BMIMODEL = {
