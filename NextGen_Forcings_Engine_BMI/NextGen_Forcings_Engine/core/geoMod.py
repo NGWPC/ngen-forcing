@@ -921,6 +921,17 @@ class HydrofabricGeoMeta(GeoMeta):
     @cached_property
     def pet_element_inds(self) -> np.ndarray:
         """Get the PET element indices for the hydrofabric domain."""
+        try:
+            tree = spatial.KDTree(self.elementcoords_global)
+            return tree.query(
+                np.column_stack([self.longitude_grid, self.latitude_grid])
+            )[1]
+        except Exception as e:
+            LOG.critical(
+                f"Failed to open mesh file: {self.config_options.geogrid} "
+                f"due to {str(e)}"
+            )
+            raise e
 
     @cached_property
     def element_ids(self) -> np.ndarray:
@@ -942,6 +953,8 @@ class HydrofabricGeoMeta(GeoMeta):
     @cached_property
     def height(self) -> np.ndarray:
         """Get the height grid for the hydrofabric domain."""
+        if self.config_options.hgt_var is not None:
+            return self.heights_global[self.pet_element_inds]
 
     @cached_property
     def slope(self) -> np.ndarray:
