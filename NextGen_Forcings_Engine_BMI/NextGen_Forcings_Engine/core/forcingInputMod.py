@@ -43,6 +43,7 @@ class InputForcings:
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
+        custom_count: int = 0,
     ) -> None:
         """Initialize InputForcings with configuration options, geospatial metadata, and MPI configuration.
 
@@ -51,6 +52,7 @@ class InputForcings:
             config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
             geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
             mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+            custom_count (int, optional): Counter for custom input cycle frequencies. Defaults to 0.
 
         """
         self.config_options = config_options
@@ -61,6 +63,7 @@ class InputForcings:
         self.skip = False
         self._keyValue = config_options.input_forcings[idx]
         self.idx = idx
+        self.custom_count = custom_count
 
         # set list of attibutes from consts.py to None.
         # These are indexed from the consts dictionary using the class name
@@ -289,6 +292,7 @@ class InputForcingsGridded(InputForcings):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
+        custom_count: int = 0,
     ) -> None:
         """Initialize InputForcingsGridded with configuration options, geospatial metadata, and MPI configuration.
 
@@ -297,9 +301,10 @@ class InputForcingsGridded(InputForcings):
             config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
             geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
             mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+            custom_count (int, optional): Counter for custom input cycle frequencies. Defaults to 0.
 
         """
-        super().__init__(idx, config_options, geo_meta, mpi_config)
+        super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
@@ -423,6 +428,7 @@ class InputForcingsHydrofabric(InputForcings):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
+        custom_count: int = 0,
     ) -> None:
         """Initialize InputForcingsHydrofabric with configuration options, geospatial metadata, and MPI configuration.
 
@@ -431,9 +437,10 @@ class InputForcingsHydrofabric(InputForcings):
             config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
             geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
             mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+            custom_count (int, optional): Counter for custom input cycle frequencies. Defaults to 0.
 
         """
-        super().__init__(idx, config_options, geo_meta, mpi_config)
+        super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
@@ -531,6 +538,7 @@ class InputForcingsUnstructured(InputForcings):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
         mpi_config: MpiConfig = None,
+        custom_count: int = 0,
     ) -> None:
         """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration.
 
@@ -539,9 +547,10 @@ class InputForcingsUnstructured(InputForcings):
             config_options (ConfigOptions, optional): Configuration options object. Defaults to None.
             geo_meta (GeoMeta, optional): Geospatial metadata object. Defaults to None.
             mpi_config (MpiConfig, optional): MPI configuration object. Defaults to None.
+            custom_count (int, optional): Counter for custom input cycle frequencies. Defaults to 0.
 
         """
-        super().__init__(idx, config_options, geo_meta, mpi_config)
+        super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
         for attr in FORCINGINPUTMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
@@ -743,7 +752,7 @@ def init_dict(
             )
 
         input_dict[force_key] = INPUTFORCINGS[config_options.grid_type](
-            idx, config_options, geo_meta, mpi_config
+            idx, config_options, geo_meta, mpi_config, custom_count
         )
         # input_dict[force_key].keyValue = force_key
 
