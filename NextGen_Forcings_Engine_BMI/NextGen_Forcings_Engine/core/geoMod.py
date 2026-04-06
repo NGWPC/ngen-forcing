@@ -78,9 +78,19 @@ def scatter(prop) -> Any:
 
     @wraps(prop)
     def wrapper(self) -> Any:
-        """Scatter the output of a cached_property to all processors."""
+        """Scatter the output of a cached_property to all processors.
+
+        Scatter the var array with the var array and config_options.
+        If the post_slice boolean is True, then slice the array before returning.
+        pass the variable name in to raise an informative error if the scatter fails.
+        """
         try:
             var, name, config_options, post_slice = prop.func(self)
+            assert isinstance(post_slice, bool)
+            assert isinstance(name, str)
+            assert isinstance(config_options, ConfigOptions)
+            assert isinstance(var, np.ndarray)
+
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
                 return var[:, :]
