@@ -45,21 +45,20 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
-def convert_functions_to_strings(d: dict) -> dict:
-    """Convert functions in a nested dictionary to strings."""
+def copy_and_stringify_functions(d):
+    """Copy dict and stringify functions in the dict."""
+    new_dict = {}
     for key, value in d.items():
         if isinstance(value, dict):
-            # Recursively call the function for nested dictionaries
-            convert_functions_to_strings(value)
-        elif isinstance(value, types.FunctionType):
-            # Convert function to its name string
-            d[key] = value.__name__
-        elif isinstance(value, list):
-            # Handle lists, which might also contain functions in complex structures
-            for i, item in enumerate(value):
-                if isinstance(item, types.FunctionType):
-                    value[i] = item.__name__
-    return d
+            # Recursively handle nested dictionaries
+            new_dict[key] = copy_and_stringify_functions(value)
+        elif callable(value):
+            # Convert function to its string representation (e.g., function name)
+            new_dict[key] = value.__name__
+        else:
+            # Keep other values (strings, ints, etc.) as they are
+            new_dict[key] = value
+    return new_dict
 
 
 def convert_long_lists(data: typing.Any, max_length: int = 10) -> typing.Any:
@@ -208,12 +207,11 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         """Get the actual metadata results as a deserialized dictionary."""
         deserial_actual = json.loads(
             serialize_to_json(
-                convert_functions_to_strings(self.test_class_as_dict), sort_keys=True
+                copy_and_stringify_functions(self.test_class_as_dict), sort_keys=True
             )
         )
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
-        # deserial_actual = convert_functions_to_strings(deserial_actual)
         deserial_actual = convert_long_lists(deserial_actual, 10)
         if write_to_file:
             self.write_json(
