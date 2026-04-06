@@ -196,7 +196,7 @@ class InputForcings:
         self._grib_vars = val
 
     @property
-    def grib_levels(self) -> list[str | None]:
+    def grib_levels(self) -> list[str] | None:
         """Map the forcing key value to the required GRIB variable levels."""
         return FORCINGINPUTMOD["GRIB_LEVELS"][self.keyValue]
 
