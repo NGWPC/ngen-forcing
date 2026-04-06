@@ -177,7 +177,9 @@ class InputForcings:
             self._grib_vars = FORCINGINPUTMOD["GRIB_VARS"][self.keyValue]
         if self.force_count == 8 and 8 in self.input_map_output:
             # TODO: this assumes that LQFRAC (8) is always the last grib var
-            if "LQFRAC" not in self.grib_vars[-1]:
+            if (self._grib_vars is None) or (
+                not self._grib_vars[-1].startswith("LQFRAC")
+            ):
                 raise ValueError(
                     f"Expected LQFRAC to be the 8th variable; recieved: {self.grib_vars[-1]}"
                 )
