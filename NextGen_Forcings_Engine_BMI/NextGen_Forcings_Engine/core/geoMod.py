@@ -49,38 +49,38 @@ def set_none(func) -> Any:
 
 
 def broadcast(prop) -> Any:
-    """Broadcast the output of a function to all processors."""
+    """Broadcast the output of a cached_property to all processors."""
 
     @wraps(prop)
     def wrapper(self) -> Any:
-        """Broadcast the output of a function to all processors."""
-        result = prop.fget(self)
+        """Broadcast the output of a cached_property to all processors."""
+        result = prop.func(self)
         return self.mpi_config.comm.bcast(result, root=0)
 
-    return property(wrapper)
+    return cached_property(wrapper)
 
 
 def barrier(prop) -> Any:
-    """Synchronize all processors at a barrier."""
+    """Synchronize all cached_property at a barrier."""
 
     @wraps(prop)
     def wrapper(self) -> Any:
-        """Synchronize all processors at a barrier."""
-        result = prop.fget(self)
+        """Synchronize all cached_property at a barrier."""
+        result = prop.func(self)
         self.mpi_config.comm.barrier()
         return result
 
-    return property(wrapper)
+    return cached_property(wrapper)
 
 
 def scatter(prop) -> Any:
-    """Scatter the output of a function to all processors."""
+    """Scatter the output of a cached_property to all processors."""
 
     @wraps(prop)
     def wrapper(self) -> Any:
-        """Scatter the output of a function to all processors."""
+        """Scatter the output of a cached_property to all processors."""
         try:
-            var, name, config_options, post_slice = prop.fget(self)
+            var, name, config_options, post_slice = prop.func(self)
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
                 return var[:, :]
@@ -93,7 +93,7 @@ def scatter(prop) -> Any:
             log_critical(self.config_options, self.mpi_config)
             raise e
 
-    return property(wrapper)
+    return cached_property(wrapper)
 
 
 class GeoMeta:
