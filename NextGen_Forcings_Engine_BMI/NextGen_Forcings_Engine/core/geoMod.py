@@ -156,7 +156,7 @@ class GeoMeta:
 
     def ncattrs(self, var: str) -> list:
         """Extract variable attribute names from the geospatial metadata file."""
-        return self.get_esmf_var(var).ncattrs()
+        return self.get_esmf_var(var).attrs
 
     def get_var(self, ds: xr.Dataset, var: str) -> xr.DataArray:
         """Get a variable from a xr.Dataset."""
@@ -178,57 +178,21 @@ class GeoMeta:
 
     @cached_property
     @set_none
-    def _crs_att_names(self) -> list:
-        """Extract crs attribute names from the geospatial metadata file."""
-        return self.ncattrs("crs")
-
-    @cached_property
-    @set_none
-    def _x_coord_att_names(self) -> list:
-        """Extract x coordinate attribute names from the geospatial metadata file."""
-        return self.ncattrs("x")
-
-    @cached_property
-    @set_none
-    def _y_coord_att_names(self) -> list:
-        """Extract y coordinate attribute names from the geospatial metadata file."""
-        return self.ncattrs("y")
-
-    def getncattr(self, var: str) -> dict:
-        """Extract variable attribute values from the geospatial metadata file."""
-        return {
-            item: self.get_esmf_var(var).getncattr(item) for item in self.ncattrs(var)
-        }
-
-    @cached_property
-    @set_none
     def x_coord_atts(self) -> dict:
         """Extract x coordinate attribute values from the geospatial metadata file."""
-        return self.getncattr("x")
+        return self.ncattrs("x")
 
     @cached_property
     @set_none
     def y_coord_atts(self) -> dict:
         """Extract y coordinate attribute values from the geospatial metadata file."""
-        return self.getncattr("y")
+        return self.ncattrs("y")
 
     @cached_property
     @set_none
     def crs_atts(self) -> dict:
         """Extract crs coordinate attribute values from the geospatial metadata file."""
-        return self.getncattr("crs")
-
-    @cached_property
-    @set_none
-    def _global_att_names(self) -> list:
-        """Extract global attribute values from the geospatial metadata file."""
-        if self.mpi_config.rank == 0:
-            try:
-                return self.esmf_ds.ncattrs()
-            except Exception as e:
-                self.config_options.errMsg = f"Unable to extract global attribute names from: {self.config_options.spatial_meta}"
-                log_critical(self.config_options, self.mpi_config)
-                raise e
+        return self.ncattrs("crs")
 
     @cached_property
     @set_none
@@ -236,10 +200,7 @@ class GeoMeta:
         """Extract global attribute values from the geospatial metadata file."""
         if self.mpi_config.rank == 0:
             try:
-                return {
-                    item: self.esmf_ds.getncattr(item)
-                    for item in self._global_att_names
-                }
+                return self.esmf_ds.attrs
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract global attributes from: {self.config_options.spatial_meta}"
                 log_critical(self.config_options, self.mpi_config)
