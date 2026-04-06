@@ -838,14 +838,12 @@ class HydrofabricGeoMeta(GeoMeta):
         """Get the global element coordinates for the hydrofabric domain."""
         return self.get_geogrid_var(self.config_options.elemcoords_var).values
 
-    @barrier
     @broadcast
     @cached_property
     def nx_global(self) -> int:
         """Get the global x dimension size for the hydrofabric domain."""
         return self.elementcoords_global.shape[0]
 
-    @barrier
     @broadcast
     @cached_property
     def ny_global(self) -> int:
