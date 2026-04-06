@@ -1729,18 +1729,18 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         # Flag here to indicate whether or not the NWM operational configuration
         # will support a BMI field for liquid fraction of precipitation
         if self._job_meta.include_lqfrac == 1:
-            output_var_names_position1 = ["LQFRAC_ELEMENT"]
+            output_var_names_position1 = ["LQFRAC_NODE"]
+            output_var_names_position3 = ["LQFRAC_ELEMENT"]
             var_name_units_map_position1 = {
-                "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
+                "LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]
             }
             var_name_units_map_position3 = {
-                "LQFRAC_NODE": ["Liquid Fraction of Precipitation", "%"]
+                "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
             }
             grid_map_position1 = {"LQFRAC_ELEMENT": self.grid_2}
             grid_map_position3 = {"LQFRAC_NODE": self.grid_3}
 
         else:
-            output_var_names_position1 = []
             (
                 output_var_names_position1,
                 var_name_units_map_position1,
@@ -1750,14 +1750,15 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
             ) = [[]] + [{}] * 4
 
         self._output_var_names = (
-            BMI_MODEL["_output_var_names"]
+            BMI_MODEL["_output_var_names_unstructured"]
             + output_var_names_position1
-            + BMI_MODEL["_output_var_names_unstructured"]
+            + BMI_MODEL["_output_var_names"]
+            + output_var_names_position3
         )
         self._var_name_units_map = (
-            BMI_MODEL["_var_name_units_map"]
+            BMI_MODEL["_var_name_units_map_unstructured"]
             | var_name_units_map_position1
-            | BMI_MODEL["_output_var_names_unstructured"]
+            | BMI_MODEL["_var_name_units_map"]
             | var_name_units_map_position3
         )
         self._grid_map = (

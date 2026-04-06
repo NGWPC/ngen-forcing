@@ -95,7 +95,6 @@ BMI_MODEL = {
         "Q2D_NODE",
         "PSFC_NODE",
         "RAINRATE_NODE",
-        "LQFRAC_NODE",
     ],
     "_var_name_units_map": {
         "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
