@@ -87,7 +87,7 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
     # greater than an expected value. However, since these are custom input NetCDF files,
     # we are foregoing that check.
     current_nldas_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.userCycleOffset * 60.0
+        seconds=input_forcings.fcst_input_offsets * 60.0
     )
 
     # Calculate the current forecast hour within this cycle.
@@ -412,8 +412,12 @@ def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
     :return:
     """
     # Point to ERA5 netcdf input file
-    tmp_file1 = os.path.join(input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0])
-    tmp_file2 = os.path.join(input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0])
+    tmp_file1 = os.path.join(
+        input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0]
+    )
+    tmp_file2 = os.path.join(
+        input_forcings.input_force_dirs, os.listdir(input_forcings.input_force_dirs)[0]
+    )
 
     if mpi_config.rank == 0:
         # Check to see if files are already set. If not, then reset, grids and
@@ -691,7 +695,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     # First find the current ExtAnA forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_ext_ana_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
+        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
     )
 
     ext_ana_horizon = 32
@@ -699,7 +703,7 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
     ) / 60.0 > ext_ana_horizon:
         config_options.errMsg = (
             "User has specified a ExtAnA conus forecast horizon "
@@ -892,7 +896,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     # First find the current HRRR forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_hrrr_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
+        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
     )
     if current_hrrr_cycle.hour % 6 != 0:
         hrrr_horizon = default_horizon
@@ -902,7 +906,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
     ) / 60.0 > hrrr_horizon:
         config_options.errMsg = (
             "User has specified a HRRR conus forecast horizon "
@@ -1289,7 +1293,7 @@ def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config
     else:
         current_hrrr_cycle = (
             config_options.current_fcst_cycle
-        )  # - datetime.timedelta(seconds=input_forcings.userCycleOffset * 60.0)
+        )  # - datetime.timedelta(seconds=input_forcings.fcst_input_offsets * 60.0)
 
         # Map the native forecast hour to the shifted HRRR cycles
         hrrr_cycle = (current_hrrr_cycle.hour // 3 * 3) - 3
@@ -1502,7 +1506,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     # First find the current RAP forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_rap_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0
+        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
     )
     if (
         current_rap_cycle.hour == 3
@@ -1517,7 +1521,7 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     # If the user has specified a forcing horizon that is greater than what is available
     # for this time period, throw an error.
     if (
-        input_forcings.userFcstHorizon + input_forcings.userCycleOffset
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
     ) / 60.0 > rap_horizon:
         config_options.errMsg = (
             "User has specified a RAP CONUS 13km forecast horizon "
@@ -1752,9 +1756,9 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     gfs_precip_delineators = {120: [360, 60], 240: [360, 180], 384: [360, 180]}
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
-        gfs_out_horizons
-    ):
+    if (
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+    ) / 60.0 > max(gfs_out_horizons):
         config_options.errMsg = (
             "User has specified a GFS forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -1773,7 +1777,7 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # First find the current GFS forecast cycle that we are using.
     current_gfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.userCycleOffset * 60.0
+        seconds=input_forcings.fcst_input_offsets * 60.0
     )
 
     # Calculate the current forecast hour within this GFS cycle.
@@ -2066,9 +2070,9 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
 
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
-        nam_nest_out_horizons
-    ):
+    if (
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+    ) / 60.0 > max(nam_nest_out_horizons):
         config_options.errMsg = (
             "User has specified a NAM nest forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -2087,7 +2091,7 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
 
     else:
         current_nam_nest_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-            seconds=input_forcings.userCycleOffset * 60.0
+            seconds=input_forcings.fcst_input_offsets * 60.0
         )
 
     if mpi_config.rank == 0:
@@ -2306,9 +2310,9 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # If the user has specified a forcing horizon that is greater than what
     # is available here, return an error.
-    if (input_forcings.userFcstHorizon + input_forcings.userCycleOffset) / 60.0 > max(
-        cfs_out_horizons
-    ):
+    if (
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+    ) / 60.0 > max(cfs_out_horizons):
         config_options.errMsg = (
             "User has specified a CFSv2 forecast horizon "
             "that is greater than maximum allowed hours of: "
@@ -2318,7 +2322,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     # First find the current CFS forecast cycle that we are using.
     current_cfs_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.userCycleOffset * 60.0
+        seconds=input_forcings.fcst_input_offsets * 60.0
     )
 
     # Calculate the current forecast hour within this CFSv2 cycle.
@@ -2362,7 +2366,7 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
         prev_cfs_date = next_cfs_date
 
     # Calculate expected file paths.
-    if input_forcings.file_type == "GRIB2":
+    if input_forcings.input_force_types == "GRIB2":
         input_forcings.file_ext = ".grb2"
 
     tmp_file1 = (
@@ -2522,7 +2526,7 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
     # greater than an expected value. However, since these are custom input NetCDF files,
     # we are foregoing that check.
     current_custom_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=input_forcings.userCycleOffset * 60.0
+        seconds=input_forcings.fcst_input_offsets * 60.0
     )
 
     # Calculate the current forecast hour within this cycle.
@@ -4632,7 +4636,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     # ana_offset = 0
 
     current_input_cycle = config_options.current_fcst_cycle - datetime.timedelta(
-        seconds=(ana_offset + input_forcings.userCycleOffset) * 60.0 * 60
+        seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0 * 60
     )
 
     input_horizon = input_forcings.forecast_horizons[current_input_cycle.hour]
@@ -4642,7 +4646,7 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
     if not config_options.ana_flag:
         if (
-            input_forcings.userFcstHorizon + input_forcings.userCycleOffset
+            input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
         ) / 60.0 > input_horizon:
             config_options.errMsg = f"Config file ForecastInputHorizons exceeds maximum allowed hours of: {str(input_horizon)}"
             err_handler.log_critical(config_options, mpi_config)

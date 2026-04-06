@@ -12,6 +12,7 @@ from functools import partial
 from pathlib import Path
 from time import monotonic, time
 from typing import TYPE_CHECKING
+
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
 # /usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/libesmf_fullylinked.so(get_geom+0x36)
@@ -41,6 +42,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     ioMod,
     timeInterpMod,
 )
+
 if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
         ConfigOptions,
@@ -48,7 +50,9 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
         GeoMeta,
     )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+        MpiConfig,
+    )
 from nextgen_forcings_ewts import MODULE_NAME
 
 from ..esmf_utils import (
@@ -1537,7 +1541,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         pt.log_info("Regrid CONUS HRRR")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
@@ -2336,7 +2340,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     id_tmp = None
     try:
         pt.log_info("Regrid CONUS RAP")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -3137,7 +3141,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     id_tmp = None
     try:
         pt.log_info("Regrid CFSv2")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -5930,7 +5934,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     try:
         pt.log_info("Regridding 13km GFS Variables.")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0 and os.path.isfile(input_forcings.tmpFile):
@@ -6690,7 +6694,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     id_tmp = None
     try:
         pt.log_info("Regridding NAM nest data")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
@@ -8472,7 +8476,7 @@ def regrid_hourly_wrf_arw(
     try:
         pt.log_info("Regrid WRF-ARW nest data")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             # This file shouldn't exist.... but if it does (previously failed
             # execution of the program), remove it.....
             if mpi_config.rank == 0:
