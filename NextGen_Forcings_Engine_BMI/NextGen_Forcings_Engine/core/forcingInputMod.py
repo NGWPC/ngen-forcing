@@ -96,7 +96,11 @@ class InputForcings:
         Check if the attibute allready exists before setting.
         """
         for key, val in list(vars(self.config_options).items()):
-            if isinstance(val, list) and len(val) > 0:
+            if (
+                isinstance(val, list)
+                and len(val) > 0
+                and key in FORCINGINPUTMOD["config_vars_for_mapping"]
+            ):
                 if hasattr(self, key):
                     raise ValueError(f"Attribute {key} has already been set.")
                 setattr(self, key, val[self.idx])
