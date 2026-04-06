@@ -802,7 +802,7 @@ class GriddedGeoMeta(GeoMeta):
         try:
             return self.check_grid(self.hgt_var[0, :, :])
         except Exception as e:
-            self.config_options.errMsg = f"Unable to extract {self.congi_options.hgt_var} from: {self.config_options.geogrid}"
+            self.config_options.errMsg = f"Unable to extract {self.config_options.hgt_var} from: {self.config_options.geogrid}"
             log_critical(self.config_options, self.mpi_config)
             raise e
 
