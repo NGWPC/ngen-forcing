@@ -839,8 +839,9 @@ class HydrofabricGeoMeta(GeoMeta):
 
     def get_bound(self, dim: int) -> np.ndarray:
         """Get the longitude or latitude bounds for the hydrofabric domain."""
-        if self.config_options.aws:
-            return self.get_geogrid_var(self.config_options.nodecoords_var)[:, dim]
+        if self.mpi_config.rank == 0:
+            if self.config_options.aws:
+                return self.get_geogrid_var(self.config_options.nodecoords_var)[:, dim]
 
     @broadcast
     @cached_property
