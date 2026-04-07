@@ -238,15 +238,19 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
             self._job_meta.nwmConfig = self.cfg_bmi["NWM_CONFIG"]
 
         # Initialize MPI communication
-        self._mpi_meta = MpiConfig()
+        self._mpi_meta = MpiConfig(self._job_meta)
 
         self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
 
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
-            self._mpi_meta.initialize_comm(self._job_meta, comm=comm)
+            self._mpi_meta.initialize_comm(comm=comm)
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
+
+        ### Reassign the scratch dir to a new child dir of the current scratch dir,
+        ### applying uniqueness to the final path. This must be called by all ranks, once.
+        self._job_meta.uniquefy_scratch_dir_as_child(self._mpi_meta.uid64)
 
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
@@ -484,6 +488,10 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :return: None
 
         """
+        err_handler.log_msg(
+            self._job_meta, self._mpi_meta, True, "Starting BMI finalize()"
+        )
+
         # Force destruction of ESMF objects
         self.geo_meta = None
         self._input_forcing_mod = None
@@ -498,20 +506,6 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         # the job, and let the workflow clean them up after the
         # process exits
         gc.collect()  # make sure objects are deleted from memory
-        if self._mpi_meta.rank == 0:
-            for filename in os.listdir(self._job_meta.scratch_dir):
-                # NFS mounts may create temporary files to facilitate read-after-delete functionality on linux systems
-                # these will be cleaned when the mount is removed but will throw an error if python tries to remove it
-                # the file name is typically ".nfs" followed by numbers, so we'll just ignore files that start with it
-                if not filename.startswith(".nfs"):
-                    file_path = os.path.join(self._job_meta.scratch_dir, filename)
-                    if (
-                        os.path.isfile(file_path)
-                        and filename[0:23] != "NextGen_Forcings_Engine"
-                    ):
-                        os.remove(file_path)
-                    elif os.path.isdir(file_path):
-                        os.rmdir(file_path)
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------

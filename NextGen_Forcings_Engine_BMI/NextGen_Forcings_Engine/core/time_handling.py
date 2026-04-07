@@ -251,6 +251,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     :param mpi_config:
     :return:
     """
+    #TODO: Clean up grib2 existence check. Possibly by altering filename constructor. 
     if input_forcings.product_name == "AORC":
         # Calculate expected file paths.
         if d_current.year > 2019:
@@ -953,6 +954,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
         input_forcings.input_force_dirs
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/conus"
         + "/hrrr.t"
         + current_hrrr_cycle.strftime("%H")
         + "z.wrfsfcf"
@@ -967,6 +969,7 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
         input_forcings.input_force_dirs
         + "/hrrr."
         + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/conus"
         + "/hrrr.t"
         + current_hrrr_cycle.strftime("%H")
         + "z.wrfsfcf"

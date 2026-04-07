@@ -1,26 +1,32 @@
 # syntax=docker/dockerfile:1.7-labs
 
 ARG TARGETPLATFORM=linux/amd64
-ARG SFINCS_CPU_IMAGE_TAG=latest
-ARG BASE_IMAGE_NAME="deltares/sfincs-cpu:${SFINCS_CPU_IMAGE_TAG}"
+ARG SFINCS_BASE_REPO=deltares/sfincs-cpu
+ARG SFINCS_BASE_TAG=latest
 
-FROM --platform=$TARGETPLATFORM ${BASE_IMAGE_NAME}
+FROM --platform=$TARGETPLATFORM ${SFINCS_BASE_REPO}:${SFINCS_BASE_TAG}
 
 # OCI Metadata Arguments
-ARG BASE_IMAGE_NAME
+ARG SFINCS_BASE_REPO
+ARG SFINCS_BASE_TAG
+ARG SFINCS_BASE_NAME="${SFINCS_BASE_REPO}:${SFINCS_BASE_TAG}"
+ARG SFINCS_BASE_DIGEST="unknown"
+ARG SFINCS_BASE_REVISION="unknown"
 ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_VENDOR="unknown"
 ARG IMAGE_VERSION="unknown"
 ARG IMAGE_REVISION="unknown"
-ARG IMAGE_CREATED="unknown"
 
 # OCI Standard Labels
-LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
+LABEL org.opencontainers.image.base.name="${SFINCS_BASE_NAME}" \
+  org.opencontainers.image.base.digest="${SFINCS_BASE_DIGEST}" \
+  io.ngwpc.image.base.revision="${SFINCS_BASE_REVISION}" \
     org.opencontainers.image.source="${IMAGE_SOURCE}" \
     org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
     org.opencontainers.image.version="${IMAGE_VERSION}" \
     org.opencontainers.image.revision="${IMAGE_REVISION}" \
-    org.opencontainers.image.created="${IMAGE_CREATED}"
+    org.opencontainers.image.title="NGEN SFINCS Forcing" \
+    org.opencontainers.image.description="Docker image for the NGEN SFINCS Forcings application"
 
 ENV PYTHON_VERSION=3.11
 ENV MINICONDA_VERSION="latest"

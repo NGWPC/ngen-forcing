@@ -4,10 +4,11 @@ import datetime
 import logging
 import os
 import re
+import typing
 from contextlib import contextmanager
 from datetime import timedelta
-from functools import lru_cache
-from time import time
+from functools import cached_property
+from time import perf_counter
 
 import dask
 import geopandas as gpd
@@ -19,7 +20,6 @@ import s3fs
 import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
-from mpi4py.futures import MPICommExecutor
 from pyproj import CRS
 from zarr.storage import ObjectStore
 
@@ -49,8 +49,7 @@ class BaseProcessor:
         self.dest_crs = CRS(4326)
         self.buffer = 0.02  # degree buffer around bounding box
 
-    @property
-    @lru_cache
+    @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
@@ -84,17 +83,21 @@ class BaseProcessor:
         return self.bounds[3]
 
     @contextmanager
-    def timing_block(self, step_str: str):
+    def timing_block(self, step_str: str, log_callable: typing.Callable = LOG.debug):
         """Context manager for timing code execution.
 
         Args:
             step_str: Description of the step being timed.
+            log_callable: Callable used for sending the log message. Defaults to LOG.debug.
 
         """
-        start = time()
+        start = perf_counter()
+        log_callable(f"  Starting {step_str}")
         yield
-        end = time()
-        LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+        end = perf_counter()
+        log_callable(
+            f"  Execution time for {step_str}: {round(end - start, 2)} seconds"
+        )
 
     @property
     def time_min(self) -> np.datetime64:
@@ -170,14 +173,19 @@ class BaseProcessor:
             end_date = end
         return start_date, end_date
 
-    @property
+    @cached_property
     def start_end_datetimes(self) -> dict[pd.Timestamp, pd.Timestamp]:
-        """Generate dictioanry of start and end dates for caching.
+        """Generate dictionary of start and end dates for caching.
 
         If the cache size exceeds the year boundary, it will create multiple
         start and end date pairs for each year. Otherwise, it will create
         start and end date pairs based on the cache size.
          :return: Dictionary of start and end dates as pd.Timestamp
+
+         TODO for lru_cache / cached_property safety, confirm or enforce that these are never mutated:
+            self.config_options.b_date_proc
+            self.config_options.fcst_input_horizons
+            self.config_options.fcst_freq
         """
         start_end_datetimes = {}
         for start, end in self.year_start_stop_dict.values():
@@ -213,8 +221,12 @@ class BaseProcessor:
             raise IndexError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
             )
-        ds = self.computed_ds.sel(time=self.current_time)
-
+        try:
+            ds = self.computed_ds.sel(time=self.current_time)
+        except KeyError:
+            raise KeyError(
+                f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
+            )
         # if self.mpi_config.rank == 0:
         #     self.plot_precip(ds)
         # self.write_sum_tif(self.computed_ds)
@@ -223,19 +235,16 @@ class BaseProcessor:
     def compute_ds(self) -> xr.Dataset:
         """Materialize lazy dask arrays into memory."""
         ds = None
-        with self.timing_block("computing dataset"):
-            with MPICommExecutor(comm=self.mpi_config.comm, root=0) as executor:
-                with dask.config.set(scheduler=executor):
-                    if self.mpi_config.rank == 0:
-                        ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
+        if self.mpi_config.rank == 0:
+            with self.timing_block("computing dataset", LOG.info):
+                ds = self.sliced_ds.compute().rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
             ds.to_netcdf(self.nc_path)
         return ds
 
-    @property
-    @lru_cache
+    @cached_property
     def gdf(self) -> gpd.GeoDataFrame:
         """Load and cache the geospatial dataframe."""
         gdf = gpd.read_file(self.config_options.geopackage, layer="divides")
@@ -258,14 +267,12 @@ class BaseProcessor:
             f"{self.precip_variable}_sum.tif"
         )
 
-    @property
-    @lru_cache
+    @cached_property
     def number_of_catchments(self) -> int:
         """Return number of catchments in the geospatial dataframe."""
         return len(self.gdf)
 
-    @property
-    @lru_cache
+    @cached_property
     def cache_size(self) -> np.timedelta64:
         """Determine cache size based on number of catchments.
 
@@ -285,6 +292,14 @@ class BaseProcessor:
         :return: Sliced Dataset
         """
         with self.timing_block("slicing dataset"):
+            if self.current_time not in ds.time.values:
+                raise IndexError(
+                    f"The time provided is not in the dataset: {self.current_time}"
+                )
+            if self.end_time_datetime not in ds.time.values:
+                raise IndexError(
+                    f"The time provided is not in the dataset: {self.end_time_datetime}"
+                )
             sliced_ds = ds.sel(
                 {
                     self.x_label: slice(self.reprojected_xmin, self.reprojected_xmax),
@@ -323,8 +338,7 @@ class AORCConusProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -366,8 +380,7 @@ class AORCConusProcessor(BaseProcessor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
         """Lazy load dataset from S3."""
         year_datasets = {}
@@ -395,8 +408,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self):
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -508,8 +520,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
 
         return url
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(
@@ -538,8 +549,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
             {self.x_label: "x", self.y_label: "y"}
         )
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
         """Lazy load dataset from S3."""
         variables = {}
@@ -561,8 +571,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    @property
-    @lru_cache
+    @cached_property
     def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
@@ -575,8 +584,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
 
         return url
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         object_store = obstore.store.from_url(self.url, skip_signature=True)
@@ -604,8 +612,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> xr.Dataset:
         """Lazy load dataset from S3."""
         object_store = obstore.store.from_url(self.url, skip_signature=True)
@@ -624,8 +631,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         """Initialize NWM OCONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
 
-    @property
-    @lru_cache
+    @cached_property
     def url(self) -> str:
         """Generate NWM S3 zarr URL.
 
@@ -660,8 +666,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
             )
             raise e
 
-    @property
-    @lru_cache
+    @cached_property
     def src_crs(self) -> CRS:
         """Get source CRS from dataset."""
         return self.geo_grid["crs"].attrs["spatial_ref"]
@@ -674,8 +679,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         return geo_grid
 
-    @property
-    @lru_cache
+    @cached_property
     def s3_lazy_ds(self) -> xr.Dataset:
         """Lazy load dataset from S3 with coordinates assigned.
 

@@ -39,6 +39,8 @@ from .constants import (
     LOG_DIR_NGENCERF,
     LOG_FILE_EXT,
 )
+from .helper import getenv_any
+
 
 def create_timestamp(date_only=False, iso=False, append_ms=False):
     now = datetime.now(timezone.utc)
@@ -67,12 +69,12 @@ def get_log_file_path():
     moduleLogFileExists = False
 
      # Determine if a log file has laready been opened for this module (either the ngen log or default)
-    moduleEnvVar = os.getenv(EV_MODULE_LOGFILEPATH, "")
+    moduleEnvVar = getenv_any(EV_MODULE_LOGFILEPATH, "").strip()
     if moduleEnvVar:
         logFilePath = moduleEnvVar
         moduleLogFileExists = True
     else:
-        ngenEnvVar = os.getenv(EV_NGEN_LOGFILEPATH, "")
+        ngenEnvVar = getenv_any(EV_NGEN_LOGFILEPATH, "").strip()
         if ngenEnvVar:
             logFilePath = ngenEnvVar
         else:
