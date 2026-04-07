@@ -63,7 +63,8 @@ from ..esmf_utils import (
     esmf_regridobj_call_retry,
 )
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
@@ -1489,7 +1490,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         pt.log_info("Regrid CONUS HRRR")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             # Build GRIB2 to NetCDF conversion
@@ -2257,7 +2258,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     id_tmp = None
     try:
         pt.log_info("Regrid CONUS RAP")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -3028,7 +3029,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     id_tmp = None
     try:
         pt.log_info("Regrid CFSv2")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -5757,7 +5758,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     try:
         pt.log_info("Regridding 13km GFS Variables.")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -6485,7 +6486,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     id_tmp = None
     try:
         pt.log_info("Regridding NAM nest data")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -8215,7 +8216,7 @@ def regrid_hourly_wrf_arw(
     try:
         pt.log_info("Regrid WRF-ARW nest data")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
