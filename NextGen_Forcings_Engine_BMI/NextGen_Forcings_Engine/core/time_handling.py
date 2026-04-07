@@ -1,5 +1,7 @@
 # This is a datetime module for handling datetime
 # calculations in the forcing engine.
+from __future__ import annotations
+
 import datetime
 import glob
 import math
