@@ -45,6 +45,21 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
+def class_to_dict(class_to_convert: typing.Any):
+    """Get the attributes of the test class as a dictionary, where the keys are the attribute names and the values are the attribute values.
+
+    This is useful for serializing the test class to JSON for comparison against expected results.
+    """
+    data = {}
+    # parrent_class_dict=self.test_class.__class__.__base__.__dict__
+    # child_class_dict=self.test_class.__class__.__dict__
+    for key in dir(class_to_convert):
+        val = getattr(class_to_convert, key)
+        if not callable(val) and not key.startswith("_"):
+            data[key] = val
+    return data
+
+
 def copy_and_stringify_functions(d):
     """Copy dict and stringify functions in the dict."""
     new_dict = {}
@@ -293,14 +308,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
         This is useful for serializing the test class to JSON for comparison against expected results.
         """
-        data = {}
-        # parrent_class_dict=self.test_class.__class__.__base__.__dict__
-        # child_class_dict=self.test_class.__class__.__dict__
-        for key in dir(self.test_class):
-            val = getattr(self.test_class, key)
-            if not callable(val) and not key.startswith("_"):
-                data[key] = val
-        return data
+        return class_to_dict(self.test_class)
 
     def after_bmi_model_update(self, current_output_step: int) -> None:
         """Run checks after bmi_model.update() has been called.
@@ -625,7 +633,9 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
 
         """
         ### This is returned after being modified.
-        input_forcings_deserial = json.loads(serialize_to_json(input_forcings))
+        input_forcings_deserial = json.loads(
+            serialize_to_json(class_to_dict(input_forcings))
+        )
         ### e.g. ['TMP_2maboveground', 'SPFH_2maboveground', 'UGRD_10maboveground', 'VGRD_10maboveground', 'APCP_surface', 'DSWRF_surface', 'DLWRF_surface', 'PRES_surface']
         netcdf_var_names = input_forcings.netcdf_var_names
         ### e.g. ['TMP', 'SPFH', 'UGRD', 'VGRD', 'APCP', 'DSWRF', 'DLWRF', 'PRES']
