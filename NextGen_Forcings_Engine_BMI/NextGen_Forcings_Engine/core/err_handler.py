@@ -1,13 +1,14 @@
+import logging
 import os
 import sys
 import traceback
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 import numpy as np
 from mpi4py import MPI
 from scipy import spatial
 
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
@@ -120,7 +121,6 @@ def check_program_status(
     # their error flag, since non-0 ranks do not block on reduce().
     # MpiConfig.comm.barrier()
 
-
 def err_out(ConfigOptions):
     """Error out after an error message has been logged for a forecast cycle.
 
@@ -133,7 +133,9 @@ def err_out(ConfigOptions):
     try:
         LOG.error(ConfigOptions.errMsg)
     except Exception:
-        ConfigOptions.errMsg = "Unable to write error message"
+        ConfigOptions.errMsg = (
+            "Unable to write error message"
+        )
         raise Exception()
     MPI.Finalize()
     sys.exit(1)
@@ -158,7 +160,10 @@ def log_error(ConfigOptions, MpiConfig, msg: str = None):
         LOG.error("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
     except Exception:
         err_out_screen_para(
-            ("Unable to write ERROR message on RANK: " + str(MpiConfig.rank)),
+            (
+                "Unable to write ERROR message on RANK: "
+                + str(MpiConfig.rank)
+            ),
             MpiConfig,
         )
     ConfigOptions.errFlag = 1
@@ -182,7 +187,10 @@ def log_critical(ConfigOptions, MpiConfig, msg: str = None):
         LOG.critical("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
     except Exception:
         err_out_screen_para(
-            ("Unable to write CRITICAL message on RANK: " + str(MpiConfig.rank)),
+            (
+                "Unable to write CRITICAL message on RANK: "
+                + str(MpiConfig.rank)
+            ),
             MpiConfig,
         )
 
@@ -210,7 +218,10 @@ def log_warning(ConfigOptions, MpiConfig, msg: str = None):
         LOG.warning("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
     except Exception:
         err_out_screen_para(
-            ("Unable to write WARNING message on RANK: " + str(MpiConfig.rank)),
+            (
+                "Unable to write WARNING message on RANK: "
+                + str(MpiConfig.rank)
+            ),
             MpiConfig,
         )
 
@@ -224,7 +235,7 @@ def log_msg(ConfigOptions, MpiConfig, debug: bool = False, msg: str = None):
     """
     if not isinstance(debug, bool):
         raise TypeError(f"Expected type bool for debug, got type: {type(debug)}")
-
+    
     if msg is not None:
         if not isinstance(msg, str):
             raise TypeError(
@@ -239,7 +250,10 @@ def log_msg(ConfigOptions, MpiConfig, debug: bool = False, msg: str = None):
             LOG.info("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
     except Exception:
         err_out_screen_para(
-            ("Unable to write log_msg message on RANK: " + str(MpiConfig.rank)),
+            (
+                "Unable to write log_msg message on RANK: "
+                + str(MpiConfig.rank)
+            ),
             MpiConfig,
         )
 

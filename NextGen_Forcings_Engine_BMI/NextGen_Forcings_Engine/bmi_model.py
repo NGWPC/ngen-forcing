@@ -61,12 +61,14 @@ from typing import Any
 
 from numpy.typing import NDArray
 
+LOG = ewts.get_logger(ewts.FORCING_ID)
+
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 
 class UnknownBMIVariable(RuntimeError):
@@ -184,6 +186,9 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+        # This is required prior to the first log message.
+        LOG.bind()
+
         LOG.info("---------------------------")
         LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 

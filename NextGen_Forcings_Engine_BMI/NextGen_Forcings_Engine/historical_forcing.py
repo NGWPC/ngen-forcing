@@ -8,6 +8,7 @@ from datetime import timedelta
 from functools import cached_property
 from time import perf_counter
 
+import ewts
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -25,10 +26,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
-zarr.config.set({"async.concurrency": 100})
-import ewts
-
 LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG.bind()
+
+zarr.config.set({"async.concurrency": 100})
 
 
 class BaseProcessor:
