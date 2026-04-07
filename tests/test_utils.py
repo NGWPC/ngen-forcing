@@ -3,15 +3,9 @@
 import json
 import logging
 import os
-import types
 import typing
 from collections import OrderedDict
 from dataclasses import dataclass
-from pathlib import Path
-
-import numpy as np
-import pytest
-import shapely
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
     NWMv3_Forcing_Engine_BMI_model,
@@ -19,12 +13,12 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import CONSTS
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import TEST_UTILS
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
     InputForcings,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
@@ -33,9 +27,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     assert_equal_with_tol,
     serialize_to_json,
 )
-
-INPUT_FORCING_CONSTS = CONSTS["forcingInputMod"]
-CONSTS = CONSTS[Path(__file__).stem]
 
 try:
     import esmpy as ESMF
@@ -186,7 +177,7 @@ class BMIForcingFixture:
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model = bmi_model
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
-        self.geo_meta: GeoMetaWrfHydro = bmi_model._wrf_hydro_geo_meta
+        self.geo_meta: GeoMeta = bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
 
@@ -278,8 +269,8 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         """Map old variable names to new variable names in the expected results data."""
         data_new_keys = {}
         for key, val in data.items():
-            if key in CONSTS["OLD_NEW_VAR_MAP"].keys():
-                data_new_keys[CONSTS["OLD_NEW_VAR_MAP"][key]] = val
+            if key in TEST_UTILS["OLD_NEW_VAR_MAP"].keys():
+                data_new_keys[TEST_UTILS["OLD_NEW_VAR_MAP"][key]] = val
             else:
                 data_new_keys[key] = val
         return data_new_keys
