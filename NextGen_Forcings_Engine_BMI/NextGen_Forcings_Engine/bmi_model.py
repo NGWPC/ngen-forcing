@@ -9,6 +9,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 
+import ewts
 import netCDF4 as nc
 
 # import data_tools
@@ -64,14 +65,8 @@ from numpy.typing import NDArray
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
-import logging
 
-from nextgen_forcings_ewts import MODULE_NAME, configure_logging
-
-configure_logging()
-
-
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class UnknownBMIVariable(RuntimeError):

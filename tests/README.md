@@ -34,7 +34,6 @@ The test suite is organized into the following modules:
 - **`esmf_regrid/`** - Tests for ESMF regridding functionality
 - **`geomod/`** - Tests for geomod components
 - **`input_forcing/`** - Tests for input forcing data processing
-- **`nextgen_forcings_ewts/`** - Tests for EWTS (Error, Warning, and Trapping System) forcings
 - **`test_utils.py`** - Shared test utilities and fixtures
 - **`conftest.py`** - Pytest configuration and shared fixtures
 

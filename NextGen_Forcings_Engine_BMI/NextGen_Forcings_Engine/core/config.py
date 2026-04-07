@@ -1,11 +1,10 @@
 import configparser
 import json
-import logging
-import re
 import os
+import re
 from datetime import datetime, timedelta, timezone
-import uuid
 
+import ewts
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
@@ -14,13 +13,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling import (
     calculate_lookback_window,
 )
-from nextgen_forcings_ewts import MODULE_NAME
-
 
 from . import mpi_utils
 
-LOG = logging.getLogger(MODULE_NAME)
-
+LOG = ewts.get_logger(ewts.FORCING_ID)
 FORCE_COUNT = 27
 
 

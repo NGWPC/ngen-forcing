@@ -1,9 +1,9 @@
 import datetime
-import logging
 import os
 from contextlib import contextmanager
 from time import time
 
+import ewts
 import numpy as np
 import pandas as pd
 
@@ -29,9 +29,8 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
-from nextgen_forcings_ewts import MODULE_NAME
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 @contextmanager

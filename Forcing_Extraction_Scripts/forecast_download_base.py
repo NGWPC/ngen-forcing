@@ -1,5 +1,4 @@
 import argparse
-import logging
 import os
 import shutil
 import time
@@ -11,13 +10,9 @@ from urllib import request, error
 import requests
 from bs4 import BeautifulSoup
 
-from nextgen_forcings_ewts import MODULE_NAME
-
-LOG = logging.getLogger(MODULE_NAME)
-if not LOG.handlers:
-    # No handlers attached — fallback to default root logger
-    logging.basicConfig()
-    LOG = logging.getLogger()
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class ForecastDownloader(ABC):

@@ -28,8 +28,6 @@ try:
 except ImportError:
     import ESMF
 
-import logging
-
 import dask
 import dask.delayed
 import netCDF4 as nc
@@ -53,7 +51,8 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
-from nextgen_forcings_ewts import MODULE_NAME
+
+import ewts
 
 from ..esmf_utils import (
     esmf_field_retry,

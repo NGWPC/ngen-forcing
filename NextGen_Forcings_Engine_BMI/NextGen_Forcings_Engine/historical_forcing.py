@@ -1,16 +1,13 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
-import logging
 import os
-import re
 import typing
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import cached_property
 from time import perf_counter
 
-import dask
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,10 +24,11 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
 
 zarr.config.set({"async.concurrency": 100})
-LOG = logging.getLogger(MODULE_NAME)
+import ewts
+
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class BaseProcessor:

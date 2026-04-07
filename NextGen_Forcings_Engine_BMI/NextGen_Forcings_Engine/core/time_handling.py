@@ -2,18 +2,17 @@
 # calculations in the forcing engine.
 import datetime
 import glob
-import logging
 import math
 import os
 
+import ewts
 import numpy as np
 import pandas as pd
 
-from nextgen_forcings_ewts import MODULE_NAME
-
 from . import err_handler
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 NETCDF = "NETCDF"
 
@@ -251,7 +250,7 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     :param mpi_config:
     :return:
     """
-    #TODO: Clean up grib2 existence check. Possibly by altering filename constructor. 
+    # TODO: Clean up grib2 existence check. Possibly by altering filename constructor.
     if input_forcings.product_name == "AORC":
         # Calculate expected file paths.
         if d_current.year > 2019:

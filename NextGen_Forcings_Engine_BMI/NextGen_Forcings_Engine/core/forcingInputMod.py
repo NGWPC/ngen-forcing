@@ -6,7 +6,6 @@ initializing ESMF grids and regrid objects), etc
 
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -25,9 +24,9 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
-from nextgen_forcings_ewts import MODULE_NAME
+import ewts
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class InputForcings:

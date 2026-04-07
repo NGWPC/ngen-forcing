@@ -15,10 +15,10 @@ try:
 except ImportError:
     import ESMF
 
-import logging
 from functools import cached_property, wraps
 from typing import Any
 
+import ewts
 import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -29,9 +29,8 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
     log_critical,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from nextgen_forcings_ewts import MODULE_NAME
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 def set_none(func) -> Any:
