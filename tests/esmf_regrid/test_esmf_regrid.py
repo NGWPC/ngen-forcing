@@ -1,23 +1,3 @@
-"""pytest tests for ESMF regrid functions.
-
-Setup requirements:
-    1. Create the forcing config.yml files using RTE.
-    2. Enter the RTE devcontainer.
-
-Usage:
-    The initial test data was generated using RTE to create a calibration realization
-    for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
-    using RTE's run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
-
-    Run like this for a typical test run (checking against existing test output data)
-        Single processor: ( cd src/ngen-forcing && pytest )
-        Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
-
-    Run like this to create new test output data (created expected outputs for subsequent tests):
-        Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
-        Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
-"""
-
 import importlib.util
 import logging
 import os
@@ -45,9 +25,9 @@ os.environ["MFE_SILENT"] = "true"
 
 
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
-    "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Input/forcing_config/aorc_config.yml"
+    "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
 )
-FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/ngwpc/run_ngen/kge_dds/test_bmi/01123000/Output/Forecast_Run/fcst_run1_short_range/forcing_config/short_range_config.yml"
+FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
 
 
 ### These are output arrays which can contain extra unused elements which need to be removed during an equality check.
@@ -81,13 +61,12 @@ REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 ### While the InputForcings class instance is the primary source of test results data,
 ### this is used to add supplemental attributes to the results data,
 ### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
-EXTRA_ATTRS: tuple[ClassAttrFetcher] = (
-    ClassAttrFetcher("wrf_hydro_geo_meta", "element_ids"),
-)
+EXTRA_ATTRS: tuple[ClassAttrFetcher] = (ClassAttrFetcher("geo_meta", "element_ids"),)
 
 COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS
 )
+GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
 
 
 @pytest.mark.parametrize(
@@ -100,6 +79,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
         (
             regrid_conus_hrrr,
@@ -108,6 +88,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
         (
             regrid_conus_rap,
@@ -116,6 +97,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            GRID_TYPE,
         ),
     ],
     indirect=True,
