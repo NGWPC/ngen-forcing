@@ -183,8 +183,9 @@ class InputForcings:
                 raise ValueError(
                     f"Expected LQFRAC to be the 8th variable; recieved: {self.grib_vars[-1]}"
                 )
-            self._grib_vars = self._grib_vars[:-1]
-        return self._grib_vars
+            return self._grib_vars[:-1]
+        else:
+            return self._grib_vars
 
     @grib_vars.setter
     def grib_vars(self, val: list[str]) -> None:
