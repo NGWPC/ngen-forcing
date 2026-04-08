@@ -7,11 +7,13 @@ import types
 import typing
 from collections import OrderedDict
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 import numpy as np
 import pytest
 import shapely
+import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
     NWMv3_Forcing_Engine_BMI_model,
@@ -45,7 +47,19 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
-def class_to_dict(class_to_convert: typing.Any):
+def remove_key(input_data: dict, keys_to_exclude: tuple = ()) -> dict:
+    """Recursively remove keys from a nested dictionary."""
+    output_data = {}
+    for key, val in input_data.items():
+        if key not in keys_to_exclude:
+            if isinstance(val, dict):
+                output_data[key] = remove_key(val, keys_to_exclude)
+            else:
+                output_data[key] = val
+    return output_data
+
+
+def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = []) -> dict:
     """Get the attributes of the test class as a dictionary, where the keys are the attribute names and the values are the attribute values.
 
     This is useful for serializing the test class to JSON for comparison against expected results.
@@ -54,13 +68,27 @@ def class_to_dict(class_to_convert: typing.Any):
     # parrent_class_dict=self.test_class.__class__.__base__.__dict__
     # child_class_dict=self.test_class.__class__.__dict__
     for key in dir(class_to_convert):
+        if key in keys_to_exclude:
+            continue
+
         val = getattr(class_to_convert, key)
         if not callable(val) and not key.startswith("_"):
-            data[key] = val
+            if isinstance(
+                val, (MpiConfig, ConfigOptions, InputForcings, GeoMetaWrfHydro)
+            ):
+                data[key] = remove_key(class_to_dict(val), keys_to_exclude)
+            elif isinstance(val, dict):
+                data[key] = remove_key(val, keys_to_exclude)
+            elif isinstance(val, datetime):
+                data[key] = val.strftime("%Y-%m-%dT%H:%M:%S")
+            elif isinstance(val, xr.Dataset):
+                data[key] = val.to_dict()
+            else:
+                data[key] = val
     return data
 
 
-def copy_and_stringify_functions(d):
+def copy_and_stringify_functions(d: dict) -> dict:
     """Copy dict and stringify functions in the dict."""
     new_dict = {}
     for key, value in d.items():
@@ -197,6 +225,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple[str] = (),
+        keys_to_exclude: tuple[str] = (),
         map_old_to_new_var_names: bool = True,
     ) -> None:
         """Initialize BMIForcingFixture_Class.
@@ -205,11 +234,13 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         ----
             bmi_model: The BMI model to be used in the test fixture
             keys_to_check: The keys to check
+            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
             map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
         """
         super().__init__(bmi_model=bmi_model)
 
         self.keys_to_check = keys_to_check
+        self.keys_to_exclude = keys_to_exclude
         self.map_old_to_new_var_names = map_old_to_new_var_names
 
         self.expected_sub_dir = "test_data/expected_results"
@@ -308,7 +339,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
         This is useful for serializing the test class to JSON for comparison against expected results.
         """
-        return class_to_dict(self.test_class)
+        return class_to_dict(self.test_class, self.keys_to_exclude)
 
     def after_bmi_model_update(self, current_output_step: int) -> None:
         """Run checks after bmi_model.update() has been called.
@@ -349,6 +380,7 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple = (),
+        keys_to_exclude: tuple = (),
     ) -> None:
         """Initialize BMIForcingFixture_GeoMod.
 
@@ -356,11 +388,13 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
         ----
             bmi_model: the BMI model to be used in the test fixture
             keys_to_chek: The keys to check
+            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
 
         """
         super().__init__(
             bmi_model=bmi_model,
             keys_to_check=keys_to_check,
+            keys_to_exclude=keys_to_exclude,
         )
         self.test_class = self.geo_meta
 
@@ -374,6 +408,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model,
         keys_to_check: tuple = (),
+        keys_to_exclude: tuple = (),
         force_key: int = None,
         map_old_to_new_var_names: bool = True,
     ) -> None:
@@ -383,6 +418,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         ----
             bmi_model: the BMI model to be used in the test fixture
             keys_to_chek: The keys to check
+            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
             force_key: Key for the forcing type
             map_old_to_new_var_names: whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
 
@@ -390,6 +426,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         super().__init__(
             bmi_model=bmi_model,
             keys_to_check=keys_to_check,
+            keys_to_exclude=keys_to_exclude,
             map_old_to_new_var_names=map_old_to_new_var_names,
         )
         self.force_key = force_key
@@ -406,6 +443,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         extra_attrs: tuple[ClassAttrFetcher],
         regrid_arrays_to_trim_extra_elements: tuple[str],
         keys_to_check: tuple[str],
+        keys_to_exclude: tuple[str],
     ) -> None:
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
 
@@ -422,6 +460,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             extra_attrs: These are extra attributes to be added to the test results JSON, to supplement the primary InputForcings attributes.
             regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
             keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
+            keys_to_exclude: These are keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
 
         """
         super().__init__(bmi_model=bmi_model)
@@ -429,6 +468,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         self.regrid_func = regrid_func
         self.regrid_arrays_to_trim_extra_elements = regrid_arrays_to_trim_extra_elements
         self.keys_to_check = keys_to_check
+        self.keys_to_exclude = keys_to_exclude
 
         self.force_key = force_key
         self.cull_force_keys_not_used_this_test()
@@ -634,7 +674,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         """
         ### This is returned after being modified.
         input_forcings_deserial = json.loads(
-            serialize_to_json(class_to_dict(input_forcings))
+            serialize_to_json(class_to_dict(input_forcings, self.keys_to_exclude))
         )
         ### e.g. ['TMP_2maboveground', 'SPFH_2maboveground', 'UGRD_10maboveground', 'VGRD_10maboveground', 'APCP_surface', 'DSWRF_surface', 'DLWRF_surface', 'PRES_surface']
         netcdf_var_names = input_forcings.netcdf_var_names
