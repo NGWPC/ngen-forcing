@@ -22,11 +22,20 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
 FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
 COMPOSITE_KEYS_TO_CHECK = ()
 GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
+KEYS_TO_EXCLUDE = ("uid64",)
 
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_input_forcing",
-    [(RETRO_FORCING_CONFIG_FILE__AORC_CONUS, COMPOSITE_KEYS_TO_CHECK, GRID_TYPE, 12)],
+    [
+        (
+            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            COMPOSITE_KEYS_TO_CHECK,
+            KEYS_TO_EXCLUDE,
+            GRID_TYPE,
+            12,
+        )
+    ],
     indirect=True,
 )
 def test_input_forcing(

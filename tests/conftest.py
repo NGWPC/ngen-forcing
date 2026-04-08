@@ -56,6 +56,7 @@ def bmi_forcing_fixture_regrid(
         extra_attrs,
         regrid_arrays_to_trim_extra_elements,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
     ) = request.param
 
@@ -70,6 +71,7 @@ def bmi_forcing_fixture_regrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
         force_key=force_key,
+        keys_to_exclude=keys_to_exclude,
         extra_attrs=extra_attrs,
         regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
         keys_to_check=keys_to_check,
@@ -93,6 +95,7 @@ def bmi_forcing_fixture_geomod(
     (
         config_file,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
     ) = request.param
 
@@ -106,6 +109,7 @@ def bmi_forcing_fixture_geomod(
     return BMIForcingFixture_GeoMod(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
     )
 
 
@@ -136,6 +140,7 @@ def bmi_forcing_fixture_input_forcing(
     (
         config_file,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
         force_key,
     ) = request.param
@@ -160,6 +165,7 @@ def bmi_forcing_fixture_input_forcing(
     return BMIForcingFixture_InputForcing(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
         force_key=force_key,
         map_old_to_new_var_names=map_old_to_new_var_names,
     )

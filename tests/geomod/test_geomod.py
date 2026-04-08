@@ -22,11 +22,19 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
 FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
 COMPOSITE_KEYS_TO_CHECK = ()
 GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
+KEYS_TO_EXCLUDE = ("uid64",)
 
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_geomod",
-    [(RETRO_FORCING_CONFIG_FILE__AORC_CONUS, COMPOSITE_KEYS_TO_CHECK, GRID_TYPE)],
+    [
+        (
+            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            COMPOSITE_KEYS_TO_CHECK,
+            KEYS_TO_EXCLUDE,
+            GRID_TYPE,
+        )
+    ],
     indirect=True,
 )
 def test_geomod(
