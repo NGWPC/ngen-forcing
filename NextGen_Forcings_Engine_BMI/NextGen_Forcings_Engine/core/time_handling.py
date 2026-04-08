@@ -4208,6 +4208,24 @@ def find_conus_ext_ana_precip_neighbors(
         )
 
 
+def construct_nbm_path(date_time: datetime, adjacent_hour, sp: SupplementalPrecip):
+    """Construct the expected NBM file path for a given date/time and forecast hour."""
+    date = date_time.strftime("%Y%m%d")
+    hour = date_time.strftime("%H")
+    adjacent_hour = str(adjacent_hour).zfill(3)
+    domain = {8: "co", 12: "co", 9: "ak", 15: "pr", 16: "hi"}.get(sp.keyValue)
+    if domain is None:
+        return ""
+    else:
+        return os.path.join(
+            sp.inDir,
+            f"blend.{date}",
+            hour,
+            "core",
+            f"blend.t{hour}z.core.f{adjacent_hour}.{domain}{sp.file_ext}",
+        )
+
+
 def find_hourly_nbm_neighbors(
     supplemental_precip: SupplementalPrecip,
     config_options: ConfigOptions,
@@ -4224,16 +4242,6 @@ def find_hourly_nbm_neighbors(
     :param mpi_config:
     :return:
     """
-    nbm_out_freq = {36: 60, 240: 360}
-
-    # First we need to find the nearest previous and next hour, which is
-    # the previous/next NBM files we will be using.
-    current_yr = d_current.year
-    current_mo = d_current.month
-    current_day = d_current.day
-    current_hr = d_current.hour
-    current_min = d_current.minute
-
     # First find the current NBM forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_nbm_cycle = config_options.current_fcst_cycle - datetime.timedelta(
@@ -4284,103 +4292,25 @@ def find_hourly_nbm_neighbors(
     if prev_nbm_forecast_hour == 0:
         prev_nbm_forecast_hour = 1
 
-    # Calculate expected file paths.
-    if supplemental_precip.keyValue == 8 or supplemental_precip.keyValue == 21:  # CONUS
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".co"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".co"
-            + supplemental_precip.file_ext
-        )
-    elif supplemental_precip.keyValue == 9:  # ALASKA
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".ak"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".ak"
-            + supplemental_precip.file_ext
-        )
-    elif supplemental_precip.keyValue == 15:  # PR
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".pr"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".pr"
-            + supplemental_precip.file_ext
-        )
-    else:
-        tmp_file1 = tmp_file2 = ""
+    next_file = construct_nbm_path(
+        current_nbm_cycle, next_nbm_forecast_hour, supplemental_precip
+    )
+    previous_file = construct_nbm_path(
+        current_nbm_cycle, prev_nbm_forecast_hour, supplemental_precip
+    )
 
     if mpi_config.rank == 0:
         # config_options.statusMsg = "Prev NBM supplemental file: " + tmp_file2
         # err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        config_options.statusMsg = "Next NBM supplemental file: " + tmp_file1
+        config_options.statusMsg = "Next NBM supplemental file: " + next_file
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
     # regridding objects to communicate things need to be re-established.
     if (
-        supplemental_precip.file_in1 != tmp_file1
-        or supplemental_precip.file_in2 != tmp_file2
+        supplemental_precip.file_in1 != next_file
+        or supplemental_precip.file_in2 != next_file
     ):
         supplemental_precip.regridded_precip1 = supplemental_precip.regridded_precip1
         supplemental_precip.regridded_precip2 = supplemental_precip.regridded_precip2
@@ -4392,10 +4322,10 @@ def find_hourly_nbm_neighbors(
                 supplemental_precip.regridded_precip2_elem
             )
 
-        supplemental_precip.file_in1 = tmp_file1
-        supplemental_precip.file_in2 = tmp_file2
-        LOG.debug(f"tmp_file1: {tmp_file1}")
-        LOG.debug(f"tmp_file2: {tmp_file2}")
+        supplemental_precip.file_in1 = next_file
+        supplemental_precip.file_in2 = previous_file
+        LOG.debug(f"tmp_file1: {next_file}")
+        LOG.debug(f"tmp_file2: {previous_file}")
         supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
