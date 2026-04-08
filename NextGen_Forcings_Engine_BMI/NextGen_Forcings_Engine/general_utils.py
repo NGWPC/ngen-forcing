@@ -179,11 +179,27 @@ def assert_equal_with_tol(
                     for key in keys_in_v_expect_and_v_actual
                     if v_expect[key] != v_actual[key]
                 ]
-                errors.append(
-                    ValueError(
-                        f"Expected not equal to actual for key: {k}. Keys not in actual for {k}: {keys_not_in_v_actual} | keys in actual with values not matching expected for {k}: {keys_with_vals_not_matching}"
+                failing = []
+                for key_with_vals_not_matching in keys_with_vals_not_matching:
+                    if not np.allclose(
+                        np.atleast_1d(v_expect[key_with_vals_not_matching]),
+                        np.atleast_1d(v_actual[key_with_vals_not_matching]),
+                        atol=1e-6,
+                        rtol=1e-10,
+                    ):
+                        failing.append(
+                            (
+                                key_with_vals_not_matching,
+                                v_expect[key_with_vals_not_matching],
+                                v_actual[key_with_vals_not_matching],
+                            )
+                        )
+                for key_with_vals_not_matching in failing:
+                    errors.append(
+                        ValueError(
+                            f"Expected not equal to actual for key: {k}. Keys not in actual for {k}: {keys_not_in_v_actual} | keys in actual with values not matching expected for {k}: {failing}"
+                        )
                     )
-                )
                 continue
         errors.append(
             ValueError(
