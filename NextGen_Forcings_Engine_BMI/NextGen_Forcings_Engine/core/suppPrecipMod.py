@@ -226,14 +226,13 @@ class SupplementalPrecipGridded(SupplementalPrecip):
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
-        if self._final_supp_precip is not None:
-            return self._final_supp_precip
-        else:
-            return np.full(
+        if self._final_supp_precip is None:
+            self._final_supp_precip = np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local],
                 np.nan,
                 dtype=np.float64,
             )
+        return self._final_supp_precip
 
     @final_supp_precip.setter
     def final_supp_precip(self, value: Any) -> Any:
@@ -243,12 +242,11 @@ class SupplementalPrecipGridded(SupplementalPrecip):
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
-        if self._regridded_mask is not None:
-            return self._regridded_mask
-        else:
-            return np.full(
+        if self._regridded_mask is None:
+            self._regridded_mask = np.full(
                 [self.geo_meta.ny_local, self.geo_meta.nx_local], np.nan, np.float32
             )
+        return self._regridded_mask
 
     @regridded_mask.setter
     def regridded_mask(self, value: Any) -> Any:
@@ -273,10 +271,11 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
-        if self._final_supp_precip is not None:
-            return self._final_supp_precip
-        else:
-            return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float64)
+        if self._final_supp_precip is None:
+            self._final_supp_precip = np.full(
+                [self.geo_meta.ny_local], np.nan, dtype=np.float64
+            )
+        return self._final_supp_precip
 
     @final_supp_precip.setter
     def final_supp_precip(self, value: Any) -> Any:
@@ -286,10 +285,11 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
-        if self._regridded_mask is not None:
-            return self._regridded_mask
-        else:
-            return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
+        if self._regridded_mask is None:
+            self._regridded_mask = np.full(
+                [self.geo_meta.ny_local], np.nan, dtype=np.float32
+            )
+        return self._regridded_mask
 
     @regridded_mask.setter
     def regridded_mask(self, value: Any) -> Any:
@@ -314,10 +314,11 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
     @cached_property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
-        if self._final_supp_precip is not None:
-            return self._final_supp_precip
-        else:
-            return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float64)
+        if self._final_supp_precip is None:
+            self._final_supp_precip = np.full(
+                [self.geo_meta.ny_local], np.nan, dtype=np.float64
+            )
+        return self._final_supp_precip
 
     @final_supp_precip.setter
     def final_supp_precip(self, value: Any) -> Any:
@@ -327,10 +328,11 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
     @cached_property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
-        if self._regridded_mask is not None:
-            return self._regridded_mask
-        else:
-            return np.full([self.geo_meta.ny_local], np.nan, dtype=np.float32)
+        if self._regridded_mask is None:
+            self._regridded_mask = np.full(
+                [self.geo_meta.ny_local], np.nan, dtype=np.float32
+            )
+        return self._regridded_mask
 
     @regridded_mask.setter
     def regridded_mask(self, value: Any) -> Any:
@@ -340,10 +342,11 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
     @cached_property
     def final_supp_precip_elem(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation for unstructured grids."""
-        if self._final_supp_precip_elem is not None:
-            return self._final_supp_precip_elem
-        else:
-            return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float64)
+        if self._final_supp_precip_elem is None:
+            self._final_supp_precip_elem = np.full(
+                [self.geo_meta.ny_local_elem], np.nan, dtype=np.float64
+            )
+        return self._final_supp_precip_elem
 
     @final_supp_precip_elem.setter
     def final_supp_precip_elem(self, value: Any) -> Any:
@@ -353,10 +356,11 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
     @cached_property
     def regridded_mask_elem(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids for unstructured grids."""
-        if self._regridded_mask_elem is not None:
-            return self._regridded_mask_elem
-        else:
-            return np.full([self.geo_meta.ny_local_elem], np.nan, dtype=np.float32)
+        if self._regridded_mask_elem is None:
+            self._regridded_mask_elem = np.full(
+                [self.geo_meta.ny_local_elem], np.nan, dtype=np.float32
+            )
+        return self._regridded_mask_elem
 
     @regridded_mask_elem.setter
     def regridded_mask_elem(self, value: Any) -> Any:
