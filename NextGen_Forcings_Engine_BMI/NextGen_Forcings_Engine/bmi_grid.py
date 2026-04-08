@@ -13,11 +13,11 @@ import numpy as np
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-import logging
 
-from nextgen_forcings_ewts import MODULE_NAME
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 _error_on_grid_type: bool = False
 

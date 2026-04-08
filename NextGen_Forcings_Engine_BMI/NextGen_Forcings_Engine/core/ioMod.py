@@ -7,7 +7,6 @@ Also, creating output files.
 
 import datetime
 import gzip
-import logging
 import math
 import os
 import shutil
@@ -15,14 +14,14 @@ import subprocess
 import sys
 from typing import Optional
 
+import ewts
 import numpy as np
 from netCDF4 import Dataset
 
-from nextgen_forcings_ewts import MODULE_NAME
-
 from . import err_handler
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False

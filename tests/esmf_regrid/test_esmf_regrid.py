@@ -67,6 +67,7 @@ COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS
 )
 GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
+KEYS_TO_EXCLUDE = ("uid64",)
 
 
 @pytest.mark.parametrize(
@@ -79,6 +80,7 @@ GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            KEYS_TO_EXCLUDE,
             GRID_TYPE,
         ),
         (
@@ -88,6 +90,7 @@ GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            KEYS_TO_EXCLUDE,
             GRID_TYPE,
         ),
         (
@@ -97,6 +100,7 @@ GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
             COMPOSITE_KEYS_TO_CHECK,
+            KEYS_TO_EXCLUDE,
             GRID_TYPE,
         ),
     ],

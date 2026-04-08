@@ -9,7 +9,7 @@ from test_utils import (
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
-    # BMIMODEL,
+    BMIMODEL,
     NWMv3_Forcing_Engine_BMI_model,
 )
 
@@ -56,10 +56,11 @@ def bmi_forcing_fixture_regrid(
         extra_attrs,
         regrid_arrays_to_trim_extra_elements,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
     ) = request.param
 
-    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model = BMIMODEL[grid_type]()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -70,6 +71,7 @@ def bmi_forcing_fixture_regrid(
         bmi_model=bmi_model,
         regrid_func=regrid_func,
         force_key=force_key,
+        keys_to_exclude=keys_to_exclude,
         extra_attrs=extra_attrs,
         regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
         keys_to_check=keys_to_check,
@@ -93,10 +95,11 @@ def bmi_forcing_fixture_geomod(
     (
         config_file,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
     ) = request.param
 
-    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model = BMIMODEL[grid_type]()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -106,6 +109,7 @@ def bmi_forcing_fixture_geomod(
     return BMIForcingFixture_GeoMod(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
     )
 
 
@@ -136,11 +140,12 @@ def bmi_forcing_fixture_input_forcing(
     (
         config_file,
         keys_to_check,
+        keys_to_exclude,
         grid_type,
         force_key,
     ) = request.param
 
-    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model = BMIMODEL[grid_type]()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -160,6 +165,7 @@ def bmi_forcing_fixture_input_forcing(
     return BMIForcingFixture_InputForcing(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
         force_key=force_key,
         map_old_to_new_var_names=map_old_to_new_var_names,
     )
