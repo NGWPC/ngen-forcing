@@ -81,6 +81,7 @@ SUPPPRECIPMOD = {
         13: "MRMS PrecipFlag",
         14: "Custom_Freq_Supp_Pcp",
         15: "NBM_CORE_PR_APCP",
+        16: "NBM_CORE_HAWAII_APCP",
     },
     "FILE_EXT": {
         "GRIB1": ".grb",
@@ -103,6 +104,7 @@ SUPPPRECIPMOD = {
         13: None,
         14: None,
         15: None,
+        16: None,
     },
     "GRIB_LEVELS": {
         1: ["BLAH"],
@@ -120,6 +122,7 @@ SUPPPRECIPMOD = {
         13: ["BLAH"],
         14: ["BLAH"],
         15: ["BLAH"],
+        16: ["BLAH"],
     },
     "NET_CDF_VARS_NAMES": {
         1: ["RadarOnlyQPE01H_0mabovemeansealevel"],
@@ -137,6 +140,7 @@ SUPPPRECIPMOD = {
         13: ["PrecipFlag_0mabovemeansealevel"],
         14: ["PrecipFlag_0mabovemeansealevel"],
         15: ["APCP_surface"],
+        16: ["APCP_surface"],
     },
     "RQI_NETCDF_VAR_NAMES": {
         1: ["RadarQualityIndex_0mabovemeansealevel"],
@@ -154,6 +158,7 @@ SUPPPRECIPMOD = {
         13: None,
         14: None,
         15: None,
+        16: None,
     },
     "OUTPUT_VAR_IDX": {
         1: 3,  # RAINRATE
@@ -171,6 +176,7 @@ SUPPPRECIPMOD = {
         13: 8,
         14: 3,
         15: 3,
+        16: 3,
     },
     "FIND_NEIGHBOR_FILES_MAP": {
         1: time_handling.find_hourly_mrms_radar_neighbors,
@@ -188,6 +194,7 @@ SUPPPRECIPMOD = {
         13: time_handling.find_hourly_mrms_precip_flag,
         14: time_handling.find_custom_freq_neighbors,
         15: time_handling.find_hourly_nbm_neighbors,
+        16: time_handling.find_hourly_nbm_neighbors,
     },
     "REGRID_MAP": {
         1: regrid.regrid_mrms_hourly,
@@ -205,6 +212,7 @@ SUPPPRECIPMOD = {
         13: regrid.regrid_mrms_precip_flag,
         14: regrid.regrid_mrms_hourly,
         15: regrid.regrid_hourly_nbm,
+        16: regrid.regrid_hourly_nbm,
     },
     "TEMPORAL_INTERPOLATE_INPUTS_MAP": {
         0: timeInterpMod.no_interpolation_supp_pcp,
