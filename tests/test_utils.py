@@ -39,7 +39,7 @@ except ImportError:
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
-def remove_key(input_data: dict, keys_to_exclude: tuple = ())->dict:
+def remove_key(input_data: dict, keys_to_exclude: tuple = ()) -> dict:
     """Recursively remove keys from a nested dictionary."""
     output_data = {}
     for key, val in input_data.items():
@@ -50,7 +50,8 @@ def remove_key(input_data: dict, keys_to_exclude: tuple = ())->dict:
                 output_data[key] = val
     return output_data
 
-def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = [])->dict:
+
+def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = []) -> dict:
     """Get the attributes of the test class as a dictionary, where the keys are the attribute names and the values are the attribute values.
 
     This is useful for serializing the test class to JSON for comparison against expected results.
@@ -64,9 +65,8 @@ def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = [])->dic
 
         val = getattr(class_to_convert, key)
         if not callable(val) and not key.startswith("_"):
-
             if isinstance(val, (MpiConfig, ConfigOptions, InputForcings, GeoMeta)):
-                data[key] = remove_key(class_to_dict(val),keys_to_exclude)
+                data[key] = remove_key(class_to_dict(val), keys_to_exclude)
             elif isinstance(val, dict):
                 data[key] = remove_key(val, keys_to_exclude)
             elif isinstance(val, datetime):
@@ -78,7 +78,7 @@ def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = [])->dic
     return data
 
 
-def copy_and_stringify_functions(d:dict)->dict:
+def copy_and_stringify_functions(d: dict) -> dict:
     """Copy dict and stringify functions in the dict."""
     new_dict = {}
     for key, value in d.items():
@@ -316,7 +316,9 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         """Compare actual vs expected results."""
         try:
             assert_equal_with_tol(
-                expect=expected, actual=actual, new_keys_in_actual_ok=True
+                expect=expected,
+                actual=actual,
+                new_keys_in_actual_ok=True,
             )
         except ExpectVsActualError as e:
             raise RuntimeError(
