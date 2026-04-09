@@ -68,16 +68,13 @@ if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
 
 
-
-
-
 class UnknownBMIVariable(RuntimeError):
     """Custom exception raised when an unknown BMI variable is encountered."""
 
     pass
 
 
-class NWMv3_Forcing_Engine_BMI_model(Bmi):
+class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     """Defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
 
     It includes methods for initializing the model, updating it, accessing model variables,
@@ -106,7 +103,7 @@ class NWMv3_Forcing_Engine_BMI_model(Bmi):
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super(NWMv3_Forcing_Engine_BMI_model, self).__init__()
+        super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
         self._values = {}
         self._start_time = 0.0
         self._end_time = np.finfo(float).max
@@ -1547,7 +1544,7 @@ def parse_config(cfg: dict) -> dict:
     return cfg
 
 
-class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
+class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base):
     """Defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
 
     It includes methods for initializing the model, updating it, accessing model variables,
@@ -1613,7 +1610,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model):
         self._grid_map = {var_name: self.grid_1 for var_name in self._output_var_names}
 
 
-class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model):
+class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_Base):
     """Defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
 
     It includes methods for initializing the model, updating it, accessing model variables,
@@ -1675,7 +1672,7 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model)
         self._grid_map = {var_name: self.grid_4 for var_name in self._output_var_names}
 
 
-class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model):
+class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model_Base):
     """Defines the BMI (Basic Model Interface) for the NWMv3.0 Forcings Engine model.
 
     It includes methods for initializing the model, updating it, accessing model variables,
@@ -1788,3 +1785,7 @@ BMIMODEL = {
     "unstructured": NWMv3_Forcing_Engine_BMI_model_Unstructured,
     "hydrofabric": NWMv3_Forcing_Engine_BMI_model_HydroFabric,
 }
+
+### NOTE patch so ngen always accesses the Hydrofabric child for now.
+### Other discretization modes currently do not have a ngen workflow.
+NWMv3_Forcing_Engine_BMI_model = NWMv3_Forcing_Engine_BMI_model_HydroFabric
