@@ -61,12 +61,13 @@ from typing import Any
 
 from numpy.typing import NDArray
 
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
-
 
 class UnknownBMIVariable(RuntimeError):
     """Custom exception raised when an unknown BMI variable is encountered."""
@@ -257,7 +258,21 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
-            forcing_extraction.retrieve_forcing(self._job_meta)
+            if self._mpi_meta.rank == 0:
+                err_handler.log_msg(
+                    self._job_meta,
+                    self._mpi_meta,
+                    False,
+                    "About to fetch raw forcing data",
+                )
+                forcing_extraction.retrieve_forcing(self._job_meta)
+                err_handler.log_msg(
+                    self._job_meta,
+                    self._mpi_meta,
+                    False,
+                    "Finished fetching raw forcing data",
+                )
+        self._mpi_meta.comm.Barrier()
 
         # Assign grid type to BMI class for grid information
         self._grid_type = self._job_meta.grid_type.lower()

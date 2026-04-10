@@ -16,7 +16,6 @@ if TYPE_CHECKING:
 
 # Use the Error, Warning, and Trapping System Package for logging
 import ewts
-
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 _error_on_grid_type: bool = False

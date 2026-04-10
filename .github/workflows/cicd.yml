@@ -41,6 +41,14 @@ on:
         description: 'SFINCS_BASE_TAG'
         required: false
         type: string
+      EWTS_ORG:
+        description: 'EWTS_ORG'
+        required: false
+        type: string
+      EWTS_REF:
+        description: 'EWTS_REF'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -262,6 +270,8 @@ jobs:
             BMI_BASE_TAG=${{ needs.setup.outputs.bmi_base_tag }}
             BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
             BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
+            EWTS_ORG=${{ inputs.EWTS_ORG || 'NGWPC' }}
+            EWTS_REF=${{ inputs.EWTS_REF || 'development' }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
