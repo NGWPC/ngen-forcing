@@ -11,7 +11,7 @@ from datetime import datetime
 import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
-    NWMv3_Forcing_Engine_BMI_model,
+    NWMv3_Forcing_Engine_BMI_model_Base,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
@@ -199,9 +199,9 @@ class BMIForcingFixture:
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
     """
 
-    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model) -> None:
+    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base) -> None:
         """Initialize BMIForcingFixture."""
-        self.bmi_model: NWMv3_Forcing_Engine_BMI_model = bmi_model
+        self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = bmi_model
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
         self.geo_meta: GeoMeta = bmi_model.geo_meta
@@ -213,7 +213,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
     def __init__(
         self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         keys_to_check: tuple[str] = (),
         keys_to_exclude: tuple[str] = (),
         map_old_to_new_var_names: bool = True,
@@ -370,7 +370,7 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
 
     def __init__(
         self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         keys_to_check: tuple = (),
         keys_to_exclude: tuple = (),
     ) -> None:
@@ -398,7 +398,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
 
     def __init__(
         self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         keys_to_check: tuple = (),
         keys_to_exclude: tuple = (),
         force_key: int = None,
@@ -429,7 +429,7 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
 class BMIForcingFixture_Regrid(BMIForcingFixture):
     def __init__(
         self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         regrid_func: typing.Callable,
         force_key: int,
         extra_attrs: tuple[ClassAttrFetcher],
