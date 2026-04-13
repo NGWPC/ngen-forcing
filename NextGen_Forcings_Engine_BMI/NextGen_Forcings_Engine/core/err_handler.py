@@ -12,6 +12,12 @@ import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
+def in_exception_context() -> bool:
+    if sys.exc_info()[0] is not None:
+        return True
+    return False
+
+
 def err_out_screen(err_msg: str, exc: BaseException | None = None):
     """Print an error message to the screen and exit the program gracefully.
 
@@ -27,8 +33,15 @@ def err_out_screen(err_msg: str, exc: BaseException | None = None):
     if exc is not None:
         err_msg += f" - {exc}"
     err_msg_out = "ERROR: " + err_msg
+
     print(err_msg_out, flush=True)
-    traceback.print_exc()  # Only prints if an exception is currently being handled
+    LOG.critical(err_msg_out)
+
+    if in_exception_context():
+        tb = traceback.format_exc()
+        LOG.critical(f"TRACEBACK: {tb}")
+        print(tb, flush=True, file=sys.stderr)
+
     sys.exit(1)
 
 
