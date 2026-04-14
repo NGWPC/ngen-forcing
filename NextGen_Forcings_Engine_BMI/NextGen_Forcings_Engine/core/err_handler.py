@@ -1,3 +1,4 @@
+import inspect
 import logging
 import os
 import sys
@@ -39,8 +40,13 @@ def err_out_screen(err_msg: str, exc: BaseException | None = None):
 
     if in_exception_context():
         tb = traceback.format_exc()
-        LOG.critical(f"TRACEBACK: {tb}")
-        print(tb, flush=True, file=sys.stderr)
+        tb_msg = f"TRACEBACK: {tb}"
+        print(tb_msg, flush=True, file=sys.stderr)
+        LOG.critical(tb_msg)
+
+    final_msg = f"Calling sys.exit(1) from object {repr(inspect.currentframe().f_code.co_name)}"
+    print(final_msg, flush=True, file=sys.stderr)
+    LOG.critical(final_msg)
 
     sys.exit(1)
 
