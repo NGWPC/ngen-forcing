@@ -22,7 +22,9 @@ class NAMNestHawaiiDownloader(ForecastDownloader):
 
     def get_download_targets(self, d_start: datetime) -> range:
         """Get list of forecast hours to download for a given initialization time."""
-        return range(1, 61) if d_start.hour in [0, 6, 12, 18] else []
+        return (
+            range(1, self.input_horizon + 1) if d_start.hour in [0, 6, 12, 18] else []
+        )
 
     def build_output_dir(self, d_start: datetime, _) -> str:
         """Build output directory path based on initialization date."""
