@@ -433,7 +433,7 @@ class AORCConusProcessor(BaseProcessor):
         if cached_data is not None:
             return cached_data
         try:
-            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+            with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
                     self.slice_ds(self.s3_lazy_ds[self.current_time.year])
                     .rename({self.x_label: "x", self.y_label: "y"})
@@ -667,7 +667,7 @@ class NWMV3OConusProcessor(NWMV3Processor):
         if cached_data is not None:
             return cached_data
         try:
-            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+            with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
                     self.slice_ds(self.s3_lazy_ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
@@ -721,7 +721,7 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         if cached_data is not None:
             return cached_data
         try:
-            with self.timing_block(f"lazy loading {self.dataset_name} data"):
+            with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
                     self.slice_ds(self.s3_lazy_ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
