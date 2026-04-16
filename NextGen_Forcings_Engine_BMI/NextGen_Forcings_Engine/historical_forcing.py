@@ -351,7 +351,11 @@ class BaseProcessor:
         return sliced_ds
 
     def load_cache(self) -> xr.Dataset | None:
-        """Load the cahed netcdf file."""
+        """Load the cahed netcdf file.
+
+        If unable to read (likely do to a locked file issue), try again after sleeping for 1 second.
+        Tries 10 times. If it fails 10 times then try deleting the file.
+        """
         if os.path.exists(self.nc_path):
             with self.timing_block(f"opening local dataset {self.nc_path}"):
                 c = 0
