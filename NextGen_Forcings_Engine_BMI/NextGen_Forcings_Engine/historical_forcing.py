@@ -373,7 +373,16 @@ class BaseProcessor:
 
                 error_message = f"Exceeded number of attempts (10) to read local cache file for historical forcing data. File: {self.nc_path}. Deleteing the cache file and recreating from s3"
                 LOG.warning(error_message)
-                os.remove(self.nc_path)
+                c = 0
+                while c < 10:
+                    try:
+                        os.remove(self.nc_path)
+                    except Exception as e:
+                        LOG.warning(
+                            f"Could not delete the locked cache file retrying in 1 second. Error: {e}"
+                        )
+                        sleep(1)
+                        c += 1
 
 
 class AORCConusProcessor(BaseProcessor):
