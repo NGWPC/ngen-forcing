@@ -1,7 +1,6 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
-import gc
 import os
 import typing
 from contextlib import contextmanager
@@ -23,11 +22,11 @@ from dotenv import find_dotenv, load_dotenv
 from pyproj import CRS
 from zarr.storage import ObjectStore
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
 
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
@@ -361,10 +360,8 @@ class BaseProcessor:
                 c = 0
                 while c < 10:
                     try:
-                        ds = xr.open_dataset(self.nc_path)
-                        dataset = ds.load()
-                        ds.close()
-                        gc.collect()
+                        with xr.open_dataset(self.nc_path) as ds:
+                            dataset = ds.load()
                         return dataset
                     except Exception as e:
                         LOG.warning(f"Lock on cache file; sleeping 1s({c}). Error: {e}")
@@ -509,9 +506,8 @@ class AORCAlaskaProcessor(BaseProcessor):
                     load_dotenv(find_dotenv())
                     s3 = s3fs.S3FileSystem()
                     with s3.open(self.url(date)) as f:
-                        ds = xr.open_dataset(f, engine="h5netcdf")
-                        dataset = ds.load()
-                        ds.close()
+                        with xr.open_dataset(f, engine="h5netcdf") as ds:
+                            dataset = ds.load()
                         datasets.append(
                             self.slice_ds(dataset, date, date + np.timedelta64(1, "h"))
                         )
