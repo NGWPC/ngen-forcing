@@ -426,6 +426,39 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         self.test_file_name_prefix = "input_forcing"
 
 
+class BMIForcingFixture_SuppPrecip(BMIForcingFixture_Class):
+    """Test fixture for SuppPrecip tests."""
+
+    def __init__(
+        self,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
+        keys_to_check: tuple = (),
+        keys_to_exclude: tuple = (),
+        force_key: int = None,
+        map_old_to_new_var_names: bool = True,
+    ) -> None:
+        """Initialize BMIForcingFixture_SuppPrecip.
+
+        Args:
+        ----
+            bmi_model: the BMI model to be used in the test fixture
+            keys_to_chek: The keys to check
+            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
+            force_key: Key for the forcing type
+            map_old_to_new_var_names: whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
+
+        """
+        super().__init__(
+            bmi_model=bmi_model,
+            keys_to_check=keys_to_check,
+            keys_to_exclude=keys_to_exclude,
+            map_old_to_new_var_names=map_old_to_new_var_names,
+        )
+        self.force_key = force_key
+        self.test_class = self.supp_precip_mod[self.force_key]
+        self.test_file_name_prefix = "supp_precip"
+
+
 class BMIForcingFixture_Regrid(BMIForcingFixture):
     def __init__(
         self,

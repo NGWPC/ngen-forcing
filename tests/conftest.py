@@ -6,6 +6,7 @@ from test_utils import (
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
+    BMIForcingFixture_Supp_Precip,
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
@@ -163,6 +164,54 @@ def bmi_forcing_fixture_input_forcing(
         )
 
     return BMIForcingFixture_InputForcing(
+        bmi_model=bmi_model,
+        keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
+        force_key=force_key,
+        map_old_to_new_var_names=map_old_to_new_var_names,
+    )
+
+
+@pytest.fixture
+def bmi_forcing_fixture_supp_precip(
+    request,
+) -> BMIForcingFixture_InputForcing:
+    """Construct minimal class of class for running supp_precip.
+
+    Constructor for minimal class of classes for running supp_precip.
+
+    For example usage, see: tests/supp_precip/supp_precip.test_supp_precip.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+
+    """
+    (
+        config_file,
+        keys_to_check,
+        keys_to_exclude,
+        grid_type,
+        force_key,
+    ) = request.param
+
+    bmi_model = BMIMODEL[grid_type]()
+    bmi_model.initialize_with_params(
+        config_file=config_file,
+        b_date=None,
+        geogrid=None,
+        output_path=None,
+    )
+    map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
+    if map_old_to_new_var_names == "True" or map_old_to_new_var_names is True:
+        map_old_to_new_var_names = True
+    elif map_old_to_new_var_names == "False" or map_old_to_new_var_names is False:
+        map_old_to_new_var_names = False
+    else:
+        raise ValueError(
+            f"Unexpected value for arg: map_old_to_new_var_names. Expected True or False; recieved: {map_old_to_new_var_names}"
+        )
+
+    return BMIForcingFixture_Supp_Precip(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
         keys_to_exclude=keys_to_exclude,
