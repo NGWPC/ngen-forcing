@@ -247,7 +247,7 @@ class ForecastDownloader(ABC):
                     shutil.rmtree(dir_path)
 
     @staticmethod
-    def _remove_dir_and_empty_parents(path, levels=2):
+    def _remove_dir_and_empty_parents(path, levels: int = 2) -> None:
         """Remove a directory and prunes up to `levels` empty parent directories.
 
         :param path: Path to the target directory to remove.
@@ -266,7 +266,7 @@ class ForecastDownloader(ABC):
                 else:
                     break
 
-    def _download_data(self):
+    def _download_data(self) -> None:
         """Download forecast files by iterating over the desired time range and download targets.
 
         Each timestamp may have one or more targets to process.
@@ -289,6 +289,7 @@ class ForecastDownloader(ABC):
             self.pre_download_hook(d_start)
 
             targets = self.get_download_targets(d_start)
+
             for target in targets:
                 url, filename = self.build_file_url_and_name(
                     d_start, target, self.ens_number
