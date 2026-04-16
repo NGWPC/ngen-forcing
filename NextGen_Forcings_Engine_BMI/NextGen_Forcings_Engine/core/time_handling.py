@@ -4208,21 +4208,25 @@ def find_conus_ext_ana_precip_neighbors(
         )
 
 
-def construct_nbm_path(date_time: datetime, adjacent_hour, sp: SupplementalPrecip):
+def construct_nbm_path(
+    current_nbm_cycle: datetime, adjacent_hour, supplemental_precip: SupplementalPrecip
+):
     """Construct the expected NBM file path for a given date/time and forecast hour."""
-    date = date_time.strftime("%Y%m%d")
-    hour = date_time.strftime("%H")
+    date = current_nbm_cycle.strftime("%Y%m%d")
+    hour = current_nbm_cycle.strftime("%H")
     adjacent_hour = str(adjacent_hour).zfill(3)
-    domain = {8: "co", 12: "co", 9: "ak", 15: "pr", 16: "hi"}.get(sp.keyValue)
+    domain = {8: "co", 12: "co", 9: "ak", 15: "pr", 16: "hi"}.get(
+        supplemental_precip.keyValue
+    )
     if domain is None:
         return ""
     else:
         return os.path.join(
-            sp.inDir,
+            supplemental_precip.inDir,
             f"blend.{date}",
             hour,
             "core",
-            f"blend.t{hour}z.core.f{adjacent_hour}.{domain}{sp.file_ext}",
+            f"blend.t{hour}z.core.f{adjacent_hour}.{domain}{supplemental_precip.file_ext}",
         )
 
 
@@ -4268,93 +4272,74 @@ def find_hourly_nbm_neighbors(
     ) % supplemental_precip.input_frequency
     if min_since_last_output == 0:
         min_since_last_output = supplemental_precip.input_frequency
-    prev_nbm_date = d_current - datetime.timedelta(seconds=min_since_last_output * 60)
-    supplemental_precip.fcst_date1 = prev_nbm_date
+    supplemental_precip.fcst_date1 = d_current - datetime.timedelta(
+        seconds=min_since_last_output * 60
+    )
+
+    # Calculate the next file to process.
     if min_since_last_output == supplemental_precip.input_frequency:
         min_until_next_output = 0
     else:
         min_until_next_output = (
             supplemental_precip.input_frequency - min_since_last_output
         )
-    next_nbm_date = d_current + datetime.timedelta(seconds=min_until_next_output * 60)
-    supplemental_precip.fcst_date2 = next_nbm_date
+    supplemental_precip.fcst_date2 = d_current + datetime.timedelta(
+        seconds=min_until_next_output * 60
+    )
 
     # Calculate the output forecast hours needed based on the prev/next dates.
-    dt_tmp = next_nbm_date - current_nbm_cycle
-    next_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    supplemental_precip.fcst_hour2 = next_nbm_forecast_hour
-    dt_tmp = prev_nbm_date - current_nbm_cycle
-    prev_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    supplemental_precip.fcst_hour1 = prev_nbm_forecast_hour
+    dt_tmp = supplemental_precip.fcst_date2 - current_nbm_cycle
+    supplemental_precip.fcst_hour2 = int(dt_tmp.days * 24.0) + int(
+        dt_tmp.seconds / 3600.0
+    )
+
+    dt_tmp = supplemental_precip.fcst_date1 - current_nbm_cycle
+    supplemental_precip.fcst_hour1 = int(dt_tmp.days * 24.0) + int(
+        dt_tmp.seconds / 3600.0
+    )
+
     # If we are on the first NBM forecast hour (1), and we have calculated the previous forecast
     # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
     # no interpolation is required.
-    if prev_nbm_forecast_hour == 0:
-        prev_nbm_forecast_hour = 1
+    if supplemental_precip.fcst_hour1 == 0:
+        supplemental_precip.fcst_hour1 = 1
 
-    next_file = construct_nbm_path(
-        current_nbm_cycle, next_nbm_forecast_hour, supplemental_precip
+    supplemental_precip.file_in1 = construct_nbm_path(
+        current_nbm_cycle, supplemental_precip.fcst_hour2, supplemental_precip
     )
-    previous_file = construct_nbm_path(
-        current_nbm_cycle, prev_nbm_forecast_hour, supplemental_precip
+    supplemental_precip.file_in2 = construct_nbm_path(
+        current_nbm_cycle, supplemental_precip.fcst_hour1, supplemental_precip
     )
 
     if mpi_config.rank == 0:
         # config_options.statusMsg = "Prev NBM supplemental file: " + tmp_file2
-        # err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        config_options.statusMsg = "Next NBM supplemental file: " + next_file
+        # err_handler.log_msg(co, mpi_config, True)  # log at debug level
+        config_options.statusMsg = (
+            f"Next NBM supplemental file: {supplemental_precip.file_in1}"
+        )
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
     # regridding objects to communicate things need to be re-established.
-    if (
-        supplemental_precip.file_in1 != next_file
-        or supplemental_precip.file_in2 != next_file
-    ):
-        supplemental_precip.regridded_precip1 = supplemental_precip.regridded_precip1
-        supplemental_precip.regridded_precip2 = supplemental_precip.regridded_precip2
-        if config_options.grid_type == "unstructured":
-            supplemental_precip.regridded_precip1_elem = (
-                supplemental_precip.regridded_precip1_elem
-            )
-            supplemental_precip.regridded_precip2_elem = (
-                supplemental_precip.regridded_precip2_elem
-            )
-
-        supplemental_precip.file_in1 = next_file
-        supplemental_precip.file_in2 = previous_file
-        LOG.debug(f"tmp_file1: {next_file}")
-        LOG.debug(f"tmp_file2: {previous_file}")
-        supplemental_precip.regridComplete = False
+    LOG.debug(f"next_file: {supplemental_precip.file_in1}")
+    LOG.debug(f"previous_file: {supplemental_precip.file_in2}")
+    supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(supplemental_precip.file_in2) and (
             (supplemental_precip.keyValue == 8) or (supplemental_precip.keyValue == 9)
         ):
-            config_options.statusMsg = (
-                "NBM file {} not found, will attempt to use {} instead.".format(
-                    supplemental_precip.file_in2, supplemental_precip.file_in1
-                )
-            )
+            config_options.statusMsg = f"NBM file {supplemental_precip.file_in2} not found, will attempt to use {supplemental_precip.file_in1} instead."
             err_handler.log_warning(config_options, mpi_config)
             supplemental_precip.file_in2 = supplemental_precip.file_in1
         if not os.path.isfile(supplemental_precip.file_in2):
             if supplemental_precip.enforce == 1:
-                config_options.errMsg = (
-                    "Expected input NBM file: "
-                    + supplemental_precip.file_in2
-                    + " not found."
-                )
+                config_options.errMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found."
                 err_handler.log_critical(config_options, mpi_config)
             else:
-                config_options.statusMsg = (
-                    "Expected input NBM file: "
-                    + supplemental_precip.file_in2
-                    + " not found. "
-                    + "Will not use in final layering."
-                )
+                config_options.statusMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found. Will not use in final layering."
                 err_handler.log_warning(config_options, mpi_config)
                 config_options.statusMsg = "You can use Util/pull_s3_grib_vars.py to Download NBM data from AWS-S3 archive."
                 err_handler.log_warning(config_options, mpi_config)
