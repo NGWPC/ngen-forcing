@@ -374,6 +374,7 @@ class BaseProcessor:
                 while c < 10:
                     try:
                         os.remove(self.nc_path)
+                        break
                     except Exception as e:
                         LOG.warning(
                             f"Could not delete the locked cache file retrying in 1 second. Error: {e}"
