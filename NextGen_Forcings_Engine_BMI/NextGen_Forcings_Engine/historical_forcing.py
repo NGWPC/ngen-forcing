@@ -670,7 +670,9 @@ class NWMV3OConusProcessor(NWMV3Processor):
                     .load()
                 )
         except Exception as e:
-            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            error_message = (
+                f"Error opening {self.dataset_name} data from {self.url}: {e}\n"
+            )
             LOG.critical(error_message)
             raise ValueError(error_message)
 
