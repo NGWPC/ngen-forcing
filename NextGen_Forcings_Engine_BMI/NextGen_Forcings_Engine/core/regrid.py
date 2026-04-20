@@ -1,14 +1,17 @@
 """Regridding module file for regridding input forcing files."""
 
-from functools import partial
+from __future__ import annotations
+
 import hashlib
 import os
 import sys
 import traceback
 from contextlib import contextmanager
 from datetime import datetime, timedelta
+from functools import partial
 from pathlib import Path
 from time import monotonic, time
+from typing import TYPE_CHECKING
 
 # import mpi4py.util.pool as mpi_pool
 # For ESMF + shapely 2.x, shapely must be imported first, to avoid segfault "address not mapped to object" stemming from calls such as:
@@ -37,13 +40,19 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     ioMod,
     timeInterpMod,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
-    ConfigOptions,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+        GeoMeta,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+        MpiConfig,
+    )
+
+import ewts
 
 from ..esmf_utils import (
     esmf_field_retry,
@@ -54,9 +63,8 @@ from ..esmf_utils import (
     esmf_regridobj_call_retry,
 )
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 if "WGRIB2" not in os.environ:
     WGRIB2_env = False
@@ -1482,7 +1490,7 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         pt.log_info("Regrid CONUS HRRR")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             # Build GRIB2 to NetCDF conversion
@@ -2250,7 +2258,7 @@ def regrid_conus_rap(input_forcings, config_options, wrf_hydro_geo_meta, mpi_con
     id_tmp = None
     try:
         pt.log_info("Regrid CONUS RAP")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -3021,7 +3029,7 @@ def regrid_cfsv2(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config)
     id_tmp = None
     try:
         pt.log_info("Regrid CFSv2")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -5750,7 +5758,7 @@ def regrid_gfs(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
     try:
         pt.log_info("Regridding 13km GFS Variables.")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -6478,7 +6486,7 @@ def regrid_nam_nest(input_forcings, config_options, wrf_hydro_geo_meta, mpi_conf
     id_tmp = None
     try:
         pt.log_info("Regridding NAM nest data")
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -8208,7 +8216,7 @@ def regrid_hourly_wrf_arw(
     try:
         pt.log_info("Regrid WRF-ARW nest data")
 
-        if input_forcings.file_type != NETCDF:
+        if input_forcings.input_force_types != NETCDF:
             pt.os_remove_rank_0_partial(input_forcings.tmpFile)
 
             fields = []
@@ -11609,7 +11617,7 @@ def check_supp_pcp_regrid_status(
 def get_weight_file_names(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
 ) -> tuple[str | None, str | None]:
     """Get weight file names for regridding."""
     if not config_options.weightsDir:
@@ -11635,7 +11643,7 @@ def get_weight_file_names(
 def load_weight_file(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str,
     element_mode: bool,
 ) -> None:
@@ -11681,7 +11689,7 @@ def load_weight_file(
 def make_regrid(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str | None,
     fill: bool,
     element_mode: bool,
@@ -11712,7 +11720,7 @@ def make_regrid(
 
     extrap_method = ESMF.ExtrapMethod.CREEP_FILL if fill else ESMF.ExtrapMethod.NONE
     regrid_method = (ESMF.RegridMethod.BILINEAR, ESMF.RegridMethod.NEAREST_STOD)[
-        input_forcings.regridOpt - 1
+        input_forcings.regrid_opt - 1
     ]
 
     err_handler.check_program_status(config_options, mpi_config)
@@ -11750,7 +11758,7 @@ def make_regrid(
 def execute_regrid(
     mpi_config: MpiConfig,
     config_options: ConfigOptions,
-    input_forcings: GeoMetaWrfHydro,
+    input_forcings: GeoMeta,
     weight_file: str,
     element_mode: bool,
 ) -> None:
@@ -11904,7 +11912,7 @@ def calculate_weights(
     err_handler.check_program_status(config_options, mpi_config)
 
     # check if we're doing border trimming and set up mask
-    border = input_forcings.border  # // 5  # HRRR is a 3 km product
+    border = input_forcings.ignored_border_widths  # // 5  # HRRR is a 3 km product
     if border > 0:
         try:
             mask = input_forcings.esmf_grid_in.add_item(

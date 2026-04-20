@@ -2,12 +2,12 @@ import argparse
 import datetime
 import pathlib
 from pathlib import Path
-
+import yaml
 import numpy as np
 import pandas as pd
 
 # This is the NextGen Forcings Engine BMI instance to execute
-from NextGen_Forcings_Engine.bmi_model import NWMv3_Forcing_Engine_BMI_model
+from NextGen_Forcings_Engine.bmi_model import BMIMODEL,parse_config
 
 
 def run_bmi(
@@ -37,9 +37,6 @@ def run_bmi(
     end_time = datetime.datetime.strptime(end_time, "%Y-%m-%d %H:%M:%S")
     ngen_datetimes = pd.date_range(start=start_time, end=end_time, freq="h")
 
-    print("Creating an instance of the BMI model object")
-    model = NWMv3_Forcing_Engine_BMI_model()
-
     print("Initializing the BMI model")
     # Set the path for the config file, using the default if none is provided
     cfg_path = (
@@ -47,6 +44,11 @@ def run_bmi(
         if config_path is not None
         else str(Path(__file__).parent.resolve() / "config.yml")
     )
+    with open(cfg_path,"r") as fp:
+        config=parse_config(yaml.safe_load(fp))
+
+    print("Creating an instance of the BMI model object")
+    model = BMIMODEL[config.get("GRID_TYPE")]()
 
     # IMPORTANT: We are not calling initialize() directly here.
     # Instead, we call initialize_with_params(), which handles
@@ -72,7 +74,7 @@ def run_bmi(
     # ===============================
     if model._grid_type in {"gridded", "hydrofabric"}:
         varsize = (
-            len(model._wrf_hydro_geo_meta.element_ids_global)
+            len(model.geo_meta.element_ids_global)
             if model._grid_type == "hydrofabric"
             else model._varsize
         )

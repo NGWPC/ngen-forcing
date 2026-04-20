@@ -5,15 +5,16 @@ import shutil
 import time
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone, timedelta
-from urllib import request, error
-
-import requests
-from bs4 import BeautifulSoup
+from datetime import datetime, timedelta, timezone
+from urllib import error, request
 
 # Use the Error, Warning, and Trapping System Package for logging
 import ewts
+import requests
+from bs4 import BeautifulSoup
+
 LOG = ewts.get_logger(ewts.FORCING_ID)
+
 
 class ForecastDownloader(ABC):
     """
@@ -35,7 +36,16 @@ class ForecastDownloader(ABC):
     default_cleanback = 240
     default_lagback = 6
 
-    def __init__(self, out_dir, start_time, lookback_hours, cleanback_hours, lagback_hours, ens_number, input_horizon=None):
+    def __init__(
+        self,
+        out_dir,
+        start_time,
+        lookback_hours,
+        cleanback_hours,
+        lagback_hours,
+        ens_number,
+      input_horizon=None
+    ):
         """
         Initialize downloader with common configuration.
 
@@ -71,7 +81,9 @@ class ForecastDownloader(ABC):
         self.input_horizon = int(input_horizon / 60)
 
         # Current hour, rounded to the top of the hour in UTC
-        self.d_now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
+        self.d_now = datetime.now(timezone.utc).replace(
+            minute=0, second=0, microsecond=0
+        )
 
         # Format ens_number
         self.ens_number = str(self.ens_number).zfill(2)
@@ -263,7 +275,9 @@ class ForecastDownloader(ABC):
         Download forecast files by iterating over the desired time range and download targets.
         Each timestamp may have one or more targets to process.
         """
-        LOG.info(f"ForecastDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
+        LOG.info(
+            f"ForecastDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}"
+        )
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 
@@ -280,7 +294,9 @@ class ForecastDownloader(ABC):
 
             targets = self.get_download_targets(d_start)
             for target in targets:
-                url, filename = self.build_file_url_and_name(d_start, target, self.ens_number)
+                url, filename = self.build_file_url_and_name(
+                    d_start, target, self.ens_number
+                )
                 out_path = os.path.join(output_dir, filename)
 
                 LOG.info(f"Looking for file {out_path}")
@@ -350,7 +366,9 @@ class ForecastDownloader(ABC):
 
                 except FileExistsError:
                     # Another process already published the file.
-                    LOG.info(f"{out_path} already exists; another process wrote it first. Removing temp.")
+                    LOG.info(
+                        f"{out_path} already exists; another process wrote it first. Removing temp."
+                    )
                     os.remove(temp_path)
                     return
 
@@ -411,7 +429,9 @@ class FixedFileDownloader(ForecastDownloader, ABC):
         pass
 
     def _download_data(self):
-        LOG.info(f"FixedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
+        LOG.info(
+            f"FixedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}"
+        )
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 
@@ -459,10 +479,14 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
         return [0]  # Satisfy the abstract method; not used for scraping
 
     def build_file_url_and_name(self, d_start, target):
-        raise NotImplementedError("ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name().")
+        raise NotImplementedError(
+            "ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name()."
+        )
 
     def _download_data(self):
-        LOG.info(f"ScrapedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}")
+        LOG.info(
+            f"ScrapedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}"
+        )
         for hour in range(self.lookback_hours, self.effective_lagback(), -1):
             d_start = self.start_time - timedelta(hours=hour)
 

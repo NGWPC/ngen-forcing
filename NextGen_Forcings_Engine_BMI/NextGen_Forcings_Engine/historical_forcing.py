@@ -8,7 +8,6 @@ from datetime import timedelta
 from functools import cached_property
 from time import perf_counter, sleep
 
-# Use the Error, Warning, and Trapping System Package for logging
 import ewts
 import geopandas as gpd
 import matplotlib.pyplot as plt
