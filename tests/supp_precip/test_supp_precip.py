@@ -16,10 +16,7 @@ spec.loader.exec_module(test_utils)
 os.environ["MFE_SILENT"] = "true"
 
 
-RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
-    "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
-)
-FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
+FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_puertorico_config.yml"
 COMPOSITE_KEYS_TO_CHECK = ()
 GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
 KEYS_TO_EXCLUDE = ("uid64",)
@@ -29,11 +26,11 @@ KEYS_TO_EXCLUDE = ("uid64",)
     "bmi_forcing_fixture_supp_precip",
     [
         (
-            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
             COMPOSITE_KEYS_TO_CHECK,
             KEYS_TO_EXCLUDE,
             GRID_TYPE,
-            12,
+            14,
         )
     ],
     indirect=True,
