@@ -288,12 +288,10 @@ jobs:
   # trigger downstream ngen CI/CD pipeline
   trigger-ngen:
     name: trigger-ngen
-    if: success()
+    if: needs.pipeline-bmi.result == 'success'
     runs-on: ubuntu-latest
     needs:
       - pipeline-bmi
-      - pipeline-coastal
-      - pipeline-sfincs
     steps:
       - name: Generate GitHub App token
         id: app-token
