@@ -59,15 +59,16 @@ except ImportError:
 
 from typing import Any
 
-from numpy.typing import NDArray
-
 # Use the Error, Warning, and Trapping System Package for logging
 import ewts
+from numpy.typing import NDArray
+
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
+
 
 class UnknownBMIVariable(RuntimeError):
     """Custom exception raised when an unknown BMI variable is encountered."""
@@ -292,12 +293,20 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             for long_name in self._var_name_units_map.keys()
         }
 
-        # Check to make sure we have enough dimensionality to run regridding. ESMF requires both grids
-        # to have a size of at least 2.
-        if self.geo_meta.nx_local < 2 or self.geo_meta.ny_local < 2:
+        # Check to make sure we have enough dimensionality to run regridding. We assume that hydrofabric discretizations are large
+        # enough that 1x1 (single catchment) will provide enough points. For gridded and unstructured domains, we need to make sure
+        # that the local grid size for each processor is at least 2x2 to run the regridding process.
+        # forcing_input dimensionality is checked in regrid.py.
+
+        dimensionality = 1 if self._grid_type == "hydrofabric" else 2
+
+        if (
+            self.geo_meta.nx_local < dimensionality
+            or self.geo_meta.ny_local < dimensionality
+        ):
             self._job_meta.errMsg = (
-                "You have specified too many cores for your WRF-Hydro grid. "
-                "Local grid Must have x/y dimension size of 2."
+                f"You have specified too many cores for your WRF-Hydro grid. "
+                f"Local grid Must have x/y dimension size of {dimensionality}."
             )
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
