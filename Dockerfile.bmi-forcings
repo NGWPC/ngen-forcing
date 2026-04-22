@@ -1,9 +1,32 @@
+############################################################################
+# Change/Verify these values when adopting this Dockerfile into another org:
+#   GH_ORG, IMAGE_NAMESPACE,
+#   EWTS_ORG, EWTS_REF
+############################################################################
+
+# Ownership / branding overrides
+ARG GH_ORG=NGWPC
+ARG IMAGE_NAMESPACE=ngwpc
+
+# External repository sources (org and ref/branch overrides)
+ARG EWTS_ORG=${GH_ORG}
+ARG EWTS_REF=development
+############################################################################
+
+# Image selection
 ## TODO: replace with base image created under NGWPC-3223 ##
 ## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
 ARG BMI_BASE_REPO=rockylinux
 ARG BMI_BASE_TAG=8
 
 FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
+
+# Re-expose args after FROM for the remaining build stage
+# Keeps whatever value was already set
+ARG GH_ORG
+ARG IMAGE_NAMESPACE
+ARG EWTS_ORG
+ARG EWTS_REF
 
 # OCI Metadata Arguments
 ARG BMI_BASE_REPO
@@ -19,7 +42,7 @@ ARG IMAGE_REVISION="unknown"
 # OCI Standard Labels
 LABEL org.opencontainers.image.base.name="${BMI_BASE_NAME}" \
     org.opencontainers.image.base.digest="${BMI_BASE_DIGEST}" \
-    io.ngwpc.image.base.revision="${BMI_BASE_REVISION}" \
+    io.${IMAGE_NAMESPACE}.image.base.revision="${BMI_BASE_REVISION}" \
     org.opencontainers.image.source="${IMAGE_SOURCE}" \
     org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
     org.opencontainers.image.version="${IMAGE_VERSION}" \
@@ -179,9 +202,7 @@ SHELL ["/bin/bash", "-c"]
 # Build args – override at build time to pin a branch, tag, or full commit SHA:
 #   docker build --build-arg EWTS_REF=v1.2.3 ...
 #   docker build --build-arg EWTS_REF=abc123def456 ...
-ARG EWTS_ORG=NGWPC
-ARG EWTS_REF=development
-
+#
 # Clone nwm-ewts, install the Python package, capture git metadata for
 # provenance, then remove the source tree.
 # Try shallow clone by branch/tag name first; fall back to full clone + checkout
