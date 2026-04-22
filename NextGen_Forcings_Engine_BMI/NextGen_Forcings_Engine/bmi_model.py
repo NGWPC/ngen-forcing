@@ -300,8 +300,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         dimensionality = 1 if self._grid_type == "hydrofabric" else 2
 
         if (
-            self._wrf_hydro_geo_meta.nx_local < dimensionality
-            or self._wrf_hydro_geo_meta.ny_local < dimensionality
+            self.geo_meta.nx_local < dimensionality
+            or self.geo_meta.ny_local < dimensionality
         ):
             self._job_meta.errMsg = (
                 f"You have specified too many cores for your WRF-Hydro grid. "

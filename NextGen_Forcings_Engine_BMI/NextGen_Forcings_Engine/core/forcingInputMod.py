@@ -175,12 +175,13 @@ class InputForcings:
             # First call to getter, initialize
             self._grib_vars = FORCINGINPUTMOD["GRIB_VARS"][self.keyValue]
         if self.force_count == 8 and 8 in self.input_map_output:
-            # TODO: this assumes that LQFRAC (8) is always the last grib var
+            # TODO: we need to dig into LQFRAC and other non-liquid precip variables more
+            # to understand how non-LQFRAC variables (ie: FROZR, CPOFP) are being or can be used
             if (self._grib_vars is None) or (
                 not self._grib_vars[-1].startswith("LQFRAC")
             ):
-                raise ValueError(
-                    f"Expected LQFRAC to be the 8th variable; recieved: {self.grib_vars[-1]}"
+                LOG.warning(
+                    f"Expected LQFRAC to be the 8th variable; recieved: {self._grib_vars[-1]}"
                 )
             return self._grib_vars[:-1]
         else:
