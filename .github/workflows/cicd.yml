@@ -304,4 +304,4 @@ jobs:
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          gh workflow run ngwpc-cicd.yml --repo NGWPC/ngen --ref feat/trigger-downstream-pipelines
+          gh workflow run ngwpc-cicd.yml --repo NGWPC/ngen --ref development
