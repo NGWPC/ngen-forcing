@@ -540,43 +540,13 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         )
         model = self.bmi_model._model
 
-        ### NOTE with the exception of setting the skip flag, the below
-        ### block is copied verbatim from NWMv3ForcingEngineModel.run()
-        (
-            future_time,
-            config_options,
-        ) = model.determine_forecast(
-            future_time,
-            config_options,
-        )
-        (
-            config_options,
-            input_forcing_mod,
-            mpi_config,
-        ) = model.adjust_precip(
-            config_options,
-            input_forcing_mod,
-            mpi_config,
-        )
-        (
-            config_options,
-            mpi_config,
-        ) = model.log_forecast(
-            config_options,
-            mpi_config,
-        )
+        ### NOTE this should mimic NWMv3ForcingEngineModel.run() with the exception of setting the skip flag
+        model.determine_forecast(future_time, config_options)
+        model.adjust_precip(config_options, input_forcing_mod, mpi_config)
+        model.log_forecast(config_options, mpi_config)
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
-        (
-            future_time,
-            config_options,
-            geo_meta,
-            input_forcing_mod,
-            supp_pcp_mod,
-            mpi_config,
-            output_obj,
-            input_forcings,
-        ) = model.loop_through_forcing_products(
+        model.loop_through_forcing_products(
             future_time,
             config_options,
             geo_meta,
