@@ -3,6 +3,7 @@
 import pytest
 from test_utils import (
     BMIForcingFixture,
+    BMIForcingFixture_BmiModel,
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
@@ -168,4 +169,41 @@ def bmi_forcing_fixture_input_forcing(
         keys_to_exclude=keys_to_exclude,
         force_key=force_key,
         map_old_to_new_var_names=map_old_to_new_var_names,
+    )
+
+
+@pytest.fixture
+def bmi_forcing_fixture_bmi_model(
+    request,
+) -> BMIForcingFixture_BmiModel:
+    """Construct minimal class of classes for running BMI model tests.
+
+    Constructor for minimal class of classes for running BMI model tests.
+
+    For example usage, see: tests/bmi_model/test_bmi_model.test_bmi_model.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from
+            @pytest.mark.parametrize usage elsewhere.
+
+    """
+    (
+        config_file,
+        keys_to_check,
+        keys_to_exclude,
+        grid_type,
+    ) = request.param
+
+    bmi_model = BMIMODEL[grid_type]()
+    bmi_model.initialize_with_params(
+        config_file=config_file,
+        b_date=None,
+        geogrid=None,
+        output_path=None,
+    )
+    return BMIForcingFixture_BmiModel(
+        bmi_model=bmi_model,
+        grid_type=grid_type,
+        keys_to_check=keys_to_check,
+        keys_to_exclude=keys_to_exclude,
     )

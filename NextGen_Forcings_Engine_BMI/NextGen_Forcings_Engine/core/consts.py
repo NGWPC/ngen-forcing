@@ -71,6 +71,13 @@ GEOMOD = {
     ],
 }
 BMI_MODEL = {
+    "att_map": {
+        "model_name": "NWMv3.0 Forcings Engine BMI Python",
+        "version": "1.0",
+        "author_name": "Jason Ducker",
+        "grid_type": "unstructured&uniform_rectilinear",
+        "time_units": "seconds",
+    },
     "extension_map": {
         "gridded": "GRIDDED",
         "hydrofabric": "HYDROFABRIC",

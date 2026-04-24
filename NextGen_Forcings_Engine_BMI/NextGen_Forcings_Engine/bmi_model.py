@@ -142,13 +142,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     # ----------------------------------------------
     # Required, static attributes of the model
     # ----------------------------------------------
-    _att_map = {
-        "model_name": "NWMv3.0 Forcings Engine BMI Python",
-        "version": "1.0",
-        "author_name": "Jason Ducker",
-        "grid_type": "unstructured&uniform_rectilinear",
-        "time_units": "seconds",
-    }
+    _att_map = BMI_MODEL["att_map"]
 
     # ---------------------------------------------
     # Input variable names (CSDMS standard names)
