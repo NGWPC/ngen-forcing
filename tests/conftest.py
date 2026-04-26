@@ -203,7 +203,6 @@ def bmi_forcing_fixture_bmi_model(
     )
     return BMIForcingFixture_BmiModel(
         bmi_model=bmi_model,
-        grid_type=grid_type,
         keys_to_check=keys_to_check,
         keys_to_exclude=keys_to_exclude,
     )

@@ -19,14 +19,8 @@ os.environ["MFE_SILENT"] = "true"
 RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
 )
-### TODO: no config files for gridded and unstructured discretization modes
-# RETRO_FORCING_CONFIG_FILE__GRIDDED = (
-#     "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/<gridded>.yml"
-# )
-# RETRO_FORCING_CONFIG_FILE__UNSTRUCTURED = (
-#     "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/<unstructured>.yml"
-# )
 COMPOSITE_KEYS_TO_CHECK = ()
+GRID_TYPE = "hydrofabric"  # ["hydrofabric"]
 KEYS_TO_EXCLUDE = ("uid64",)
 
 
@@ -37,20 +31,8 @@ KEYS_TO_EXCLUDE = ("uid64",)
             RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
             COMPOSITE_KEYS_TO_CHECK,
             KEYS_TO_EXCLUDE,
-            "hydrofabric",
-        ),
-        # (
-        #     RETRO_FORCING_CONFIG_FILE__GRIDDED,
-        #     COMPOSITE_KEYS_TO_CHECK,
-        #     KEYS_TO_EXCLUDE,
-        #     "gridded",
-        # ),
-        # (
-        #     RETRO_FORCING_CONFIG_FILE__UNSTRUCTURED,
-        #     COMPOSITE_KEYS_TO_CHECK,
-        #     KEYS_TO_EXCLUDE,
-        #     "unstructured",
-        # ),
+            GRID_TYPE,
+        )
     ],
     indirect=True,
 )

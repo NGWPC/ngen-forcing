@@ -432,7 +432,6 @@ class BMIForcingFixture_BmiModel(BMIForcingFixture_Class):
     def __init__(
         self,
         bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
-        grid_type: str,
         keys_to_check: tuple = (),
         keys_to_exclude: tuple = (),
     ) -> None:
@@ -441,8 +440,6 @@ class BMIForcingFixture_BmiModel(BMIForcingFixture_Class):
         Args:
         ----
             bmi_model: the BMI model to be used in the test fixture
-            grid_type: The discretization grid type (e.g. "gridded", "hydrofabric",
-                "unstructured"), used to namespace expected results files per grid type.
             keys_to_check: The keys to check
             keys_to_exclude: The keys to exclude from the test results json and from
                 equality checks, for example because they contain non-deterministic
@@ -456,7 +453,7 @@ class BMIForcingFixture_BmiModel(BMIForcingFixture_Class):
         )
         self.test_class = self.bmi_model
 
-        self.test_file_name_prefix = f"bmi_model_{grid_type}"
+        self.test_file_name_prefix = "bmi_model"
 
 
 class BMIForcingFixture_Regrid(BMIForcingFixture):
