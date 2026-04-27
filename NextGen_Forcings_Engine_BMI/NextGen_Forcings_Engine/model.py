@@ -84,11 +84,7 @@ class NWMv3ForcingEngineModel:
     # def aws_obj(files):
     #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
-    def run(
-        self,
-        future_time: float,
-        output_obj: OutputObj,
-    ) -> None:
+    def run(self, future_time: float) -> None:
         """Execute the full forcings engine BMI pipeline for a given future timestep.
 
         This method updates the `self._bmi._values` state dictionary with atmospheric forcings computed from
@@ -119,7 +115,6 @@ class NWMv3ForcingEngineModel:
         7. Advance the BMI time index.
 
         :param future_time: The number of seconds into the future to advance the model.
-        :param output_obj: Output object that stores the generated atmospheric forcing arrays.
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
@@ -130,27 +125,16 @@ class NWMv3ForcingEngineModel:
         # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
         input_forcings = self.loop_through_forcing_products(
             future_time,
-            output_obj,
         )
-        self.process_suplemental_precip(
-            output_obj,
-            input_forcings,
-        )
-        self.write_output(
-            output_obj,
-        )
-        self.update_dict(
-            output_obj,
-        )
+        self.process_suplemental_precip(input_forcings)
+        self.write_output()
+        self.update_dict()
 
         ## Update BMI model time index to next iteration
         self._bmi._job_meta.bmi_time_index += 1
 
     @time_function
-    def determine_forecast(
-        self,
-        future_time: float,
-    ) -> None:
+    def determine_forecast(self, future_time: float) -> None:
         """Determine the forecast for the given future time and configuration.
 
         Warnings
@@ -258,7 +242,7 @@ class NWMv3ForcingEngineModel:
 
     @time_function
     def loop_through_forcing_products(
-        self, future_time: float, output_obj: OutputObj
+        self, future_time: float
     ) -> forcingInputMod.InputForcingsHydrofabric:
         """Loop through each forcing product and process it for the current forecast cycle.
 
@@ -277,14 +261,18 @@ class NWMv3ForcingEngineModel:
         if not self._bmi._job_meta.precip_only_flag:
             if self._bmi._job_meta.grid_type == "gridded":
                 # Reset out final grids to missing values.
-                output_obj.output_local[:, :, :] = self._bmi._job_meta.globalNdv
+                self._bmi._output_obj.output_local[:, :, :] = (
+                    self._bmi._job_meta.globalNdv
+                )
             elif self._bmi._job_meta.grid_type == "unstructured":
                 # Reset out final grids to missing values.
-                output_obj.output_local[:, :] = self._bmi._job_meta.globalNdv
-                output_obj.output_local_elem[:, :] = self._bmi._job_meta.globalNdv
+                self._bmi._output_obj.output_local[:, :] = self._bmi._job_meta.globalNdv
+                self._bmi._output_obj.output_local_elem[:, :] = (
+                    self._bmi._job_meta.globalNdv
+                )
             elif self._bmi._job_meta.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
-                output_obj.output_local[:, :] = self._bmi._job_meta.globalNdv
+                self._bmi._output_obj.output_local[:, :] = self._bmi._job_meta.globalNdv
             else:
                 raise ValueError(
                     f"Unexpected grid_type: {repr(self._bmi._job_meta.grid_type)}"
@@ -305,24 +293,24 @@ class NWMv3ForcingEngineModel:
 
             # Compute the output timestamp for this step
             if self._bmi._job_meta.ana_flag:
-                output_obj.outDate = (
+                self._bmi._output_obj.outDate = (
                     self._bmi._job_meta.current_fcst_cycle
                     + datetime.timedelta(seconds=self._bmi._job_meta.output_freq * 60)
                 )
             else:
-                output_obj.outDate = (
+                self._bmi._output_obj.outDate = (
                     self._bmi._job_meta.current_fcst_cycle
                     + datetime.timedelta(seconds=future_time)
                 )
 
-            self._bmi._job_meta.current_output_date = output_obj.outDate
+            self._bmi._job_meta.current_output_date = self._bmi._output_obj.outDate
 
             # Adjust file_date for AnA if needed
             file_date = (
-                output_obj.outDate
+                self._bmi._output_obj.outDate
                 - datetime.timedelta(seconds=self._bmi._job_meta.output_freq * 60)
                 if self._bmi._job_meta.ana_flag
-                else output_obj.outDate
+                else self._bmi._output_obj.outDate
             )
 
             # Compute previous output date (used for downscaling logic)
@@ -374,14 +362,18 @@ class NWMv3ForcingEngineModel:
                 else:
                     input_forcings = self._bmi._input_forcing_mod[force_key]
                     input_forcings.calc_neighbor_files(
-                        self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
+                        self._bmi._job_meta,
+                        self._bmi._output_obj.outDate,
+                        self._bmi._mpi_meta,
                     )
 
                 if force_key in [12, 21, 27]:
                     if self._bmi._job_meta.aws is None:
                         # Calculate the previous and next input cycle files from the inputs.
                         input_forcings.calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
+                            self._bmi._job_meta,
+                            self._bmi._output_obj.outDate,
+                            self._bmi._mpi_meta,
                         )
                         err_handler.check_program_status(
                             self._bmi._job_meta, self._bmi._mpi_meta
@@ -487,7 +479,9 @@ class NWMv3ForcingEngineModel:
                             )
                     # Re-calculate the neighbor files.
                     input_forcings.calc_neighbor_files(
-                        self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
+                        self._bmi._job_meta,
+                        self._bmi._output_obj.outDate,
+                        self._bmi._mpi_meta,
                     )
                     err_handler.check_program_status(
                         self._bmi._job_meta, self._bmi._mpi_meta
@@ -535,7 +529,10 @@ class NWMv3ForcingEngineModel:
 
                 # Layer in forcings from this product.
                 layeringMod.layer_final_forcings(
-                    output_obj, input_forcings, self._bmi._job_meta, self._bmi._mpi_meta
+                    self._bmi._output_obj,
+                    input_forcings,
+                    self._bmi._job_meta,
+                    self._bmi._mpi_meta,
                 )
                 err_handler.check_program_status(
                     self._bmi._job_meta, self._bmi._mpi_meta
@@ -554,7 +551,9 @@ class NWMv3ForcingEngineModel:
                     if supp_pcp_key != 13:
                         # Like with input forcings, calculate the neighboring files to use.
                         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
+                            self._bmi._job_meta,
+                            self._bmi._output_obj.outDate,
+                            self._bmi._mpi_meta,
                         )
                         err_handler.check_program_status(
                             self._bmi._job_meta, self._bmi._mpi_meta
@@ -608,7 +607,7 @@ class NWMv3ForcingEngineModel:
 
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
-                                output_obj,
+                                self._bmi._output_obj,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
@@ -620,21 +619,17 @@ class NWMv3ForcingEngineModel:
             # Call the output routines
             #   adjust date for AnA if necessary
             if self._bmi._job_meta.ana_flag:
-                output_obj.outDate = file_date
+                self._bmi._output_obj.outDate = file_date
 
                 ################ Commenting this out to bypass NWM forcing file output functionality #########
-                # output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta)
+                # self._bmi._output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta)
                 # err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
                 ##############################################################################################
 
         return input_forcings
 
     @time_function
-    def process_suplemental_precip(
-        self,
-        output_obj: OutputObj,
-        input_forcings: dict,
-    ) -> None:
+    def process_suplemental_precip(self, input_forcings: dict) -> None:
         """Process supplemental precipitation for the current forecast cycle.
 
         Warnings
@@ -648,7 +643,9 @@ class NWMv3ForcingEngineModel:
                     if supp_pcp_key == 14:
                         # Like with input forcings, calculate the neighboring files to use.
                         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
+                            self._bmi._job_meta,
+                            self._bmi._output_obj.outDate,
+                            self._bmi._mpi_meta,
                         )
                         err_handler.check_program_status(
                             self._bmi._job_meta, self._bmi._mpi_meta
@@ -701,7 +698,7 @@ class NWMv3ForcingEngineModel:
 
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
-                                output_obj,
+                                self._bmi._output_obj,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
@@ -711,10 +708,7 @@ class NWMv3ForcingEngineModel:
                             )
 
     @time_function
-    def write_output(
-        self,
-        output_obj: OutputObj,
-    ) -> None:
+    def write_output(self) -> None:
         """Write the output for the current forecast cycle.
 
         Warnings
@@ -727,17 +721,14 @@ class NWMv3ForcingEngineModel:
             self._bmi._job_meta.forcing_output == 1
             or self._bmi._job_meta.grid_type == "hydrofabric"
         ):
-            output_obj.gather_global_outputs(
+            self._bmi._output_obj.gather_global_outputs(
                 self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
             )
 
         """##################Step 6: flatten and update dict##########################################################################"""
 
     @time_function
-    def update_dict(
-        self,
-        output_obj: OutputObj,
-    ) -> None:
+    def update_dict(self) -> None:
         """Flatten the Forcings Engine output object and update the BMI dictionary.
 
         Warnings
@@ -782,22 +773,22 @@ class NWMv3ForcingEngineModel:
             ]
         if self._bmi._job_meta.grid_type == "gridded":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_local[
-                    count, :, :
-                ].flatten()
+                self._bmi._values[variable + "_ELEMENT"] = (
+                    self._bmi._output_obj.output_local[count, :, :].flatten()
+                )
         elif self._bmi._job_meta.grid_type == "unstructured":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_local_elem[
-                    count, :
-                ].flatten()
-                self._bmi._values[variable + "_NODE"] = output_obj.output_local[
-                    count, :
-                ].flatten()
+                self._bmi._values[variable + "_ELEMENT"] = (
+                    self._bmi._output_obj.output_local_elem[count, :].flatten()
+                )
+                self._bmi._values[variable + "_NODE"] = (
+                    self._bmi._output_obj.output_local[count, :].flatten()
+                )
         elif self._bmi._job_meta.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_global[
-                    count, :
-                ].flatten()
+                self._bmi._values[variable + "_ELEMENT"] = (
+                    self._bmi._output_obj.output_global[count, :].flatten()
+                )
                 self._bmi._values["CAT-ID"] = self._bmi.geo_meta.element_ids_global
         else:
             raise ValueError(

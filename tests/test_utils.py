@@ -527,8 +527,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
                 f"In pre_regrid, expected state to be either None or 'post_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
 
-        output_obj = self.bmi_model._output_obj
-
         future_time = (
             self.bmi_model._values["current_model_time"]
             + self.bmi_model._values["time_step_size"]
@@ -541,7 +539,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         model.log_forecast()
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
-        model.loop_through_forcing_products(future_time, output_obj)
+        model.loop_through_forcing_products(future_time)
 
         # Update test fixture status
         self._state = "pre_ran"

@@ -469,10 +469,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             == future_time
             == self.cfg_bmi["initial_time"]
         ):
-            self._model.run(
-                future_time,
-                self._output_obj,
-            )
+            self._model.run(future_time)
         else:
             # Start a while loop to iterate the model time step by step until the
             # current model time reaches or exceeds the future_time.
@@ -480,10 +477,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 # Advance the model time by the defined time step size.
                 self._values["current_model_time"] += self._values["time_step_size"]
                 # Run the model for the new current time and update the state.
-                self._model.run(
-                    self._values["current_model_time"],
-                    self._output_obj,
-                )
+                self._model.run(self._values["current_model_time"])
 
     # ------------------------------------------------------------
     def finalize(self):
