@@ -248,7 +248,6 @@ class NWMv3ForcingEngineModel:
         # 4.) Downscale.
         # 5.) Layer, and output as necessary.
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
-        show_message = True
         if not self._bmi._job_meta.precip_only_flag:
             if self._bmi._job_meta.grid_type == "gridded":
                 # Reset out final grids to missing values.
@@ -317,7 +316,7 @@ class NWMv3ForcingEngineModel:
 
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
-            if self._bmi._mpi_meta.rank == 0 and show_message:
+            if self._bmi._mpi_meta.rank == 0:
                 self._bmi._job_meta.statusMsg = (
                     "========================================="
                 )
