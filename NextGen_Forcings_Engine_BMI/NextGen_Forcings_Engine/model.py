@@ -312,6 +312,10 @@ class NWMv3ForcingEngineModel:
             elif config_options.grid_type == "hydrofabric":
                 # Reset out final grids to missing values.
                 output_obj.output_local[:, :] = config_options.globalNdv
+            else:
+                raise ValueError(
+                    f"Unexpected grid_type: {repr(config_options.grid_type)}"
+                )
 
             # Increment or initialize output step count
             if config_options.current_output_step is None:
@@ -481,6 +485,10 @@ class NWMv3ForcingEngineModel:
                         elif config_options.grid_type == "hydrofabric":
                             input_forcings.regridded_forcings1[:, :] = (
                                 input_forcings.regridded_forcings2[:, :]
+                            )
+                        else:
+                            raise ValueError(
+                                f"Unexpected grid_type: {repr(config_options.grid_type)}"
                             )
                     # Re-calculate the neighbor files.
                     input_forcings.calc_neighbor_files(
@@ -752,3 +760,5 @@ class NWMv3ForcingEngineModel:
                     count, :
                 ].flatten()
                 model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
+        else:
+            raise ValueError(f"Unexpected grid_type: {repr(config_options.grid_type)}")
