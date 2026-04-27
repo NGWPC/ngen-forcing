@@ -18,16 +18,12 @@ spec = importlib.util.spec_from_file_location(
 test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
+consts = test_utils.test_consts
+
 ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 ### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
 os.environ["MFE_SILENT"] = "true"
-
-
-RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
-    "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
-)
-FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
 
 
 ### These are output arrays which can contain extra unused elements which need to be removed during an equality check.
@@ -63,11 +59,9 @@ REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 ### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
 EXTRA_ATTRS: tuple[ClassAttrFetcher] = (ClassAttrFetcher("geo_meta", "element_ids"),)
 
-COMPOSITE_KEYS_TO_CHECK: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
+COMPOSITE_KEYS_TO_CHECK__REGRID: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS
 )
-GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
-KEYS_TO_EXCLUDE = ("uid64",)
 
 
 @pytest.mark.parametrize(
@@ -75,33 +69,33 @@ KEYS_TO_EXCLUDE = ("uid64",)
     [
         (
             regrid_aorc_aws,
-            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
             12,
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK,
-            KEYS_TO_EXCLUDE,
-            GRID_TYPE,
+            COMPOSITE_KEYS_TO_CHECK__REGRID,
+            consts.KEYS_TO_EXCLUDE,
+            consts.GRID_TYPE,
         ),
         (
             regrid_conus_hrrr,
-            FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+            consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
             5,
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK,
-            KEYS_TO_EXCLUDE,
-            GRID_TYPE,
+            COMPOSITE_KEYS_TO_CHECK__REGRID,
+            consts.KEYS_TO_EXCLUDE,
+            consts.GRID_TYPE,
         ),
         (
             regrid_conus_rap,
-            FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+            consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
             6,
             EXTRA_ATTRS,
             REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK,
-            KEYS_TO_EXCLUDE,
-            GRID_TYPE,
+            COMPOSITE_KEYS_TO_CHECK__REGRID,
+            consts.KEYS_TO_EXCLUDE,
+            consts.GRID_TYPE,
         ),
     ],
     indirect=True,

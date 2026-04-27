@@ -31,6 +31,8 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     serialize_to_json,
 )
 
+import test_consts  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
+
 try:
     import esmpy as ESMF
 except ImportError:

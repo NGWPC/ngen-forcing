@@ -11,28 +11,17 @@ spec = importlib.util.spec_from_file_location(
 test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
-
-### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
-os.environ["MFE_SILENT"] = "true"
-
-
-RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
-    "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
-)
-FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
-COMPOSITE_KEYS_TO_CHECK = ()
-GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
-KEYS_TO_EXCLUDE = ("uid64",)
+consts = test_utils.test_consts
 
 
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_input_forcing",
     [
         (
-            RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
-            COMPOSITE_KEYS_TO_CHECK,
-            KEYS_TO_EXCLUDE,
-            GRID_TYPE,
+            consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+            consts.COMPOSITE_KEYS_TO_CHECK,
+            consts.KEYS_TO_EXCLUDE,
+            consts.GRID_TYPE,
             12,
         )
     ],
