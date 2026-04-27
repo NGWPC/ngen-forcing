@@ -1,3 +1,5 @@
+"""NWMv3ForcingEngineModel, to be constructed and managed by inheritors of NWMv3_Forcing_Engine_BMI_model_Base from bmi_model.py"""
+
 from __future__ import annotations
 import datetime
 from contextlib import contextmanager
@@ -25,7 +27,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
 )
 
 if TYPE_CHECKING:
-    # To allow type hint without circular import error
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
         NWMv3_Forcing_Engine_BMI_model_Base,
     )
@@ -59,21 +60,14 @@ def time_function(func):
 
 
 class NWMv3ForcingEngineModel:
-    """NextGen Forcings Engine BMI model class for NWMv3 forcings."""
+    """NextGen Forcings Engine BMI model class for NWMv3 forcings.
+    To be constructed and managed by inheritors of NWMv3_Forcing_Engine_BMI_model_Base from bmi_model.py.
+    """
 
     def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base):
         """Initialize the NWMv3 Forcing Engine Model."""
         self.source_data_processor = None
         self._bmi = bmi_model
-
-    # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
-    # def __init__(self):
-    #    super(ngen_model, self).__init__()
-    #    #self._model = model
-
-    # @dask.delayed
-    # def aws_obj(files):
-    #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
     def check_program_status(self) -> None:
         """Call err_handler.check_program_status"""
@@ -213,7 +207,6 @@ class NWMv3ForcingEngineModel:
         --------
             Modifies mutable arguments in-place.
         """
-        # Log information about this forecast cycle
         if self._bmi._mpi_meta.rank == 0:
             self._bmi._job_meta.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
@@ -236,16 +229,17 @@ class NWMv3ForcingEngineModel:
     ) -> forcingInputMod.InputForcingsHydrofabric:
         """Loop through each forcing product and process it for the current forecast cycle.
 
+        Loop through each output timestep. Perform the following functions:
+        1.) Calculate all necessary input files per user options.
+        2.) Read in input forcings from GRIB/NetCDF files.
+        3.) Regrid the forcings, and temporally interpolate.
+        4.) Downscale.
+        5.) Layer, and output as necessary.
+
         Warnings
         --------
             Modifies mutable arguments in-place.
         """
-        # Loop through each output timestep. Perform the following functions:
-        # 1.) Calculate all necessary input files per user options.
-        # 2.) Read in input forcings from GRIB/NetCDF files.
-        # 3.) Regrid the forcings, and temporally interpolate.
-        # 4.) Downscale.
-        # 5.) Layer, and output as necessary.
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
         if not self._bmi._job_meta.precip_only_flag:
             if self._bmi._job_meta.grid_type == "gridded":
@@ -366,6 +360,7 @@ class NWMv3ForcingEngineModel:
                         )
                         self.check_program_status()
                     else:
+                        # TODO assert one force_key?
                         # Flag to indicate the AWS .zarr AORC method
                         if force_key == 12:
                             if self.source_data_processor is None:
@@ -511,6 +506,7 @@ class NWMv3ForcingEngineModel:
 
                 self._bmi._job_meta.currentForceNum += 1
 
+                # TODO what is this?
                 if force_key == 10:
                     self._bmi._job_meta.currentCustomForceNum += 1
 
@@ -657,13 +653,13 @@ class NWMv3ForcingEngineModel:
     @time_function
     def write_output(self) -> None:
         """Write the output for the current forecast cycle.
+        If user requests output for given domain, then call
+        the I/O module to update opened netcdf file with forcing fields.
 
         Warnings
         --------
             Modifies mutable arguments in-place.
         """
-        # If user requests output for given domain, then call
-        # the I/O module to update opened netcdf file with forcing fields
         if (
             self._bmi._job_meta.forcing_output == 1
             or self._bmi._job_meta.grid_type == "hydrofabric"
@@ -672,28 +668,27 @@ class NWMv3ForcingEngineModel:
                 self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
             )
 
-        """##################Step 6: flatten and update dict##########################################################################"""
-
     @time_function
     def update_dict(self) -> None:
         """Flatten the Forcings Engine output object and update the BMI dictionary.
+
+        Loop through Forcings Engine output object
+        and flatten the 2D forcing array and append to
+        the BMI object to advertise to BMIinterface.
+        0.) U-Wind (m/s)
+        1.) V-Wind (m/s)
+        2.) Surface incoming longwave radiation flux (W/m^2)
+        3.) Precipitation rate (mm/s)
+        4.) 2-meter temperature (K)
+        5.) 2-meter specific humidity (kg/kg)
+        6.) Surface pressure (Pa)
+        7.) Surface incoming shortwave radiation flux (W/m^2)
+        8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
 
         Warnings
         --------
             Modifies mutable arguments in-place.
         """
-        # Now loop through Forcings Engine output object
-        # and flatten the 2D forcing array and append to
-        # the BMI object to advertise to BMIinterface
-        # 0.) U-Wind (m/s)
-        # 1.) V-Wind (m/s)
-        # 2.) Surface incoming longwave radiation flux (W/m^2)
-        # 3.) Precipitation rate (mm/s)
-        # 4.) 2-meter temperature (K)
-        # 5.) 2-meter specific humidity (kg/kg)
-        # 6.) Surface pressure (Pa)
-        # 7.) Surface incoming shortwave radiation flux (W/m^2)
-        # 8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
 
         if self._bmi._job_meta.include_lqfrac == 1:
             variables = [
