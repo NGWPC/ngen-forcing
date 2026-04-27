@@ -87,7 +87,6 @@ class NWMv3ForcingEngineModel:
     def run(
         self,
         future_time: float,
-        mpi_config: MpiConfig,
         output_obj: OutputObj,
     ) -> None:
         """Execute the full forcings engine BMI pipeline for a given future timestep.
@@ -120,28 +119,24 @@ class NWMv3ForcingEngineModel:
         7. Advance the BMI time index.
 
         :param future_time: The number of seconds into the future to advance the model.
-        :param mpi_config: Object containing MPI communication settings such as rank and communicator.
         :param output_obj: Output object that stores the generated atmospheric forcing arrays.
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
 
         self.determine_forecast(future_time)
-        self.adjust_precip(mpi_config)
-        self.log_forecast(mpi_config)
+        self.adjust_precip()
+        self.log_forecast()
         # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
         input_forcings = self.loop_through_forcing_products(
             future_time,
-            mpi_config,
             output_obj,
         )
         self.process_suplemental_precip(
-            mpi_config,
             output_obj,
             input_forcings,
         )
         self.write_output(
-            mpi_config,
             output_obj,
         )
         self.update_dict(
@@ -222,10 +217,7 @@ class NWMv3ForcingEngineModel:
             )
 
     @time_function
-    def adjust_precip(
-        self,
-        mpi_config: MpiConfig,
-    ) -> None:
+    def adjust_precip(self) -> None:
         """Adjust precipitation for the given forecast cycle.
 
         Warnings
@@ -237,13 +229,10 @@ class NWMv3ForcingEngineModel:
             for force_key in self._bmi._job_meta.input_forcings:
                 self._bmi._input_forcing_mod[force_key].skip = False
 
-            err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+            err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
 
     @time_function
-    def log_forecast(
-        self,
-        mpi_config: MpiConfig,
-    ) -> None:
+    def log_forecast(self) -> None:
         """Log information about the current forecast cycle.
 
         Warnings
@@ -251,28 +240,25 @@ class NWMv3ForcingEngineModel:
             Modifies mutable arguments in-place.
         """
         # Log information about this forecast cycle
-        if mpi_config.rank == 0:
+        if self._bmi._mpi_meta.rank == 0:
             self._bmi._job_meta.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            err_handler.log_msg(self._bmi._job_meta, mpi_config, True)
+            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
             self._bmi._job_meta.statusMsg = (
                 "Processing Forecast Cycle: "
                 + self._bmi._job_meta.current_fcst_cycle.strftime("%Y-%m-%d %H:%M")
             )
-            err_handler.log_msg(self._bmi._job_meta, mpi_config, True)
+            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
             self._bmi._job_meta.statusMsg = (
                 "Forecast Cycle Length is: "
                 + str(self._bmi._job_meta.cycle_length_minutes)
                 + " minutes"
             )
-            err_handler.log_msg(self._bmi._job_meta, mpi_config, True)
-        # mpi_config.comm.barrier()
+            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
+        # self._bmi._mpi_meta.comm.barrier()
 
     @time_function
     def loop_through_forcing_products(
-        self,
-        future_time: float,
-        mpi_config: MpiConfig,
-        output_obj: OutputObj,
+        self, future_time: float, output_obj: OutputObj
     ) -> forcingInputMod.InputForcingsHydrofabric:
         """Loop through each forcing product and process it for the current forecast cycle.
 
@@ -352,13 +338,13 @@ class NWMv3ForcingEngineModel:
 
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
-            if mpi_config.rank == 0 and show_message:
+            if self._bmi._mpi_meta.rank == 0 and show_message:
                 self._bmi._job_meta.statusMsg = (
                     "========================================="
                 )
-                err_handler.log_msg(self._bmi._job_meta, mpi_config, True)
+                err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
                 self._bmi._job_meta.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(self._bmi._job_meta, mpi_config, True)
+                err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
 
             self._bmi._job_meta.currentForceNum = 0
             self._bmi._job_meta.currentCustomForceNum = 0
@@ -388,17 +374,17 @@ class NWMv3ForcingEngineModel:
                 else:
                     input_forcings = self._bmi._input_forcing_mod[force_key]
                     input_forcings.calc_neighbor_files(
-                        self._bmi._job_meta, output_obj.outDate, mpi_config
+                        self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
                     )
 
                 if force_key in [12, 21, 27]:
                     if self._bmi._job_meta.aws is None:
                         # Calculate the previous and next input cycle files from the inputs.
                         input_forcings.calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, mpi_config
+                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
                         )
                         err_handler.check_program_status(
-                            self._bmi._job_meta, mpi_config
+                            self._bmi._job_meta, self._bmi._mpi_meta
                         )
                     else:
                         # Flag to indicate the AWS .zarr AORC method
@@ -406,14 +392,14 @@ class NWMv3ForcingEngineModel:
                             if self.source_data_processor is None:
                                 self.source_data_processor = AORCConusProcessor(
                                     self._bmi._job_meta,
-                                    mpi_config,
+                                    self._bmi._mpi_meta,
                                     self._bmi.geo_meta,
                                 )
                         elif force_key == 21:
                             if self.source_data_processor is None:
                                 self.source_data_processor = AORCAlaskaProcessor(
                                     self._bmi._job_meta,
-                                    mpi_config,
+                                    self._bmi._mpi_meta,
                                     self._bmi.geo_meta,
                                 )
 
@@ -423,7 +409,7 @@ class NWMv3ForcingEngineModel:
                                 if self._bmi._job_meta.nwm_domain == "CONUS":
                                     self.source_data_processor = NWMV3ConusProcessor(
                                         self._bmi._job_meta,
-                                        mpi_config,
+                                        self._bmi._mpi_meta,
                                         self._bmi.geo_meta,
                                     )
                                 elif self._bmi._job_meta.nwm_domain in [
@@ -432,13 +418,13 @@ class NWMv3ForcingEngineModel:
                                 ]:
                                     self.source_data_processor = NWMV3OConusProcessor(
                                         self._bmi._job_meta,
-                                        mpi_config,
+                                        self._bmi._mpi_meta,
                                         self._bmi.geo_meta,
                                     )
                                 elif self._bmi._job_meta.nwm_domain == "Alaska":
                                     self.source_data_processor = NWMV3AlaskaProcessor(
                                         self._bmi._job_meta,
-                                        mpi_config,
+                                        self._bmi._mpi_meta,
                                         self._bmi.geo_meta,
                                     )
                                 else:
@@ -458,15 +444,19 @@ class NWMv3ForcingEngineModel:
                     break
                 # Regrid forcings.
                 input_forcings.regrid_inputs(
-                    self._bmi._job_meta, self._bmi.geo_meta, mpi_config
+                    self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 # Run check on regridded fields for reasonable values that are not missing values.
                 err_handler.check_forcing_bounds(
-                    self._bmi._job_meta, input_forcings, mpi_config
+                    self._bmi._job_meta, input_forcings, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
@@ -497,47 +487,59 @@ class NWMv3ForcingEngineModel:
                             )
                     # Re-calculate the neighbor files.
                     input_forcings.calc_neighbor_files(
-                        self._bmi._job_meta, output_obj.outDate, mpi_config
+                        self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
                     )
-                    err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                    err_handler.check_program_status(
+                        self._bmi._job_meta, self._bmi._mpi_meta
+                    )
 
                     # Regrid the forcings for the end of the window.
                     input_forcings.regrid_inputs(
-                        self._bmi._job_meta, self._bmi.geo_meta, mpi_config
+                        self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                     )
-                    err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                    err_handler.check_program_status(
+                        self._bmi._job_meta, self._bmi._mpi_meta
+                    )
 
                     input_forcings.rstFlag = 0
 
                 # Run temporal interpolation on the grids.
                 input_forcings.temporal_interpolate_inputs(
-                    self._bmi._job_meta, mpi_config
+                    self._bmi._job_meta, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 # Run bias correction.
                 bias_correction.run_bias_correction(
                     input_forcings,
                     self._bmi._job_meta,
                     self._bmi.geo_meta,
-                    mpi_config,
+                    self._bmi._mpi_meta,
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 # Run downscaling on grids for this output timestep.
                 downscale.run_downscaling(
                     input_forcings,
                     self._bmi._job_meta,
                     self._bmi.geo_meta,
-                    mpi_config,
+                    self._bmi._mpi_meta,
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 # Layer in forcings from this product.
                 layeringMod.layer_final_forcings(
-                    output_obj, input_forcings, self._bmi._job_meta, mpi_config
+                    output_obj, input_forcings, self._bmi._job_meta, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                err_handler.check_program_status(
+                    self._bmi._job_meta, self._bmi._mpi_meta
+                )
 
                 self._bmi._job_meta.currentForceNum += 1
 
@@ -552,18 +554,18 @@ class NWMv3ForcingEngineModel:
                     if supp_pcp_key != 13:
                         # Like with input forcings, calculate the neighboring files to use.
                         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, mpi_config
+                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
                         )
                         err_handler.check_program_status(
-                            self._bmi._job_meta, mpi_config
+                            self._bmi._job_meta, self._bmi._mpi_meta
                         )
 
                         # Regrid the supplemental precipitation.
                         self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, self._bmi.geo_meta, mpi_config
+                            self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                         )
                         err_handler.check_program_status(
-                            self._bmi._job_meta, mpi_config
+                            self._bmi._job_meta, self._bmi._mpi_meta
                         )
 
                         if (
@@ -576,11 +578,11 @@ class NWMv3ForcingEngineModel:
                             err_handler.check_supp_pcp_bounds(
                                 self._bmi._job_meta,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
-                                mpi_config,
+                                self._bmi._mpi_meta,
                                 self._bmi.geo_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
@@ -588,20 +590,20 @@ class NWMv3ForcingEngineModel:
                                 input_forcings,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
-                                mpi_config,
+                                self._bmi._mpi_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             # Run temporal interpolation on the grids.
                             self._bmi._supp_pcp_mod[
                                 supp_pcp_key
                             ].temporal_interpolate_inputs(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             # Layer in the supplemental precipitation into the current output object.
@@ -609,10 +611,10 @@ class NWMv3ForcingEngineModel:
                                 output_obj,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
-                                mpi_config,
+                                self._bmi._mpi_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
             # Call the output routines
@@ -621,8 +623,8 @@ class NWMv3ForcingEngineModel:
                 output_obj.outDate = file_date
 
                 ################ Commenting this out to bypass NWM forcing file output functionality #########
-                # output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, mpi_config)
-                # err_handler.check_program_status(self._bmi._job_meta, mpi_config)
+                # output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta)
+                # err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
                 ##############################################################################################
 
         return input_forcings
@@ -630,7 +632,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def process_suplemental_precip(
         self,
-        mpi_config: MpiConfig,
         output_obj: OutputObj,
         input_forcings: dict,
     ) -> None:
@@ -647,18 +648,18 @@ class NWMv3ForcingEngineModel:
                     if supp_pcp_key == 14:
                         # Like with input forcings, calculate the neighboring files to use.
                         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta, output_obj.outDate, mpi_config
+                            self._bmi._job_meta, output_obj.outDate, self._bmi._mpi_meta
                         )
                         err_handler.check_program_status(
-                            self._bmi._job_meta, mpi_config
+                            self._bmi._job_meta, self._bmi._mpi_meta
                         )
 
                         # Regrid the supplemental precipitation.
                         self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, self._bmi.geo_meta, mpi_config
+                            self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                         )
                         err_handler.check_program_status(
-                            self._bmi._job_meta, mpi_config
+                            self._bmi._job_meta, self._bmi._mpi_meta
                         )
 
                         if (
@@ -671,31 +672,31 @@ class NWMv3ForcingEngineModel:
                             err_handler.check_supp_pcp_bounds(
                                 self._bmi._job_meta,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
-                                mpi_config,
+                                self._bmi._mpi_meta,
                                 self._bmi.geo_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             self.disaggregate_fun(
                                 input_forcings,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
-                                mpi_config,
+                                self._bmi._mpi_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             # Run temporal interpolation on the grids.
                             self._bmi._supp_pcp_mod[
                                 supp_pcp_key
                             ].temporal_interpolate_inputs(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
                             # Layer in the supplemental precipitation into the current output object.
@@ -703,16 +704,15 @@ class NWMv3ForcingEngineModel:
                                 output_obj,
                                 self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
-                                mpi_config,
+                                self._bmi._mpi_meta,
                             )
                             err_handler.check_program_status(
-                                self._bmi._job_meta, mpi_config
+                                self._bmi._job_meta, self._bmi._mpi_meta
                             )
 
     @time_function
     def write_output(
         self,
-        mpi_config: MpiConfig,
         output_obj: OutputObj,
     ) -> None:
         """Write the output for the current forecast cycle.
@@ -728,7 +728,7 @@ class NWMv3ForcingEngineModel:
             or self._bmi._job_meta.grid_type == "hydrofabric"
         ):
             output_obj.gather_global_outputs(
-                self._bmi._job_meta, self._bmi.geo_meta, mpi_config
+                self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
             )
 
         """##################Step 6: flatten and update dict##########################################################################"""
