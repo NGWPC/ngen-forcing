@@ -87,7 +87,6 @@ class NWMv3ForcingEngineModel:
     def run(
         self,
         future_time: float,
-        input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
@@ -122,7 +121,6 @@ class NWMv3ForcingEngineModel:
         7. Advance the BMI time index.
 
         :param future_time: The number of seconds into the future to advance the model.
-        :param input_forcing_mod: Dictionary of initialized input forcing modules indexed by forcing key.
         :param supp_pcp_mod: Dictionary of supplemental precipitation modules indexed by key.
         :param mpi_config: Object containing MPI communication settings such as rank and communicator.
         :param output_obj: Output object that stores the generated atmospheric forcing arrays.
@@ -131,12 +129,11 @@ class NWMv3ForcingEngineModel:
         """
 
         self.determine_forecast(future_time)
-        self.adjust_precip(input_forcing_mod, mpi_config)
+        self.adjust_precip(mpi_config)
         self.log_forecast(mpi_config)
         # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
         input_forcings = self.loop_through_forcing_products(
             future_time,
-            input_forcing_mod,
             supp_pcp_mod,
             mpi_config,
             output_obj,
@@ -231,7 +228,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def adjust_precip(
         self,
-        input_forcing_mod: dict,
         mpi_config: MpiConfig,
     ) -> None:
         """Adjust precipitation for the given forecast cycle.
@@ -243,7 +239,7 @@ class NWMv3ForcingEngineModel:
         if not self._bmi._job_meta.precip_only_flag:
             # reset skips if present
             for force_key in self._bmi._job_meta.input_forcings:
-                input_forcing_mod[force_key].skip = False
+                self._bmi._input_forcing_mod[force_key].skip = False
 
             err_handler.check_program_status(self._bmi._job_meta, mpi_config)
 
@@ -279,7 +275,6 @@ class NWMv3ForcingEngineModel:
     def loop_through_forcing_products(
         self,
         future_time: float,
-        input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
@@ -390,13 +385,13 @@ class NWMv3ForcingEngineModel:
                     and 12 in self._bmi._job_meta.input_forcings
                     and 21 in self._bmi._job_meta.input_forcings
                 ):
-                    input_forcings = input_forcing_mod[force_key]
+                    input_forcings = self._bmi._input_forcing_mod[force_key]
 
                     # These are not used
                     # AORC_mask = input_forcings.regridded_mask_AORC
                     # AORC_elem_mask = input_forcings.regridded_mask_elem_AORC
                 else:
-                    input_forcings = input_forcing_mod[force_key]
+                    input_forcings = self._bmi._input_forcing_mod[force_key]
                     input_forcings.calc_neighbor_files(
                         self._bmi._job_meta, output_obj.outDate, mpi_config
                     )

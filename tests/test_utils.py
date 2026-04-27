@@ -530,7 +530,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         mpi_config = self.mpi_config
         supp_pcp_mod = self.bmi_model._supp_pcp_mod
         output_obj = self.bmi_model._output_obj
-        input_forcing_mod = self.bmi_model._input_forcing_mod
 
         future_time = (
             self.bmi_model._values["current_model_time"]
@@ -540,13 +539,12 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
 
         ### NOTE this should mimic NWMv3ForcingEngineModel.run() with the exception of setting the skip flag
         model.determine_forecast(future_time)
-        model.adjust_precip(input_forcing_mod, mpi_config)
+        model.adjust_precip(mpi_config)
         model.log_forecast(mpi_config)
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
         model.loop_through_forcing_products(
             future_time,
-            input_forcing_mod,
             supp_pcp_mod,
             mpi_config,
             output_obj,
@@ -558,7 +556,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
     def set_input_forcings_skip_flags(self) -> None:
         """Set the `skip` flag on the InputForcings object so that forcing regrid will not occur during loop_through_forcing_products()."""
         logging.debug(
-            "Setting input_forcing.skip = True for each value in dict self.input_forcing_mod"
+            "Setting input_forcing.skip = True for each value in dict self.bmi_model._input_forcing_mod"
         )
         for force_key, input_forcing in self.bmi_model._input_forcing_mod.items():
             input_forcing.skip = True
