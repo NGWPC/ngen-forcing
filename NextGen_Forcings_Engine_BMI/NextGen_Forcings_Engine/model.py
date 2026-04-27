@@ -143,33 +143,28 @@ class NWMv3ForcingEngineModel:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
+            # TODO confirm these codes, and should they consider all input_forcings not just [0]?
             if self._bmi._job_meta.input_forcings[0] in [20, 22]:
+                delta = pd.TimedeltaIndex(
+                    np.array([future_time - 7200.0], dtype=float), "s"
+                )[0]
                 self._bmi._job_meta.current_fcst_cycle = (
-                    self._bmi._job_meta.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
+                    self._bmi._job_meta.b_date_proc + delta
                 )
                 self._bmi._job_meta.current_time = (
-                    self._bmi._job_meta.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
+                    self._bmi._job_meta.b_date_proc + delta
                 )
                 self._bmi._job_meta.future_time = future_time
             else:
                 # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
+                delta = pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), "s"
+                )[0]
                 self._bmi._job_meta.current_fcst_cycle = (
-                    self._bmi._job_meta.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
+                    self._bmi._job_meta.b_date_proc + delta
                 )
                 self._bmi._job_meta.current_time = (
-                    self._bmi._job_meta.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
+                    self._bmi._job_meta.b_date_proc + delta
                 )
         else:
             # Forecast-only mode — use BMI timestamp as-is
