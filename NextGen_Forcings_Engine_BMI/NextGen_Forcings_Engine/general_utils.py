@@ -3,6 +3,8 @@
 import json
 import logging
 import typing
+import uuid
+from collections import OrderedDict
 
 import numpy as np
 
@@ -73,6 +75,7 @@ def assert_equal_with_tol(
     keys_to_check: tuple | None = None,
     absolute_tolerance: float = 1e-6,
     relative_tolerance: float = 1e-10,
+    new_keys_in_actual_ok: bool = False,
 ):
     """Assert that the key,value pairs in `expect` have matching key,value pairs in `actual`, with numerical tolerance.
     It is okay if actual has extra keys that are not present in expect.
@@ -93,21 +96,26 @@ def assert_equal_with_tol(
         errors.append(KeyError(f"Missing keys from actual: {keys_missing_from_actual}"))
 
     keys_missing_from_expected = set(keys_to_check) - set(expect)
-    if keys_missing_from_expected:
-        errors.append(
-            KeyError(f"Missing keys from expected: {keys_missing_from_expected}")
-        )
+    if not new_keys_in_actual_ok:
+        if keys_missing_from_expected:
+            errors.append(
+                KeyError(f"Missing keys from expected: {keys_missing_from_expected}")
+            )
 
     for k in keys_to_check:
         ### Check key existence
         try:
             v_expect = expect[k]
+            if isinstance(v_expect, dict):
+                v_expect = OrderedDict(sorted(list(v_expect.items())))
         except KeyError:
             errors.append(KeyError(f"Key {k} is missing from expected"))
             continue
 
         try:
             v_actual = actual[k]
+            if isinstance(v_actual, dict):
+                v_actual = OrderedDict(sorted(list(v_actual.items())))
         except KeyError:
             msg = f"Key {k} is missing from actual"
             errors.append(KeyError(msg))
@@ -155,16 +163,61 @@ def assert_equal_with_tol(
         except np.exceptions.DTypePromotionError:
             errors.append(
                 ValueError(
-                    f"Expected not equal to actual, and could not apply np.allclose. expect={expect}, actual={actual}."
+                    f"Expected not equal to actual, and could not apply np.allclose. key={k}, expect={expect}, actual={actual}."
                 )
             )
             continue
-
+        except TypeError:
+            if isinstance(v_expect, (dict, OrderedDict)) and isinstance(
+                v_actual, (dict, OrderedDict)
+            ):
+                keys_not_in_v_actual = set(dict(v_expect)) - set(dict(v_actual))
+                keys_in_v_expect_and_v_actual = set(dict(v_expect)) & set(
+                    dict(v_actual)
+                )
+                keys_with_vals_not_matching = [
+                    key
+                    for key in keys_in_v_expect_and_v_actual
+                    if v_expect[key] != v_actual[key]
+                ]
+                failing = []
+                for key_with_vals_not_matching in keys_with_vals_not_matching:
+                    if not np.allclose(
+                        np.atleast_1d(v_expect[key_with_vals_not_matching]),
+                        np.atleast_1d(v_actual[key_with_vals_not_matching]),
+                        atol=1e-6,
+                        rtol=1e-10,
+                    ):
+                        failing.append(
+                            (
+                                key_with_vals_not_matching,
+                                v_expect[key_with_vals_not_matching],
+                                v_actual[key_with_vals_not_matching],
+                            )
+                        )
+                for key_with_vals_not_matching in failing:
+                    errors.append(
+                        ValueError(
+                            f"Expected not equal to actual for key: {k}. Keys not in actual for {k}: {keys_not_in_v_actual} | keys in actual with values not matching expected for {k}: {failing}"
+                        )
+                    )
+                continue
         errors.append(
             ValueError(
-                f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for at least one element. {v_expect} vs {v_actual}."
+                f"Objects not equal, and numerical tolerances (atol={absolute_tolerance} rtol={relative_tolerance}) exceeded for {k}. {v_expect} vs {v_actual}."
             )
         )
 
     if errors:
         raise ExpectVsActualError(errors)
+
+
+def rand_str(length: int) -> str:
+    """Build and return a random string of length up to 32.
+    Note that if this is called by different MPI ranks, each rank will receive a different random string.
+    The string is not broadcasted."""
+    if not (0 < length <= 32):
+        raise ValueError(
+            f"length requested was {length}, but this function only supports length 1 through 32"
+        )
+    return str(uuid.uuid4()).replace("-", "")[:length]

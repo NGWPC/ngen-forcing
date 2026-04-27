@@ -20,7 +20,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
 from . import mpi_utils
 
 LOG = ewts.get_logger(ewts.FORCING_ID)
-
 FORCE_COUNT = 27
 
 
@@ -2123,6 +2122,8 @@ class ConfigOptions:
     @property
     def nwm_domain(self) -> str:
         """Extract NWM domain from the geogrid filename, using regex pattern."""
+        if self.nwm_geogrid is None:
+            return None
         pattern = r"geo_em_([a-zA-Z-_]+)\.nc$"  # E.g. extract "Puerto_Rico" from /foo/bar/esmf_mesh/NWM/domain/geo_em_Puerto_Rico.nc
         groups = re.findall(pattern, self.nwm_geogrid)
         if len(groups) != 1:
@@ -2138,7 +2139,9 @@ class ConfigOptions:
     @property
     def nwm_url(self):
         """Construct NWM Zarr URL based on domain."""
-        if self.nwm_domain == "CONUS":
+        if self.nwm_domain is None:
+            return None
+        elif self.nwm_domain == "CONUS":
             return "{source}/{domain}/zarr/forcing/{var}.zarr"
         elif self.nwm_domain in ["Hawaii", "PR", "Alaska"]:
             return "{source}/{domain}/zarr/forcing.zarr"
