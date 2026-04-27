@@ -528,7 +528,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             )
 
         mpi_config = self.mpi_config
-        geo_meta = self.geo_meta
         supp_pcp_mod = self.bmi_model._supp_pcp_mod
         output_obj = self.bmi_model._output_obj
         input_forcing_mod = self.bmi_model._input_forcing_mod
@@ -547,7 +546,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         self.set_input_forcings_skip_flags()
         model.loop_through_forcing_products(
             future_time,
-            geo_meta,
             input_forcing_mod,
             supp_pcp_mod,
             mpi_config,

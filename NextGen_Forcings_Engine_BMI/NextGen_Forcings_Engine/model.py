@@ -87,7 +87,6 @@ class NWMv3ForcingEngineModel:
     def run(
         self,
         future_time: float,
-        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -123,7 +122,6 @@ class NWMv3ForcingEngineModel:
         7. Advance the BMI time index.
 
         :param future_time: The number of seconds into the future to advance the model.
-        :param wrf_hydro_geo_meta: Geospatial metadata needed for regridding and interpolation.
         :param input_forcing_mod: Dictionary of initialized input forcing modules indexed by forcing key.
         :param supp_pcp_mod: Dictionary of supplemental precipitation modules indexed by key.
         :param mpi_config: Object containing MPI communication settings such as rank and communicator.
@@ -138,26 +136,22 @@ class NWMv3ForcingEngineModel:
         # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
         input_forcings = self.loop_through_forcing_products(
             future_time,
-            wrf_hydro_geo_meta,
             input_forcing_mod,
             supp_pcp_mod,
             mpi_config,
             output_obj,
         )
         self.process_suplemental_precip(
-            wrf_hydro_geo_meta,
             supp_pcp_mod,
             mpi_config,
             output_obj,
             input_forcings,
         )
         self.write_output(
-            wrf_hydro_geo_meta,
             mpi_config,
             output_obj,
         )
         self.update_dict(
-            wrf_hydro_geo_meta,
             output_obj,
         )
 
@@ -285,7 +279,6 @@ class NWMv3ForcingEngineModel:
     def loop_through_forcing_products(
         self,
         future_time: float,
-        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -422,12 +415,16 @@ class NWMv3ForcingEngineModel:
                         if force_key == 12:
                             if self.source_data_processor is None:
                                 self.source_data_processor = AORCConusProcessor(
-                                    self._bmi._job_meta, mpi_config, wrf_hydro_geo_meta
+                                    self._bmi._job_meta,
+                                    mpi_config,
+                                    self._bmi.geo_meta,
                                 )
                         elif force_key == 21:
                             if self.source_data_processor is None:
                                 self.source_data_processor = AORCAlaskaProcessor(
-                                    self._bmi._job_meta, mpi_config, wrf_hydro_geo_meta
+                                    self._bmi._job_meta,
+                                    mpi_config,
+                                    self._bmi.geo_meta,
                                 )
 
                         # Flag to indicate the AWS .zarr NWMv3 Forcing file method
@@ -437,7 +434,7 @@ class NWMv3ForcingEngineModel:
                                     self.source_data_processor = NWMV3ConusProcessor(
                                         self._bmi._job_meta,
                                         mpi_config,
-                                        wrf_hydro_geo_meta,
+                                        self._bmi.geo_meta,
                                     )
                                 elif self._bmi._job_meta.nwm_domain in [
                                     "Hawaii",
@@ -446,13 +443,13 @@ class NWMv3ForcingEngineModel:
                                     self.source_data_processor = NWMV3OConusProcessor(
                                         self._bmi._job_meta,
                                         mpi_config,
-                                        wrf_hydro_geo_meta,
+                                        self._bmi.geo_meta,
                                     )
                                 elif self._bmi._job_meta.nwm_domain == "Alaska":
                                     self.source_data_processor = NWMV3AlaskaProcessor(
                                         self._bmi._job_meta,
                                         mpi_config,
-                                        wrf_hydro_geo_meta,
+                                        self._bmi.geo_meta,
                                     )
                                 else:
                                     raise ValueError(
@@ -471,7 +468,7 @@ class NWMv3ForcingEngineModel:
                     break
                 # Regrid forcings.
                 input_forcings.regrid_inputs(
-                    self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                    self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                 )
                 err_handler.check_program_status(self._bmi._job_meta, mpi_config)
 
@@ -516,7 +513,7 @@ class NWMv3ForcingEngineModel:
 
                     # Regrid the forcings for the end of the window.
                     input_forcings.regrid_inputs(
-                        self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                        self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                     )
                     err_handler.check_program_status(self._bmi._job_meta, mpi_config)
 
@@ -530,13 +527,19 @@ class NWMv3ForcingEngineModel:
 
                 # Run bias correction.
                 bias_correction.run_bias_correction(
-                    input_forcings, self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                    input_forcings,
+                    self._bmi._job_meta,
+                    self._bmi.geo_meta,
+                    mpi_config,
                 )
                 err_handler.check_program_status(self._bmi._job_meta, mpi_config)
 
                 # Run downscaling on grids for this output timestep.
                 downscale.run_downscaling(
-                    input_forcings, self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                    input_forcings,
+                    self._bmi._job_meta,
+                    self._bmi.geo_meta,
+                    mpi_config,
                 )
                 err_handler.check_program_status(self._bmi._job_meta, mpi_config)
 
@@ -567,7 +570,7 @@ class NWMv3ForcingEngineModel:
 
                         # Regrid the supplemental precipitation.
                         supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                            self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                         )
                         err_handler.check_program_status(
                             self._bmi._job_meta, mpi_config
@@ -582,7 +585,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
-                                wrf_hydro_geo_meta,
+                                self._bmi.geo_meta,
                             )
                             err_handler.check_program_status(
                                 self._bmi._job_meta, mpi_config
@@ -624,7 +627,7 @@ class NWMv3ForcingEngineModel:
                 output_obj.outDate = file_date
 
                 ################ Commenting this out to bypass NWM forcing file output functionality #########
-                # output_obj.output_final_ldasin(self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config)
+                # output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, mpi_config)
                 # err_handler.check_program_status(self._bmi._job_meta, mpi_config)
                 ##############################################################################################
 
@@ -633,7 +636,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def process_suplemental_precip(
         self,
-        wrf_hydro_geo_meta: GeoMeta,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
@@ -660,7 +662,7 @@ class NWMv3ForcingEngineModel:
 
                         # Regrid the supplemental precipitation.
                         supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                            self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                         )
                         err_handler.check_program_status(
                             self._bmi._job_meta, mpi_config
@@ -675,7 +677,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
-                                wrf_hydro_geo_meta,
+                                self._bmi.geo_meta,
                             )
                             err_handler.check_program_status(
                                 self._bmi._job_meta, mpi_config
@@ -713,7 +715,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def write_output(
         self,
-        wrf_hydro_geo_meta: GeoMeta,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
     ) -> None:
@@ -730,7 +731,7 @@ class NWMv3ForcingEngineModel:
             or self._bmi._job_meta.grid_type == "hydrofabric"
         ):
             output_obj.gather_global_outputs(
-                self._bmi._job_meta, wrf_hydro_geo_meta, mpi_config
+                self._bmi._job_meta, self._bmi.geo_meta, mpi_config
             )
 
         """##################Step 6: flatten and update dict##########################################################################"""
@@ -738,7 +739,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def update_dict(
         self,
-        wrf_hydro_geo_meta: GeoMeta,
         output_obj: OutputObj,
     ) -> None:
         """Flatten the Forcings Engine output object and update the BMI dictionary.
@@ -801,7 +801,7 @@ class NWMv3ForcingEngineModel:
                 self._bmi._values[variable + "_ELEMENT"] = output_obj.output_global[
                     count, :
                 ].flatten()
-                self._bmi._values["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
+                self._bmi._values["CAT-ID"] = self._bmi.geo_meta.element_ids_global
         else:
             raise ValueError(
                 f"Unexpected grid_type: {repr(self._bmi._job_meta.grid_type)}"
