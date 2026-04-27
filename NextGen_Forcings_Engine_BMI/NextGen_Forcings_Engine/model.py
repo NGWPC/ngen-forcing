@@ -1,7 +1,9 @@
+from __future__ import annotations
 import datetime
 import os
 from contextlib import contextmanager
 from time import time, perf_counter
+from typing import TYPE_CHECKING
 
 import ewts
 import numpy as np
@@ -30,6 +32,12 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
+
+if TYPE_CHECKING:
+    # To allow type hint without circular import error
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
+        NWMv3_Forcing_Engine_BMI_model_Base,
+    )
 
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
@@ -62,9 +70,10 @@ def time_function(func):
 class NWMv3ForcingEngineModel:
     """NextGen Forcings Engine BMI model class for NWMv3 forcings."""
 
-    def __init__(self):
+    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base):
         """Initialize the NWMv3 Forcing Engine Model."""
         self.source_data_processor = None
+        self._bmi = bmi_model
 
     # TODO: refactor the bmi_model.py file and this to have this type maintain its own state.
     # def __init__(self):
@@ -77,7 +86,6 @@ class NWMv3ForcingEngineModel:
 
     def run(
         self,
-        model: dict,
         future_time: float,
         config_options: ConfigOptions,
         wrf_hydro_geo_meta: GeoMeta,
@@ -88,10 +96,10 @@ class NWMv3ForcingEngineModel:
     ) -> None:
         """Execute the full forcings engine BMI pipeline for a given future timestep.
 
-        This method updates the `model` state dictionary with atmospheric forcings computed from
+        This method updates the `self._bmi._values` state dictionary with atmospheric forcings computed from
         available input datasets. It handles initialization, AWS Zarr loading, regridding, temporal
         interpolation, bias correction, downscaling, supplemental precipitation processing, and output
-        population into the model structure.
+        population into the self._bmi._values structure.
 
         The following steps are performed:
 
@@ -110,10 +118,9 @@ class NWMv3ForcingEngineModel:
            b. Disaggregate and interpolate.
            c. Layer into the final output.
         5. Write output to NetCDF forcing files if requested.
-        6. Update the model state dictionary with flattened arrays.
+        6. Update the self._bmi._values state dictionary with flattened arrays.
         7. Advance the BMI time index.
 
-        :param model: The model state dictionary that will be updated with new forcing data.
         :param future_time: The number of seconds into the future to advance the model.
         :param config_options: Configuration object containing all model options, flags, and paths.
         :param wrf_hydro_geo_meta: Geospatial metadata needed for regridding and interpolation.
@@ -153,7 +160,6 @@ class NWMv3ForcingEngineModel:
             output_obj,
         )
         self.update_dict(
-            model,
             config_options,
             wrf_hydro_geo_meta,
             output_obj,
@@ -696,7 +702,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def update_dict(
         self,
-        model: dict,
         config_options: ConfigOptions,
         wrf_hydro_geo_meta: GeoMeta,
         output_obj: OutputObj,
@@ -745,20 +750,22 @@ class NWMv3ForcingEngineModel:
             ]
         if config_options.grid_type == "gridded":
             for count, variable in enumerate(variables):
-                model[variable + "_ELEMENT"] = output_obj.output_local[
+                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_local[
                     count, :, :
                 ].flatten()
         elif config_options.grid_type == "unstructured":
             for count, variable in enumerate(variables):
-                model[variable + "_ELEMENT"] = output_obj.output_local_elem[
+                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_local_elem[
                     count, :
                 ].flatten()
-                model[variable + "_NODE"] = output_obj.output_local[count, :].flatten()
+                self._bmi._values[variable + "_NODE"] = output_obj.output_local[
+                    count, :
+                ].flatten()
         elif config_options.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                model[variable + "_ELEMENT"] = output_obj.output_global[
+                self._bmi._values[variable + "_ELEMENT"] = output_obj.output_global[
                     count, :
                 ].flatten()
-                model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
+                self._bmi._values["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
         else:
             raise ValueError(f"Unexpected grid_type: {repr(config_options.grid_type)}")

@@ -353,7 +353,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
 
         # Initialize the Forcings Engine model
-        self._model = NWMv3ForcingEngineModel()
+        self._model = NWMv3ForcingEngineModel(self)
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
@@ -470,7 +470,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             == self.cfg_bmi["initial_time"]
         ):
             self._model.run(
-                self._values,
                 future_time,
                 self._job_meta,
                 self.geo_meta,
@@ -487,7 +486,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 self._values["current_model_time"] += self._values["time_step_size"]
                 # Run the model for the new current time and update the state.
                 self._model.run(
-                    self._values,
                     self._values["current_model_time"],
                     self._job_meta,
                     self.geo_meta,
