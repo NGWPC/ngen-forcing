@@ -528,7 +528,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             )
 
         mpi_config = self.mpi_config
-        supp_pcp_mod = self.bmi_model._supp_pcp_mod
         output_obj = self.bmi_model._output_obj
 
         future_time = (
@@ -545,7 +544,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         self.set_input_forcings_skip_flags()
         model.loop_through_forcing_products(
             future_time,
-            supp_pcp_mod,
             mpi_config,
             output_obj,
         )

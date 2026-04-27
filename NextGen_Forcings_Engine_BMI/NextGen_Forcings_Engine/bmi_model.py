@@ -471,7 +471,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         ):
             self._model.run(
                 future_time,
-                self._supp_pcp_mod,
                 self._mpi_meta,
                 self._output_obj,
             )
@@ -484,7 +483,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 # Run the model for the new current time and update the state.
                 self._model.run(
                     self._values["current_model_time"],
-                    self._supp_pcp_mod,
                     self._mpi_meta,
                     self._output_obj,
                 )

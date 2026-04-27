@@ -87,7 +87,6 @@ class NWMv3ForcingEngineModel:
     def run(
         self,
         future_time: float,
-        supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
     ) -> None:
@@ -121,7 +120,6 @@ class NWMv3ForcingEngineModel:
         7. Advance the BMI time index.
 
         :param future_time: The number of seconds into the future to advance the model.
-        :param supp_pcp_mod: Dictionary of supplemental precipitation modules indexed by key.
         :param mpi_config: Object containing MPI communication settings such as rank and communicator.
         :param output_obj: Output object that stores the generated atmospheric forcing arrays.
 
@@ -134,12 +132,10 @@ class NWMv3ForcingEngineModel:
         # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
         input_forcings = self.loop_through_forcing_products(
             future_time,
-            supp_pcp_mod,
             mpi_config,
             output_obj,
         )
         self.process_suplemental_precip(
-            supp_pcp_mod,
             mpi_config,
             output_obj,
             input_forcings,
@@ -275,7 +271,6 @@ class NWMv3ForcingEngineModel:
     def loop_through_forcing_products(
         self,
         future_time: float,
-        supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
     ) -> forcingInputMod.InputForcingsHydrofabric:
@@ -556,7 +551,7 @@ class NWMv3ForcingEngineModel:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key != 13:
                         # Like with input forcings, calculate the neighboring files to use.
-                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
+                        self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
                             self._bmi._job_meta, output_obj.outDate, mpi_config
                         )
                         err_handler.check_program_status(
@@ -564,7 +559,7 @@ class NWMv3ForcingEngineModel:
                         )
 
                         # Regrid the supplemental precipitation.
-                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
+                        self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                         )
                         err_handler.check_program_status(
@@ -572,13 +567,15 @@ class NWMv3ForcingEngineModel:
                         )
 
                         if (
-                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
-                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
+                            self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
+                            is not None
+                            and self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip2
+                            is not None
                         ):
                             # Run check on regridded fields for reasonable values that are not missing values.
                             err_handler.check_supp_pcp_bounds(
                                 self._bmi._job_meta,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
                                 self._bmi.geo_meta,
                             )
@@ -589,7 +586,7 @@ class NWMv3ForcingEngineModel:
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                             self.disaggregate_fun(
                                 input_forcings,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 mpi_config,
                             )
@@ -598,7 +595,9 @@ class NWMv3ForcingEngineModel:
                             )
 
                             # Run temporal interpolation on the grids.
-                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
+                            self._bmi._supp_pcp_mod[
+                                supp_pcp_key
+                            ].temporal_interpolate_inputs(
                                 self._bmi._job_meta, mpi_config
                             )
                             err_handler.check_program_status(
@@ -608,7 +607,7 @@ class NWMv3ForcingEngineModel:
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
                                 output_obj,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 mpi_config,
                             )
@@ -631,7 +630,6 @@ class NWMv3ForcingEngineModel:
     @time_function
     def process_suplemental_precip(
         self,
-        supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
         input_forcings: dict,
@@ -648,7 +646,7 @@ class NWMv3ForcingEngineModel:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key == 14:
                         # Like with input forcings, calculate the neighboring files to use.
-                        supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
+                        self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
                             self._bmi._job_meta, output_obj.outDate, mpi_config
                         )
                         err_handler.check_program_status(
@@ -656,7 +654,7 @@ class NWMv3ForcingEngineModel:
                         )
 
                         # Regrid the supplemental precipitation.
-                        supp_pcp_mod[supp_pcp_key].regrid_inputs(
+                        self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             self._bmi._job_meta, self._bmi.geo_meta, mpi_config
                         )
                         err_handler.check_program_status(
@@ -664,13 +662,15 @@ class NWMv3ForcingEngineModel:
                         )
 
                         if (
-                            supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
-                            and supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
+                            self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
+                            is not None
+                            and self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip2
+                            is not None
                         ):
                             # Run check on regridded fields for reasonable values that are not missing values.
                             err_handler.check_supp_pcp_bounds(
                                 self._bmi._job_meta,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 mpi_config,
                                 self._bmi.geo_meta,
                             )
@@ -680,7 +680,7 @@ class NWMv3ForcingEngineModel:
 
                             self.disaggregate_fun(
                                 input_forcings,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 mpi_config,
                             )
@@ -689,7 +689,9 @@ class NWMv3ForcingEngineModel:
                             )
 
                             # Run temporal interpolation on the grids.
-                            supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
+                            self._bmi._supp_pcp_mod[
+                                supp_pcp_key
+                            ].temporal_interpolate_inputs(
                                 self._bmi._job_meta, mpi_config
                             )
                             err_handler.check_program_status(
@@ -699,7 +701,7 @@ class NWMv3ForcingEngineModel:
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
                                 output_obj,
-                                supp_pcp_mod[supp_pcp_key],
+                                self._bmi._supp_pcp_mod[supp_pcp_key],
                                 self._bmi._job_meta,
                                 mpi_config,
                             )
