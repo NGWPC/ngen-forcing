@@ -30,7 +30,7 @@ KEYS_TO_EXCLUDE = ("uid64",)
             COMPOSITE_KEYS_TO_CHECK,
             KEYS_TO_EXCLUDE,
             GRID_TYPE,
-            14,
+            15,
         )
     ],
     indirect=True,
@@ -43,9 +43,9 @@ def test_input_forcing(
     total_timesteps = 3
 
     fixt = bmi_forcing_fixture_supp_precip
-    if len(fixt.supp_precip_mod) != 1:
+    if len(fixt.input_forcing_mod) != 1:
         raise ValueError(
-            f"Expected 1 key for supp_precip_mod, got {len(fixt.supp_precip_mod)}: {list(fixt.supp_precip_mod.keys())}"
+            f"Expected 1 key for input_forcing_mod, got {len(fixt.input_forcing_mod)}: {list(fixt.input_forcing_mod.keys())}"
         )
 
     fixt.after_intitialization_check()

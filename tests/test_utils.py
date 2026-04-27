@@ -206,6 +206,7 @@ class BMIForcingFixture:
         self.config_options: ConfigOptions = bmi_model._job_meta
         self.geo_meta: GeoMeta = bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
+        self.supp_precip_mod: dict = self.bmi_model._supp_pcp_mod
 
 
 class BMIForcingFixture_Class(BMIForcingFixture):

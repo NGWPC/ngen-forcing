@@ -6,12 +6,12 @@ from test_utils import (
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
-    BMIForcingFixture_Supp_Precip,
+    BMIForcingFixture_SuppPrecip,
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
     BMIMODEL,
-    NWMv3_Forcing_Engine_BMI_model,
+    NWMv3_Forcing_Engine_BMI_model_Base,
 )
 
 
@@ -27,7 +27,7 @@ def bmi_forcing_fixture(request) -> BMIForcingFixture:
 
     """
     (config_file,) = request.param
-    bmi_model = NWMv3_Forcing_Engine_BMI_model()
+    bmi_model = NWMv3_Forcing_Engine_BMI_model_Base()
     bmi_model.initialize_with_params(
         config_file=config_file,
         b_date=None,
@@ -175,12 +175,12 @@ def bmi_forcing_fixture_input_forcing(
 @pytest.fixture
 def bmi_forcing_fixture_supp_precip(
     request,
-) -> BMIForcingFixture_InputForcing:
+) -> BMIForcingFixture_SuppPrecip:
     """Construct minimal class of class for running supp_precip.
 
     Constructor for minimal class of classes for running supp_precip.
 
-    For example usage, see: tests/supp_precip/supp_precip.test_supp_precip.
+    For example usage, see: tests/supp_precip/test_supp_precip.test_supp_precip.
 
     Args:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
@@ -211,7 +211,7 @@ def bmi_forcing_fixture_supp_precip(
             f"Unexpected value for arg: map_old_to_new_var_names. Expected True or False; recieved: {map_old_to_new_var_names}"
         )
 
-    return BMIForcingFixture_Supp_Precip(
+    return BMIForcingFixture_SuppPrecip(
         bmi_model=bmi_model,
         keys_to_check=keys_to_check,
         keys_to_exclude=keys_to_exclude,
