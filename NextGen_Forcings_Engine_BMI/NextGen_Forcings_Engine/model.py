@@ -1,7 +1,7 @@
 import datetime
 import os
 from contextlib import contextmanager
-from time import time
+from time import time, perf_counter
 
 import ewts
 import numpy as np
@@ -42,9 +42,9 @@ def timing_block(step_str: str):
         step_str: Description of the step being timed.
 
     """
-    start = time()
+    start = perf_counter()
     yield
-    end = time()
+    end = perf_counter()
     LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
 
