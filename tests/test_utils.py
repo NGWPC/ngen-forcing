@@ -527,7 +527,6 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
                 f"In pre_regrid, expected state to be either None or 'post_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
 
-        config_options = self.config_options
         mpi_config = self.mpi_config
         geo_meta = self.geo_meta
         supp_pcp_mod = self.bmi_model._supp_pcp_mod
@@ -541,14 +540,13 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         model = self.bmi_model._model
 
         ### NOTE this should mimic NWMv3ForcingEngineModel.run() with the exception of setting the skip flag
-        model.determine_forecast(future_time, config_options)
-        model.adjust_precip(config_options, input_forcing_mod, mpi_config)
-        model.log_forecast(config_options, mpi_config)
+        model.determine_forecast(future_time)
+        model.adjust_precip(input_forcing_mod, mpi_config)
+        model.log_forecast(mpi_config)
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
         model.loop_through_forcing_products(
             future_time,
-            config_options,
             geo_meta,
             input_forcing_mod,
             supp_pcp_mod,
