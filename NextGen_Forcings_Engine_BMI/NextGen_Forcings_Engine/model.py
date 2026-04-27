@@ -80,6 +80,10 @@ class NWMv3ForcingEngineModel:
     # def aws_obj(files):
     #    return xr.open_mfdataset(files, engine="zarr", parallel=True, consolidated=True)
 
+    def check_program_status(self) -> None:
+        """Call err_handler.check_program_status"""
+        err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
+
     def run(self, future_time: float) -> None:
         """Execute the full forcings engine BMI pipeline for a given future timestep.
 
@@ -204,7 +208,7 @@ class NWMv3ForcingEngineModel:
             for force_key in self._bmi._job_meta.input_forcings:
                 self._bmi._input_forcing_mod[force_key].skip = False
 
-            err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
+            self.check_program_status()
 
     @time_function
     def log_forecast(self) -> None:
@@ -365,9 +369,7 @@ class NWMv3ForcingEngineModel:
                             self._bmi._output_obj.outDate,
                             self._bmi._mpi_meta,
                         )
-                        err_handler.check_program_status(
-                            self._bmi._job_meta, self._bmi._mpi_meta
-                        )
+                        self.check_program_status()
                     else:
                         # Flag to indicate the AWS .zarr AORC method
                         if force_key == 12:
@@ -431,17 +433,13 @@ class NWMv3ForcingEngineModel:
                 input_forcings.regrid_inputs(
                     self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 # Run check on regridded fields for reasonable values that are not missing values.
                 err_handler.check_forcing_bounds(
                     self._bmi._job_meta, input_forcings, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
@@ -476,17 +474,13 @@ class NWMv3ForcingEngineModel:
                         self._bmi._output_obj.outDate,
                         self._bmi._mpi_meta,
                     )
-                    err_handler.check_program_status(
-                        self._bmi._job_meta, self._bmi._mpi_meta
-                    )
+                    self.check_program_status()
 
                     # Regrid the forcings for the end of the window.
                     input_forcings.regrid_inputs(
                         self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                     )
-                    err_handler.check_program_status(
-                        self._bmi._job_meta, self._bmi._mpi_meta
-                    )
+                    self.check_program_status()
 
                     input_forcings.rstFlag = 0
 
@@ -494,9 +488,7 @@ class NWMv3ForcingEngineModel:
                 input_forcings.temporal_interpolate_inputs(
                     self._bmi._job_meta, self._bmi._mpi_meta
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 # Run bias correction.
                 bias_correction.run_bias_correction(
@@ -505,9 +497,7 @@ class NWMv3ForcingEngineModel:
                     self._bmi.geo_meta,
                     self._bmi._mpi_meta,
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 # Run downscaling on grids for this output timestep.
                 downscale.run_downscaling(
@@ -516,9 +506,7 @@ class NWMv3ForcingEngineModel:
                     self._bmi.geo_meta,
                     self._bmi._mpi_meta,
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 # Layer in forcings from this product.
                 layeringMod.layer_final_forcings(
@@ -527,9 +515,7 @@ class NWMv3ForcingEngineModel:
                     self._bmi._job_meta,
                     self._bmi._mpi_meta,
                 )
-                err_handler.check_program_status(
-                    self._bmi._job_meta, self._bmi._mpi_meta
-                )
+                self.check_program_status()
 
                 self._bmi._job_meta.currentForceNum += 1
 
@@ -548,17 +534,13 @@ class NWMv3ForcingEngineModel:
                             self._bmi._output_obj.outDate,
                             self._bmi._mpi_meta,
                         )
-                        err_handler.check_program_status(
-                            self._bmi._job_meta, self._bmi._mpi_meta
-                        )
+                        self.check_program_status()
 
                         # Regrid the supplemental precipitation.
                         self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                         )
-                        err_handler.check_program_status(
-                            self._bmi._job_meta, self._bmi._mpi_meta
-                        )
+                        self.check_program_status()
 
                         if (
                             self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
@@ -573,9 +555,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._mpi_meta,
                                 self._bmi.geo_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                             self.disaggregate_fun(
@@ -584,9 +564,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             # Run temporal interpolation on the grids.
                             self._bmi._supp_pcp_mod[
@@ -594,9 +572,7 @@ class NWMv3ForcingEngineModel:
                             ].temporal_interpolate_inputs(
                                 self._bmi._job_meta, self._bmi._mpi_meta
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
@@ -605,9 +581,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
             # Call the output routines
             #   adjust date for AnA if necessary
@@ -616,7 +590,7 @@ class NWMv3ForcingEngineModel:
 
                 ################ Commenting this out to bypass NWM forcing file output functionality #########
                 # self._bmi._output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta)
-                # err_handler.check_program_status(self._bmi._job_meta, self._bmi._mpi_meta)
+                # self.check_program_status()
                 ##############################################################################################
 
         return input_forcings
@@ -640,17 +614,13 @@ class NWMv3ForcingEngineModel:
                             self._bmi._output_obj.outDate,
                             self._bmi._mpi_meta,
                         )
-                        err_handler.check_program_status(
-                            self._bmi._job_meta, self._bmi._mpi_meta
-                        )
+                        self.check_program_status()
 
                         # Regrid the supplemental precipitation.
                         self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
                             self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
                         )
-                        err_handler.check_program_status(
-                            self._bmi._job_meta, self._bmi._mpi_meta
-                        )
+                        self.check_program_status()
 
                         if (
                             self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
@@ -665,9 +635,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._mpi_meta,
                                 self._bmi.geo_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             self.disaggregate_fun(
                                 input_forcings,
@@ -675,9 +643,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             # Run temporal interpolation on the grids.
                             self._bmi._supp_pcp_mod[
@@ -685,9 +651,7 @@ class NWMv3ForcingEngineModel:
                             ].temporal_interpolate_inputs(
                                 self._bmi._job_meta, self._bmi._mpi_meta
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
                             # Layer in the supplemental precipitation into the current output object.
                             layeringMod.layer_supplemental_forcing(
@@ -696,9 +660,7 @@ class NWMv3ForcingEngineModel:
                                 self._bmi._job_meta,
                                 self._bmi._mpi_meta,
                             )
-                            err_handler.check_program_status(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
+                            self.check_program_status()
 
     @time_function
     def write_output(self) -> None:
