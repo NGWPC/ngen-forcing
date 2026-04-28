@@ -20,8 +20,9 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
 )
 COMPOSITE_KEYS_TO_CHECK = ()
-GRID_TYPE = "hydrofabric"  # ["hydrofabric"]
-KEYS_TO_EXCLUDE = ("uid64",)
+GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
+### Drop non-deterministic values (random IDs, timestamps, hashed paths)
+KEYS_TO_EXCLUDE = ("uid64", "cfg_bmi", "d_program_init", "geogrid", "scratch_dir")
 
 
 @pytest.mark.parametrize(
