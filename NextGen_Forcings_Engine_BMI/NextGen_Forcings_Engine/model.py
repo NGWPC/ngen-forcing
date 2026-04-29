@@ -419,46 +419,7 @@ class NWMv3ForcingEngineModel:
 
                 # If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
                 # next set of forcings as the previous step just regridded the previous forcing.
-                if input_forcings.rstFlag == 1:
-                    if (
-                        input_forcings.regridded_forcings1 is not None
-                        and input_forcings.regridded_forcings2 is not None
-                    ):
-                        # Set the forcings back to reflect we just regridded the previous set of inputs, not the next.
-                        if self._bmi._job_meta.grid_type == "gridded":
-                            input_forcings.regridded_forcings1[:, :, :] = (
-                                input_forcings.regridded_forcings2[:, :, :]
-                            )
-                        elif self._bmi._job_meta.grid_type == "unstructured":
-                            input_forcings.regridded_forcings1[:, :] = (
-                                input_forcings.regridded_forcings2[:, :]
-                            )
-                            input_forcings.regridded_forcings1_elem[:, :] = (
-                                input_forcings.regridded_forcings2_elem[:, :]
-                            )
-                        elif self._bmi._job_meta.grid_type == "hydrofabric":
-                            input_forcings.regridded_forcings1[:, :] = (
-                                input_forcings.regridded_forcings2[:, :]
-                            )
-                        else:
-                            raise ValueError(
-                                f"Unexpected grid_type: {repr(self._bmi._job_meta.grid_type)}"
-                            )
-                    # Re-calculate the neighbor files.
-                    input_forcings.calc_neighbor_files(
-                        self._bmi._job_meta,
-                        self._bmi._output_obj.outDate,
-                        self._bmi._mpi_meta,
-                    )
-                    self.check_program_status()
-
-                    # Regrid the forcings for the end of the window.
-                    input_forcings.regrid_inputs(
-                        self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
-                    )
-                    self.check_program_status()
-
-                    input_forcings.rstFlag = 0
+                self.__use_rstFlag(input_forcings)
 
                 # Run temporal interpolation on the grids.
                 input_forcings.temporal_interpolate_inputs(
@@ -571,6 +532,54 @@ class NWMv3ForcingEngineModel:
                 ##############################################################################################
 
         return input_forcings
+
+    def __use_rstFlag(self, input_forcings):
+        """
+        If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
+        next set of forcings as the previous step just regridded the previous forcing.
+
+        This code block was cut and pasted from method `loop_through_forcing_products` during refactor.
+        """
+        if input_forcings.rstFlag == 1:
+            if (
+                input_forcings.regridded_forcings1 is not None
+                and input_forcings.regridded_forcings2 is not None
+            ):
+                # Set the forcings back to reflect we just regridded the previous set of inputs, not the next.
+                if self._bmi._job_meta.grid_type == "gridded":
+                    input_forcings.regridded_forcings1[:, :, :] = (
+                        input_forcings.regridded_forcings2[:, :, :]
+                    )
+                elif self._bmi._job_meta.grid_type == "unstructured":
+                    input_forcings.regridded_forcings1[:, :] = (
+                        input_forcings.regridded_forcings2[:, :]
+                    )
+                    input_forcings.regridded_forcings1_elem[:, :] = (
+                        input_forcings.regridded_forcings2_elem[:, :]
+                    )
+                elif self._bmi._job_meta.grid_type == "hydrofabric":
+                    input_forcings.regridded_forcings1[:, :] = (
+                        input_forcings.regridded_forcings2[:, :]
+                    )
+                else:
+                    raise ValueError(
+                        f"Unexpected grid_type: {repr(self._bmi._job_meta.grid_type)}"
+                    )
+            # Re-calculate the neighbor files.
+            input_forcings.calc_neighbor_files(
+                self._bmi._job_meta,
+                self._bmi._output_obj.outDate,
+                self._bmi._mpi_meta,
+            )
+            self.check_program_status()
+
+            # Regrid the forcings for the end of the window.
+            input_forcings.regrid_inputs(
+                self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
+            )
+            self.check_program_status()
+
+            input_forcings.rstFlag = 0
 
     @time_function
     def process_suplemental_precip(self, input_forcings: dict) -> None:
