@@ -360,7 +360,10 @@ class NWMv3ForcingEngineModel:
                         )
                         self.check_program_status()
                     else:
-                        # TODO assert one force_key?
+                        if len(self._bmi._job_meta.input_forcings) != 1:
+                            raise ValueError(
+                                f"Expected to have 1 forcing key, but have {len(self._bmi._job_meta.input_forcings)}: {list(self._bmi._job_meta.input_forcings)}"
+                            )
                         # Flag to indicate the AWS .zarr AORC method
                         if force_key == 12:
                             if self.source_data_processor is None:
