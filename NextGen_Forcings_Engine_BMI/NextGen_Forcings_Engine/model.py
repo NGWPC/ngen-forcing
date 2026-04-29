@@ -186,12 +186,7 @@ class NWMv3ForcingEngineModel:
 
     @time_function
     def adjust_precip(self) -> None:
-        """Adjust precipitation for the given forecast cycle.
-
-        Warnings
-        --------
-            Modifies mutable arguments in-place.
-        """
+        """Adjust precipitation for the given forecast cycle."""
         if not self._bmi._job_meta.precip_only_flag:
             # reset skips if present
             for force_key in self._bmi._job_meta.input_forcings:
@@ -201,12 +196,7 @@ class NWMv3ForcingEngineModel:
 
     @time_function
     def log_forecast(self) -> None:
-        """Log information about the current forecast cycle.
-
-        Warnings
-        --------
-            Modifies mutable arguments in-place.
-        """
+        """Log information about the current forecast cycle."""
         if self._bmi._mpi_meta.rank == 0:
             self._bmi._job_meta.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
             err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
@@ -235,10 +225,6 @@ class NWMv3ForcingEngineModel:
         3.) Regrid the forcings, and temporally interpolate.
         4.) Downscale.
         5.) Layer, and output as necessary.
-
-        Warnings
-        --------
-            Modifies mutable arguments in-place.
         """
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
         if not self._bmi._job_meta.precip_only_flag:
@@ -658,10 +644,6 @@ class NWMv3ForcingEngineModel:
         """Write the output for the current forecast cycle.
         If user requests output for given domain, then call
         the I/O module to update opened netcdf file with forcing fields.
-
-        Warnings
-        --------
-            Modifies mutable arguments in-place.
         """
         if (
             self._bmi._job_meta.forcing_output == 1
@@ -687,10 +669,6 @@ class NWMv3ForcingEngineModel:
         6.) Surface pressure (Pa)
         7.) Surface incoming shortwave radiation flux (W/m^2)
         8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
-
-        Warnings
-        --------
-            Modifies mutable arguments in-place.
         """
 
         if self._bmi._job_meta.include_lqfrac == 1:
