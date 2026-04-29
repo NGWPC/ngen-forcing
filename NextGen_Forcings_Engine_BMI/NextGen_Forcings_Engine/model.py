@@ -482,10 +482,16 @@ class NWMv3ForcingEngineModel:
 
         return input_forcings
 
-    def __process_supp_precip_key(self, input_forcings: dict, supp_pcp_key: int):
+    def __process_supp_precip_key(
+        self, input_forcings: dict, supp_pcp_key: int
+    ) -> None:
         """Process supplemental precipitation for one supplemental precipitation key.
 
         This code block was cut and pasted from methods `loop_through_forcing_products` and `process_suplemental_precip` during refactor.
+
+        Warnings
+        --------
+            Modifies mutable arguments in-place.
         """
         # Like with input forcings, calculate the neighboring files to use.
         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
@@ -537,12 +543,16 @@ class NWMv3ForcingEngineModel:
             )
             self.check_program_status()
 
-    def __use_rstFlag(self, input_forcings):
+    def __use_rstFlag(self, input_forcings: dict) -> None:
         """
         If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
         next set of forcings as the previous step just regridded the previous forcing.
 
         This code block was cut and pasted from method `loop_through_forcing_products` during refactor.
+
+        Warnings
+        --------
+            Modifies mutable arguments in-place.
         """
         if input_forcings.rstFlag == 1:
             if (
