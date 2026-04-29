@@ -147,6 +147,7 @@ class NWMv3ForcingEngineModel:
             # over between 3-28 hour look back time period and operation configuration
             # TODO confirm these codes, and should they consider all input_forcings not just [0]?
             if self._bmi._job_meta.input_forcings[0] in [20, 22]:
+                # NOTE This appears to be intending to operate on Alaska-only AnA.
                 delta = pd.TimedeltaIndex(
                     np.array([future_time - 7200.0], dtype=float), "s"
                 )[0]
@@ -158,6 +159,7 @@ class NWMv3ForcingEngineModel:
                 )
                 self._bmi._job_meta.future_time = future_time
             else:
+                # NOTE below comment was original, but this appears to be operating on all non-Alaska AnA, not just Puerto Rico / Hawaii AnA.
                 # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
                 delta = pd.TimedeltaIndex(
                     np.array([future_time - 3600.0], dtype=float), "s"
