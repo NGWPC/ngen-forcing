@@ -1,5 +1,4 @@
 import importlib.util
-import logging
 import os
 
 import pytest
@@ -19,8 +18,7 @@ test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
-
-ClassAttrFetcher = test_utils.ClassAttrFetcher
+configs = test_utils.test_config_classes
 
 ### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
 os.environ["MFE_SILENT"] = "true"
@@ -57,49 +55,53 @@ REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 ### While the InputForcings class instance is the primary source of test results data,
 ### this is used to add supplemental attributes to the results data,
 ### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
-EXTRA_ATTRS: tuple[ClassAttrFetcher] = (ClassAttrFetcher("geo_meta", "element_ids"),)
+EXTRA_ATTRS = [
+    test_utils.ClassAttrFetcher("geo_meta", "element_ids"),
+]
 
 COMPOSITE_KEYS_TO_CHECK__REGRID: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS
 )
 
 
-@pytest.mark.parametrize(
-    "bmi_forcing_fixture_regrid",
-    [
-        (
-            regrid_aorc_aws,
-            consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
-            12,
-            EXTRA_ATTRS,
-            REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK__REGRID,
-            consts.KEYS_TO_EXCLUDE,
-            consts.GRID_TYPE,
-        ),
-        (
-            regrid_conus_hrrr,
-            consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
-            5,
-            EXTRA_ATTRS,
-            REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK__REGRID,
-            consts.KEYS_TO_EXCLUDE,
-            consts.GRID_TYPE,
-        ),
-        (
-            regrid_conus_rap,
-            consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
-            6,
-            EXTRA_ATTRS,
-            REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
-            COMPOSITE_KEYS_TO_CHECK__REGRID,
-            consts.KEYS_TO_EXCLUDE,
-            consts.GRID_TYPE,
-        ),
-    ],
-    indirect=True,
-)
+CONFIG_KWARGS_COMMON = {
+    "extra_attrs": EXTRA_ATTRS,
+    "regrid_arrays_to_trim_extra_elements": REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS,
+    "keys_to_check": COMPOSITE_KEYS_TO_CHECK__REGRID,
+    "keys_to_exclude": consts.KEYS_TO_EXCLUDE,
+    "grid_type": consts.GRID_TYPE,
+}
+
+
+TEST_CONFIGS = [
+    configs.TestConfig_Regrid(
+        **CONFIG_KWARGS_COMMON
+        | {
+            "regrid_func": regrid_aorc_aws,
+            "force_key": 12,
+            "config_file": consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+        }
+    ),
+    configs.TestConfig_Regrid(
+        **CONFIG_KWARGS_COMMON
+        | {
+            "regrid_func": regrid_conus_hrrr,
+            "force_key": 5,
+            "config_file": consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+        }
+    ),
+    configs.TestConfig_Regrid(
+        **CONFIG_KWARGS_COMMON
+        | {
+            "regrid_func": regrid_conus_rap,
+            "force_key": 6,
+            "config_file": consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS,
+        }
+    ),
+]
+
+
+@pytest.mark.parametrize("bmi_forcing_fixture_regrid", TEST_CONFIGS, indirect=True)
 def test_regrid(
     bmi_forcing_fixture_regrid: test_utils.BMIForcingFixture_Regrid,  # pyright: ignore
 ) -> None:

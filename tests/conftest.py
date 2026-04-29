@@ -1,11 +1,19 @@
 """Conventional pytest file conftest.py. Automatically discovered and implicitly imported by pytest."""
 
 import pytest
+
 from test_utils import (
     BMIForcingFixture,
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
+)
+
+from test_config_classes import (
+    TestConfig_Base,
+    TestConfig_GeoMod,
+    TestConfig_InputForcing,
+    TestConfig_Regrid,
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
@@ -25,14 +33,10 @@ def bmi_forcing_fixture(request) -> BMIForcingFixture:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
 
     """
-    (config_file,) = request.param
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_Base)
     bmi_model = NWMv3_Forcing_Engine_BMI_model()
-    bmi_model.initialize_with_params(
-        config_file=config_file,
-        b_date=None,
-        geogrid=None,
-        output_path=None,
-    )
+    bmi_model.initialize_with_params(config_file=cfg.config_file)
     return BMIForcingFixture(bmi_model=bmi_model)
 
 
@@ -49,32 +53,19 @@ def bmi_forcing_fixture_regrid(
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
 
     """
-    (
-        regrid_func,
-        config_file,
-        force_key,
-        extra_attrs,
-        regrid_arrays_to_trim_extra_elements,
-        keys_to_check,
-        keys_to_exclude,
-        grid_type,
-    ) = request.param
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_Regrid)
 
-    bmi_model = BMIMODEL[grid_type]()
-    bmi_model.initialize_with_params(
-        config_file=config_file,
-        b_date=None,
-        geogrid=None,
-        output_path=None,
-    )
+    bmi_model = BMIMODEL[cfg.grid_type]()
+    bmi_model.initialize_with_params(config_file=cfg.config_file)
     return BMIForcingFixture_Regrid(
         bmi_model=bmi_model,
-        regrid_func=regrid_func,
-        force_key=force_key,
-        keys_to_exclude=keys_to_exclude,
-        extra_attrs=extra_attrs,
-        regrid_arrays_to_trim_extra_elements=regrid_arrays_to_trim_extra_elements,
-        keys_to_check=keys_to_check,
+        regrid_func=cfg.regrid_func,
+        force_key=cfg.force_key,
+        keys_to_exclude=cfg.keys_to_exclude,
+        extra_attrs=cfg.extra_attrs,
+        regrid_arrays_to_trim_extra_elements=cfg.regrid_arrays_to_trim_extra_elements,
+        keys_to_check=cfg.keys_to_check,
     )
 
 
@@ -92,24 +83,15 @@ def bmi_forcing_fixture_geomod(
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
 
     """
-    (
-        config_file,
-        keys_to_check,
-        keys_to_exclude,
-        grid_type,
-    ) = request.param
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_GeoMod)
 
-    bmi_model = BMIMODEL[grid_type]()
-    bmi_model.initialize_with_params(
-        config_file=config_file,
-        b_date=None,
-        geogrid=None,
-        output_path=None,
-    )
+    bmi_model = BMIMODEL[cfg.grid_type]()
+    bmi_model.initialize_with_params(config_file=cfg.config_file)
     return BMIForcingFixture_GeoMod(
         bmi_model=bmi_model,
-        keys_to_check=keys_to_check,
-        keys_to_exclude=keys_to_exclude,
+        keys_to_check=cfg.keys_to_check,
+        keys_to_exclude=cfg.keys_to_exclude,
     )
 
 
@@ -137,21 +119,12 @@ def bmi_forcing_fixture_input_forcing(
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
 
     """
-    (
-        config_file,
-        keys_to_check,
-        keys_to_exclude,
-        grid_type,
-        force_key,
-    ) = request.param
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_InputForcing)
 
-    bmi_model = BMIMODEL[grid_type]()
-    bmi_model.initialize_with_params(
-        config_file=config_file,
-        b_date=None,
-        geogrid=None,
-        output_path=None,
-    )
+    bmi_model = BMIMODEL[cfg.grid_type]()
+    bmi_model.initialize_with_params(config_file=cfg.config_file)
+
     map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
     if map_old_to_new_var_names == "True" or map_old_to_new_var_names is True:
         map_old_to_new_var_names = True
@@ -164,8 +137,8 @@ def bmi_forcing_fixture_input_forcing(
 
     return BMIForcingFixture_InputForcing(
         bmi_model=bmi_model,
-        keys_to_check=keys_to_check,
-        keys_to_exclude=keys_to_exclude,
-        force_key=force_key,
+        keys_to_check=cfg.keys_to_check,
+        keys_to_exclude=cfg.keys_to_exclude,
+        force_key=cfg.force_key,
         map_old_to_new_var_names=map_old_to_new_var_names,
     )

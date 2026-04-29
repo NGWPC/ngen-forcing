@@ -12,20 +12,20 @@ test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
+configs = test_utils.test_config_classes
 
 
-@pytest.mark.parametrize(
-    "bmi_forcing_fixture_geomod",
-    [
-        (
-            consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
-            consts.COMPOSITE_KEYS_TO_CHECK,
-            consts.KEYS_TO_EXCLUDE,
-            consts.GRID_TYPE,
-        )
-    ],
-    indirect=True,
-)
+TEST_CONFIGS = [
+    configs.TestConfig_GeoMod(
+        config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+        keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
+        keys_to_exclude=consts.KEYS_TO_EXCLUDE,
+        grid_type=consts.GRID_TYPE,
+    ),
+]
+
+
+@pytest.mark.parametrize("bmi_forcing_fixture_geomod", TEST_CONFIGS, indirect=True)
 def test_geomod(
     bmi_forcing_fixture_geomod: test_utils.BMIForcingFixture_GeoMod,  # pyright: ignore
 ) -> None:

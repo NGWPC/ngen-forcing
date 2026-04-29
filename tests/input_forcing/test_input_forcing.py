@@ -12,20 +12,22 @@ test_utils = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
+configs = test_utils.test_config_classes
+
+
+TEST_CONFIGS = [
+    configs.TestConfig_InputForcing(
+        config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+        keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
+        keys_to_exclude=consts.KEYS_TO_EXCLUDE,
+        grid_type=consts.GRID_TYPE,
+        force_key=12,
+    ),
+]
 
 
 @pytest.mark.parametrize(
-    "bmi_forcing_fixture_input_forcing",
-    [
-        (
-            consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
-            consts.COMPOSITE_KEYS_TO_CHECK,
-            consts.KEYS_TO_EXCLUDE,
-            consts.GRID_TYPE,
-            12,
-        )
-    ],
-    indirect=True,
+    "bmi_forcing_fixture_input_forcing", TEST_CONFIGS, indirect=True
 )
 def test_input_forcing(
     bmi_forcing_fixture_input_forcing: test_utils.BMIForcingFixture_InputForcing,  # pyright: ignore
