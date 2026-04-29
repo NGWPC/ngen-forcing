@@ -466,60 +466,9 @@ class NWMv3ForcingEngineModel:
             if self._bmi._job_meta.number_supp_pcp > 0:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key != 13:
-                        # Like with input forcings, calculate the neighboring files to use.
-                        self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta,
-                            self._bmi._output_obj.outDate,
-                            self._bmi._mpi_meta,
-                        )
-                        self.check_program_status()
-
-                        # Regrid the supplemental precipitation.
-                        self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
-                        )
-                        self.check_program_status()
-
-                        if (
-                            self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
-                            is not None
-                            and self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip2
-                            is not None
-                        ):
-                            # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(
-                                self._bmi._job_meta,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
-                            self.check_program_status()
-
-                            # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
-                            self.disaggregate_fun(
-                                input_forcings,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                            )
-                            self.check_program_status()
-
-                            # Run temporal interpolation on the grids.
-                            self._bmi._supp_pcp_mod[
-                                supp_pcp_key
-                            ].temporal_interpolate_inputs(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
-                            self.check_program_status()
-
-                            # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(
-                                self._bmi._output_obj,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                            )
-                            self.check_program_status()
+                        # Below comment copied from earlier code, the comment had been just above the call to `disaggregate_fun`.
+                        # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
+                        self.__process_supp_precip_key(input_forcings, supp_pcp_key)
 
             # Call the output routines
             #   adjust date for AnA if necessary
@@ -532,6 +481,61 @@ class NWMv3ForcingEngineModel:
                 ##############################################################################################
 
         return input_forcings
+
+    def __process_supp_precip_key(self, input_forcings: dict, supp_pcp_key: int):
+        """Process supplemental precipitation for one supplemental precipitation key.
+
+        This code block was cut and pasted from methods `loop_through_forcing_products` and `process_suplemental_precip` during refactor.
+        """
+        # Like with input forcings, calculate the neighboring files to use.
+        self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
+            self._bmi._job_meta,
+            self._bmi._output_obj.outDate,
+            self._bmi._mpi_meta,
+        )
+        self.check_program_status()
+
+        # Regrid the supplemental precipitation.
+        self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
+            self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
+        )
+        self.check_program_status()
+
+        if (
+            self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1 is not None
+            and self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip2 is not None
+        ):
+            # Run check on regridded fields for reasonable values that are not missing values.
+            err_handler.check_supp_pcp_bounds(
+                self._bmi._job_meta,
+                self._bmi._supp_pcp_mod[supp_pcp_key],
+                self._bmi._mpi_meta,
+                self._bmi.geo_meta,
+            )
+            self.check_program_status()
+
+            self.disaggregate_fun(
+                input_forcings,
+                self._bmi._supp_pcp_mod[supp_pcp_key],
+                self._bmi._job_meta,
+                self._bmi._mpi_meta,
+            )
+            self.check_program_status()
+
+            # Run temporal interpolation on the grids.
+            self._bmi._supp_pcp_mod[supp_pcp_key].temporal_interpolate_inputs(
+                self._bmi._job_meta, self._bmi._mpi_meta
+            )
+            self.check_program_status()
+
+            # Layer in the supplemental precipitation into the current output object.
+            layeringMod.layer_supplemental_forcing(
+                self._bmi._output_obj,
+                self._bmi._supp_pcp_mod[supp_pcp_key],
+                self._bmi._job_meta,
+                self._bmi._mpi_meta,
+            )
+            self.check_program_status()
 
     def __use_rstFlag(self, input_forcings):
         """
@@ -594,59 +598,7 @@ class NWMv3ForcingEngineModel:
             if self._bmi._job_meta.number_supp_pcp > 0:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key == 14:
-                        # Like with input forcings, calculate the neighboring files to use.
-                        self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
-                            self._bmi._job_meta,
-                            self._bmi._output_obj.outDate,
-                            self._bmi._mpi_meta,
-                        )
-                        self.check_program_status()
-
-                        # Regrid the supplemental precipitation.
-                        self._bmi._supp_pcp_mod[supp_pcp_key].regrid_inputs(
-                            self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
-                        )
-                        self.check_program_status()
-
-                        if (
-                            self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip1
-                            is not None
-                            and self._bmi._supp_pcp_mod[supp_pcp_key].regridded_precip2
-                            is not None
-                        ):
-                            # Run check on regridded fields for reasonable values that are not missing values.
-                            err_handler.check_supp_pcp_bounds(
-                                self._bmi._job_meta,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
-                            self.check_program_status()
-
-                            self.disaggregate_fun(
-                                input_forcings,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                            )
-                            self.check_program_status()
-
-                            # Run temporal interpolation on the grids.
-                            self._bmi._supp_pcp_mod[
-                                supp_pcp_key
-                            ].temporal_interpolate_inputs(
-                                self._bmi._job_meta, self._bmi._mpi_meta
-                            )
-                            self.check_program_status()
-
-                            # Layer in the supplemental precipitation into the current output object.
-                            layeringMod.layer_supplemental_forcing(
-                                self._bmi._output_obj,
-                                self._bmi._supp_pcp_mod[supp_pcp_key],
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                            )
-                            self.check_program_status()
+                        self.__process_supp_precip_key(input_forcings, supp_pcp_key)
 
     @time_function
     def write_output(self) -> None:
