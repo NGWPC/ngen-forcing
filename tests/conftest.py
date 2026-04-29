@@ -24,14 +24,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
 
 @pytest.fixture
 def bmi_forcing_fixture(request) -> BMIForcingFixture:
-    """Construct minimal class of classes for running BMI forcing.
-
-    Constructor for minimal class of classes for running BMI forcing.
-    For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
+    """Construct class for tests.
 
     Args:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
-
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_Base)
@@ -44,14 +40,11 @@ def bmi_forcing_fixture(request) -> BMIForcingFixture:
 def bmi_forcing_fixture_regrid(
     request,
 ) -> BMIForcingFixture_Regrid:
-    """Construct minimal class of callas for running forcing ESMF regrid functions.
-
-    Constructor for minimal class of classes for running forcing ESMF regrid functions.
-    For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
+    """Construct class for tests of ESMF regrid functions.
+    For example usage, see: tests/esmf_regrid/test_esmf_regrid.py.
 
     Args:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
-
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_Regrid)
@@ -73,15 +66,11 @@ def bmi_forcing_fixture_regrid(
 def bmi_forcing_fixture_geomod(
     request,
 ) -> BMIForcingFixture_GeoMod:
-    """Construct minimal class of classes for running forcing GeoMod.
-
-    Constructor for minimal class of classes for running forcing GeoMod.
-
-    For example usage, see: tests/geomod/test_geomod.test_geomod.
+    """Construct class for tests of GeoMod.
+    For example usage, see: tests/geomod/test_geomod.py.
 
     Args:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
-
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_GeoMod)
@@ -109,15 +98,11 @@ def pytest_addoption(parser):
 def bmi_forcing_fixture_input_forcing(
     request,
 ) -> BMIForcingFixture_InputForcing:
-    """Construct minimal class of class for running forcing input_forcing.
-
-    Constructor for minimal class of classes for running forcing input_forcing.
-
-    For example usage, see: tests/forcing_input/test_forcing_input.test_forcing_input.
+    """Construct class for tests of input_forcing.
+    For example usage, see: tests/input_forcing/test_input_forcing.py.
 
     Args:
         request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
-
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_InputForcing)
