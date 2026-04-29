@@ -336,70 +336,8 @@ class NWMv3ForcingEngineModel:
                         self._bmi._mpi_meta,
                     )
 
-                if force_key in [12, 21, 27]:
-                    if self._bmi._job_meta.aws is None:
-                        # Calculate the previous and next input cycle files from the inputs.
-                        input_forcings.calc_neighbor_files(
-                            self._bmi._job_meta,
-                            self._bmi._output_obj.outDate,
-                            self._bmi._mpi_meta,
-                        )
-                        self.check_program_status()
-                    else:
-                        if len(self._bmi._job_meta.input_forcings) != 1:
-                            raise ValueError(
-                                f"Expected to have 1 forcing key, but have {len(self._bmi._job_meta.input_forcings)}: {list(self._bmi._job_meta.input_forcings)}"
-                            )
-                        # Flag to indicate the AWS .zarr AORC method
-                        if force_key == 12:
-                            if self.source_data_processor is None:
-                                self.source_data_processor = AORCConusProcessor(
-                                    self._bmi._job_meta,
-                                    self._bmi._mpi_meta,
-                                    self._bmi.geo_meta,
-                                )
-                        elif force_key == 21:
-                            if self.source_data_processor is None:
-                                self.source_data_processor = AORCAlaskaProcessor(
-                                    self._bmi._job_meta,
-                                    self._bmi._mpi_meta,
-                                    self._bmi.geo_meta,
-                                )
-
-                        # Flag to indicate the AWS .zarr NWMv3 Forcing file method
-                        elif force_key == 27:
-                            if self.source_data_processor is None:
-                                if self._bmi._job_meta.nwm_domain == "CONUS":
-                                    self.source_data_processor = NWMV3ConusProcessor(
-                                        self._bmi._job_meta,
-                                        self._bmi._mpi_meta,
-                                        self._bmi.geo_meta,
-                                    )
-                                elif self._bmi._job_meta.nwm_domain in [
-                                    "Hawaii",
-                                    "PR",
-                                ]:
-                                    self.source_data_processor = NWMV3OConusProcessor(
-                                        self._bmi._job_meta,
-                                        self._bmi._mpi_meta,
-                                        self._bmi.geo_meta,
-                                    )
-                                elif self._bmi._job_meta.nwm_domain == "Alaska":
-                                    self.source_data_processor = NWMV3AlaskaProcessor(
-                                        self._bmi._job_meta,
-                                        self._bmi._mpi_meta,
-                                        self._bmi.geo_meta,
-                                    )
-                                else:
-                                    raise ValueError(
-                                        f"Unsupported domain type ({self._bmi._job_meta.nwm_domain} for forcing type: {force_key} )"
-                                    )
-
-                        self._bmi._job_meta.aws_obj = (
-                            self.source_data_processor.process_historical_data(
-                                self._bmi._job_meta.current_time
-                            )
-                        )
+                # Handle AORC and NWM force keys
+                self.__handle_aorc_and_nwm_force_keys(input_forcings, force_key)
 
                 # If skipping this forcing, continue early
                 if input_forcings.skip is True:
@@ -481,6 +419,80 @@ class NWMv3ForcingEngineModel:
                 ##############################################################################################
 
         return input_forcings
+
+    def __handle_aorc_and_nwm_force_keys(self, input_forcings, force_key: int) -> None:
+        """During `loop_through_forcing_products`, handle the case of the force key being AORC or NWM.
+
+        This code block was cut and pasted from methods `loop_through_forcing_products` during refactor.
+
+        Warnings
+        --------
+            Modifies mutable arguments in-place.
+        """
+        if force_key in [12, 21, 27]:
+            if self._bmi._job_meta.aws is None:
+                # Calculate the previous and next input cycle files from the inputs.
+                input_forcings.calc_neighbor_files(
+                    self._bmi._job_meta,
+                    self._bmi._output_obj.outDate,
+                    self._bmi._mpi_meta,
+                )
+                self.check_program_status()
+            else:
+                if len(self._bmi._job_meta.input_forcings) != 1:
+                    raise ValueError(
+                        f"Expected to have 1 forcing key, but have {len(self._bmi._job_meta.input_forcings)}: {list(self._bmi._job_meta.input_forcings)}"
+                    )
+                # Flag to indicate the AWS .zarr AORC method
+                if force_key == 12:
+                    if self.source_data_processor is None:
+                        self.source_data_processor = AORCConusProcessor(
+                            self._bmi._job_meta,
+                            self._bmi._mpi_meta,
+                            self._bmi.geo_meta,
+                        )
+                elif force_key == 21:
+                    if self.source_data_processor is None:
+                        self.source_data_processor = AORCAlaskaProcessor(
+                            self._bmi._job_meta,
+                            self._bmi._mpi_meta,
+                            self._bmi.geo_meta,
+                        )
+
+                # Flag to indicate the AWS .zarr NWMv3 Forcing file method
+                elif force_key == 27:
+                    if self.source_data_processor is None:
+                        if self._bmi._job_meta.nwm_domain == "CONUS":
+                            self.source_data_processor = NWMV3ConusProcessor(
+                                self._bmi._job_meta,
+                                self._bmi._mpi_meta,
+                                self._bmi.geo_meta,
+                            )
+                        elif self._bmi._job_meta.nwm_domain in [
+                            "Hawaii",
+                            "PR",
+                        ]:
+                            self.source_data_processor = NWMV3OConusProcessor(
+                                self._bmi._job_meta,
+                                self._bmi._mpi_meta,
+                                self._bmi.geo_meta,
+                            )
+                        elif self._bmi._job_meta.nwm_domain == "Alaska":
+                            self.source_data_processor = NWMV3AlaskaProcessor(
+                                self._bmi._job_meta,
+                                self._bmi._mpi_meta,
+                                self._bmi.geo_meta,
+                            )
+                        else:
+                            raise ValueError(
+                                f"Unsupported domain type ({self._bmi._job_meta.nwm_domain} for forcing type: {force_key} )"
+                            )
+
+                self._bmi._job_meta.aws_obj = (
+                    self.source_data_processor.process_historical_data(
+                        self._bmi._job_meta.current_time
+                    )
+                )
 
     def __process_supp_precip_key(
         self, input_forcings: dict, supp_pcp_key: int
