@@ -18,6 +18,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     forcingInputMod,
     layeringMod,
 )
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
+    MODEL as model_consts,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing import (
     AORCAlaskaProcessor,
     AORCConusProcessor,
@@ -658,29 +661,10 @@ class NWMv3ForcingEngineModel:
         8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
         """
 
+        variables = model_consts["update_dict_base_vars"]
         if self._bmi._job_meta.include_lqfrac == 1:
-            variables = [
-                "U2D",
-                "V2D",
-                "LWDOWN",
-                "RAINRATE",
-                "T2D",
-                "Q2D",
-                "PSFC",
-                "SWDOWN",
-                "LQFRAC",
-            ]
-        else:
-            variables = [
-                "U2D",
-                "V2D",
-                "LWDOWN",
-                "RAINRATE",
-                "T2D",
-                "Q2D",
-                "PSFC",
-                "SWDOWN",
-            ]
+            variables.append(model_consts["update_dict_var_include_lqfraq"])
+
         if self._bmi._job_meta.grid_type == "gridded":
             for count, variable in enumerate(variables):
                 self._bmi._values[variable + "_ELEMENT"] = (
