@@ -1245,7 +1245,22 @@ SUPPPRECIPMOD = {
         0: timeInterpMod.no_interpolation_supp_pcp,
         1: timeInterpMod.nearest_neighbor_supp_pcp,
         2: timeInterpMod.weighted_average_supp_pcp,
-    },
+    }
+}
+
+MODEL = {
+    # Used by method `model.NWMv3ForcingEngineModel.update_dict`
+    "update_dict_base_vars": [
+        "U2D",
+        "V2D",
+        "LWDOWN",
+        "RAINRATE",
+        "T2D",
+        "Q2D",
+        "PSFC",
+        "SWDOWN",
+    ],
+    "update_dict_var_include_lqfraq": "LQFRAC",
 }
 
 TEST_UTILS = {
