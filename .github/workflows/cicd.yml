@@ -23,6 +23,10 @@ on:
         description: 'BMI_BASE_TAG'
         required: false
         type: string
+      GHCR_ORG:
+        description: 'GHCR_ORG'
+        required: false
+        type: string
       EWTS_ORG:
         description: 'EWTS_ORG'
         required: false
@@ -46,6 +50,14 @@ on:
         type: string
       NWM_FCST_MGR_REF:
         description: 'NWM_FCST_MGR_REF'
+        required: false
+        type: string
+      MSW_MGR_ORG:
+        description: 'MSW_MGR_ORG'
+        required: false
+        type: string
+      MSW_MGR_REF:
+        description: 'MSW_MGR_REF'
         required: false
         type: string
 
@@ -222,7 +234,7 @@ jobs:
             BMI_BASE_TAG=${{ needs.setup.outputs.bmi_base_tag }}
             BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
             BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
-            EWTS_ORG=${{ inputs.EWTS_ORG || 'NGWPC' }}
+            EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || 'development' }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
@@ -313,6 +325,7 @@ jobs:
       )
     runs-on: ubuntu-latest
     needs:
+      - setup
       - pipeline-bmi
     steps:
       - name: Generate GitHub App token
@@ -328,10 +341,20 @@ jobs:
           NGEN_REF: ${{ inputs.NGEN_REF || 'development' }}
           NWM_CAL_MGR_REF: ${{ inputs.NWM_CAL_MGR_REF || 'development' }}
           NWM_FCST_MGR_REF: ${{ inputs.NWM_FCST_MGR_REF || 'development' }}
+          EWTS_ORG: ${{ inputs.EWTS_ORG || github.repository_owner }}
+          EWTS_REF: ${{ inputs.EWTS_REF || 'development' }}
+          MSW_MGR_ORG: ${{ inputs.MSW_MGR_ORG || github.repository_owner }}
+          MSW_MGR_REF: ${{ inputs.MSW_MGR_REF || 'development' }}
+          GHCR_ORG: ${{ inputs.GHCR_ORG || needs.setup.outputs.org }}
         run: |
           gh workflow run ngwpc-cicd.yml \
             --repo ${{ github.repository_owner }}/ngen \
             --ref "$NGEN_REF" \
             -f TRIGGER_DOWNSTREAM=true \
             -f NWM_CAL_MGR_REF="$NWM_CAL_MGR_REF" \
-            -f NWM_FCST_MGR_REF="$NWM_FCST_MGR_REF"
+            -f NWM_FCST_MGR_REF="$NWM_FCST_MGR_REF" \
+            -f EWTS_ORG="$EWTS_ORG" \
+            -f EWTS_REF="$EWTS_REF" \
+            -f MSW_MGR_ORG="$MSW_MGR_ORG" \
+            -f MSW_MGR_REF="$MSW_MGR_REF" \
+            -f GHCR_ORG="$GHCR_ORG"
