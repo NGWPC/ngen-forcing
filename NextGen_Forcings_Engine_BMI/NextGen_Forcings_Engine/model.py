@@ -340,9 +340,11 @@ class NWMv3ForcingEngineModel:
                 self.__handle_aorc_and_nwm_force_keys(input_forcings, force_key)
 
                 # If skipping this forcing, continue early
+                # NOTE this is used by the esmf regrid pytests, to halt the loop before "manually" calling a particular regrid function.
                 if input_forcings.skip is True:
                     LOG.debug(f"Breaking loop for force_key {force_key}")
                     break
+
                 # Regrid forcings.
                 input_forcings.regrid_inputs(
                     self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta
@@ -495,7 +497,7 @@ class NWMv3ForcingEngineModel:
                 )
 
     def __process_supp_precip_key(
-        self, input_forcings: dict, supp_pcp_key: int
+        self, input_forcings: forcingInputMod.InputForcings, supp_pcp_key: int
     ) -> None:
         """Process supplemental precipitation for one supplemental precipitation key.
 
@@ -555,7 +557,7 @@ class NWMv3ForcingEngineModel:
             )
             self.check_program_status()
 
-    def __use_rstFlag(self, input_forcings: dict) -> None:
+    def __use_rstFlag(self, input_forcings: forcingInputMod.InputForcings) -> None:
         """
         If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
         next set of forcings as the previous step just regridded the previous forcing.
@@ -608,7 +610,9 @@ class NWMv3ForcingEngineModel:
             input_forcings.rstFlag = 0
 
     @time_function
-    def process_suplemental_precip(self, input_forcings: dict) -> None:
+    def process_suplemental_precip(
+        self, input_forcings: forcingInputMod.InputForcings
+    ) -> None:
         """Process supplemental precipitation for the current forecast cycle.
 
         Warnings
