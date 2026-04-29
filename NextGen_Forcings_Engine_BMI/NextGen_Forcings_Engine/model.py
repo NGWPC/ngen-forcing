@@ -1,6 +1,7 @@
 """NWMv3ForcingEngineModel, to be constructed and managed by inheritors of NWMv3_Forcing_Engine_BMI_model_Base from bmi_model.py"""
 
 from __future__ import annotations
+import copy
 import datetime
 from contextlib import contextmanager
 from time import perf_counter
@@ -661,7 +662,7 @@ class NWMv3ForcingEngineModel:
         8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
         """
 
-        variables = model_consts["update_dict_base_vars"]
+        variables = copy.deepcopy(model_consts["update_dict_base_vars"])
         if self._bmi._job_meta.include_lqfrac == 1:
             variables.append(model_consts["update_dict_var_include_lqfraq"])
 
