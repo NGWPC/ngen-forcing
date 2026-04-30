@@ -3,7 +3,6 @@
 import pytest
 
 from test_utils import (
-    BMIForcingFixture,
     BMIForcingFixture_AnA,
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
