@@ -14,6 +14,8 @@ spec.loader.exec_module(test_utils)
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
 
+TEST_FILE_NAME_PREFIX = "input_forcing"
+
 
 TEST_CONFIGS = [
     configs.TestConfig_InputForcing(
@@ -22,6 +24,7 @@ TEST_CONFIGS = [
         keys_to_exclude=consts.KEYS_TO_EXCLUDE,
         grid_type=consts.GRID_TYPE,
         force_key=12,
+        test_file_name_prefix=TEST_FILE_NAME_PREFIX,
     ),
 ]
 

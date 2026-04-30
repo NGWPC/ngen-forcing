@@ -31,8 +31,16 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     serialize_to_json,
 )
 
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import BMIMODEL
+
 import test_consts  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
 import test_config_classes  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
+from test_config_classes import (
+    TestConfig_Base,
+    TestConfig_GeoMod,
+    TestConfig_InputForcing,
+    TestConfig_Regrid,
+)
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
@@ -197,39 +205,33 @@ class BMIForcingFixture:
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.test_regrid.
     """
 
-    def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base) -> None:
+    def __init__(self, cfg: TestConfig_Base) -> None:
         """Initialize BMIForcingFixture."""
-        self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = bmi_model
-        self.mpi_config: MpiConfig = bmi_model._mpi_meta
-        self.config_options: ConfigOptions = bmi_model._job_meta
-        self.geo_meta: GeoMeta = bmi_model.geo_meta
+        self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = BMIMODEL[cfg.grid_type]()
+        self.bmi_model.initialize_with_params(config_file=cfg.config_file)
+
+        self.mpi_config: MpiConfig = self.bmi_model._mpi_meta
+        self.config_options: ConfigOptions = self.bmi_model._job_meta
+        self.geo_meta: GeoMeta = self.bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
+
+        self.keys_to_check = cfg.keys_to_check
+        self.keys_to_exclude = cfg.keys_to_exclude
+        self.map_old_to_new_var_names = cfg.map_old_to_new_var_names
+        self.test_file_name_prefix = cfg.test_file_name_prefix
 
 
 class BMIForcingFixture_Class(BMIForcingFixture):
     """Test fixture for Class-based tests."""
 
-    def __init__(
-        self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
-        keys_to_check: tuple[str] = (),
-        keys_to_exclude: tuple[str] = (),
-        map_old_to_new_var_names: bool = True,
-    ) -> None:
+    def __init__(self, cfg: TestConfig_Base) -> None:
         """Initialize BMIForcingFixture_Class.
 
         Args:
         ----
-            bmi_model: The BMI model to be used in the test fixture
-            keys_to_check: The keys to check
-            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
-            map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
+            cfg: an instance of TestConfig_Base
         """
-        super().__init__(bmi_model=bmi_model)
-
-        self.keys_to_check = keys_to_check
-        self.keys_to_exclude = keys_to_exclude
-        self.map_old_to_new_var_names = map_old_to_new_var_names
+        super().__init__(cfg)
 
         self.expected_sub_dir = "test_data/expected_results"
         self.actual_sub_dir = "test_data/actual_results"
@@ -308,6 +310,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
         This is useful for checking the state of the model immediately after initialization, before any updates have occurred.
         """
+        logging.info("Starting after_intitialization_check()...")
         self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
 
     def compare(self, actual: dict, expected: dict) -> None:
@@ -339,6 +342,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         current_output_step: The current output step, which can be used to conditionally run different checks on the first step vs subsequent steps, since the first step behaves differently in some ways.
 
         """
+        logging.info("Starting after_bmi_model_update()...")
         self.compare(
             self.deserial_actual("after_update", f"_step_{current_output_step}"),
             self.deserial_expected("after_update", f"_step_{current_output_step}"),
@@ -346,6 +350,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
     def after_finalize(self) -> None:
         """Run checks after bmi_model.finalize() has been called."""
+        logging.info("Starting after_finalize()...")
         self.compare(
             self.deserial_actual("finalize"), self.deserial_expected("finalize")
         )
@@ -366,75 +371,32 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
     """Test fixture for GeoMod tests."""
 
-    def __init__(
-        self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
-        keys_to_check: tuple = (),
-        keys_to_exclude: tuple = (),
-    ) -> None:
+    def __init__(self, cfg: TestConfig_GeoMod) -> None:
         """Initialize BMIForcingFixture_GeoMod.
 
         Args:
-        ----
-            bmi_model: the BMI model to be used in the test fixture
-            keys_to_chek: The keys to check
-            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
-
+            cfg: an instance of TestConfig_GeoMod
         """
-        super().__init__(
-            bmi_model=bmi_model,
-            keys_to_check=keys_to_check,
-            keys_to_exclude=keys_to_exclude,
-        )
+        super().__init__(cfg)
         self.test_class = self.geo_meta
-
-        self.test_file_name_prefix = "geomod"
 
 
 class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
     """Test fixture for InputForcing tests."""
 
-    def __init__(
-        self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
-        keys_to_check: tuple = (),
-        keys_to_exclude: tuple = (),
-        force_key: int = None,
-        map_old_to_new_var_names: bool = True,
-    ) -> None:
+    def __init__(self, cfg: TestConfig_InputForcing) -> None:
         """Initialize BMIForcingFixture_InputForcing.
 
         Args:
-        ----
-            bmi_model: the BMI model to be used in the test fixture
-            keys_to_chek: The keys to check
-            keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
-            force_key: Key for the forcing type
-            map_old_to_new_var_names: whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
-
+            cfg: an instance of TestConfig_InputForcing
         """
-        super().__init__(
-            bmi_model=bmi_model,
-            keys_to_check=keys_to_check,
-            keys_to_exclude=keys_to_exclude,
-            map_old_to_new_var_names=map_old_to_new_var_names,
-        )
-        self.force_key = force_key
+        super().__init__(cfg)
+        self.force_key = cfg.force_key
         self.test_class = self.input_forcing_mod[self.force_key]
-        self.test_file_name_prefix = "input_forcing"
 
 
 class BMIForcingFixture_Regrid(BMIForcingFixture):
-    def __init__(
-        self,
-        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
-        regrid_func: typing.Callable,
-        force_key: int,
-        extra_attrs: tuple[ClassAttrFetcher],
-        regrid_arrays_to_trim_extra_elements: tuple[str],
-        keys_to_check: tuple[str],
-        keys_to_exclude: tuple[str],
-    ) -> None:
+    def __init__(self, cfg: TestConfig_Regrid) -> None:
         """Writers of regrid tests must call the methods in this order. This is enforced by state attributes.
 
             self.pre_regrid()
@@ -443,27 +405,19 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             self.post_regrid()
 
         Args:
-        ----
-            bmi_model: the BMI model to be used in the test fixture
-            regrid_func: The regrid function that is being tested.
-            force_key: Should agree with the regrid function being tested, e.g. see ginputfunc.forcing_map
-            extra_attrs: These are extra attributes to be added to the test results JSON, to supplement the primary InputForcings attributes.
-            regrid_arrays_to_trim_extra_elements: These are output arrays which can contain extra unused elements which need to be removed during an equality check.
-            keys_to_check: These are keys to include in the "expected" test results json, and are checked for equality versus "actual" results from regrid operation.
-            keys_to_exclude: These are keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
-
+            cfg: An instance of TestConfig_Regrid
         """
-        super().__init__(bmi_model=bmi_model)
+        assert isinstance(cfg, TestConfig_Regrid)
+        super().__init__(cfg)
 
-        self.regrid_func = regrid_func
-        self.regrid_arrays_to_trim_extra_elements = regrid_arrays_to_trim_extra_elements
-        self.keys_to_check = keys_to_check
-        self.keys_to_exclude = keys_to_exclude
+        self.regrid_func = cfg.regrid_func
+        self.regrid_arrays_to_trim_extra_elements = (
+            cfg.regrid_arrays_to_trim_extra_elements
+        )
+        self.force_key = cfg.force_key
+        self.extra_attrs: tuple[ClassAttrFetcher] = cfg.extra_attrs
 
-        self.force_key = force_key
         self.cull_force_keys_not_used_this_test()
-
-        self.extra_attrs: tuple[ClassAttrFetcher] = extra_attrs
 
         self._state = None  # Test fixture state used to help ensure things happen in the right order
 
@@ -500,9 +454,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
     def regrid_results_file_name_expect(self) -> str:
         """File name for expected test results."""
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        file_basename = (
-            f"test_expect_{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
-        )
+        file_basename = f"test_expect_{self.test_file_name_prefix}{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
         file_path = os.path.join(
             test_dir, "test_data", "expected_results", file_basename
         )
@@ -512,9 +464,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
     def regrid_results_file_name_actual(self) -> str:
         """File name for actual test results."""
         test_dir = os.path.dirname(os.path.abspath(__file__))
-        file_basename = (
-            f"test_actual_{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
-        )
+        file_basename = f"test_actual_{self.test_file_name_prefix}{self.regrid_func.__name__}{self.serialized_file_suffix}.json"
         file_path = os.path.join(test_dir, "test_data", "actual_results", file_basename)
         return file_path
 

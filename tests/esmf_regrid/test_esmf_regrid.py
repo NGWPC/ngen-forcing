@@ -20,6 +20,8 @@ spec.loader.exec_module(test_utils)
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
 
+TEST_FILE_NAME_PREFIX = ""
+
 ### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
 os.environ["MFE_SILENT"] = "true"
 
@@ -70,6 +72,7 @@ CONFIG_KWARGS_COMMON = {
     "keys_to_check": COMPOSITE_KEYS_TO_CHECK__REGRID,
     "keys_to_exclude": consts.KEYS_TO_EXCLUDE,
     "grid_type": consts.GRID_TYPE,
+    "test_file_name_prefix": TEST_FILE_NAME_PREFIX,
 }
 
 

@@ -16,10 +16,33 @@ from test_config_classes import (
     TestConfig_Regrid,
 )
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
-    BMIMODEL,
-    NWMv3_Forcing_Engine_BMI_model,
-)
+
+def pytest_addoption(parser):
+    """Add command line options to pytest."""
+    parser.addoption(
+        "--map_old_to_new_var_names",
+        action="store",
+        help="Argument to specify if old variables names should be mapped to new variable names.",
+    )
+
+
+def update_cfg_with_cli_inputs(cfg: TestConfig_Base, request) -> None:
+    """Update the test config in-place using values passed from CLI.
+    Args:
+        cfg: An instance of a test config.
+        request: pytest convention. May be passed from @pytest.mark.parametrize.
+    """
+    map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
+    if map_old_to_new_var_names is not None:
+        if map_old_to_new_var_names == "True" or map_old_to_new_var_names is True:
+            map_old_to_new_var_names = True
+        elif map_old_to_new_var_names == "False" or map_old_to_new_var_names is False:
+            map_old_to_new_var_names = False
+        else:
+            raise ValueError(
+                f"Unexpected value for arg: map_old_to_new_var_names. Expected True or False; received: {map_old_to_new_var_names}"
+            )
+        cfg.map_old_to_new_var_names = map_old_to_new_var_names
 
 
 @pytest.fixture
@@ -31,15 +54,12 @@ def bmi_forcing_fixture(request) -> BMIForcingFixture:
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_Base)
-    bmi_model = NWMv3_Forcing_Engine_BMI_model()
-    bmi_model.initialize_with_params(config_file=cfg.config_file)
-    return BMIForcingFixture(bmi_model=bmi_model)
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture(cfg)
 
 
 @pytest.fixture
-def bmi_forcing_fixture_regrid(
-    request,
-) -> BMIForcingFixture_Regrid:
+def bmi_forcing_fixture_regrid(request) -> BMIForcingFixture_Regrid:
     """Construct class for tests of ESMF regrid functions.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.py.
 
@@ -48,24 +68,12 @@ def bmi_forcing_fixture_regrid(
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_Regrid)
-
-    bmi_model = BMIMODEL[cfg.grid_type]()
-    bmi_model.initialize_with_params(config_file=cfg.config_file)
-    return BMIForcingFixture_Regrid(
-        bmi_model=bmi_model,
-        regrid_func=cfg.regrid_func,
-        force_key=cfg.force_key,
-        keys_to_exclude=cfg.keys_to_exclude,
-        extra_attrs=cfg.extra_attrs,
-        regrid_arrays_to_trim_extra_elements=cfg.regrid_arrays_to_trim_extra_elements,
-        keys_to_check=cfg.keys_to_check,
-    )
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_Regrid(cfg)
 
 
 @pytest.fixture
-def bmi_forcing_fixture_geomod(
-    request,
-) -> BMIForcingFixture_GeoMod:
+def bmi_forcing_fixture_geomod(request) -> BMIForcingFixture_GeoMod:
     """Construct class for tests of GeoMod.
     For example usage, see: tests/geomod/test_geomod.py.
 
@@ -74,30 +82,12 @@ def bmi_forcing_fixture_geomod(
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_GeoMod)
-
-    bmi_model = BMIMODEL[cfg.grid_type]()
-    bmi_model.initialize_with_params(config_file=cfg.config_file)
-    return BMIForcingFixture_GeoMod(
-        bmi_model=bmi_model,
-        keys_to_check=cfg.keys_to_check,
-        keys_to_exclude=cfg.keys_to_exclude,
-    )
-
-
-def pytest_addoption(parser):
-    """Add command line options to pytest."""
-    parser.addoption(
-        "--map_old_to_new_var_names",
-        action="store",
-        default=True,
-        help="Argument to specify if old variables names should be mapped to new variable names.",
-    )
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_GeoMod(cfg)
 
 
 @pytest.fixture
-def bmi_forcing_fixture_input_forcing(
-    request,
-) -> BMIForcingFixture_InputForcing:
+def bmi_forcing_fixture_input_forcing(request) -> BMIForcingFixture_InputForcing:
     """Construct class for tests of input_forcing.
     For example usage, see: tests/input_forcing/test_input_forcing.py.
 
@@ -106,24 +96,5 @@ def bmi_forcing_fixture_input_forcing(
     """
     cfg = request.param
     assert isinstance(cfg, TestConfig_InputForcing)
-
-    bmi_model = BMIMODEL[cfg.grid_type]()
-    bmi_model.initialize_with_params(config_file=cfg.config_file)
-
-    map_old_to_new_var_names = request.config.getoption("--map_old_to_new_var_names")
-    if map_old_to_new_var_names == "True" or map_old_to_new_var_names is True:
-        map_old_to_new_var_names = True
-    elif map_old_to_new_var_names == "False" or map_old_to_new_var_names is False:
-        map_old_to_new_var_names = False
-    else:
-        raise ValueError(
-            f"Unexpected value for arg: map_old_to_new_var_names. Expected True or False; recieved: {map_old_to_new_var_names}"
-        )
-
-    return BMIForcingFixture_InputForcing(
-        bmi_model=bmi_model,
-        keys_to_check=cfg.keys_to_check,
-        keys_to_exclude=cfg.keys_to_exclude,
-        force_key=cfg.force_key,
-        map_old_to_new_var_names=map_old_to_new_var_names,
-    )
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_InputForcing(cfg)
