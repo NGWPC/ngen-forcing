@@ -9741,7 +9741,8 @@ def regrid_hourly_nbm(
         cmd = f'$WGRIB2 -match "({"|".join(fields)})" -not "prob" -not "ens" {forcings_or_precip.file_in1} -netcdf {nbm_tmp_nc}'
     else:
         # Perform a GRIB dump to NetCDF for the precip data.
-        fieldnbm_match1 = '":APCP:"'
+        time_str=f"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2} hour acc fcst"
+        fieldnbm_match1 = f'":APCP:surface:{time_str}:"'
         fieldnbm_match2 = (
             f'"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2}"'
         )

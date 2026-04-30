@@ -4308,13 +4308,15 @@ def find_hourly_nbm_neighbors(
     # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
     # no interpolation is required.
     if supplemental_precip.fcst_hour1 == 0:
-        supplemental_precip.fcst_hour1 = 1
+        prev_nbm_forecast_hour = 1
+    else:
+        prev_nbm_forecast_hour = supplemental_precip.fcst_hour1
 
     supplemental_precip.file_in1 = construct_nbm_path(
         current_nbm_cycle, supplemental_precip.fcst_hour2, supplemental_precip
     )
     supplemental_precip.file_in2 = construct_nbm_path(
-        current_nbm_cycle, supplemental_precip.fcst_hour1, supplemental_precip
+        current_nbm_cycle, prev_nbm_forecast_hour, supplemental_precip
     )
 
     if mpi_config.rank == 0:
