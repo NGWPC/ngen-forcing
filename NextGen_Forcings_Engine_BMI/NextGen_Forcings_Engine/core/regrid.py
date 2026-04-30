@@ -48,6 +48,12 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
         GeoMeta,
     )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
+        supplemental_precip,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+        InputForcings,
+    )
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
@@ -9679,7 +9685,7 @@ def regrid_sbcv2_liquid_water_fraction(
 
 
 def regrid_hourly_nbm(
-    forcings_or_precip, config_options, wrf_hydro_geo_meta, mpi_config
+    forcings_or_precip:supplemental_precip|InputForcings, config_options:ConfigOptions, wrf_hydro_geo_meta:GeoMeta, mpi_config:MpiConfig
 ):
     """Regrid hourly NBM precipitation.
 
