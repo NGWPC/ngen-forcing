@@ -66,6 +66,10 @@ Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/geomod)
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/input_forcing)
+
+# Analysis and Assimilation tests
+Single processor: ( cd src/ngen-forcing && pytest tests/ana )
+Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/ana )
 ```
 
 Create new test output data (creates expected outputs for subsequent tests)
@@ -81,6 +85,10 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing)
+
+# Analysis and Assimilation tests
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/ana )
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/ana )
 ```
 
 In the rare case where you want to create new `expected` data and run the tests using `old` variable names use the following for `Input Forcing Tests`: 

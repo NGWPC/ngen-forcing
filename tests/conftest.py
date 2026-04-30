@@ -4,6 +4,7 @@ import pytest
 
 from test_utils import (
     BMIForcingFixture,
+    BMIForcingFixture_AnA,
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
@@ -11,6 +12,7 @@ from test_utils import (
 
 from test_config_classes import (
     TestConfig_Base,
+    TestConfig_AnA,
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
@@ -98,3 +100,17 @@ def bmi_forcing_fixture_input_forcing(request) -> BMIForcingFixture_InputForcing
     assert isinstance(cfg, TestConfig_InputForcing)
     update_cfg_with_cli_inputs(cfg, request)
     return BMIForcingFixture_InputForcing(cfg)
+
+
+@pytest.fixture
+def bmi_forcing_fixture_ana(request) -> BMIForcingFixture_AnA:
+    """Construct class for tests of Analysis and Assimilation.
+    For example usage, see: tests/ana/test_ana.py.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    """
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_AnA)
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_AnA(cfg)

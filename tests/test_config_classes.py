@@ -60,3 +60,8 @@ class TestConfig_Regrid(TestConfig_Base):
     regrid_func: typing.Callable
     extra_attrs: list[ClassAttrFetcher]
     regrid_arrays_to_trim_extra_elements: tuple[str]
+
+
+@dataclass(kw_only=True)
+class TestConfig_AnA(TestConfig_Base):
+    """Configuration class for Analysis and Assimilation tests."""

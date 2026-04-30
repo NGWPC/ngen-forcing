@@ -8,6 +8,8 @@ RETRO_FORCING_CONFIG_FILE__AORC_CONUS = (
     "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/aorc_config.yml"
 )
 FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/short_range_config.yml"
+FORECAST_FORCING_CONFIG_FILE__ANA_CONUS = "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/configs/standard_ana_config.yml"
+
 COMPOSITE_KEYS_TO_CHECK = ()
 GRID_TYPE = "hydrofabric"  # ["gridded","hydrofabric","unstructured"]
 KEYS_TO_EXCLUDE = ("uid64",)

@@ -40,6 +40,7 @@ from test_config_classes import (
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
+    TestConfig_AnA,
 )
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
@@ -393,6 +394,19 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         super().__init__(cfg)
         self.force_key = cfg.force_key
         self.test_class = self.input_forcing_mod[self.force_key]
+
+
+class BMIForcingFixture_AnA(BMIForcingFixture_Class):
+    """Test fixture for Analysis and Assimilation tests."""
+
+    def __init__(self, cfg: TestConfig_AnA) -> None:
+        """Initialize BMIForcingFixture_AnA.
+
+        Args:
+            cfg: an instance of TestConfig_AnA
+        """
+        super().__init__(cfg)
+        self.test_class = self.bmi_model._output_obj
 
 
 class BMIForcingFixture_Regrid(BMIForcingFixture):
