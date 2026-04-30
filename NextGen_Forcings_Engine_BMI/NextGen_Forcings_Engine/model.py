@@ -261,6 +261,9 @@ class NWMv3ForcingEngineModel:
 
             # Optional sub-output timestamp
             if self._bmi._job_meta.sub_output_hour is not None:
+                raise NotImplementedError(
+                    f"sub_output_hour (config SubOutputHour) is {repr(self._bmi._job_meta.sub_output_hour)} (not None) but is not used."
+                )
                 # TODO This is not used
                 subOutDate = self._bmi._job_meta.first_fcst_cycle + datetime.timedelta(
                     hours=self._bmi._job_meta.sub_output_hour
