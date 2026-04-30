@@ -2,12 +2,17 @@ import argparse
 import datetime
 import pathlib
 from pathlib import Path
-import yaml
+
 import numpy as np
 import pandas as pd
+import yaml
 
 # This is the NextGen Forcings Engine BMI instance to execute
-from NextGen_Forcings_Engine.bmi_model import BMIMODEL,parse_config
+from NextGen_Forcings_Engine.bmi_model import (
+    BMIMODEL,
+    NWMv3_Forcing_Engine_BMI_model,
+    parse_config,
+)
 
 
 def get_date_times(start_time: str, end_time: str) -> tuple:
@@ -334,8 +339,8 @@ def run_bmi(
         if config_path is not None
         else str(Path(__file__).parent.resolve() / "config.yml")
     )
-    with open(cfg_path,"r") as fp:
-        config=parse_config(yaml.safe_load(fp))
+    with open(cfg_path, "r") as fp:
+        config = parse_config(yaml.safe_load(fp))
 
     print("Creating an instance of the BMI model object")
     model = BMIMODEL[config.get("GRID_TYPE")]()
