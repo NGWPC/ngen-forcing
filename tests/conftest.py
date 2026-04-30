@@ -48,19 +48,6 @@ def update_cfg_with_cli_inputs(cfg: TestConfig_Base, request) -> None:
 
 
 @pytest.fixture
-def bmi_forcing_fixture(request) -> BMIForcingFixture:
-    """Construct class for tests.
-
-    Args:
-        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
-    """
-    cfg = request.param
-    assert isinstance(cfg, TestConfig_Base)
-    update_cfg_with_cli_inputs(cfg, request)
-    return BMIForcingFixture(cfg)
-
-
-@pytest.fixture
 def bmi_forcing_fixture_regrid(request) -> BMIForcingFixture_Regrid:
     """Construct class for tests of ESMF regrid functions.
     For example usage, see: tests/esmf_regrid/test_esmf_regrid.py.
