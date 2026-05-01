@@ -40,11 +40,12 @@ LOG = ewts.get_logger(ewts.FORCING_ID)
 
 @contextmanager
 def timing_block(step_str: str):
-    """Context manager for timing code execution.
+    """Context manager for timing code execution. Used by decorator `time_function`.
 
-    Args:
-        step_str: Description of the step being timed.
-
+    Parameters
+    ----------
+    step_str : str
+        Description of the step being timed.
     """
     start = perf_counter()
     yield
@@ -53,7 +54,7 @@ def timing_block(step_str: str):
 
 
 def time_function(func):
-    """Measure the execution time of a function."""
+    """Decorator for measuring the execution time of a function."""
 
     def wrapper(*args, **kwargs):
         with timing_block(f"Executing {func.__name__}"):
@@ -65,11 +66,17 @@ def time_function(func):
 
 class NWMv3ForcingEngineModel:
     """NextGen Forcings Engine BMI model class for NWMv3 forcings.
+
     To be constructed and managed by inheritors of NWMv3_Forcing_Engine_BMI_model_Base from bmi_model.py.
     """
 
     def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base):
-        """Initialize the NWMv3 Forcing Engine Model."""
+        """Initialize the NWMv3 Forcing Engine Model.
+
+        Parameters
+        ----------
+        bmi_model : NWMv3_Forcing_Engine_BMI_model_Base
+        """
         self.source_data_processor = None
         self._bmi = bmi_model
 
@@ -107,9 +114,17 @@ class NWMv3ForcingEngineModel:
         6. Update the self._bmi._values state dictionary with flattened arrays.
         7. Advance the BMI time index.
 
-        :param future_time: The number of seconds into the future to advance the model.
+        Parameters
+        ----------
+        future_time : float
+            Timestamp, represented as *seconds relative to overall start time*, to advance to before returning.
+            Since this is relative to overall start time, it is unaware of the actual UTC datetimestamp of the start.
+            For example, since 1-hour timesteps are typical, the first value of this would typically be 3600, the second value 7200, etc.
 
-        :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
+        Raises
+        ------
+        RuntimeError
+            If the model fails to initialize or if required arguments are missing.
         """
 
         self.determine_forecast(future_time)
@@ -132,7 +147,7 @@ class NWMv3ForcingEngineModel:
 
         Warnings
         --------
-            Modifies mutable arguments in-place.
+        Modifies mutable arguments in-place.
         """
         # Assign the future time to the configuration
         self._bmi._job_meta.bmi_time = future_time
@@ -231,6 +246,15 @@ class NWMv3ForcingEngineModel:
         3.) Regrid the forcings, and temporally interpolate.
         4.) Downscale.
         5.) Layer, and output as necessary.
+
+        Parameters
+        ----------
+        future_time : float
+            See description in `self.run`.
+
+        Returns
+        ----------
+        input_forcings: forcingInputMod.InputForcings
         """
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
         if not self._bmi._job_meta.precip_only_flag:
@@ -431,14 +455,21 @@ class NWMv3ForcingEngineModel:
 
         return input_forcings
 
-    def __handle_aorc_and_nwm_force_keys(self, input_forcings, force_key: int) -> None:
+    def __handle_aorc_and_nwm_force_keys(
+        self, input_forcings: forcingInputMod.InputForcings, force_key: int
+    ) -> None:
         """During `loop_through_forcing_products`, handle the case of the force key being AORC or NWM.
 
         This code block was cut and pasted from methods `loop_through_forcing_products` during refactor.
 
+        Parameters
+        ----------
+        input_forcings : forcingInputMod.InputForcings
+        force_key : int
+
         Warnings
         --------
-            Modifies mutable arguments in-place.
+        Modifies mutable arguments in-place.
         """
         if force_key in [12, 21, 27]:
             if self._bmi._job_meta.aws is None:
@@ -512,9 +543,14 @@ class NWMv3ForcingEngineModel:
 
         This code block was cut and pasted from methods `loop_through_forcing_products` and `process_suplemental_precip` during refactor.
 
+        Parameters
+        ----------
+        input_forcings : forcingInputMod.InputForcings
+        supp_pcp_key : int
+
         Warnings
         --------
-            Modifies mutable arguments in-place.
+        Modifies mutable arguments in-place.
         """
         # Like with input forcings, calculate the neighboring files to use.
         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
@@ -573,9 +609,13 @@ class NWMv3ForcingEngineModel:
 
         This code block was cut and pasted from method `loop_through_forcing_products` during refactor.
 
+        Parameters
+        ----------
+        input_forcings : forcingInputMod.InputForcings
+
         Warnings
         --------
-            Modifies mutable arguments in-place.
+        Modifies mutable arguments in-place.
         """
         if input_forcings.rstFlag == 1:
             if (
@@ -624,9 +664,13 @@ class NWMv3ForcingEngineModel:
     ) -> None:
         """Process supplemental precipitation for the current forecast cycle.
 
+        Parameters
+        ----------
+        input_forcings : forcingInputMod.InputForcings
+
         Warnings
         --------
-            Modifies mutable arguments in-place.
+        Modifies mutable arguments in-place.
         """
         if self._bmi._job_meta.customSuppPcpFreq is not None:
             # Process supplemental precipitation if we specified in the configuration file.
@@ -638,6 +682,7 @@ class NWMv3ForcingEngineModel:
     @time_function
     def write_output(self) -> None:
         """Write the output for the current forecast cycle.
+
         If user requests output for given domain, then call
         the I/O module to update opened netcdf file with forcing fields.
         """
