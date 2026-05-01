@@ -127,22 +127,19 @@ class NWMv3ForcingEngineModel:
             If the model fails to initialize or if required arguments are missing.
         """
 
-        self.determine_forecast(future_time)
-        self.adjust_precip()
-        self.log_forecast()
-        # TODO look into input_forcings usage in `process_suplemental_precip` and in `loop_through_forcing_products` at `disaggregate_fun`.
-        input_forcings = self.loop_through_forcing_products(
-            future_time,
-        )
+        self.set_cycle_timing_attrs(future_time)
+        self.set_skip_flags()
+        self.log_cycle()
+        input_forcings = self.loop_through_forcing_products(future_time)
         self.process_suplemental_precip(input_forcings)
         self.write_output()
-        self.update_dict()
+        self.update_bmi_output_dict()
 
         ## Update BMI model time index to next iteration
         self._bmi._job_meta.bmi_time_index += 1
 
     @time_function
-    def determine_forecast(self, future_time: float) -> None:
+    def set_cycle_timing_attrs(self, future_time: float) -> None:
         """Determine the forecast for the given future time and configuration.
 
         Warnings
@@ -206,7 +203,7 @@ class NWMv3ForcingEngineModel:
             )
 
     @time_function
-    def adjust_precip(self) -> None:
+    def set_skip_flags(self) -> None:
         """Adjust precipitation for the given forecast cycle."""
         if not self._bmi._job_meta.precip_only_flag:
             # reset skips if present
@@ -216,7 +213,7 @@ class NWMv3ForcingEngineModel:
             self.check_program_status()
 
     @time_function
-    def log_forecast(self) -> None:
+    def log_cycle(self) -> None:
         """Log information about the current forecast cycle."""
         if self._bmi._mpi_meta.rank == 0:
             self._bmi._job_meta.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
@@ -254,7 +251,7 @@ class NWMv3ForcingEngineModel:
 
         Returns
         ----------
-        input_forcings: forcingInputMod.InputForcings
+        input_forcings: forcingInputMod.InputForcings | None
         """
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
         if not self._bmi._job_meta.precip_only_flag:
@@ -695,7 +692,7 @@ class NWMv3ForcingEngineModel:
             )
 
     @time_function
-    def update_dict(self) -> None:
+    def update_bmi_output_dict(self) -> None:
         """Flatten the Forcings Engine output object and update the BMI dictionary.
 
         Loop through Forcings Engine output object

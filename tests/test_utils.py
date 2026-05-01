@@ -533,10 +533,11 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
         )
         model = self.bmi_model._model
 
-        ### NOTE this should mimic NWMv3ForcingEngineModel.run() with the exception of setting the skip flag
-        model.determine_forecast(future_time)
-        model.adjust_precip()
-        model.log_forecast()
+        # NOTE this should mimic NWMv3ForcingEngineModel.run()
+        # with the exception of externally setting the skip flags within this class.
+        model.set_cycle_timing_attrs(future_time)
+        model.set_skip_flags()
+        model.log_cycle()
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
         model.loop_through_forcing_products(future_time)
