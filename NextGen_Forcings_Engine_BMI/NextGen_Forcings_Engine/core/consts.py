@@ -1249,7 +1249,7 @@ SUPPPRECIPMOD = {
 }
 
 MODEL = {
-    # Used by method `model.NWMv3ForcingEngineModel.update_dict`
+    # Used by method `model.NWMv3ForcingEngineModel.update_bmi_output_dict`
     "update_dict_base_vars": [
         "U2D",
         "V2D",
