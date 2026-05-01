@@ -234,7 +234,7 @@ class NWMv3ForcingEngineModel:
     @time_function
     def loop_through_forcing_products(
         self, future_time: float
-    ) -> forcingInputMod.InputForcingsHydrofabric:
+    ) -> forcingInputMod.InputForcingsHydrofabric | None:
         """Loop through each forcing product and process it for the current forecast cycle.
 
         Loop through each output timestep. Perform the following functions:
@@ -449,6 +449,8 @@ class NWMv3ForcingEngineModel:
                 # self._bmi._output_obj.output_final_ldasin(self._bmi._job_meta, self._bmi.geo_meta, self._bmi._mpi_meta)
                 # self.check_program_status()
                 ##############################################################################################
+        else:
+            input_forcings = None
 
         return input_forcings
 
