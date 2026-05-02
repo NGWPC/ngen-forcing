@@ -106,20 +106,16 @@ class NWMv3ForcingEngineModel:
         and analysis mode (AnA or forecast).
         2. Initialize or reset output grids and step counters.
         3. Loop over each input forcing product:
-
-        a. Calculate neighboring input files.
-        b. Load AWS-hosted Zarr datasets if needed.
-        c. Regrid input forcings to the model grid.
-        d. Perform temporal interpolation.
-        e. Apply bias correction and downscaling.
-        f. Layer final forcings into the output object.
-
+            a. Calculate neighboring input files.
+            b. Load AWS-hosted Zarr datasets if needed.
+            c. Regrid input forcings to the model grid.
+            d. Perform temporal interpolation.
+            e. Apply bias correction and downscaling.
+            f. Layer final forcings into the output object.
         4. Optionally process supplemental precipitation forcings:
-
-        a. Regrid and validate.
-        b. Disaggregate and interpolate.
-        c. Layer into the final output.
-
+            a. Regrid and validate.
+            b. Disaggregate and interpolate.
+            c. Layer into the final output.
         5. Write output to NetCDF forcing files if requested.
         6. Update the ``self._bmi._values`` state dictionary with flattened arrays.
         7. Advance the BMI time index.
@@ -429,7 +425,7 @@ class NWMv3ForcingEngineModel:
             if self._bmi._job_meta.number_supp_pcp > 0:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key != 13:
-                        # Below comment copied from earlier code, the comment had been just above the call to `disaggregate_fun`.
+                        # Below comment copied from earlier code, the comment had been just above the call to ``disaggregate_fun``.
                         # TODO input_forcings has not yet been initialized, so this is a bug waiting to happen
                         self.__process_supp_precip_key(input_forcings, supp_pcp_key)
 
