@@ -499,6 +499,8 @@ class NWMv3ForcingEngineModel:
                             raise ValueError(
                                 f"Unsupported domain type ({self._bmi._job_meta.nwm_domain} for forcing type: {force_key} )"
                             )
+                else:
+                    raise ValueError(f"Unexpected force_key: {force_key}")
 
                 self.source_data_processor = proc_cls(*proc_args)
                 self._bmi._job_meta.aws_obj = (
