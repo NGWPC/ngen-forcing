@@ -1,6 +1,7 @@
 """NWMv3ForcingEngineModel, to be constructed and managed by inheritors of NWMv3_Forcing_Engine_BMI_model_Base from bmi_model.py"""
 
 from __future__ import annotations
+
 import copy
 import datetime
 from contextlib import contextmanager
@@ -41,12 +42,9 @@ LOG = ewts.get_logger(ewts.FORCING_ID)
 
 @contextmanager
 def timing_block(step_str: str):
-    """Context manager for timing code execution. Used by decorator `time_function`.
+    """Context manager for timing code execution. Used by the decorator ``time_function``.
 
-    Parameters
-    ----------
-    step_str : str
-        Description of the step being timed.
+    :param str step_str: Description of the step being timed.
     """
     start = perf_counter()
     yield
@@ -72,11 +70,9 @@ class NWMv3ForcingEngineModel:
     """
 
     def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base):
-        """Initialize the NWMv3 Forcing Engine Model.
+        """Initialize the NWMv3 Forcing Engine model.
 
-        Parameters
-        ----------
-        bmi_model : NWMv3_Forcing_Engine_BMI_model_Base
+        :param bmi_model NWMv3_Forcing_Engine_BMI_model_Base: BMI model instance to initialize.
         """
         self.source_data_processor = None
         self._bmi = bmi_model
@@ -95,44 +91,47 @@ class NWMv3ForcingEngineModel:
     def run(self, future_time: float) -> None:
         """Execute the full forcings engine BMI pipeline for a given future timestep.
 
-        This method updates the `self._bmi._values` state dictionary with atmospheric forcings computed from
-        available input datasets. It handles initialization, AWS Zarr loading, regridding, temporal
-        interpolation, bias correction, downscaling, supplemental precipitation processing, and output
-        population into the self._bmi._values structure.
+        This method updates the ``self._bmi._values`` state dictionary with atmospheric
+        forcings computed from available input datasets. It handles initialization,
+        AWS Zarr loading, regridding, temporal interpolation, bias correction,
+        downscaling, supplemental precipitation processing, and output population into
+        the ``self._bmi._values`` structure.
 
-        `self._bmi._job_meta`, an instance of ConfigOptions is also updated in-place, for example for time handling.
+        ``self._bmi._job_meta``, an instance of ``ConfigOptions``, is also updated
+        in-place, for example for forecast time handling.
 
         The following steps are performed:
 
         1. Determine the current forecast and output times based on the future timestamp
-           and analysis mode (AnA or forecast).
+        and analysis mode (AnA or forecast).
         2. Initialize or reset output grids and step counters.
         3. Loop over each input forcing product:
-           a. Calculate neighboring input files.
-           b. Load AWS-hosted Zarr datasets if needed.
-           c. Regrid input forcings to the model grid.
-           d. Perform temporal interpolation.
-           e. Apply bias correction and downscaling.
-           f. Layer final forcings into the output object.
+
+        a. Calculate neighboring input files.
+        b. Load AWS-hosted Zarr datasets if needed.
+        c. Regrid input forcings to the model grid.
+        d. Perform temporal interpolation.
+        e. Apply bias correction and downscaling.
+        f. Layer final forcings into the output object.
+
         4. Optionally process supplemental precipitation forcings:
-           a. Regrid and validate.
-           b. Disaggregate and interpolate.
-           c. Layer into the final output.
+
+        a. Regrid and validate.
+        b. Disaggregate and interpolate.
+        c. Layer into the final output.
+
         5. Write output to NetCDF forcing files if requested.
-        6. Update the self._bmi._values state dictionary with flattened arrays.
+        6. Update the ``self._bmi._values`` state dictionary with flattened arrays.
         7. Advance the BMI time index.
 
-        Parameters
-        ----------
-        future_time : float
-            Timestamp, represented as *seconds relative to overall start time*, to advance to before returning.
-            Since this is relative to overall start time, it is unaware of the actual UTC datetimestamp of the start.
-            For example, since 1-hour timesteps are typical, the first value of this would typically be 3600, the second value 7200, etc.
+        :param float future_time: Timestamp, represented as *seconds relative to overall
+            start time*, to advance to before returning. Since this value is relative
+            to the overall start time, it is unaware of the actual UTC datetimestamp of
+            the start. For example, since 1-hour timesteps are typical, the first value
+            would typically be 3600, the second value 7200, etc.
 
-        Raises
-        ------
-        RuntimeError
-            If the model fails to initialize or if required arguments are missing.
+        :raises RuntimeError: If the model fails to initialize or if required arguments
+            are missing.
         """
 
         self.set_cycle_timing_attrs(future_time)
@@ -150,9 +149,7 @@ class NWMv3ForcingEngineModel:
     def set_cycle_timing_attrs(self, future_time: float) -> None:
         """Determine the forecast for the given future time and configuration.
 
-        Warnings
-        --------
-        Modifies mutable arguments in-place.
+        :warning: Modifies mutable arguments in-place
         """
         # Assign the future time to the configuration
         self._bmi._job_meta.bmi_time = future_time
@@ -239,21 +236,17 @@ class NWMv3ForcingEngineModel:
     ) -> forcingInputMod.InputForcingsHydrofabric | None:
         """Loop through each forcing product and process it for the current forecast cycle.
 
-        Loop through each output timestep. Perform the following functions:
-        1.) Calculate all necessary input files per user options.
-        2.) Read in input forcings from GRIB/NetCDF files.
-        3.) Regrid the forcings, and temporally interpolate.
-        4.) Downscale.
-        5.) Layer, and output as necessary.
+        Loop through each output timestep and perform the following steps:
 
-        Parameters
-        ----------
-        future_time : float
-            See description in `self.run`.
+        1. Calculate all necessary input files per user options.
+        2. Read input forcings from GRIB/NetCDF files.
+        3. Regrid the forcings and perform temporal interpolation.
+        4. Downscale.
+        5. Layer and write output as necessary.
 
-        Returns
-        ----------
-        input_forcings: forcingInputMod.InputForcings | None
+        :param float future_time: See description in ``self.run``.
+        :returns: Processed input forcings for the current timestep.
+        :rtype: forcingInputMod.InputForcings | None
         """
         ana_factor = 1 if self._bmi._job_meta.ana_flag is False else 0
         if not self._bmi._job_meta.precip_only_flag:
@@ -457,18 +450,14 @@ class NWMv3ForcingEngineModel:
     def __handle_aorc_and_nwm_force_keys(
         self, input_forcings: forcingInputMod.InputForcings, force_key: int
     ) -> None:
-        """During `loop_through_forcing_products`, handle the case of the force key being AORC or NWM.
+        """During ``loop_through_forcing_products``, handle the case where the force key is AORC or NWM.
 
-        This code block was cut and pasted from methods `loop_through_forcing_products` during refactor.
+        This code block was cut and pasted from the method ``loop_through_forcing_products`` during refactor.
 
-        Parameters
-        ----------
-        input_forcings : forcingInputMod.InputForcings
-        force_key : int
+        :param input_forcings forcingInputMod.InputForcings: Input forcings object to be modified.
+        :param int force_key: Identifier for the forcing type.
 
-        Warnings
-        --------
-        Modifies mutable arguments in-place.
+        :warning: Modifies mutable arguments in-place.
         """
         if force_key in [12, 21, 27]:
             if self._bmi._job_meta.aws is None:
@@ -538,18 +527,15 @@ class NWMv3ForcingEngineModel:
     def __process_supp_precip_key(
         self, input_forcings: forcingInputMod.InputForcings, supp_pcp_key: int
     ) -> None:
-        """Process supplemental precipitation for one supplemental precipitation key.
+        """Process supplemental precipitation for a single supplemental precipitation key.
 
-        This code block was cut and pasted from methods `loop_through_forcing_products` and `process_suplemental_precip` during refactor.
+        This code block was cut and pasted from the methods
+        ``loop_through_forcing_products`` and ``process_suplemental_precip`` during refactor.
 
-        Parameters
-        ----------
-        input_forcings : forcingInputMod.InputForcings
-        supp_pcp_key : int
+        :param input_forcings forcingInputMod.InputForcings: Input forcings object to be modified.
+        :param int supp_pcp_key: Identifier for the supplemental precipitation forcing.
 
-        Warnings
-        --------
-        Modifies mutable arguments in-place.
+        :warning: Modifies mutable arguments in-place.
         """
         # Like with input forcings, calculate the neighboring files to use.
         self._bmi._supp_pcp_mod[supp_pcp_key].calc_neighbor_files(
@@ -602,19 +588,15 @@ class NWMv3ForcingEngineModel:
             self.check_program_status()
 
     def __use_rstFlag(self, input_forcings: forcingInputMod.InputForcings) -> None:
-        """
-        If we are restarting a forecast cycle, re-calculate the neighboring files, and regrid the
-        next set of forcings as the previous step just regridded the previous forcing.
+        """If restarting a forecast cycle, re-calculate neighboring files and regrid the
+        next set of forcings, as the previous step regridded the prior forcing.
 
-        This code block was cut and pasted from method `loop_through_forcing_products` during refactor.
+        This code block was cut and pasted from the method
+        ``loop_through_forcing_products`` during refactor.
 
-        Parameters
-        ----------
-        input_forcings : forcingInputMod.InputForcings
+        :param input_forcings forcingInputMod.InputForcings: Input forcings object to be modified.
 
-        Warnings
-        --------
-        Modifies mutable arguments in-place.
+        :warning: Modifies mutable arguments in-place.
         """
         if input_forcings.rstFlag == 1:
             if (
@@ -663,13 +645,9 @@ class NWMv3ForcingEngineModel:
     ) -> None:
         """Process supplemental precipitation for the current forecast cycle.
 
-        Parameters
-        ----------
-        input_forcings : forcingInputMod.InputForcings
+        :param input_forcings forcingInputMod.InputForcings: Input forcings object to be modified.
 
-        Warnings
-        --------
-        Modifies mutable arguments in-place.
+        :warning: Modifies mutable arguments in-place.
         """
         if self._bmi._job_meta.customSuppPcpFreq is not None:
             # Process supplemental precipitation if we specified in the configuration file.
@@ -697,20 +675,21 @@ class NWMv3ForcingEngineModel:
     def update_bmi_output_dict(self) -> None:
         """Flatten the Forcings Engine output object and update the BMI dictionary.
 
-        Loop through Forcings Engine output object
-        and flatten the 2D forcing array and append to
-        the BMI object to advertise to BMIinterface.
-        0.) U-Wind (m/s)
-        1.) V-Wind (m/s)
-        2.) Surface incoming longwave radiation flux (W/m^2)
-        3.) Precipitation rate (mm/s)
-        4.) 2-meter temperature (K)
-        5.) 2-meter specific humidity (kg/kg)
-        6.) Surface pressure (Pa)
-        7.) Surface incoming shortwave radiation flux (W/m^2)
-        8.) Liquid Precipitation Fraction (%), Only available in certain operational configurations
-        """
+        Loop through the Forcings Engine output object, flatten the 2D forcing arrays,
+        and append them to the BMI object for advertisement through the BMI interface.
 
+        The flattened variables are ordered as follows:
+
+        0. U-wind (m/s)
+        1. V-wind (m/s)
+        2. Surface incoming longwave radiation flux (W/m²)
+        3. Precipitation rate (mm/s)
+        4. 2-meter air temperature (K)
+        5. 2-meter specific humidity (kg/kg)
+        6. Surface pressure (Pa)
+        7. Surface incoming shortwave radiation flux (W/m²)
+        8. Liquid precipitation fraction (%), available only in certain operational configurations
+        """
         variables = copy.deepcopy(model_consts["update_dict_base_vars"])
         if self._bmi._job_meta.include_lqfrac == 1:
             variables.append(model_consts["update_dict_var_include_lqfraq"])
