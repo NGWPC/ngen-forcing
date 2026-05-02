@@ -423,7 +423,7 @@ class NWMv3ForcingEngineModel:
 
                 self._bmi._job_meta.currentForceNum += 1
 
-                # TODO what is this?
+                # NOTE currentCustomForceNum does not appear to be used.
                 if force_key == 10:
                     self._bmi._job_meta.currentCustomForceNum += 1
 
@@ -463,6 +463,8 @@ class NWMv3ForcingEngineModel:
 
         :warning: Modifies mutable arguments in-place.
         """
+        proc_args = (self._bmi._job_meta, self._bmi._mpi_meta, self._bmi.geo_meta)
+
         if force_key in [12, 21, 27]:
             if self._bmi._job_meta.aws is None:
                 # Calculate the previous and next input cycle files from the inputs.
@@ -480,18 +482,10 @@ class NWMv3ForcingEngineModel:
                 # Flag to indicate the AWS .zarr AORC method
                 if force_key == 12:
                     if self.source_data_processor is None:
-                        self.source_data_processor = AORCConusProcessor(
-                            self._bmi._job_meta,
-                            self._bmi._mpi_meta,
-                            self._bmi.geo_meta,
-                        )
+                        proc_cls = AORCConusProcessor
                 elif force_key == 21:
                     if self.source_data_processor is None:
-                        self.source_data_processor = AORCAlaskaProcessor(
-                            self._bmi._job_meta,
-                            self._bmi._mpi_meta,
-                            self._bmi.geo_meta,
-                        )
+                        proc_cls = AORCAlaskaProcessor
 
                 # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                 elif force_key == 27:
@@ -517,16 +511,13 @@ class NWMv3ForcingEngineModel:
                                 )
                             )
                         elif self._bmi._job_meta.nwm_domain == "Alaska":
-                            self.source_data_processor = NWMV3AlaskaProcessor(
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
+                            proc_cls = NWMV3AlaskaProcessor
                         else:
                             raise ValueError(
                                 f"Unsupported domain type ({self._bmi._job_meta.nwm_domain} for forcing type: {force_key} )"
                             )
 
+                self.source_data_processor = proc_cls(*proc_args)
                 self._bmi._job_meta.aws_obj = (
                     self.source_data_processor.process_historical_data(
                         self._bmi._job_meta.current_time
