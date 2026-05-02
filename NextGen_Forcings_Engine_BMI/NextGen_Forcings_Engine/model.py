@@ -717,20 +717,20 @@ class NWMv3ForcingEngineModel:
 
         if self._bmi._job_meta.grid_type == "gridded":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = (
+                self._bmi._values[f"{variable}_ELEMENT"] = (
                     self._bmi._output_obj.output_local[count, :, :].flatten()
                 )
         elif self._bmi._job_meta.grid_type == "unstructured":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = (
+                self._bmi._values[f"{variable}_ELEMENT"] = (
                     self._bmi._output_obj.output_local_elem[count, :].flatten()
                 )
-                self._bmi._values[variable + "_NODE"] = (
+                self._bmi._values[f"{variable}_NODE"] = (
                     self._bmi._output_obj.output_local[count, :].flatten()
                 )
         elif self._bmi._job_meta.grid_type == "hydrofabric":
             for count, variable in enumerate(variables):
-                self._bmi._values[variable + "_ELEMENT"] = (
+                self._bmi._values[f"{variable}_ELEMENT"] = (
                     self._bmi._output_obj.output_global[count, :].flatten()
                 )
                 self._bmi._values["CAT-ID"] = self._bmi.geo_meta.element_ids_global
