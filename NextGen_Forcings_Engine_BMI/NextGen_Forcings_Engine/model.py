@@ -475,17 +475,14 @@ class NWMv3ForcingEngineModel:
                     raise ValueError(
                         f"Expected to have 1 forcing key, but have {len(self._bmi._job_meta.input_forcings)}: {list(self._bmi._job_meta.input_forcings)}"
                     )
-                # Flag to indicate the AWS .zarr AORC method
-                if force_key == 12:
-                    if self.source_data_processor is None:
+                if self.source_data_processor is None:
+                    # Flag to indicate the AWS .zarr AORC method
+                    if force_key == 12:
                         proc_cls = AORCConusProcessor
-                elif force_key == 21:
-                    if self.source_data_processor is None:
+                    elif force_key == 21:
                         proc_cls = AORCAlaskaProcessor
-
-                # Flag to indicate the AWS .zarr NWMv3 Forcing file method
-                elif force_key == 27:
-                    if self.source_data_processor is None:
+                    # Flag to indicate the AWS .zarr NWMv3 Forcing file method
+                    elif force_key == 27:
                         if self._bmi._job_meta.nwm_domain == "CONUS":
                             proc_cls = NWMV3ConusProcessor
                         elif self._bmi._job_meta.nwm_domain in [
@@ -499,10 +496,10 @@ class NWMv3ForcingEngineModel:
                             raise ValueError(
                                 f"Unsupported domain type ({self._bmi._job_meta.nwm_domain} for forcing type: {force_key} )"
                             )
-                else:
-                    raise ValueError(f"Unexpected force_key: {force_key}")
+                    else:
+                        raise ValueError(f"Unexpected force_key: {force_key}")
+                    self.source_data_processor = proc_cls(*proc_args)
 
-                self.source_data_processor = proc_cls(*proc_args)
                 self._bmi._job_meta.aws_obj = (
                     self.source_data_processor.process_historical_data(
                         self._bmi._job_meta.current_time
