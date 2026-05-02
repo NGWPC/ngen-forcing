@@ -6,6 +6,7 @@ import copy
 import datetime
 import logging
 from contextlib import contextmanager
+from functools import partial
 from time import perf_counter
 from typing import TYPE_CHECKING
 
@@ -54,7 +55,7 @@ def timing_block(step_str: str):
     start = perf_counter()
     yield
     end = perf_counter()
-    LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
+    LOG.debug(msg=f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
 
 def time_function(func):
@@ -83,6 +84,13 @@ class NWMv3ForcingEngineModel:
         """
         self.source_data_processor = None
         self._bmi = bmi_model
+        # Partials
+        self.log_info = partial(
+            err_handler.log_msg, self._bmi._job_meta, self._bmi._mpi_meta, False
+        )
+        self.log_debug = partial(
+            err_handler.log_msg, self._bmi._job_meta, self._bmi._mpi_meta, True
+        )
 
     def check_program_status(self) -> None:
         """Call err_handler.check_program_status"""
@@ -193,12 +201,12 @@ class NWMv3ForcingEngineModel:
                 self._bmi._job_meta.b_date_proc
             ) + pd.to_timedelta(future_time, unit="s")
 
-        LOG.debug(
-            "NextGen Forcings Engine processing meteorological forcings for BMI timestamp"
+        self.log_debug(
+            msg="NextGen Forcings Engine processing meteorological forcings for BMI timestamp"
         )
-        LOG.debug(f"Model.py current time: {self._bmi._job_meta.current_time}")
-        LOG.debug(
-            f"Model.py current fcst cycle: {self._bmi._job_meta.current_fcst_cycle}"
+        self.log_debug(msg=f"Model.py current time: {self._bmi._job_meta.current_time}")
+        self.log_debug(
+            msg=f"Model.py current fcst cycle: {self._bmi._job_meta.current_fcst_cycle}"
         )
 
         if self._bmi._job_meta.first_fcst_cycle is None:
@@ -220,19 +228,13 @@ class NWMv3ForcingEngineModel:
     def log_cycle(self) -> None:
         """Log information about the current forecast cycle."""
         if self._bmi._mpi_meta.rank == 0:
-            self._bmi._job_meta.statusMsg = "XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
-            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
-            self._bmi._job_meta.statusMsg = (
-                "Processing Forecast Cycle: "
-                + self._bmi._job_meta.current_fcst_cycle.strftime("%Y-%m-%d %H:%M")
+            self.log_debug(msg="XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX")
+            self.log_debug(
+                msg=f"Processing Forecast Cycle: {self._bmi._job_meta.current_fcst_cycle.strftime('%Y-%m-%d %H:%M')}"
             )
-            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
-            self._bmi._job_meta.statusMsg = (
-                "Forecast Cycle Length is: "
-                + str(self._bmi._job_meta.cycle_length_minutes)
-                + " minutes"
+            self.log_debug(
+                msg=f"Forecast Cycle Length is: {self._bmi._job_meta.cycle_length_minutes!s} minutes"
             )
-            err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
         # self._bmi._mpi_meta.comm.barrier()
 
     @time_function
@@ -330,26 +332,24 @@ class NWMv3ForcingEngineModel:
             # Print message on log file indicating the timestamp
             # we are currently processing for forcings
             if self._bmi._mpi_meta.rank == 0:
-                self._bmi._job_meta.statusMsg = (
-                    "========================================="
+                self.log_debug(msg="=========================================")
+                self.log_debug(
+                    msg=f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
                 )
-                err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
-                self._bmi._job_meta.statusMsg = f"Processing for output timestep: {file_date.strftime('%Y-%m-%d %H:%M')}"
-                err_handler.log_msg(self._bmi._job_meta, self._bmi._mpi_meta, True)
 
             self._bmi._job_meta.currentForceNum = 0
             self._bmi._job_meta.currentCustomForceNum = 0
-            LOG.debug(
-                f"config_options.input_forcings: {self._bmi._job_meta.input_forcings}"
+            self.log_debug(
+                msg=f"config_options.input_forcings: {self._bmi._job_meta.input_forcings}"
             )
             # Loop over each of the input forcings specified.
-            LOG.debug(
-                f"Model.py forcing loop: {len(self._bmi._job_meta.input_forcings)} forcings configured: {self._bmi._job_meta.input_forcings}"
+            self.log_debug(
+                msg=f"Model.py forcing loop: {len(self._bmi._job_meta.input_forcings)} forcings configured: {self._bmi._job_meta.input_forcings}"
             )
 
             for force_key in self._bmi._job_meta.input_forcings:
-                LOG.debug(f"force_key: {force_key}")
-                LOG.debug(f"config_options.aws: {self._bmi._job_meta.aws}")
+                self.log_debug(msg=f"force_key: {force_key}")
+                self.log_debug(msg=f"config_options.aws: {self._bmi._job_meta.aws}")
                 # Pass these methods for AORC data is ERA5-Interim blend is requested
                 # so we can finish filling in the missing gaps
                 if (
@@ -376,7 +376,7 @@ class NWMv3ForcingEngineModel:
                 # If skipping this forcing, continue early
                 # NOTE this is used by the esmf regrid pytests, to halt the loop before "manually" calling a particular regrid function.
                 if input_forcings.skip is True:
-                    LOG.debug(f"Breaking loop for force_key {force_key}")
+                    self.log_debug(msg=f"Breaking loop for force_key {force_key}")
                     break
 
                 # Regrid forcings.
@@ -434,7 +434,7 @@ class NWMv3ForcingEngineModel:
                 if force_key == 10:
                     self._bmi._job_meta.currentCustomForceNum += 1
 
-                LOG.debug(f"End of loop for force_key {force_key}")
+                self.log_debug(msg=f"End of loop for force_key {force_key}")
 
             # Process supplemental precipitation if we specified in the configuration file.
             if self._bmi._job_meta.number_supp_pcp > 0:
