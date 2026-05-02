@@ -527,64 +527,20 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
                 f"In pre_regrid, expected state to be either None or 'post_ran' but got {repr(self._state)}. The test is set up incorrectly."
             )
 
-        config_options = self.config_options
-        mpi_config = self.mpi_config
-        geo_meta = self.geo_meta
-        supp_pcp_mod = self.bmi_model._supp_pcp_mod
-        output_obj = self.bmi_model._output_obj
-        input_forcing_mod = self.bmi_model._input_forcing_mod
-
         future_time = (
             self.bmi_model._values["current_model_time"]
             + self.bmi_model._values["time_step_size"]
         )
         model = self.bmi_model._model
 
-        ### NOTE with the exception of setting the skip flag, the below
-        ### block is copied verbatim from NWMv3ForcingEngineModel.run()
-        (
-            future_time,
-            config_options,
-        ) = model.determine_forecast(
-            future_time,
-            config_options,
-        )
-        (
-            config_options,
-            input_forcing_mod,
-            mpi_config,
-        ) = model.adjust_precip(
-            config_options,
-            input_forcing_mod,
-            mpi_config,
-        )
-        (
-            config_options,
-            mpi_config,
-        ) = model.log_forecast(
-            config_options,
-            mpi_config,
-        )
+        # NOTE this should mimic NWMv3ForcingEngineModel.run()
+        # with the exception of externally setting the skip flags within this class.
+        model.set_cycle_timing_attrs(future_time)
+        model.set_skip_flags()
+        model.log_cycle()
         ### NOTE setting the flag causes the regrid step to be skipped
         self.set_input_forcings_skip_flags()
-        (
-            future_time,
-            config_options,
-            geo_meta,
-            input_forcing_mod,
-            supp_pcp_mod,
-            mpi_config,
-            output_obj,
-            input_forcings,
-        ) = model.loop_through_forcing_products(
-            future_time,
-            config_options,
-            geo_meta,
-            input_forcing_mod,
-            supp_pcp_mod,
-            mpi_config,
-            output_obj,
-        )
+        model.loop_through_forcing_products(future_time)
 
         # Update test fixture status
         self._state = "pre_ran"
@@ -592,7 +548,7 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
     def set_input_forcings_skip_flags(self) -> None:
         """Set the `skip` flag on the InputForcings object so that forcing regrid will not occur during loop_through_forcing_products()."""
         logging.debug(
-            "Setting input_forcing.skip = True for each value in dict self.input_forcing_mod"
+            "Setting input_forcing.skip = True for each value in dict self.bmi_model._input_forcing_mod"
         )
         for force_key, input_forcing in self.bmi_model._input_forcing_mod.items():
             input_forcing.skip = True

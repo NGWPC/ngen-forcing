@@ -955,6 +955,22 @@ FORCINGINPUTMOD = {
         "precipBiasCorrectOpt",
     ],
 }
+
+MODEL = {
+    # Used by method `model.NWMv3ForcingEngineModel.update_bmi_output_dict`
+    "update_dict_base_vars": [
+        "U2D",
+        "V2D",
+        "LWDOWN",
+        "RAINRATE",
+        "T2D",
+        "Q2D",
+        "PSFC",
+        "SWDOWN",
+    ],
+    "update_dict_var_include_lqfraq": "LQFRAC",
+}
+
 TEST_UTILS = {
     "OLD_NEW_VAR_MAP": {
         "q2dBiasCorrectOpt": "q2BiasCorrectOpt",

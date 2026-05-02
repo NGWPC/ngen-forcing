@@ -353,7 +353,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
 
         # Initialize the Forcings Engine model
-        self._model = NWMv3ForcingEngineModel()
+        self._model = NWMv3ForcingEngineModel(self)
 
         # Set catchment ids if using hydrofabric
         if self._grid_type == "hydrofabric":
@@ -469,16 +469,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             == future_time
             == self.cfg_bmi["initial_time"]
         ):
-            self._model.run(
-                self._values,
-                future_time,
-                self._job_meta,
-                self.geo_meta,
-                self._input_forcing_mod,
-                self._supp_pcp_mod,
-                self._mpi_meta,
-                self._output_obj,
-            )
+            self._model.run(future_time)
         else:
             # Start a while loop to iterate the model time step by step until the
             # current model time reaches or exceeds the future_time.
@@ -486,16 +477,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 # Advance the model time by the defined time step size.
                 self._values["current_model_time"] += self._values["time_step_size"]
                 # Run the model for the new current time and update the state.
-                self._model.run(
-                    self._values,
-                    self._values["current_model_time"],
-                    self._job_meta,
-                    self.geo_meta,
-                    self._input_forcing_mod,
-                    self._supp_pcp_mod,
-                    self._mpi_meta,
-                    self._output_obj,
-                )
+                self._model.run(self._values["current_model_time"])
 
     # ------------------------------------------------------------
     def finalize(self):
