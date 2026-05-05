@@ -3,10 +3,16 @@ import json
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from functools import cached_property
 
 import ewts
 import numpy as np
 
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import mpi_utils
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
+    CONFIGOPTIONS,
+    FORCINGINPUTMOD,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
     err_out_screen,
 )
@@ -14,125 +20,35 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
     calculate_lookback_window,
 )
 
-from . import mpi_utils
-
 LOG = ewts.get_logger(ewts.FORCING_ID)
-FORCE_COUNT = 27
 
 
 class ConfigOptions:
     """Configuration abstract class for configuration options read in from the file specified by the user."""
 
-    def __init__(self, config: dict, b_date=None, geogrid_arg=None):
+    def __init__(self, cfg_bmi: dict, b_date: str = None, geogrid: str = None) -> None:
         """Initialize the configuration class to empty None attributes.
 
-        param config: The user-specified path to the configuration file.
+        The attributes of this class are populated by the validate_config function, which reads in the configuration file and checks that all necessary options are provided and properly formatted. The attributes of this class are used to control the flow of the program and the processing of input forcings.
+
+        Args:
+            cfg_bmi (dict): The configuration dictionary read in from the configuration file specified by the user. This should be read in using the config_utils.read_config function, which also handles any necessary preprocessing of the configuration file.
+            b_date (str, optional): The beginning date of processing in the format YYYYMMDDHHMM. This is used to calculate the processing window for realtime simulations. If not provided, it will be read from the configuration file.
+            geogrid (str, optional): The filepath to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings. If not provided, it will be read from the configuration file.
+
         """
-        self.bmi_time = None
-        self.current_time = None
         self.bmi_time_index = 0
-        self.input_forcings = None
         self.precip_only_flag = False
-        self.supp_precip_forcings = None
-        self.input_force_dirs = None
-        self.input_force_types = None
-        self.supp_precip_dirs = None
-        self.supp_precip_file_types = None
-        self.supp_precip_param_dir = None
-        self.input_force_mandatory = None
-        self.supp_precip_mandatory = None
-        self.supp_pcp_max_hours = None
-        self.number_inputs = None
-        self.number_supp_pcp = None
         self.number_custom_inputs = 0
-        self.output_freq = None
-        self.sub_output_hour = None
-        self.sub_output_freq = None
-        self.scratch_dir = None
         self.useCompression = 0
         self.useFloats = 0
-        self.num_output_steps = None
-        self.num_supp_output_steps = None
-        self.actual_output_steps = None
-        self.realtime_flag = None
-        self.refcst_flag = None
-        self.ana_flag = None
-        self.b_date_proc = b_date
-        self.e_date_proc = None
-        self.first_fcst_cycle = None
-        self.current_fcst_cycle = None
-        self.current_output_step = None
-        self.cycle_length_minutes = None
-        self.prev_output_date = None
-        self.current_output_date = None
-        self.look_back = None
-        self.future_time = None
-        self.fcst_freq = None
-        self.nFcsts = None
-        self.fcst_shift = None
-        self.fcst_input_horizons = None
-        self.fcst_input_offsets = None
-        self.process_window = None
-        self.spatial_meta = None
-        self.grid_type = None
-        self.grid_meta = None
-        self.ExactExtract = None
-        self.lat_var = None
-        self.lon_var = None
-        self.hgt_var = None
-        self.cosalpha_var = None
-        self.sinalpha_var = None
-        self.slope_var = None
-        self.slope_azimuth_var = None
-        self.slope_var_elem = None
-        self.slope_azimuth_var_elem = None
-        self.nodecoords_var = None
-        self.elemcoords_var = None
-        self.elemconn_var = None
-        self.numelemconn_var = None
-        self.element_id_var = None
-        self.hgt_elem_var = None
-        self.ignored_border_widths = None
-        self.regrid_opt = None
-        self.weightsDir = None
-        self.regrid_opt_supp_pcp = None
-        self.config_path = config
-        self.errMsg = None
-        self.statusMsg = None
-        self.logFile = None
-        self.logHandle = None
-        self.dScaleParamDirs = None
-        self.paramFlagArray = None
-        self.forceTemoralInterp = None
-        self.suppTemporalInterp = None
-        self.t2dDownscaleOpt = None
-        self.swDownscaleOpt = None
-        self.psfcDownscaleOpt = None
-        self.precipDownscaleOpt = None
-        self.q2dDownscaleOpt = None
-        self.t2BiasCorrectOpt = None
-        self.psfcBiasCorrectOpt = None
-        self.q2BiasCorrectOpt = None
-        self.windBiasCorrect = None
-        self.swBiasCorrectOpt = None
-        self.lwBiasCorrectOpt = None
-        self.precipBiasCorrectOpt = None
+        self._b_date_proc = b_date
+        self._cfg_bmi = cfg_bmi
         self.runCfsNldasBiasCorrect = False
-        self.cfsv2EnsMember = None
-        self.customSuppPcpFreq = None
-        self.customFcstFreq = None
-        self.rqiMethod = None
         self.rqiThresh = 1.0
         self.globalNdv = -9999.0
         self.d_program_init = datetime.now(timezone.utc)
         self.errFlag = 0
-        self.nwmVersion = None
-        self.nwmConfig = None
-        self.include_lqfrac = False
-        self.forcing_output = None
-        self.aws = None
-        self.aws_obj = None
-        self.aws_time = None
         self.aorc_conus_source = "s3://noaa-nws-aorc-v1-1-1km"
         self.aorc_conus_year_url = "{source}/{year}.zarr"
         self.aorc_alaska_source = "s3://ngwpc-data/AORC/Alaska"
@@ -140,20 +56,159 @@ class ConfigOptions:
             "{source}/{year}/{year}{month:02d}/AK_AORC-OWP_{date}.nc4"
         )
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
-
-        self.nwm_geogrid = None
-        self.geogrid = geogrid_arg
-        self.geopackage = None
-
-        self.uid64 = None
+        self._geogrid = geogrid
         self.broadcast_new_64bit_uid()
 
         self._scratch_dir_has_been_uniquefied = False
 
+        # set list of attibutes from consts.py to None.
+        # These are indexed from the consts dictionary using the class name
+        for attr in CONFIGOPTIONS[self.__class__.__name__]:
+            setattr(self, attr, None)
+        self._validate_config()
+
+    @property
+    def cfg_bmi(self) -> dict:
+        """Return the configuration dictionary read in from the configuration file specified by the user."""
+        return self._cfg_bmi
+
+    @cfg_bmi.setter
+    def cfg_bmi(self, value: dict) -> None:
+        """Set the configuration dictionary read in from the configuration file specified by the user."""
+        if not isinstance(value, dict):
+            raise TypeError(
+                f"Expected dict, got {type(value)} for type of cfg_bmi: {value}"
+            )
+        self._validate_config()
+        self._cfg_bmi = value
+
+    @property
+    def force_count(self) -> int:
+        """Calculate the number of total possible input forcing options based on the length of the InputForcings list in the consts.py file. This is used for error checking to ensure users specify valid input forcing options in the configuration file."""
+        return len(FORCINGINPUTMOD["InputForcings"]["PRODUCT_NAME"])
+
+    @property
+    def supp_precip_count(self) -> int:
+        """Calculate the number of total possible supplemental precip forcing options based on the length of the SuppPrecipForcings list in the consts.py file. This is used for error checking to ensure users specify valid supplemental precip forcing options in the configuration file."""
+        # TODO make this dynamic based on the length of the SUPPPRECIPMOD list in consts.py, but for now hardcoding to 15 since that is the number of options currently available in consts.py and this will avoid any issues with the formatting of the consts.py file causing errors in the program. This is used for error checking to ensure users specify valid supplemental precip forcing options in the configuration file.
+        # return len(SUPPPRECIPMOD["suppPrecipMod"]["PRODUCT_NAMES"])
+        return 15
+
+    @property
+    def number_supp_pcp(self) -> int:
+        """Calculate the number of supplemental precip forcings specified by the user in the configuration file."""
+        return len(self.supp_precip_forcings)
+
+    @property
+    def precip_only_flag(self) -> bool:
+        """Flag to indicate whether the user has chosen to run the supplemental precip forcings module only, which will trigger some different processing pathways and error checking for certain configuration options."""
+        if self.number_supp_pcp == 1:
+            if int(self.supp_precip_forcings[0]) == 14:
+                return True
+
+    def set_attrs(self):
+        """Set the attributes of the class based on the configuration file. This is used to populate the attributes of the class after they have been read in and validated from the configuration file."""
+        for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
+            "cfg_bmi_to_attrs_map"
+        ].items():
+            setattr(
+                self, config_options_attr, self.extract_input_variable(cfg_bmi_attr)
+            )
+
+        if self.output_freq <= 0:
+            err_out_screen(
+                "Please specify an OutputFrequency that is greater than zero minutes."
+            )
+
+    def extract_input_variable(self, variable_name: str) -> str:
+        """Extract the variable name from the configuration file for a given variable."""
+        try:
+            return self.cfg_bmi[variable_name]
+        except ValueError as e:
+            err_out_screen(
+                f"Improper {variable_name} value specified  in the configuration file. Error: {e}"
+            )
+        except (KeyError, configparser.NoOptionError) as e:
+            err_out_screen(
+                f"Unable to locate {variable_name} in the configuration file. Error: {e}"
+            )
+        except json.decoder.JSONDecodeError as e:
+            err_out_screen(
+                f"Improper {variable_name} file option specified in configuration file. Error: {e}",
+                e,
+            )
+
+    def extract_input_variable_set_default(self, variable_name: str, default=0) -> str:
+        """Extract the variable name from the configuration file for a given variable, and set it to a default value if it is not found."""
+        try:
+            variable = self.cfg_bmi[variable_name]
+        except (KeyError, configparser.NoOptionError) as e:
+            variable = default
+        except ValueError as e:
+            err_out_screen(
+                f"Improper {variable_name} value: {self.cfg_bmi[variable_name]}", e
+            )
+        if variable not in [0, 1]:
+            err_out_screen(f"Please choose a {variable_name} value of 0  or 1.")
+        return variable
+
+    def try_config_get(self, variable_name: str, default=None) -> str:
+        """Try to get a variable from the configuration file, and return a default value if it is not found."""
+        try:
+            var = self.cfg_bmi.get(variable_name, default)
+            if var is None:
+                err_out_screen(
+                    f"Unable to locate {variable_name} in the configuration file."
+                )
+            return var
+        except (KeyError, configparser.NoOptionError) as e:
+            err_out_screen(
+                f"Unable to locate {variable_name} in the configuration file.", e
+            )
+
+    def check_number_of_inputs(
+        self, value: list, variable_name: str, input_type: str
+    ) -> None:
+        """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable."""
+        if len(value) != self.number_inputs:
+            err_out_screen(
+                f"Number of {variable_name} values must match the number of {input_type} in the configuration file."
+            )
+
+    def check_number_of_inputs_forcings(self, value: list, variable_name: str) -> None:
+        """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for input forcings variables which should match the number of input forcing options specified by the user in the configuration file."""
+        return self.check_number_of_inputs(value, variable_name, " InputForcings")
+
+    def check_number_of_inputs_supp_pcp(self, value: list, variable_name: str) -> None:
+        """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for supplemental precip forcing variables which should match the number of supplemental precip forcing options specified by the user in the configuration file."""
+        return self.check_number_of_inputs(
+            value, variable_name, " supplemental precip forcings"
+        )
+
+    def check_input_values_in_range(
+        self, value: list, variable_name: str, valid_input_options: list
+    ) -> None:
+        """Check that the input values specified by the user in the configuration file are within a valid range for a given variable."""
+        for val in value:
+            if val in valid_input_options:
+                err_out_screen(
+                    f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify valid values: {valid_input_options}."
+                )
+
+    def check_input_values_positive(self, value: list, variable_name: str) -> None:
+        """Check that the input values specified by the user in the configuration file are positive for a given variable."""
+        for val in value:
+            if val <= 0:
+                err_out_screen(
+                    f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify values greater than zero."
+                )
+
     def uniquefy_scratch_dir_as_child(self, uid: str) -> None:
         """Modify the existing scratch dir by adding the UID string available to all ranks from the MpiConfig class.
+
         This may only be called once. Subsequent calls will result in an error.
-        This must be called by all ranks, once."""
+        This must be called by all ranks, once.
+        """
         LOG.debug(f"Uniquefying scratch dir: adding suffix {uid} to {self.scratch_dir}")
         if not isinstance(uid, str):
             raise TypeError(f"Expected str, got {type(uid)} for type of uid: {uid}")
@@ -172,56 +227,88 @@ class ConfigOptions:
         os.makedirs(self.scratch_dir, exist_ok=True)
         LOG.debug(f"Scratch dir: {self.scratch_dir}")
 
-    def broadcast_new_64bit_uid(self):
+    def broadcast_new_64bit_uid(self) -> None:
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks.
-        Should be called once to avoid confusion."""
+
+        Should be called once to avoid confusion.
+        """
         if self.uid64 is not None:
             raise RuntimeError("self.uid64 has already been initialized.")
         self.uid64 = mpi_utils.get_new_broadcasted_uid()
 
-    def validate_config(self, cfg_bmi: dict) -> None:
-        """Validate in options from the configuration file and check that proper options were provided."""
-        # Ensure b_date_proc is set; if not, read from the configuration file
-        if self.b_date_proc is None:
-            try:
-                self.b_date_proc = cfg_bmi.get(
-                    "RefcstBDateProc", None
-                )  # Default to None if not found
-                if self.b_date_proc is None:
-                    err_out_screen(
-                        "Unable to locate RefcstBDateProc under Logistics section in configuration file."
-                    )
-            except KeyError as e:
+    @property
+    def b_date_proc(self) -> str:
+        """Get the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        return self._bdate_proc
+
+    @b_date_proc.setter
+    def b_date_proc(self, value: str | datetime) -> None:
+        """Set the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        if value is None:
+            value = self.try_config_get("RefcstBDateProc")
+        if isinstance(value, datetime):
+            self._b_date_proc = value
+        if value != -9999:
+            if isinstance(value, str) and len(value) != 12:
                 err_out_screen(
-                    "Unable to locate RefcstBDateProc under Logistics section in configuration file.",
+                    "Improper RefcstBDateProc length entered into the configuration file. Please check your entry."
+                )
+            try:
+                self._b_date_proc = datetime.strptime(value, "%Y%m%d%H%M")
+            except ValueError as e:
+                err_out_screen(
+                    "Improper RefcstBDateProc value entered into the configuration file. Please check your entry.",
                     e,
                 )
+        else:
+            self._b_date_proc = -9999
+        LOG.info(f"Begin date: {value}")
 
-        # Ensure geopackage is set; if not, read from the configuration file
-        if self.geopackage is None:
-            try:
-                self.geopackage = cfg_bmi.get(
-                    "Geopackage", None
-                )  # Default to None if not found
-                if self.geopackage is None:
-                    err_out_screen(
-                        "Unable to locate Geopackage in the configuration file."
-                    )
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate Geopackage in the configuration file.", e
-                )
+    @property
+    def realtime_flag(self) -> bool:
+        """Flag to indicate whether the user has chosen to run a realtime simulation, which will trigger some different processing pathways and error checking for certain configuration options, and will also control how the processing window is calculated."""
+        if self.look_back == -9999:
+            return False
+        elif self.b_date_proc == -9999:
+            return True
+        else:
+            return False
 
-        # Ensure geogrid is set; if not, read from the configuration file
-        if self.geogrid is None:
-            try:
-                geogrid_base = cfg_bmi.get(
-                    "GeogridIn", None
-                )  # Default to None if not found
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate GeogridIn in the configuration file.", e
-                )
+    @property
+    def refcst_flag(self) -> bool:
+        """Flag to indicate whether the user has chosen to run a reforecast simulation, which will trigger some different processing pathways and error checking for certain configuration options, and will also control how the processing window is calculated."""
+        if self.look_back == -9999:
+            return True
+        elif self.b_date_proc == -9999:
+            return True
+        else:
+            return False
+
+    @property
+    def geopackage(self) -> str:
+        """Get the pathway to the geopackage file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        return self._geopackage
+
+    @geopackage.setter
+    def geopackage(self, value: str) -> None:
+        """Set the pathway to the geopackage file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        if value is not None:
+            self._geopackage = value
+        else:
+            self._geopackage = self.try_config_get("Geopackage")
+
+    @property
+    def geogrid(self) -> str:
+        """Get the pathway to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        return self._geogrid
+
+    @geogrid.setter
+    def geogrid(self, value: str) -> None:
+        """Set the pathway to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        if value is not None:
+            self._geogrid = value
+        else:
+            geogrid_base = self.try_config_get("GeogridIn")
             if geogrid_base is None:
                 err_out_screen("Unable to locate GeogridIn in the configuration file.")
                 self.geogrid = None
@@ -230,470 +317,1055 @@ class ConfigOptions:
                 geogrid_filename = os.path.basename(geogrid_base)
                 if self.uid64 is None:
                     raise ValueError("self.uid64 cannot be None, please initialize it.")
-                self.geogrid = os.path.join(
+                self._geogrid = os.path.join(
                     geogrid_parent, f"{self.uid64}_{geogrid_filename}"
                 )
-            # Create directory for esmf_mesh file
-            if not os.path.isdir(geogrid_parent):
-                try:
-                    os.makedirs(geogrid_parent, exist_ok=True)
-                    LOG.debug(f"Created esmf mesh directory: {geogrid_parent}")
-                except OSError as e:
-                    err_out_screen(
-                        f"Unable to create esmf_mesh directory: {geogrid_parent}. Error: {e}"
-                    )
+        self.try_make_dir(geogrid_parent, " esmf_mesh")
 
-        # Read in the base input forcing options as an array of values to map.
-        try:
-            self.supp_precip_forcings = cfg_bmi["SuppPcp"]
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate SuppPcp under SuppForcing section in configuration file.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate SuppPcp under SuppForcing section in configuration file.",
-                e,
-            )
-        except json.decoder.JSONDecodeError as e:
-            err_out_screen("Improper SuppPcp option specified in configuration file", e)
-
-        self.number_supp_pcp = len(self.supp_precip_forcings)
-
-        if self.number_supp_pcp == 1:
-            if int(self.supp_precip_forcings[0]) == 14:
-                self.precip_only_flag = True
-
-        if not self.precip_only_flag:
-            # Read in the base input forcing options as an array of values to map.
+    def try_make_dir(self, directory: str, optional_str: str = "") -> None:
+        """Try to make a directory, and catch any errors."""
+        if not os.path.isdir(directory):
             try:
-                self.input_forcings = cfg_bmi["InputForcings"]
-            except KeyError as e:
+                os.makedirs(directory, exist_ok=True)
+                LOG.debug(f"Created{optional_str} directory: {directory}")
+            except OSError as e:
                 err_out_screen(
-                    "Unable to locate InputForcings under Input section in configuration file.",
-                    e,
+                    f"Unable to create{optional_str} directory: {directory}. Error: {e}"
                 )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate InputForcings under Input section in configuration file.",
-                    e,
+
+    @property
+    def input_forcing_options(self) -> list:
+        """Get the list of input forcing options specified by the user in the configuration file. This is used to control which input forcings are processed and how they are processed based on the other configuration options specified for each input forcing."""
+        return self._input_forcing_options
+
+    @input_forcing_options.setter
+    def input_forcing_options(self, value: list) -> None:
+        """Set the list of input forcing options specified by the user in the configuration file. This is used to control which input forcings are processed and how they are processed based on the other configuration options specified for each input forcing."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("InputForcings")
+        if not self.precip_only_flag:
+            for force_opt in value:
+                self.check_input_values_in_range(
+                    value, "InputForcings", list(range(1, self.force_count + 1))
                 )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper InputForcings option specified in configuration file", e
-                )
+            self._input_forcing_options = value
+
+    @property
+    def number_inputs(self) -> int:
+        """Calculate the number of input forcing options specified by the user in the configuration file. This is used for error checking to ensure users specify valid input forcing options in the configuration file, and to control the flow of the program based on how many input forcings are being processed."""
+        if not self.precip_only_flag:
             if len(self.input_forcings) == 0:
                 err_out_screen(
                     "Please choose at least one InputForcings dataset to process"
                 )
-            self.number_inputs = len(self.input_forcings)
+            return len(self.input_forcing_options)
 
-            # Check to make sure forcing options make sense
-            for force_opt in self.input_forcings:
-                if force_opt < 0 or force_opt > FORCE_COUNT:
-                    err_out_screen(
-                        f"Please specify InputForcings values between 1 and {FORCE_COUNT}."
-                    )
-
-                # Keep tabs on how many custom input forcings we have.
+    @property
+    def number_custom_inputs(self) -> int:
+        """Calculate the number of custom input forcing options specified by the user in the configuration file. This is used to control the flow of the program based on how many custom input forcings are being processed, since custom input forcings require some different processing pathways."""
+        if not self.precip_only_flag:
+            count = 0
+            for force_opt in self.input_forcing_options:
                 if force_opt == 10:
-                    self.number_custom_inputs = self.number_custom_inputs + 1
+                    count += 1
+            return count
 
-                # Flag to force mandatory configuration option to specify the NWM geogrid file if user requests
-                # NWM forcing files to be regridded to a given domain configuration
-                if force_opt == 27:
-                    try:
-                        self.nwm_geogrid = cfg_bmi["NWM_Geogrid"]
-                    except KeyError as e:
-                        err_out_screen(
-                            "Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.",
-                            e,
-                        )
-                    except configparser.NoOptionError as e:
-                        err_out_screen(
-                            "Unable to locate NWM Geogrid file required for the NWM forcings module. Need to specify the pathway to the NWM geo_em_DOMAIN.nc file to the NWM_Geogrid configuration input option within the configuration file.",
-                            e,
-                        )
-                    except json.decoder.JSONDecodeError as e:
-                        err_out_screen(
-                            "Improper NWM Geogrid file option specified in configuration file",
-                            e,
-                        )
+    @property
+    def nwm_geogrid(self) -> str:
+        """Get the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
+        return self._nwm_geogrid
 
-            # Read in the input forcings types (GRIB[1|2], NETCDF)
-            try:
-                # self.input_force_types = config.get('Input', 'InputForcingTypes').strip("[]").split(',')
-                # self.input_force_types = [ftype.strip() for ftype in self.input_force_types]
-                self.input_force_types = cfg_bmi["InputForcingTypes"]
-                if self.input_force_types == [""]:
-                    self.input_force_types = []
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate InputForcingTypes in Input section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate InputForcingTypes in Input section in the configuration file.",
-                    e,
-                )
-            if len(self.input_force_types) != self.number_inputs:
-                err_out_screen(
-                    "Number of InputForcingTypes must match the number "
-                    "of InputForcings in the configuration file."
-                )
-            for file_type in self.input_force_types:
-                if file_type not in [
-                    "GRIB1",
-                    "GRIB2",
-                    "NETCDF",
-                    "NETCDF4",
-                    "NWM",
-                    "ZARR",
-                ]:
-                    err_out_screen(
-                        f'Invalid forcing file type "{file_type}" specified. '
-                        "Only GRIB1, GRIB2, NETCDF, NWM, and ZARR are supported"
-                    )
+    @nwm_geogrid.setter
+    def nwm_geogrid(self, value: str) -> None:
+        """Set the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            if 27 in self.input_forcing_options:
+                value = self.extract_input_variable("NWM_Geogrid")
+        self._nwm_geogrid = value
 
-            # Read in the input directories for each forcing option.
-            try:
-                self.input_force_dirs = cfg_bmi["InputForcingDirectories"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate InputForcingDirectories in Input section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate InputForcingDirectories in Input section in the configuration file.",
-                    e,
-                )
-            if len(self.input_force_dirs) != self.number_inputs:
-                err_out_screen(
-                    "Number of InputForcingDirectories must match the number "
-                    "of InputForcings in the configuration file."
-                )
+    @property
+    def input_force_types(self) -> list:
+        """Get the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
+        return self._input_force_types
+
+    @input_force_types.setter
+    def input_force_types(self, value: list) -> None:
+        """Set the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("InputForcingTypes")
+        if not self.precip_only_flag:
+            if value == [""]:
+                value = []
+            self.check_number_of_inputs_forcings(value, "InputForcingTypes")
+            self.check_input_values_in_range(
+                value, "InputForcingTypes", self.file_types
+            )
+            self._input_force_types = value
+
+    @property
+    def file_types(self):
+        """Get the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
+        return self.CONFIGOPTIONS["file_types"]
+
+    @property
+    def input_force_dirs(self) -> list:
+        """Get the list of input forcing directories specified by the user in the configuration file. This is used to control where input forcings are read in from for each input forcing specified by the user in the configuration file."""
+        return self._input_force_dirs
+
+    @input_force_dirs.setter
+    def input_force_dirs(self, value: list) -> None:
+        """Set the list of input forcing directories specified by the user in the configuration file. This is used to control where input forcings are read in from for each input forcing specified by the user in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("InputForcingDirectories")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "InputForcingDirectories")
             # Loop through and ensure all input directories exist. Also strip out any whitespace
             # or new line characters.
-            for dir_tmp in range(0, len(self.input_force_dirs)):
-                self.input_force_dirs[dir_tmp] = self.input_force_dirs[dir_tmp].strip()
-
-                dir_path = self.input_force_dirs[dir_tmp]
-                forcing_type = self.input_forcings[dir_tmp]
+            for dir_tmp in range(0, len(value)):
+                value[dir_tmp] = value[dir_tmp].strip()
+                dir_path = value[dir_tmp]
+                forcing_type = self.input_forcing_options[dir_tmp]
                 is_aws_forcing = forcing_type in [12, 21, 27]
 
                 if not os.path.isdir(dir_path):
                     if is_aws_forcing:
                         self.aws = True
                     else:
-                        try:
-                            os.makedirs(dir_path, exist_ok=True)
-                            LOG.debug(f"Created missing forcing directory: {dir_path}")
-                        except OSError as e:
-                            err_out_screen(
-                                f"Unable to create forcing directory: {dir_path}. Error: {e}"
-                            )
+                        self.try_make_dir(dir_path, " forcing")
+            self._input_force_dirs = value
 
-            # Read in the mandatory enforcement options for input forcings.
-            try:
-                self.input_force_mandatory = cfg_bmi["InputMandatory"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate InputMandatory under Input section in configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate InputMandatory under Input section in configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper InputMandatory option specified in configuration file", e
-                )
+    def input_force_mandatory(self) -> list:
+        """Get the list of input forcing mandatory flags specified by the user in the configuration file. This is used to control whether the program should raise an error if input forcings for a given forecast cycle are not found for each input forcing specified by the user in the configuration file."""
+        return self._input_force_mandatory
 
-            if len(self.input_force_mandatory) != self.number_inputs:
-                err_out_screen(
-                    "Please specify InputMandatory values for each corresponding input "
-                    "forcings in the configuration file."
+    @input_force_mandatory.setter
+    def input_force_mandatory(self, value: list) -> None:
+        """Set the list of input forcing mandatory flags specified by the user in the configuration file. This is used to control whether the program should raise an error if input forcings for a given forecast cycle are not found for each input forcing specified by the user in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("InputMandatory")
+            self.check_number_of_inputs_forcings(value, "InputMandatory")
+            self.check_input_values_in_range(value, "InputMandatory", [0, 1])
+        self._input_force_mandatory = value
+
+    def customSuppPcpFreq(self) -> int:
+        """Get the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
+        return self._customSuppPcpFreq
+
+    @customSuppPcpFreq.setter
+    def customSuppPcpFreq(self, value: int) -> None:
+        """Set the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
+        if value is None and self.precip_only_flag:
+            value = self.extract_input_variable("customSuppPcpFreq")
+            self.check_input_values_positive([value], "customSuppPcpFreq")
+        self._customSuppPcpFreq = value
+
+    @property
+    def include_lqfrac(self):
+        """Get the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
+        return self._include_lqfrac
+
+    @include_lqfrac.setter
+    def include_lqfrac(self, value):
+        """Set the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
+        if value is None:
+            value = self.extract_input_variable_set_default("includeLQFrac", default=0)
+
+    @property
+    def include_lqfrac(self):
+        """Get the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
+        return self._include_lqfrac
+
+    @include_lqfrac.setter
+    def include_lqfrac(self, value):
+        if value is None:
+            value = self.extract_input_variable_set_default("includeLQFrac", default=0)
+        self._include_lqfrac = value
+
+    @property
+    def forcing_output(self) -> int:
+        """Get the flag for whether to output the input forcings specified by the user in the configuration file. This is used to control whether the input forcings are output in addition to the processed forcings."""
+        return self._forcing_output
+
+    @forcing_output.setter
+    def forcing_output(self, value: int) -> None:
+        if value is None:
+            value = self.extract_input_variable_set_default("Output", default=0)
+        self._forcing_output = value
+
+    def fcst_shift(self) -> int:
+        """Get the forecast shift specified by the user in the configuration file. This is used to control the calculation of the processing window for realtime simulations."""
+        return self._fcst_shift
+
+    @fcst_shift.setter
+    def fcst_shift(self, value: int) -> None:
+        if value is None:
+            value = self.extract_input_variable("ForecastShift")
+        self.check_input_values_positive([value], "ForecastShift")
+        self._fcst_shift = value
+
+    @property
+    def fcst_input_horizons(self) -> list:
+        """Get the list of forecast input horizons specified by the user in the configuration file. This is used to control the calculation of the forecast cycle length and the processing of input forcings based on the forecast time horizons specified for each input forcing."""
+        return self._fcst_input_horizons
+
+    @fcst_input_horizons.setter
+    def fcst_input_horizons(self, value: list) -> None:
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ForecastInputHorizons")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ForecastInputHorizons")
+            self.check_input_values_positive(value, "ForecastInputHorizons")
+        else:
+            if value is None:
+                value = self.extract_input_variable("ForecastInputHorizons")
+        self._fcst_input_horizons = value
+
+    @property
+    def fcst_input_offsets(self):
+        """Get the list of forecast input offsets specified by the user in the configuration file. This is used to control the calculation of the processing window for both realtime and reforecast simulations based on the forecast time horizons and input offsets specified for each input forcing."""
+        return self._fcst_input_offsets
+
+    @fcst_input_offsets.setter
+    def fcst_input_offsets(self, value: list) -> None:
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ForecastInputOffsets")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ForecastInputOffsets")
+            self.check_input_values_positive(value, "ForecastInputOffsets")
+            self._fcst_input_offsets = value
+
+    @property
+    def cycle_length_minutes(self) -> int:
+        """Get the forecast cycle length in minutes, which is calculated based on the maximum of the forecast input horizons specified by the user in the configuration file.
+
+        Ensure the number maximum cycle length is an equal divider of the output time step specified by the user.
+        """
+        cycle_len = max(self.fcst_input_horizons)
+        if cycle_len % self.output_freq != 0:
+            err_out_screen(
+                "Please specify an output time step that is an equal divider of the maximum of the forecast time horizons specified."
+            )
+        return cycle_len
+
+    def num_output_steps(self) -> int:
+        """Calculate the number of output time steps per forecast cycle based on the forecast cycle length and the output frequency specified by the user in the configuration file."""
+        if self.sub_output_hour is None:
+            num_steps = int(self.cycle_length_minutes / self.output_freq)
+        else:
+            num_steps = (
+                int(
+                    (self.cycle_length_minutes - (self.sub_output_hour * 60))
+                    / self.sub_output_freq
                 )
-            # Check to make sure enforcement options makes sense.
-            for enforce_opt in self.input_force_mandatory:
-                if enforce_opt < 0 or enforce_opt > 1:
+                + int((self.sub_output_hour * 60) / self.output_freq)
+                - 1
+            )
+        return num_steps
+
+    def num_supp_output_steps(self) -> int:
+        """Calculate the number of supplemental precip output time steps per forecast cycle based on the forecast cycle length and the custom supplemental precip output frequency specified by the user in the configuration file."""
+        if self.precip_only_flag:
+            return int(self.cycle_length_minutes / self.customSuppPcpFreq)
+
+    def actual_output_steps(self) -> int:
+        """Calculate the actual number of output time steps per forecast cycle based on whether the user has chosen to run a reforecast simulation with a specified processing window, which will only output time steps for which input forcings are available based on the processing window and forecast time horizons specified by the user in the configuration file."""
+        if self.ana_flag:
+            return np.int32(self.nFcsts)
+        else:
+            return np.int32(self.num_output_steps)
+
+    @property
+    def grid_type(self) -> str:
+        """Get the grid type specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings based on the grid type specified by the user in the configuration file."""
+        return self._grid_type
+
+    @grid_type.setter
+    def grid_type(self, value: str) -> None:
+        """Set the grid type specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings based on the grid type specified by the user in the configuration file."""
+        if value is None:
+            value = self.extract_input_variable("GRID_TYPE")
+        self.check_input_values_in_range(
+            [value], "GRID_TYPE", ["gridded", "unstructured", "hydrofabric"]
+        )
+        self._grid_type = value.lower()
+
+    def raise_grid_type_error(self, grid_type: str, variable_name: str) -> None:
+        """Raise an error if a variable is requested that is not valid for the given grid type."""
+        err_out_screen(
+            f"{variable_name} is not a valid variable for grid type {grid_type}. Please check your configuration file."
+        )
+
+    @property
+    def lon_var(self) -> str:
+        """Get the longitude variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a gridded grid type in the configuration file."""
+        if self.grid_type == "gridded":
+            return self.extract_input_variable("LONVAR")
+        else:
+            self.raise_grid_type_error(self.grid_type, "LONVAR")
+
+    @property
+    def lat_var(self) -> str:
+        """Get the latitude variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a gridded grid type in the configuration file."""
+        if self.grid_type == "gridded":
+            return self.extract_input_variable("LATVAR")
+        else:
+            self.raise_grid_type_error(self.grid_type, "LATVAR")
+
+    @property
+    def nodecoords_var(self) -> str:
+        """Get the node coordinates variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        if self.grid_type in ["unstructured", "hydrofabric"]:
+            return self.extract_input_variable("NodeCoords")
+        else:
+            self.raise_grid_type_error(self.grid_type, "NodeCoords")
+
+    @property
+    def elemcoords_var(self) -> str:
+        """Get the element coordinates variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        if self.grid_type in ["unstructured", "hydrofabric"]:
+            return self.extract_input_variable("ElemCoords")
+        else:
+            self.raise_grid_type_error(self.grid_type, "ElemCoords")
+
+    @property
+    def elemconn_var(self) -> str:
+        """Get the element connectivity variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        if self.grid_type in ["unstructured", "hydrofabric"]:
+            return self.extract_input_variable("ElemConn")
+        else:
+            self.raise_grid_type_error(self.grid_type, "ElemConn")
+
+    @property
+    def numelemconn_var(self) -> str:
+        """Get the number of element connectivity variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        if self.grid_type in ["unstructured", "hydrofabric"]:
+            return self.extract_input_variable("NumElemConn")
+        else:
+            self.raise_grid_type_error(self.grid_type, "NumElemConn")
+
+    @property
+    def element_id_var(self) -> str:
+        """Get the element ID variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a hydrofabric grid type in the configuration file."""
+        if self.grid_type == "hydrofabric":
+            return self.extract_input_variable("ElemID")
+        else:
+            self.raise_grid_type_error(self.grid_type, "ElemID")
+
+    @property
+    def ignored_border_widths(self) -> list:
+        """Get the list of ignored border widths specified by the user in the configuration file. This is used to control how the program processes input forcings based on the ignored border widths specified for each input forcing in the configuration file."""
+        return self._ignored_border_widths
+
+    @ignored_border_widths.setter
+    def ignored_border_widths(self, value: list) -> None:
+        """Set the list of ignored border widths specified by the user in the configuration file. This is used to control how the program processes input forcings based on the ignored border widths specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("IgnoredBorderWidths")
+        if self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "IgnoredBorderWidths")
+            self.check_input_values_positive(value, "IgnoredBorderWidths")
+            self._ignored_border_widths = value
+
+    @property
+    def regrid_opt(self):
+        """Get the list of regridding options specified by the user in the configuration file. This is used to control how input forcings are regridded based on the regridding option specified for each input forcing in the configuration file."""
+        return self._regrid_opt
+
+    @regrid_opt.setter
+    def regrid_opt(self, value: list) -> None:
+        """Set the list of regridding options specified by the user in the configuration file. This is used to control how input forcings are regridded based on the regridding option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("RegridOpt")
+        if self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "RegridOpt")
+            self.check_input_values_in_range(value, "RegridOpt", [1, 2, 3])
+            self._regrid_opt = value
+
+    @property
+    def weightsDir(self) -> str:
+        """Get the pathway to the ESMF weights directory specified by the user in the configuration file. This is used to control where the program looks for ESMF weights files if the user has chosen to use pre-generated ESMF weights files for regridding input forcings in the configuration file."""
+        return self._weightsDir
+
+    @weightsDir.setter
+    def weightsDir(self, value: str) -> None:
+        """Set the pathway to the ESMF weights directory specified by the user in the configuration file. This is used to control where the program looks for ESMF weights files if the user has chosen to use pre-generated ESMF weights files for regridding input forcings in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.try_config_get("RegridWeightsDir")
+        if self.precip_only_flag:
+            if value is not None and not os.path.exists(value):
+                err_out_screen(
+                    f"ESMF Weights file directory specified ({value}) but does not exist"
+                )
+            self._weightsDir = value
+
+    @property
+    def forceTemoralInterp(self) -> list:
+        """Get the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
+        return self._forceTemoralInterp
+
+    @forceTemoralInterp.setter
+    def forceTemoralInterp(self, value: list) -> None:
+        """Set the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ForcingTemporalInterpolation")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ForcingTemporalInterpolation")
+            self.check_input_values_in_range(
+                value, "ForcingTemporalInterpolation", [0, 1, 2]
+            )
+            self._forceTemoralInterp = value
+
+    @property
+    def forceTemoralInterp(self):
+        """Get the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
+        return self._forceTemoralInterp
+
+    @forceTemoralInterp.setter
+    def forceTemoralInterp(self, value):
+        """Set the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ForcingTemporalInterpolation")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ForcingTemporalInterpolation")
+            self.check_input_values_in_range(
+                value, "ForcingTemporalInterpolation", [0, 1, 2]
+            )
+            self._forceTemoralInterp = value
+
+    @property
+    def t2dDownscaleOpt(self) -> list:
+        """Get the list of temperature downscaling options specified by the user in the configuration file. This is used to control how temperature input forcings are downscaled based on the temperature downscaling option specified for each input forcing in the configuration file."""
+        return self._t2dDownscaleOpt
+
+    @t2dDownscaleOpt.setter
+    def t2dDownscaleOpt(self, value: list) -> None:
+        """Set the list of temperature downscaling options specified by the user in the configuration file. This is used to control how temperature input forcings are downscaled based on the temperature downscaling option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("TemperatureDownscaling")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "TemperatureDownscaling")
+            self.check_input_values_in_range(value, "TemperatureDownscaling", [0, 1, 2])
+            self._t2dDownscaleOpt = value
+
+    @property
+    def psfcDownscaleOpt(self) -> list:
+        """Get the list of pressure downscaling options specified by the user in the configuration file. This is used to control how pressure input forcings are downscaled based on the pressure downscaling option specified for each input forcing in the configuration file."""
+        return self._psfcDownscaleOpt
+
+    @psfcDownscaleOpt.setter
+    def psfcDownscaleOpt(self, value: list) -> None:
+        """Set the list of pressure downscaling options specified by the user in the configuration file. This is used to control how pressure input forcings are downscaled based on the pressure downscaling option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("PressureDownscaling")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "PressureDownscaling")
+            self.check_input_values_in_range(value, "PressureDownscaling", [0, 1])
+            self._psfcDownscaleOpt = value
+
+    @property
+    def swDownscaleOpt(self) -> list:
+        """Get the list of shortwave downscaling options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are downscaled based on the shortwave downscaling option specified for each input forcing in the configuration file."""
+        return self._swDownscaleOpt
+
+    @swDownscaleOpt.setter
+    def swDownscaleOpt(self, value: list) -> None:
+        """Set the list of shortwave downscaling options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are downscaled based on the shortwave downscaling option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ShortwaveDownscaling")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ShortwaveDownscaling")
+            self.check_input_values_in_range(value, "ShortwaveDownscaling", [0, 1])
+            self._swDownscaleOpt = value
+
+    @property
+    def q2dDownscaleOpt(self) -> list:
+        """Get the list of humidity downscaling options specified by the user in the configuration file. This is used to control how humidity input forcings are downscaled based on the humidity downscaling option specified for each input forcing in the configuration file."""
+        return self._q2dDownscaleOpt
+
+    @q2dDownscaleOpt.setter
+    def q2dDownscaleOpt(self, value: list) -> None:
+        """Set the list of humidity downscaling options specified by the user in the configuration file. This is used to control how humidity input forcings are downscaled based on the humidity downscaling option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("HumidityDownscaling")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "HumidityDownscaling")
+            self.check_input_values_in_range(value, "HumidityDownscaling", [0, 1])
+            self._q2dDownscaleOpt = value
+
+    @property
+    def precipDownscaleOpt(self) -> list:
+        """Get the list of precipitation downscaling options specified by the user in the configuration file. This is used to control how precipitation input forcings are downscaled based on the precipitation downscaling option specified for each input forcing in the configuration file."""
+        return self._precipDownscaleOpt
+
+    @precipDownscaleOpt.setter
+    def precipDownscaleOpt(self, value: list) -> None:
+        """Set the list of precipitation downscaling options specified by the user in the configuration file. This is used to control how precipitation input forcings are downscaled based on the precipitation downscaling option specified for each input forcing in the configuration file."""
+        if value is None:
+            value = self.extract_input_variable("PrecipDownscaling")
+        self.check_number_of_inputs_forcings(value, "PrecipDownscaling")
+        self.check_input_values_in_range(value, "PrecipDownscaling", [0, 1])
+
+        self._precipDownscaleOpt = value
+
+    @property
+    def dScaleParamDirs(self) -> list:
+        """Get the list of downscaling parameter directories specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for each input forcing based on the downscaling parameter directory specified for each input forcing in the configuration file."""
+        return self._dScaleParamDirs
+
+    @dScaleParamDirs.setter
+    def dScaleParamDirs(self, value: list) -> None:
+        """Set the list of downscaling parameter directories specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for each input forcing based on the downscaling parameter directory specified for each input forcing in the configuration file."""
+        if value is None:
+            value = self.extract_input_variable("DownscalingParamDirs")
+        self.check_number_of_inputs_forcings(value, "DownscalingParamDirs")
+        for dirTmp in range(0, len(value)):
+            dir_path = value[dirTmp]
+            if not os.path.isdir(dir_path):
+                err_out_screen(
+                    f"Unable to locate parameter directory: {os.path.abspath(dir_path)}"
+                )
+        self._dScaleParamDirs = value
+
+    def perform_downscaling(self) -> bool:
+        """Determine whether downscaling of input forcings is necessary based on the downscaling options specified by the user for each input forcing in the configuration file."""
+        if (
+            1 in self.q2dDownscaleOpt
+            or 1 in self.swDownscaleOpt
+            or 1 in self.psfcDownscaleOpt
+            or 1 in self.t2dDownscaleOpt
+            or 2 in self.t2dDownscaleOpt
+        ):
+            return True
+
+    @property
+    def sinalpha_var(self) -> str:
+        """Get the sine of the grid orientation variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the grid orientation variable specified for each input forcing in the configuration file."""
+        if self.perform_downscaling:
+            return self.extract_input_variable("SINALPHA")
+
+    @property
+    def cosalpha_var(self) -> str:
+        """Get the cosine of the grid orientation variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the grid orientation variable specified for each input forcing in the configuration file."""
+        if self.perform_downscaling:
+            return self.extract_input_variable("COSALPHA")
+
+    @property
+    def slope_var(self) -> str:
+        """Get the slope variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope variable specified for each input forcing in the configuration file."""
+        if self.perform_downscaling:
+            return self.extract_input_variable("SLOPE")
+
+    @property
+    def slope_azimuth_var(self) -> str:
+        """Get the slope azimuth variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope azimuth variable specified for each input forcing in the configuration file."""
+        if self.perform_downscaling:
+            return self.extract_input_variable("SLOPE_AZIMUTH")
+
+    @property
+    def slope_var_elem(self) -> str:
+        """Get the slope variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope variable specified for each input forcing in the configuration file for element-based grids."""
+        if self.perform_downscaling:
+            if self.grid_type == "unstructured":
+                return self.extract_input_variable("SLOPE_ELEM")
+            else:
+                self.raise_grid_type_error(self.grid_type, "SLOPE_ELEM")
+
+    @property
+    def slope_azimuth_var_elem(self) -> str:
+        """Get the slope azimuth variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope azimuth variable specified for each input forcing in the configuration file for element-based grids."""
+        if self.perform_downscaling:
+            if self.grid_type == "unstructured":
+                return self.extract_input_variable("SLOPE_AZIMUTH_ELEM")
+            else:
+                self.raise_grid_type_error(self.grid_type, "SLOPE_AZIMUTH_ELEM")
+
+    @property
+    def hgt_elem_var(self) -> str:
+        """Get the height variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the height variable specified for each input forcing in the configuration file for element-based grids."""
+        if self.perform_downscaling:
+            if self.grid_type == "unstructured":
+                return self.extract_input_variable("HGT_ELEM")
+            else:
+                self.raise_grid_type_error(self.grid_type, "HGT_ELEM")
+
+    @property
+    def hgt_var(self) -> str:
+        """Get the height variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the height variable specified for each input forcing in the configuration file."""
+        if self.perform_downscaling:
+            return self.extract_input_variable("HGT")
+
+    @property
+    def t2BiasCorrectOpt(self) -> list:
+        """Get the list of temperature bias correction options specified by the user in the configuration file. This is used to control how temperature input forcings are bias corrected based on the temperature bias correction option specified for each input forcing in the configuration file."""
+        return self._t2BiasCorrectOpt
+
+    @t2BiasCorrectOpt.setter
+    def t2BiasCorrectOpt(self, value: list) -> None:
+        """Set the list of temperature bias correction options specified by the user in the configuration file. This is used to control how temperature input forcings are bias corrected based on the temperature bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("TemperatureBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "TemperatureBiasCorrection")
+            self.check_input_values_in_range(
+                value, "TemperatureBiasCorrection", [0, 1, 2, 3, 4]
+            )
+            self._t2BiasCorrectOpt = value
+
+    @property
+    def psfcBiasCorrectOpt(self) -> list:
+        """Get the list of pressure bias correction options specified by the user in the configuration file. This is used to control how pressure input forcings are bias corrected based on the pressure bias correction option specified for each input forcing in the configuration file."""
+        return self._psfcBiasCorrectOpt
+
+    @psfcBiasCorrectOpt.setter
+    def psfcBiasCorrectOpt(self, value: list) -> None:
+        """Set the list of pressure bias correction options specified by the user in the configuration file. This is used to control how pressure input forcings are bias corrected based on the pressure bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("PressureBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "PressureBiasCorrection")
+            self.check_input_values_in_range(value, "PressureBiasCorrection", [0, 1])
+            self._psfcBiasCorrectOpt = value
+
+    @property
+    def q2BiasCorrectOpt(self):
+        """Get the list of humidity bias correction options specified by the user in the configuration file. This is used to control how humidity input forcings are bias corrected based on the humidity bias correction option specified for each input forcing in the configuration file."""
+        return self._q2BiasCorrectOpt
+
+    @q2BiasCorrectOpt.setter
+    def q2BiasCorrectOpt(self, value):
+        """Set the list of humidity bias correction options specified by the user in the configuration file. This is used to control how humidity input forcings are bias corrected based on the humidity bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("HumidityBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "HumidityBiasCorrection")
+            self.check_input_values_in_range(value, "HumidityBiasCorrection", [0, 1, 2])
+            self._q2BiasCorrectOpt = value
+
+    @property
+    def windBiasCorrect(self):
+        """Get the list of wind bias correction options specified by the user in the configuration file. This is used to control how wind input forcings are bias corrected based on the wind bias correction option specified for each input forcing in the configuration file."""
+        return self._windBiasCorrect
+
+    @windBiasCorrect.setter
+    def windBiasCorrect(self, value):
+        """Set the list of wind bias correction options specified by the user in the configuration file. This is used to control how wind input forcings are bias corrected based on the wind bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("WindBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "WindBiasCorrection")
+            self.check_input_values_in_range(value, "WindBiasCorrection", [0, 4])
+            self._windBiasCorrect = value
+
+    @property
+    def swBiasCorrectOpt(self) -> list:
+        """Get the list of shortwave radiation bias correction options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are bias corrected based on the shortwave radiation bias correction option specified for each input forcing in the configuration file."""
+        return self._swBiasCorrectOpt
+
+    @swBiasCorrectOpt.setter
+    def swBiasCorrectOpt(self, value: list) -> None:
+        """Set the list of shortwave radiation bias correction options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are bias corrected based on the shortwave radiation bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("ShortwaveBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "ShortwaveBiasCorrection")
+            self.check_input_values_in_range(
+                value, "ShortwaveBiasCorrection", [0, 1, 2]
+            )
+            self._swBiasCorrectOpt = value
+
+    @property
+    def lwBiasCorrectOpt(self) -> list:
+        """Get the list of longwave radiation bias correction options specified by the user in the configuration file. This is used to control how longwave radiation input forcings are bias corrected based on the longwave radiation bias correction option specified for each input forcing in the configuration file."""
+        return self._lwBiasCorrectOpt
+
+    @lwBiasCorrectOpt.setter
+    def lwBiasCorrectOpt(self, value: list) -> None:
+        """Set the list of longwave radiation bias correction options specified by the user in the configuration file. This is used to control how longwave radiation input forcings are bias corrected based on the longwave radiation bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("LongwaveBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "LongwaveBiasCorrection")
+            self.check_input_values_in_range(
+                value, "LongwaveBiasCorrection", [0, 1, 2, 4]
+            )
+            self._lwBiasCorrectOpt = value
+
+    @property
+    def precipBiasCorrectOpt(self):
+        """Get the list of precipitation bias correction options specified by the user in the configuration file. This is used to control how precipitation input forcings are bias corrected based on the precipitation bias correction option specified for each input forcing in the configuration file."""
+        return self._precipBiasCorrectOpt
+
+    @precipBiasCorrectOpt.setter
+    def precipBiasCorrectOpt(self, value):
+        """Set the list of precipitation bias correction options specified by the user in the configuration file. This is used to control how precipitation input forcings are bias corrected based on the precipitation bias correction option specified for each input forcing in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("PrecipBiasCorrection")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "PrecipBiasCorrection")
+            self.check_input_values_in_range(value, "PrecipBiasCorrection", [0, 1])
+            self._precipBiasCorrectOpt = value
+
+    @property
+    def bias_correction_properties(self) -> dict:
+        """Get the dictionary of bias correction properties specified by the user in the configuration file. This is used to control how input forcings are bias corrected based on the bias correction options specified for each input forcing in the configuration file."""
+        bias_correction_properties = {
+            "surface temperature": self.t2BiasCorrectOpt,
+            "surface pressure": self.psfcBiasCorrectOpt,
+            "specific humidity": self.q2BiasCorrectOpt,
+            "wind forcings": self.windBiasCorrect,
+            "short-wave radiation": self.swBiasCorrectOpt,
+            "long-wave radiation": self.lwBiasCorrectOpt,
+            "Precipitation": self.precipBiasCorrectOpt,
+        }
+        return bias_correction_properties
+
+    @property
+    def runCfsNldasBiasCorrect(self) -> bool:
+        """Get the flag for whether to run the NWM-specific bias correction of CFSv2 input forcings specified by the user in the configuration file. This is used to control whether the NWM-specific bias correction of CFSv2 input forcings is run based on whether the user has chosen to run this bias correction in the configuration file."""
+        for optTmp in self.bias_correction_properties.values():
+            if optTmp == 1:
+                runCfsNldasBiasCorrect = True
+                break
+        if runCfsNldasBiasCorrect:
+            for (
+                bias_correct_name,
+                bias_correct,
+            ) in self.bias_correction_properties.items():
+                if min(bias_correct) != 1 and max(bias_correct) != 1:
                     err_out_screen(
-                        "Invalid InputMandatory chosen in the configuration file. Please choose a value of 0 or 1 for each corresponding input forcing."
+                        f"CFSv2-NLDAS NWM bias correction must be activated for {bias_correct_name} under this configuration."
+                    )
+                # Make sure we don't have any other forcings activated. This can only be ran for CFSv2.
+                for opt_tmp in self.input_forcings:
+                    if opt_tmp != 7:
+                        err_out_screen(
+                            "CFSv2-NLDAS NWM bias correction can only be used in CFSv2-only configurations"
+                        )
+
+    def number_supp_pcp(self) -> int:
+        """Get the number of supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how many supplemental precipitation input forcings are processed based on the number of supplemental precipitation input forcings specified in the configuration file."""
+        return len(self.supp_precip_forcings)
+
+    @property
+    def supp_precip_file_types(self) -> list:
+        """Get the list of supplemental precipitation input forcing file types specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are read in and processed based on the file types specified for each supplemental precipitation input forcing in the configuration file."""
+        return self._supp_precip_file_types
+
+    @supp_precip_file_types.setter
+    def supp_precip_file_types(self, value: list) -> None:
+        """Set the list of supplemental precipitation input forcing file types specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are read in and processed based on the file types specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None:
+            value = self.try_config_get("SuppPcpForcingTypes")
+        if value is not None:
+            value = [stype.strip() for stype in value]
+        if value == [""]:
+            value = []
+
+        self.check_number_of_inputs_supp_pcp(value, "SuppPcpForcingTypes")
+        self.check_input_values_in_range(
+            value,
+            "SuppPcpForcingTypes",
+            self.supplemental_precip_file_type_options,
+        )
+        self._supp_precip_file_types = value
+
+    @property
+    def supplemental_precip_file_type_options(self) -> list:
+        """Get the list of valid supplemental precipitation input forcing file types that can be specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are read in and processed based on the file types specified for each supplemental precipitation input forcing in the configuration file."""
+        return ["GRIB1", "GRIB2", "NETCDF"]
+
+    @property
+    def rqiMethod(self) -> list:
+        """Get the list of radar quality index (RQI) thresholding methods specified by the user in the configuration file. This is used to control how radar-based supplemental precipitation input forcings are processed based on the RQI thresholding method specified for each radar-based supplemental precipitation input forcing in the configuration file."""
+        if self.number_supp_pcp > 0:
+            for suppOpt in self.supp_precip_forcings:
+                # Read in RQI threshold to apply to radar products.
+                if suppOpt in (1, 2, 7, 10, 11, 12):
+                    rqiMethod = self.extract_input_variable("RqiMethod")
+
+                    # Check that if we have more than one RqiMethod, it's the correct number
+                    if type(rqiMethod) is list:
+                        self.check_number_of_inputs_supp_pcp(rqiMethod, "RqiMethod")
+                    elif type(rqiMethod) is int:
+                        # Support 'classic' mode of single method
+                        rqiMethod = [rqiMethod] * self.number_supp_pcp
+
+                    # Make sure the RqiMethod(s) makes sense.
+                    for method in rqiMethod:
+                        self.check_input_values_in_range(method, "RqiMethod", [0, 1, 2])
+            return rqiMethod
+
+    @property
+    def rqiThresh(self):
+        """Get the radar quality index (RQI) threshold value specified by the user in the configuration file. This is used to control how radar-based supplemental precipitation input forcings are processed based on the RQI threshold value specified in the configuration file."""
+        if self.number_supp_pcp > 0:
+            for suppOpt in self.supp_precip_forcings:
+                # Read in RQI threshold to apply to radar products.
+                if suppOpt in (1, 2, 7, 10, 11, 12):
+                    rqiThresh = self.extract_input_variable("RqiThresh")
+
+                    # Check that if we have more than one RqiThresh, it's the correct number
+                    if type(rqiThresh) is list:
+                        self.check_number_of_inputs_supp_pcp(rqiThresh, "RqiThresh")
+                    elif type(rqiThresh) is (int, float):
+                        # Support 'classic' mode of single threshold
+                        rqiThresh = [rqiThresh] * self.number_supp_pcp
+
+                    # Make sure the RqiThresh(es) makes sense.
+                    for threshold in self.rqiThresh:
+                        if threshold < 0.0 or threshold > 1.0:
+                            err_out_screen(
+                                "Please specify RqiThresholds between 0.0 and 1.0."
+                            )
+            return threshold
+
+    @property
+    def supp_precip_dirs(self):
+        """Get the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._supp_precip_dirs
+
+    @supp_precip_dirs.setter
+    def supp_precip_dirs(self, value):
+        """Set the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpDirectories")
+        if value > 0:
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpDirectories")
+            for dirTmp in range(0, len(value)):
+                value[dirTmp] = value[dirTmp].strip()
+                if not os.path.isdir(value[dirTmp]):
+                    try:
+                        os.makedirs(value[dirTmp], exist_ok=True)
+                        LOG.debug(f"Created supp pcp directory: {value[dirTmp]}")
+                    except OSError as e:
+                        err_out_screen(
+                            f"Unable to create supp pcp directory: {value[dirTmp]}. Error: {e}"
+                        )
+            self._supp_precip_dirs = value
+
+    @property
+    def supp_precip_mandatory(self):
+        """Get the list of flags for whether each supplemental precipitation input forcing specified by the user in the configuration file is mandatory or optional. This is used to control whether an error is raised if supplemental precipitation input forcing files are not found for each supplemental precipitation input forcing based on whether the user has specified each supplemental precipitation input forcing as mandatory or optional in the configuration file."""
+        return self._supp_precip_mandatory
+
+    @supp_precip_mandatory.setter
+    def supp_precip_mandatory(self, value):
+        """Set the list of flags for whether each supplemental precipitation input forcing specified by the user in the configuration file is mandatory or optional. This is used to control whether an error is raised if supplemental precipitation input forcing files are not found for each supplemental precipitation input forcing based on whether the user has specified each supplemental precipitation input forcing as mandatory or optional in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpMandatory")
+        if self.number_supp_pcp > 0:
+            for enforceOpt in value:
+                self.check_input_values_in_range(enforceOpt, "SuppPcpMandatory", [0, 1])
+            self._supp_precip_mandatory = value
+
+    @property
+    def regrid_opt_supp_pcp(self):
+        """Get the list of regridding options for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are regridded based on the regridding option specified for each supplemental precipitation input forcing in the configuration file."""
+        return self._regrid_opt_supp_pcp
+
+    @regrid_opt_supp_pcp.setter
+    def regrid_opt_supp_pcp(self, value):
+        """Set the list of regridding options for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are regridded based on the regridding option specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("RegridOptSuppPcp")
+        if self.number_supp_pcp > 0:
+            for optTmp in value:
+                self.check_input_values_in_range(optTmp, "RegridOptSuppPcp", [1, 2, 3])
+            self._regrid_opt_supp_pcp = value
+
+    @property
+    def suppTemporalInterp(self):
+        """Get the list of flags for whether temporal interpolation of supplemental precipitation input forcings specified by the user in the configuration file is performed or not. This is used to control whether temporal interpolation of supplemental precipitation input forcings is performed based on whether the user has chosen to perform temporal interpolation for each supplemental precipitation input forcing in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._suppTemporalInterp
+
+    @suppTemporalInterp.setter
+    def suppTemporalInterp(self, value):
+        """Set the list of flags for whether temporal interpolation of supplemental precipitation input forcings specified by the user in the configuration file is performed or not. This is used to control whether temporal interpolation of supplemental precipitation input forcings is performed based on whether the user has chosen to perform temporal interpolation for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpTemporalInterpolation")
+        if self.number_supp_pcp > 0:
+            for optTmp in value:
+                self.check_input_values_in_range(
+                    optTmp, "SuppPcpTemporalInterpolation", [0, 1, 2]
+                )
+            self._suppTemporalInterp = value
+
+    @property
+    def supp_pcp_max_hours(self):
+        """Get the list of maximum forecast hours for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are processed based on the maximum forecast hour specified for each supplemental precipitation input forcing in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._supp_pcp_max_hours
+
+    @supp_pcp_max_hours.setter
+    def supp_pcp_max_hours(self, value):
+        """Set the list of maximum forecast hours for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are processed based on the maximum forecast hour specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpMaxHours")
+        if self.number_supp_pcp > 0:
+            if isinstance(value, list):
+                self.check_input_values_positive(value, "SuppPcpMaxHours")
+            elif isinstance(value, float) or isinstance(value, int):
+                self.check_input_values_positive(value, "SuppPcpMaxHours")
+                value = [value] * self.number_supp_pcp
+            self._supp_pcp_max_hours = value
+
+    @property
+    def supp_input_offsets(self):
+        """Get the list of time offsets to apply to supplemental precipitation input forcing files specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are processed based on the time offset specified for each supplemental precipitation input forcing in the configuration file."""
+        return self._supp_input_offsets
+
+    @supp_input_offsets.setter
+    def supp_input_offsets(self, value):
+        """Set the list of time offsets to apply to supplemental precipitation input forcing files specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are processed based on the time offset specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpInputOffsets")
+        if self.number_supp_pcp > 0:
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpInputOffsets")
+
+    @property
+    def supp_precip_param_dir(self):
+        """Get the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._supp_precip_param_dir
+
+    @supp_precip_param_dir.setter
+    def supp_precip_param_dir(self, value):
+        """Set the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpDownscalingParamDir")
+        if self.number_supp_pcp > 0:
+            if not os.path.isdir(value):
+                err_out_screen(
+                    f"Unable to locate parameter directory: {os.path.abspath(value)}"
+                )
+            self._supp_precip_param_dir = value
+
+    @property
+    def supp_precip_dirs(self):
+        """Get the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._supp_precip_dirs
+
+    @supp_precip_dirs.setter
+    def supp_precip_dirs(self, value):
+        """Set the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpDirectories")
+        if self.number_supp_pcp > 0:
+            # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
+            # or new line characters.
+            for dirTmp in range(0, len(value)):
+                value[dirTmp] = value[dirTmp].strip()
+                if not os.path.isdir(value[dirTmp]):
+                    try:
+                        os.makedirs(value[dirTmp], exist_ok=True)
+                        LOG.debug(f"Created supp pcp directory: {value[dirTmp]}")
+                    except OSError as e:
+                        err_out_screen(
+                            f"Unable to create supp pcp directory: {value[dirTmp]}. Error: {e}"
+                        )
+
+            # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
+            if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
+                if len(self.supp_precip_forcings) != 1:
+                    err_out_screen(
+                        "CONUS or Alaska Stage IV/MRMS SuppPcp option is only supported as a standalone option"
+                    )
+                value = [",".join(value)]
+            self._supp_precip_dirs = value
+
+    @property
+    def supp_precip_param_dir(self):
+        """Get the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
+        if self.number_supp_pcp > 0:
+            return self._supp_precip_param_dir
+
+    @supp_precip_param_dir.setter
+    def supp_precip_param_dir(self, value):
+        """Set the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
+        if value is None and self.number_supp_pcp > 0:
+            value = self.extract_input_variable("SuppPcpDownscalingParamDir")
+        if self.number_supp_pcp > 0:
+            try:
+                os.makedirs(value, exist_ok=True)
+                LOG.debug(f"Created missing SuppPcpParamDir: {value}")
+            except OSError as e:
+                err_out_screen(f"Unable to locate SuppPcpParamDir: {value}. Error: {e}")
+
+    @property
+    def cfsv2EnsMember(self):
+        """Get the CFSv2 ensemble member to process specified by the user in the configuration file. This is used to control which CFSv2 ensemble member is processed for CFSv2 input forcings based on the ensemble member specified in the configuration file."""
+        return self._cfsv2EnsMember
+
+    @cfsv2EnsMember.setter
+    def cfsv2EnsMember(self, value):
+        """Set the CFSv2 ensemble member to process specified by the user in the configuration file. This is used to control which CFSv2 ensemble member is processed for CFSv2 input forcings based on the ensemble member specified in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            # Read in Ensemble information
+            # Read in CFS ensemble member information IF we have chosen CFSv2 as an input
+            # forcing.
+            for opt_tmp in self.input_forcings:
+                if opt_tmp == 7:
+                    value = self.extract_input_variable("cfsEnsNumber")
+                    self.check_input_values_in_range(
+                        value, "cfsEnsNumber", [1, 2, 3, 4]
                     )
 
-        # Read in the output frequency
-        try:
-            self.output_freq = cfg_bmi["OutputFrequency"]
-        except ValueError as e:
-            err_out_screen(
-                "Improper OutputFrequency value specified  in the configuration file."
-            )
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate OutputFrequency in the configuration file."
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate OutputFrequency in the configuration file."
-            )
+    @property
+    def customFcstFreq(self):
+        """Get the custom forecast frequency in minutes specified by the user in the configuration file. This is used to control how often forecasts are issued based on the custom forecast frequency specified in the configuration file."""
+        return self._customFcstFreq
+
+    @customFcstFreq.setter
+    def customFcstFreq(self, value):
+        """Set the custom forecast frequency in minutes specified by the user in the configuration file. This is used to control how often forecasts are issued based on the custom forecast frequency specified in the configuration file."""
+        if value is None and not self.precip_only_flag:
+            value = self.extract_input_variable("CustomFcstFreq")
+            if len(self.customFcstFreq) != self.number_custom_inputs:
+                err_out_screen(
+                    f"Improper custom_input fcst_freq specified. This number ({len(self.customFcstFreq)}) must match the frequency of custom input forcings selected ({self.number_custom_inputs})."
+                )
+            self._customFcstFreq = value
+
+    def _validate_config(self) -> None:
+        """Validate in options from the configuration file and check that proper options were provided."""
+        self.b_date_proc
+
+        # if not self.precip_only_flag:
+
         if self.output_freq <= 0:
             err_out_screen(
                 "Please specify an OutputFrequency that is greater than zero minutes."
             )
 
-        if self.precip_only_flag:
-            # Read in the custom supp output frequency
-            try:
-                self.customSuppPcpFreq = int(cfg_bmi["customSuppPcpFreq"])
-            except ValueError as e:
-                err_out_screen(
-                    "Improper customSuppPcpFreq value specified  in the configuration file.",
-                    e,
-                )
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate customSuppPcpFreq in the configuration file.", e
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate customSuppPcpFreq in the configuration file.", e
-                )
-            if self.output_freq <= 0:
-                err_out_screen(
-                    "Please specify an customSuppPcpFreq that is greater than zero minutes."
-                )
-
-        # Read in the sub output hour
-        try:
-            self.sub_output_hour = int(cfg_bmi["SubOutputHour"])
-        except ValueError as e:
-            err_out_screen(
-                "Improper SubOutputHour value specified  in the configuration file.", e
-            )
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate SubOutputHour in the configuration file.", e
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate SubOutputHour in the configuration file.", e
-            )
         if self.sub_output_hour < 0:
             err_out_screen(
                 "Please specify an SubOutputHour that is greater than zero minutes."
             )
         if self.sub_output_hour == 0:
             self.sub_output_hour = None
-        # Read in the output frequency
-        try:
-            self.sub_output_freq = int(cfg_bmi["SubOutFreq"])
-        except ValueError as e:
-            err_out_screen(
-                "Improper SubOutFreq value specified  in the configuration file.", e
-            )
-        except KeyError as e:
-            err_out_screen("Unable to locate SubOutFreq in the configuration file.", e)
-        except configparser.NoOptionError as e:
-            err_out_screen("Unable to locate SubOutFreq in the configuration file.", e)
+
         if self.sub_output_freq < 0:
             err_out_screen(
                 "Please specify an SubOutFreq that is greater than zero minutes."
             )
-        if self.sub_output_freq == 0:
+        if self._sub_output_freq == 0:
             self.sub_output_freq = None
 
         # TODO Can this be a /tmp directory?
-        # Read in the scratch temporary directory, which also may contain output forcing file if requested.
-        try:
-            self.scratch_dir = cfg_bmi["ScratchDir"]
-        except ValueError as e:
-            err_out_screen(
-                "Improper ScratchDir specified in the configuration file.", e
-            )
-        except KeyError as e:
-            err_out_screen("Unable to locate ScratchDir in the configuration file.", e)
-        except configparser.NoOptionError as e:
-            err_out_screen("Unable to locate ScratchDir in the configuration file.", e)
-
         self.make_scratch_dir()
 
-        # Read in compression option
-        try:
-            self.useCompression = cfg_bmi["compressOutput"]
-        except KeyError as e:
-            err_out_screen("Unable to locate compressOut in the configuration file.", e)
-        except configparser.NoOptionError as e:
-            err_out_screen("Unable to locate compressOut in the configuration file.", e)
-        except ValueError as e:
-            err_out_screen("Improper compressOut value.", e)
-        if self.useCompression < 0 or self.useCompression > 1:
+        if self.useCompression not in [0, 1]:
             err_out_screen("Please choose a compressOut value of 0 or 1.")
 
-        # Read in floating-point option
-        try:
-            self.useFloats = cfg_bmi["floatOutput"]
-        except KeyError as e:
-            # err_out_screen('Unable to locate floatOutput in the configuration file.', e)
-            self.useFloats = 0
-        except configparser.NoOptionError as e:
-            # err_out_screen('Unable to locate floatOutput in the configuration file.', e)
-            self.useFloats = 0
-        except ValueError as e:
-            err_out_screen(
-                "Improper floatOutput value: {}".format(cfg_bmi["includeLQFraq"])
-            )
-        if self.useFloats < 0 or self.useFloats > 1:
-            err_out_screen("Please choose a floatOutput value of 0 or 1.")
-
-        # Read in lqfrac option
-        try:
-            self.include_lqfrac = cfg_bmi["includeLQFrac"]
-        except KeyError as e:
-            # err_out_screen('Unable to locate includeLQFraq in the configuration file.', e)
-            self.include_lqfrac = 0
-        except configparser.NoOptionError as e:
-            # err_out_screen('Unable to locate includeLQFraq in the configuration file.', e)
-            self.useFinclude_lqfracloats = 0
-        except ValueError as e:
-            err_out_screen(
-                "Improper includeLQFrac value: {}".format(cfg_bmi["includeLQFraq"]), e
-            )
-        if self.include_lqfrac < 0 or self.include_lqfrac > 1:
-            err_out_screen("Please choose an includeLQFrac value of 0 or 1.")
-
-        # Read in Forcing output option
-        try:
-            self.forcing_output = cfg_bmi["Output"]
-        except KeyError as e:
-            self.forcing_output = 0
-        except configparser.NoOptionError as e:
-            self.forcing_output = 0
-        except ValueError as e:
-            err_out_screen(
-                "Improper Forcing Output value: {}".format(cfg_bmi["Output"]), e
-            )
-        if self.forcing_output < 0 or self.forcing_output > 1:
-            err_out_screen(
-                "Please choose a Forcing Output value of 0 (No output) or 1 (output)."
-            )
-
-        # Read AnA flag option
-        try:
-            # check both the Forecast section and if it's not there, the old BiasCorrection location
-            self.ana_flag = int(cfg_bmi["AnAFlag"])
-        except KeyError as e:
-            err_out_screen("Unable to locate AnAFlag in the configuration file.", e)
-        except configparser.NoOptionError as e:
-            err_out_screen("Unable to locate AnAFlag in the configuration file.", e)
-        except ValueError as e:
-            err_out_screen("Improper AnAFlag value ", e)
-        if self.ana_flag < 0 or self.ana_flag > 1:
+        if self.ana_flag in [0, 1]:
             err_out_screen("Please choose a AnAFlag value of 0 or 1.")
 
-        # For the NextGen Forcings Engine BMI, we are assuming a realtime or reforecast simulation.
-        try:
-            self.look_back = cfg_bmi["LookBack"]
-            if self.look_back <= 0 and self.look_back != -9999:
-                err_out_screen(
-                    "Please specify a positive LookBack or -9999 for realtime."
-                )
-        except ValueError as e:
-            err_out_screen(
-                "Improper LookBack value entered into the configuration file. Please check your entry.",
-                e,
-            )
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate LookBack in the configuration file. Please verify entries exist.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate LookBack in the configuration file. Please verify entries exist.",
-                e,
-            )
+        if self.look_back <= 0 and self.look_back != -9999:
+            err_out_screen("Please specify a positive LookBack or -9999 for realtime.")
 
-        # Process the beginning date of reforecast forcings to process
-
-        if self.b_date_proc:
-            beg_date_tmp = self.b_date_proc
-            e = ""
-        else:
-            try:
-                beg_date_tmp = cfg_bmi["RefcstBDateProc"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate RefcstBDateProc under Logistics section in configuration file.",
-                    e,
-                )
-                beg_date_tmp = None
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate RefcstBDateProc under Logistics section in configuration file.",
-                    e,
-                )
-                beg_date_tmp = None
-
-        if beg_date_tmp != -9999:
-            if isinstance(beg_date_tmp, str) and len(beg_date_tmp) != 12:
-                err_out_screen(
-                    "Improper RefcstBDateProc length entered into the configuration file. Please check your entry.",
-                    e,
-                )
-            try:
-                self.b_date_proc = datetime.strptime(beg_date_tmp, "%Y%m%d%H%M")
-            except ValueError as e:
-                err_out_screen(
-                    "Improper RefcstBDateProc value entered into the configuration file. Please check your entry.",
-                    e,
-                )
-        else:
-            self.b_date_proc = -9999
-
-        LOG.info(f"Begin date: {beg_date_tmp}")
-
-        # If the Retro flag is off, and lookback is off, then we assume we are
-        # running a reforecast.
-        if self.look_back == -9999:
-            self.realtime_flag = False
-            self.refcst_flag = True
-        elif self.b_date_proc == -9999:
-            self.realtime_flag = True
-            self.refcst_flag = True
-        else:
-            # The processing window will be calculated based on current time and the
-            # lookback option since this is a realtime instance.
-            self.realtime_flag = False
-            self.refcst_flag = False
-            # self.b_date_proc = -9999
-            # self.e_date_proc = -9999
-
-        # Calculate the delta time between the beginning and ending time of processing.
-        # self.process_window = self.e_date_proc - self.b_date_proc
-
-        # Read in the ForecastFrequency option.
-        try:
-            self.fcst_freq = cfg_bmi["ForecastFrequency"]
-        except ValueError as e:
-            err_out_screen(
-                "Improper ForecastFrequency value entered into the configuration file. Please check your entry.",
-                e,
-            )
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate ForecastFrequency in the configuration file. Please verify entries exist.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate ForecastFrequency in the configuration file. Please verify entries exist.",
-                e,
-            )
         if self.fcst_freq <= 0:
             err_out_screen(
                 "Please specify a ForecastFrequency in the configuration file greater than zero."
@@ -708,23 +1380,7 @@ class ConfigOptions:
         # Read in the ForecastShift option. This is ONLY done for the realtime instance as
         # it's used to calculate the beginning of the processing window.
         if True:  # was: self.realtime_flag:
-            try:
-                self.fcst_shift = cfg_bmi["ForecastShift"]
-            except ValueError as e:
-                err_out_screen(
-                    "Improper ForecastShift value entered into the configuration file. Please check your entry.",
-                    e,
-                )
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ForecastShift in the configuration file. Please verify entries exist.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ForecastShift in the configuration file. Please verify entries exist.",
-                    e,
-                )
+            self.fcst_shift = self.extract_input_variable("ForecastShift")
             if self.fcst_shift < 0:
                 err_out_screen(
                     "Please specify a ForecastShift in the configuration file greater than or equal to zero."
@@ -752,301 +1408,8 @@ class ConfigOptions:
         if self.look_back != -9999:
             calculate_lookback_window(self)
 
-        if not self.precip_only_flag:
-            # Read in the ForecastInputHorizons options.
-            try:
-                self.fcst_input_horizons = cfg_bmi["ForecastInputHorizons"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputHorizons under Forecast section in configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputHorizons under Forecast section in configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper ForecastInputHorizons option specified in configuration file",
-                    e,
-                )
-            if len(self.fcst_input_horizons) != self.number_inputs:
-                err_out_screen(
-                    "Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts."
-                )
-
-            # Check to make sure the horizons options make sense. There will be additional
-            # checking later when input choices are mapped to input products.
-            for horizonOpt in self.fcst_input_horizons:
-                if horizonOpt <= 0:
-                    err_out_screen(
-                        "Please specify ForecastInputHorizon values greater than zero."
-                    )
-        else:
-            # Read in the ForecastInputHorizons options.
-            try:
-                self.fcst_input_horizons = cfg_bmi["ForecastInputHorizons"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputHorizons under Forecast section in configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputHorizons under Forecast section in configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper ForecastInputHorizons option specified in configuration file",
-                    e,
-                )
-                if len(self.fcst_input_horizons) != 1:
-                    err_out_screen(
-                        "Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts."
-                    )
-
-        if not self.precip_only_flag:
-            # Read in the ForecastInputOffsets options.
-            try:
-                self.fcst_input_offsets = cfg_bmi["ForecastInputOffsets"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputOffsets under Forecast section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ForecastInputOffsets under Forecast section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper ForecastInputOffsets option specified in the configuration file.",
-                    e,
-                )
-            if len(self.fcst_input_offsets) != self.number_inputs:
-                err_out_screen(
-                    "Please specify ForecastInputOffset values for each corresponding input forcings for forecasts."
-                )
-            # Check to make sure the input offset options make sense. There will be additional
-            # checking later when input choices are mapped to input products.
-            for inputOffset in self.fcst_input_offsets:
-                if inputOffset < 0:
-                    err_out_screen(
-                        "Please specify ForecastInputOffset values greater than or equal to zero."
-                    )
-
-        # Calculate the length of the forecast cycle, based on the maximum
-        # length of the input forcing length chosen by the user.
-        self.cycle_length_minutes = max(self.fcst_input_horizons)
-
-        # Ensure the number maximum cycle length is an equal divider of the output
-        # time step specified by the user.
-        if self.cycle_length_minutes % self.output_freq != 0:
-            err_out_screen(
-                "Please specify an output time step that is an equal divider of the maximum of the forecast time horizons specified."
-            )
-
-        if self.sub_output_hour is None:
-            # Calculate the number of output time steps per forecast cycle.
-            self.num_output_steps = int(self.cycle_length_minutes / self.output_freq)
-            if self.precip_only_flag:
-                self.num_supp_output_steps = (
-                    int(self.cycle_length_minutes) / self.customSuppPcpFreq
-                )
-            if self.ana_flag:
-                self.actual_output_steps = np.int32(self.nFcsts)
-            else:
-                self.actual_output_steps = np.int32(self.num_output_steps)
-        else:
-            # Calculate the number of output time steps per forecast cycle.
-            self.num_output_steps = (
-                int(
-                    (self.cycle_length_minutes - (self.sub_output_hour * 60))
-                    / self.sub_output_freq
-                )
-                + int((self.sub_output_hour * 60) / self.output_freq)
-                - 1
-            )
-            if self.precip_only_flag:
-                self.num_supp_output_steps = (
-                    int(self.cycle_length_minutes) / self.customSuppPcpFreq
-                )
-            if self.ana_flag:
-                self.actual_output_steps = np.int32(self.nFcsts)
-            else:
-                self.actual_output_steps = np.int32(self.num_output_steps)
-
-        # Process the grid type
-        try:
-            self.grid_type = cfg_bmi["GRID_TYPE"]
-        except KeyError as e:
-            err_out_screen("Unable to locate GRID_TYPE in the configuration file.", e)
-        except configparser.NoOptionError as e:
-            err_out_screen("Unable to locate GRID_TYPE in the configuration file.", e)
-        if (
-            self.grid_type.lower() != "gridded"
-            and self.grid_type.lower() != "unstructured"
-            and self.grid_type.lower() != "hydrofabric"
-        ):
-            err_out_screen(
-                'GRID_TYPE in the configuration file only accepts "unstructured", "gridded", or "hydrofabric" as options.'
-            )
-
-        if self.grid_type.lower() == "gridded":
-            # Process the geogrid variable information
-            try:
-                self.lon_var = cfg_bmi["LONVAR"]
-            except KeyError as e:
-                err_out_screen("Unable to locate LONVAR in the configuration file.", e)
-            except configparser.NoOptionError as e:
-                err_out_screen("Unable to locate LONVAR in the configuration file.", e)
-            try:
-                self.lat_var = cfg_bmi["LATVAR"]
-            except KeyError as e:
-                err_out_screen("Unable to locate LATVAR in the configuration file.", e)
-            except configparser.NoOptionError as e:
-                err_out_screen("Unable to locate LATVAR in the configuration file.", e)
-
-        elif self.grid_type.lower() == "unstructured":
-            # Process the geogrid variable information
-            try:
-                self.nodecoords_var = cfg_bmi["NodeCoords"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate NodeCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate NodeCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.elemcoords_var = cfg_bmi["ElemCoords"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ElemCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ElemCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.elemconn_var = cfg_bmi["ElemConn"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.numelemconn_var = cfg_bmi["NumElemConn"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate NumElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate NumElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-
-        elif self.grid_type.lower() == "hydrofabric":
-            # Process the geogrid variable information
-            try:
-                self.nodecoords_var = cfg_bmi["NodeCoords"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate NodeCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate NodeCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.elemcoords_var = cfg_bmi["ElemCoords"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ElemCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ElemCoords for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.element_id_var = cfg_bmi["ElemID"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ElemID for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ElemID for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.elemconn_var = cfg_bmi["ElemConn"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            try:
-                self.numelemconn_var = cfg_bmi["NumElemConn"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate NumElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate NumElemConn for unstructured mesh in the configuration file.",
-                    e,
-                )
-
         # Process geospatial information
 
-        if self.geogrid:
-            LOG.debug(f"Geogrid: {self.geogrid}")
-        else:
-            try:
-                self.geogrid = cfg_bmi["GeogridIn"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate GeogridIn in the configuration file.", e
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate GeogridIn in the configuration file.", e
-                )
-
-        # Check for the optional geospatial land metadata file.
-        try:
-            self.spatial_meta = cfg_bmi["SpatialMetaIn"]
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate SpatialMetaIn in the configuration file.", e
-            )
         if len(self.spatial_meta) == 0:
             # No spatial metadata file found.
             self.spatial_meta = None
@@ -1057,1064 +1420,24 @@ class ConfigOptions:
                     + self.spatial_meta
                 )
 
-        if not self.precip_only_flag:
-            # Check for the IgnoredBorderWidths
-            try:
-                self.ignored_border_widths = cfg_bmi["IgnoredBorderWidths"]
-            except (KeyError, configparser.NoOptionError):
-                # if didn't specify, no worries, just set to 0
-                self.ignored_border_widths = [0.0] * self.number_inputs
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper IgnoredBorderWidths option specified in the configuration file."
-                    "({} was supplied".format(
-                        cfg_bmi["Geospatial"]["IgnoredBorderWidths"]
-                    ),
-                    e,
-                )
-            if len(self.ignored_border_widths) != self.number_inputs:
-                err_out_screen(
-                    "Please specify IgnoredBorderWidths values for each "
-                    "corresponding input forcings for SuppForcing."
-                    "({} was supplied".format(self.ignored_border_widths)
-                )
-            if any(map(lambda x: x < 0, self.ignored_border_widths)):
-                err_out_screen(
-                    "Please specify IgnoredBorderWidths values greater than or equal to zero:"
-                    "({} was supplied".format(self.ignored_border_widths)
-                )
-
-        if not self.precip_only_flag:
-            # Process regridding options.
-            try:
-                self.regrid_opt = cfg_bmi["RegridOpt"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate RegridOpt under the Regridding section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate RegridOpt under the Regridding section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper RegridOpt options specified in the configuration file.", e
-                )
-            if len(self.regrid_opt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify RegridOpt values for each corresponding input forcings in the configuration file.",
-                    e,
-                )
-            # Check to make sure regridding options makes sense.
-            for regridOpt in self.regrid_opt:
-                if regridOpt < 1 or regridOpt > 3:
-                    err_out_screen(
-                        "Invalid RegridOpt chosen in the configuration file. Please choose a "
-                        "value of 1-2 for each corresponding input forcing."
-                    )
-            try:
-                # Read weight file directory (optional)
-                self.weightsDir = cfg_bmi["RegridWeightsDir"]
-            except Exception:
-                # Set wieghtsDir to None; this will create regrid object in memory
-                self.weightsDir = None
-            if self.weightsDir:
-                # if we do have one specified, make sure it exists
-                if not os.path.exists(self.weightsDir):
-                    err_out_screen(
-                        "ESMF Weights file directory specified ({}) but does not exist"
-                    ).format(self.weightsDir)
-
         # Calculate the beginning/ending processing dates if we are running realtime
         if self.realtime_flag:
             calculate_lookback_window(self)
 
         # Create temporary array to hold flags if we need input parameter files.
-        param_flag = np.empty([len(self.input_forcings)], int)
-        param_flag[:] = 0
-        if not self.precip_only_flag:
-            # Read in temporal interpolation options.
-            try:
-                self.forceTemoralInterp = cfg_bmi["ForcingTemporalInterpolation"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ForcingTemporalInterpolation under the Interpolation section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ForcingTemporalInterpolation under the Interpolation section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper ForcingTemporalInterpolation options specified in the configuration file.",
-                    e,
-                )
-            if len(self.forceTemoralInterp) != self.number_inputs:
-                err_out_screen(
-                    "Please specify ForcingTemporalInterpolation values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the forcingTemporalInterpolation values make sense.
-            for temporalInterpOpt in self.forceTemoralInterp:
-                if temporalInterpOpt < 0 or temporalInterpOpt > 2:
-                    err_out_screen(
-                        "Invalid ForcingTemporalInterpolation chosen in the configuration file. "
-                        "Please choose a value of 0-2 for each corresponding input forcing."
-                    )
+        param_flag = np.zeros([len(self.input_forcings)], int)
 
-            # Read in the temperature downscaling options.
-            try:
-                self.t2dDownscaleOpt = cfg_bmi["TemperatureDownscaling"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate TemperatureDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate TemperatureDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper TemperatureDownscaling options specified in the configuration file.",
-                    e,
-                )
-            if len(self.t2dDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify TemperatureDownscaling values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the downscaling options chosen make sense.
-            count_tmp = 0
-            for optTmp in self.t2dDownscaleOpt:
-                if optTmp < 0 or optTmp > 2:
-                    err_out_screen(
-                        "Invalid TemperatureDownscaling options specified in the configuration file."
-                    )
-                if optTmp == 2:
-                    param_flag[count_tmp] = 1
-                count_tmp = count_tmp + 1
-
-            # Read in the pressure downscaling options.
-            try:
-                self.psfcDownscaleOpt = cfg_bmi["PressureDownscaling"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate PressureDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate PressureDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper PressureDownscaling options specified in the configuration file."
-                )
-            if len(self.psfcDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify PressureDownscaling values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the downscaling options chosen make sense.
-            for optTmp in self.psfcDownscaleOpt:
-                if optTmp < 0 or optTmp > 1:
-                    err_out_screen(
-                        "Invalid PressureDownscaling options specified in the configuration file."
-                    )
-
-            # Read in the shortwave downscaling options
-            try:
-                self.swDownscaleOpt = cfg_bmi["ShortwaveDownscaling"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate ShortwaveDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate ShortwaveDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper ShortwaveDownscaling options specified in the configuration file.",
-                    e,
-                )
-            if len(self.swDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify ShortwaveDownscaling values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the downscaling options chosen make sense.
-            for optTmp in self.swDownscaleOpt:
-                if optTmp < 0 or optTmp > 1:
-                    err_out_screen(
-                        "Invalid ShortwaveDownscaling options specified in the configuration file."
-                    )
-
-            # Read in humidity downscaling options.
-            try:
-                self.q2dDownscaleOpt = cfg_bmi["HumidityDownscaling"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate HumidityDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate HumidityDownscaling under the Downscaling section of the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper HumidityDownscaling options specified in the configuration file.",
-                    e,
-                )
-            if len(self.q2dDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify HumidityDownscaling values for each corresponding "
-                    "input forcings in the configuration file."
-                )
-            # Ensure the downscaling options chosen make sense.
-            for optTmp in self.q2dDownscaleOpt:
-                if optTmp < 0 or optTmp > 1:
-                    err_out_screen(
-                        "Invalid HumidityDownscaling options specified in the configuration file."
-                    )
-
-        # Read in the precipitation downscaling options
-        try:
-            self.precipDownscaleOpt = cfg_bmi["PrecipDownscaling"]
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate PrecipDownscaling under the Downscaling section of the configuration file.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate PrecipDownscaling under the Downscaling section of the configuration file.",
-                e,
-            )
-        except json.decoder.JSONDecodeError as e:
-            err_out_screen(
-                "Improper PrecipDownscaling options specified in the configuration file.",
-                e,
-            )
-        if not self.precip_only_flag:
-            if len(self.precipDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify PrecipDownscaling values for each corresponding "
-                    "input forcings in the configuration file."
-                )
-        # Ensure the downscaling options chosen make sense.
         count_tmp = 0
         for optTmp in self.precipDownscaleOpt:
-            if optTmp < 0 or optTmp > 1:
-                err_out_screen(
-                    "Invalid PrecipDownscaling options specified in the configuration file."
-                )
             if optTmp == 1:
                 param_flag[count_tmp] = 1
             count_tmp = count_tmp + 1
 
-        # Read in the downscaling parameter directory.
-        try:
-            self.dScaleParamDirs = cfg_bmi["DownscalingParamDirs"]
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate DownscalingParamDirs in the configuration file.", e
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate DownscalingParamDirs in the configuration file.", e
-            )
-        if len(self.dScaleParamDirs) != len(self.input_forcings):
-            err_out_screen(
-                "Please specify a downscaling parameter directory for each "
-                "corresponding downscaling option that requires one."
-            )
-        # Loop through each downscaling parameter directory and make sure they exist.
-        for dirTmp in range(0, len(self.dScaleParamDirs)):
-            if not os.path.isdir(self.dScaleParamDirs[dirTmp]):
-                err_out_screen(
-                    "Unable to locate parameter directory: "
-                    + os.path.abspath(self.dScaleParamDirs[dirTmp])
-                )
-
-        if (
-            [1] in self.q2dDownscaleOpt
-            or [1] in self.swDownscaleOpt
-            or [1] in self.psfcDownscaleOpt
-            or [1, 2] in self.t2dDownscaleOpt
-        ):
-            # Process the geogrid information for downscaling
-            try:
-                self.sinalpha_var = cfg_bmi["SINALPHA"]
-            except Exception:
-                self.sinalpha_var = None
-            try:
-                self.cosalpha_var = cfg_bmi["COSALPHA"]
-            except Exception:
-                self.cosalpha_var = None
-            if self.grid_type.lower() == "hydrofabric":
-                try:
-                    self.slope_var = cfg_bmi["SLOPE"]
-                except KeyError as e:
-                    err_out_screen(
-                        "Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-                except configparser.NoOptionError as e:
-                    err_out_screen(
-                        "Unable to locate SLOPE variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-                try:
-                    self.slope_azimuth_var = cfg_bmi["SLOPE_AZIMUTH"]
-                except KeyError as e:
-                    err_out_screen(
-                        "Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-                except configparser.NoOptionError as e:
-                    err_out_screen(
-                        "Unable to locate SLOPE_AZIMUTH variable in the hydrofabric configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-            else:
-                try:
-                    self.slope_var = cfg_bmi["SLOPE"]
-                except Exception:
-                    self.slope_var = None
-                try:
-                    self.slope_azimuth_var = cfg_bmi["SLOPE_AZIMUTH"]
-                except Exception:
-                    self.slope_azimuth_var = None
-                if self.grid_type.lower() == "unstructured":
-                    try:
-                        self.slope_var_elem = cfg_bmi["SLOPE_ELEM"]
-                    except Exception:
-                        self.slope_var_elem = None
-                    try:
-                        self.slope_azimuth_var_elem = cfg_bmi["SLOPE_AZIMUTH_ELEM"]
-                    except Exception:
-                        self.slope_azimuth_var_elem = None
-
-            if self.grid_type.lower() == "unstructured":
-                try:
-                    self.hgt_elem_var = cfg_bmi["HGTVAR_ELEM"]
-                except KeyError as e:
-                    err_out_screen(
-                        "Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-                except configparser.NoOptionError as e:
-                    err_out_screen(
-                        "Unable to locate HGTVAR_ELEM in the configuration file. Required variable since user turned on a downscaling option.",
-                        e,
-                    )
-
-            try:
-                self.hgt_var = cfg_bmi["HGTVAR"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate HGTVAR in the configuration file. Required variable since user turned on a downscaling option.",
-                    e,
-                )
-
-        #   * Bias Correction Options *
-        if not self.precip_only_flag:
-            # Read in temperature bias correction options
-            try:
-                self.t2BiasCorrectOpt = cfg_bmi["TemperatureBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate TemperatureBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate TemperatureBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper TemperatureBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.t2BiasCorrectOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify TemperatureBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.t2BiasCorrectOpt:
-                if optTmp < 0 or optTmp > 4:
-                    err_out_screen(
-                        "Invalid TemperatureBiasCorrection options specified in the configuration file."
-                    )
-
-            # Read in surface pressure bias correction options.
-            try:
-                self.psfcBiasCorrectOpt = cfg_bmi["PressureBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate PressureBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate PressureBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper PressureBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.psfcDownscaleOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify PressureBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.psfcBiasCorrectOpt:
-                if optTmp < 0 or optTmp > 1:
-                    err_out_screen(
-                        "Invalid PressureBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Read in humidity bias correction options.
-            try:
-                self.q2BiasCorrectOpt = cfg_bmi["HumidityBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate HumidityBiasCorrection under the  BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate HumidityBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper HumdityBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.q2BiasCorrectOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify HumidityBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.q2BiasCorrectOpt:
-                if optTmp < 0 or optTmp > 2:
-                    err_out_screen(
-                        "Invalid HumidityBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Read in wind bias correction options.
-            try:
-                self.windBiasCorrect = cfg_bmi["WindBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate WindBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate WindBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper WindBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.windBiasCorrect) != self.number_inputs:
-                err_out_screen(
-                    "Please specify WindBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.windBiasCorrect:
-                if optTmp < 0 or optTmp > 4:
-                    err_out_screen(
-                        "Invalid WindBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Read in shortwave radiation bias correction options.
-            try:
-                self.swBiasCorrectOpt = cfg_bmi["SwBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SwBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SwBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper SwBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.swBiasCorrectOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify SwBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.swBiasCorrectOpt:
-                if optTmp < 0 or optTmp > 2:
-                    err_out_screen(
-                        "Invalid SwBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Read in longwave radiation bias correction options.
-            try:
-                self.lwBiasCorrectOpt = cfg_bmi["LwBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate LwBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate LwBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper LwBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if len(self.lwBiasCorrectOpt) != self.number_inputs:
-                err_out_screen(
-                    "Please specify LwBiasCorrection values for each corresponding input forcings in the configuration file."
-                )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.lwBiasCorrectOpt:
-                if optTmp < 0 or optTmp > 4:
-                    err_out_screen(
-                        "Invalid LwBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Read in precipitation bias correction options.
-            try:
-                self.precipBiasCorrectOpt = cfg_bmi["PrecipBiasCorrection"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate PrecipBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate PrecipBiasCorrection under the BiasCorrection section of the configuration file.",
-                    e,
-                )
-            except json.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper PrecipBiasCorrection options specified in the configuration file.",
-                    e,
-                )
-            if not self.precip_only_flag:
-                if len(self.precipBiasCorrectOpt) != self.number_inputs:
-                    err_out_screen(
-                        "Please specify PrecipBiasCorrection values for each corresponding input forcings in the configuration file."
-                    )
-            # Ensure the bias correction options chosen make sense.
-            for optTmp in self.precipBiasCorrectOpt:
-                if optTmp < 0 or optTmp > 1:
-                    err_out_screen(
-                        "Invalid PrecipBiasCorrection options specified in the configuration file."
-                    )
-                if optTmp == 1:
-                    # We are running NWM-Specific bias-correction of CFSv2 that needs to take place prior to regridding.
-                    self.runCfsNldasBiasCorrect = True
-
-            # Putting a constraint here that CFSv2-NLDAS bias correction (NWM only) is chosen, it must be turned on
-            # for ALL variables.
-            if self.runCfsNldasBiasCorrect:
-                if (
-                    min(self.precipBiasCorrectOpt) != 1
-                    and max(self.precipBiasCorrectOpt) != 1
-                ):
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for Precipitation under this configuration."
-                    )
-                if min(self.lwBiasCorrectOpt) != 1 and max(self.lwBiasCorrectOpt) != 1:
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for long-wave radiation under this configuration."
-                    )
-                if min(self.swBiasCorrectOpt) != 1 and max(self.swBiasCorrectOpt) != 1:
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for short-wave radiation under this configuration."
-                    )
-                if min(self.t2BiasCorrectOpt) != 1 and max(self.t2BiasCorrectOpt) != 1:
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for surface temperature under this configuration."
-                    )
-                if min(self.windBiasCorrect) != 1 and max(self.windBiasCorrect) != 1:
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for wind forcings under this configuration."
-                    )
-                if min(self.q2BiasCorrectOpt) != 1 and max(self.q2BiasCorrectOpt) != 1:
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for specific humidity under this configuration."
-                    )
-                if (
-                    min(self.psfcBiasCorrectOpt) != 1
-                    and max(self.psfcBiasCorrectOpt) != 1
-                ):
-                    err_out_screen(
-                        "CFSv2-NLDAS NWM bias correction must be activated for surface pressure under this configuration."
-                    )
-                # Make sure we don't have any other forcings activated. This can only be ran for CFSv2.
-                for opt_tmp in self.input_forcings:
-                    if opt_tmp != 7:
-                        err_out_screen(
-                            "CFSv2-NLDAS NWM bias correction can only be used in CFSv2-only configurations"
-                        )
-
-        # Read in supplemental precipitation options as an array of values to map.
-        try:
-            self.supp_precip_forcings = cfg_bmi["SuppPcp"]
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate SuppPcp under SuppForcing section in configuration file.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate SuppPcp under SuppForcing section in configuration file.",
-                e,
-            )
-        except json.decoder.JSONDecodeError as e:
-            err_out_screen("Improper SuppPcp option specified in configuration file", e)
-        self.number_supp_pcp = len(self.supp_precip_forcings)
-
-        # Read in the supp pcp types (GRIB[1|2], NETCDF)
-        try:
-            self.supp_precip_file_types = cfg_bmi["SuppPcpForcingTypes"]
-            self.supp_precip_file_types = [
-                stype.strip() for stype in self.supp_precip_file_types
-            ]
-            if self.supp_precip_file_types == [""]:
-                self.supp_precip_file_types = []
-        except KeyError as e:
-            err_out_screen(
-                "Unable to locate SuppPcpForcingTypes in SuppForcing section in the configuration file.",
-                e,
-            )
-        except configparser.NoOptionError as e:
-            err_out_screen(
-                "Unable to locate SuppPcpForcingTypes in SuppForcing section in the configuration file.",
-                e,
-            )
-        if len(self.supp_precip_file_types) != self.number_supp_pcp:
-            err_out_screen(
-                "Number of SuppPcpForcingTypes ({}) must match the number "
-                "of SuppPcp inputs ({}) in the configuration file.".format(
-                    len(self.supp_precip_file_types), self.number_supp_pcp
-                )
-            )
-        for file_type in self.supp_precip_file_types:
-            if file_type not in ["GRIB1", "GRIB2", "NETCDF"]:
-                err_out_screen(
-                    'Invalid SuppForcing file type "{}" specified. '
-                    "Only GRIB1, GRIB2, and NETCDF are supported".format(file_type)
-                )
-
-        if self.number_supp_pcp > 0:
-            # Check to make sure supplemental precip options make sense. Also read in the RQI threshold
-            # if any radar products where chosen.
             for suppOpt in self.supp_precip_forcings:
-                if suppOpt < 0 or suppOpt > 15:
+                if suppOpt not in list(range(1, self.supp_precip_count + 1)):
                     err_out_screen(
-                        "Please specify SuppForcing values between 1 and 15."
+                        f"Please specify SuppForcing values between 1 and {self.supp_precip_count}."
                     )
-                # Read in RQI threshold to apply to radar products.
-                if suppOpt in (1, 2, 7, 10, 11, 12):
-                    try:
-                        self.rqiMethod = cfg_bmi["RqiMethod"]
-                    except KeyError as e:
-                        err_out_screen(
-                            "Unable to locate RqiMethod under SuppForcing section in the configuration file.",
-                            e,
-                        )
-                    except configparser.NoOptionError as e:
-                        err_out_screen(
-                            "Unable to locate RqiMethod under SuppForcing section in the configuration file.",
-                            e,
-                        )
-                    except json.decoder.JSONDecodeError as e:
-                        err_out_screen(
-                            "Improper RqiMethod option in the configuration file.", e
-                        )
-
-                    # Check that if we have more than one RqiMethod, it's the correct number
-                    if type(self.rqiMethod) is list:
-                        if len(self.rqiMethod) != self.number_supp_pcp:
-                            err_out_screen(
-                                "Number of RqiMethods ({}) must match the number "
-                                "of SuppPcp inputs ({}) in the configuration file, or "
-                                "supply a single method for all inputs".format(
-                                    len(self.rqiMethod), self.number_supp_pcp
-                                )
-                            )
-                    elif type(self.rqiMethod) is int:
-                        # Support 'classic' mode of single method
-                        self.rqiMethod = [self.rqiMethod] * self.number_supp_pcp
-
-                    # Make sure the RqiMethod(s) makes sense.
-                    for method in self.rqiMethod:
-                        if method < 0 or method > 2:
-                            err_out_screen(
-                                "Please specify RqiMethods of either 0, 1, or 2."
-                            )
-
-                    try:
-                        self.rqiThresh = cfg_bmi["RqiThreshold"]
-                    except KeyError as e:
-                        err_out_screen(
-                            "Unable to locate RqiThreshold under SuppForcing section in the configuration file.",
-                            e,
-                        )
-                    except configparser.NoOptionError as e:
-                        err_out_screen(
-                            "Unable to locate RqiThreshold under SuppForcing section in the configuration file.",
-                            e,
-                        )
-                    except json.decoder.JSONDecodeError as e:
-                        err_out_screen(
-                            "Improper RqiThreshold option in the configuration file.", e
-                        )
-
-                    # Check that if we have more than one RqiThreshold, it's the correct number
-                    if type(self.rqiThresh) is list:
-                        if len(self.rqiThresh) != self.number_supp_pcp:
-                            err_out_screen(
-                                "Number of RqiThresholds ({}) must match the number "
-                                "of SuppPcp inputs ({}) in the configuration file, or "
-                                "supply a single threshold for all inputs".format(
-                                    len(self.rqiThresh), self.number_supp_pcp
-                                )
-                            )
-                    elif type(self.rqiThresh) is float:
-                        # Support 'classic' mode of single threshold
-                        self.rqiThresh = [self.rqiThresh] * self.number_supp_pcp
-
-                    # Make sure the RQI threshold makes sense.
-                    for threshold in self.rqiThresh:
-                        if threshold < 0.0 or threshold > 1.0:
-                            err_out_screen(
-                                "Please specify RqiThresholds between 0.0 and 1.0."
-                            )
-
-            # Read in the input directories for each supplemental precipitation product.
-            try:
-                self.supp_precip_dirs = cfg_bmi["SuppPcpDirectories"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpDirectories in SuppForcing section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpDirectories in SuppForcing section in the configuration file.",
-                    e,
-                )
-
-            # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
-            # or new line characters.
-            for dirTmp in range(0, len(self.supp_precip_dirs)):
-                self.supp_precip_dirs[dirTmp] = self.supp_precip_dirs[dirTmp].strip()
-                if not os.path.isdir(self.supp_precip_dirs[dirTmp]):
-                    try:
-                        os.makedirs(self.supp_precip_dirs[dirTmp], exist_ok=True)
-                        LOG.debug(
-                            f"Created supp pcp directory: {self.supp_precip_dirs[dirTmp]}"
-                        )
-                    except OSError as e:
-                        err_out_screen(
-                            f"Unable to create supp pcp directory: {self.supp_precip_dirs[dirTmp]}. Error: {e}"
-                        )
-
-            # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
-            if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
-                if len(self.supp_precip_forcings) != 1:
-                    err_out_screen(
-                        "CONUS or Alaska Stage IV/MRMS SuppPcp option is only supported as a standalone option"
-                    )
-                self.supp_precip_dirs = [",".join(self.supp_precip_dirs)]
-
-            if len(self.supp_precip_dirs) != self.number_supp_pcp:
-                err_out_screen(
-                    "Number of SuppPcpDirectories must match the number of SuppForcing in the configuration file."
-                )
-
-            # Process supplemental precipitation enforcement options
-            try:
-                self.supp_precip_mandatory = cfg_bmi["SuppPcpMandatory"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpMandatory under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpMandatory under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper SuppPcpMandatory options specified in the configuration file.",
-                    e,
-                )
-            if len(self.supp_precip_mandatory) != self.number_supp_pcp:
-                err_out_screen(
-                    "Please specify SuppPcpMandatory values for each corresponding "
-                    "supplemental precipitation options in the configuration file."
-                )
-            # Check to make sure enforcement options makes sense.
-            for enforceOpt in self.supp_precip_mandatory:
-                if enforceOpt < 0 or enforceOpt > 1:
-                    err_out_screen(
-                        "Invalid SuppPcpMandatory chosen in the configuration file. "
-                        "Please choose a value of 0 or 1 for each corresponding "
-                        "supplemental precipitation product."
-                    )
-
-            # Read in the regridding options.
-            try:
-                self.regrid_opt_supp_pcp = cfg_bmi["RegridOptSuppPcp"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate RegridOptSuppPcp under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate RegridOptSuppPcp under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper RegridOptSuppPcp options specified in the configuration file.",
-                    e,
-                )
-            if len(self.regrid_opt_supp_pcp) != self.number_supp_pcp:
-                err_out_screen(
-                    "Please specify RegridOptSuppPcp values for each corresponding supplemental "
-                    "precipitation product in the configuration file."
-                )
-            # Check to make sure regridding options makes sense.
-            for regridOpt in self.regrid_opt_supp_pcp:
-                if regridOpt < 1 or regridOpt > 3:
-                    err_out_screen(
-                        "Invalid RegridOptSuppPcp chosen in the configuration file. "
-                        "Please choose a value of 1-3 for each corresponding "
-                        "supplemental precipitation product."
-                    )
-
-            # Read in temporal interpolation options.
-            try:
-                self.suppTemporalInterp = cfg_bmi["SuppPcpTemporalInterpolation"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpTemporalInterpolation under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpTemporalInterpolation under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper SuppPcpTemporalInterpolation options specified in the configuration file.",
-                    e,
-                )
-            if len(self.suppTemporalInterp) != self.number_supp_pcp:
-                err_out_screen(
-                    "Please specify SuppPcpTemporalInterpolation values for each "
-                    "corresponding supplemental precip products in the configuration file."
-                )
-            # Ensure the SuppPcpTemporalInterpolation values make sense.
-            for temporalInterpOpt in self.suppTemporalInterp:
-                if temporalInterpOpt < 0 or temporalInterpOpt > 2:
-                    err_out_screen(
-                        "Invalid SuppPcpTemporalInterpolation chosen in the configuration file. "
-                        "Please choose a value of 0-2 for each corresponding input forcing"
-                    )
-
-            # Read in max time option
-            try:
-                self.supp_pcp_max_hours = cfg_bmi["SuppPcpMaxHours"]
-            except (KeyError, configparser.NoOptionError):
-                self.supp_pcp_max_hours = (
-                    None  # if missing, don't care, just assume all time
-                )
-
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper SuppPcpMaxHours options specified in the configuration file.",
-                    e,
-                )
-
-            if type(self.supp_pcp_max_hours) is list:
-                if len(self.supp_pcp_max_hours) != self.number_supp_pcp:
-                    err_out_screen(
-                        "Number of SuppPcpMaxHours ({}) must match the number "
-                        "of SuppPcp inputs ({}) in the configuration file, or "
-                        "supply a single threshold for all inputs".format(
-                            len(self.supp_pcp_max_hours), self.number_supp_pcp
-                        )
-                    )
-            elif type(self.supp_pcp_max_hours) is float:
-                # Support 'classic' mode of single threshold
-                self.supp_pcp_max_hours = [
-                    self.supp_pcp_max_hours
-                ] * self.number_supp_pcp
-
-            # Read in the SuppPcpInputOffsets options.
-            try:
-                self.supp_input_offsets = cfg_bmi["SuppPcpInputOffsets"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpInputOffsets under SuppForcing section in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpInputOffsets under SuppForcing section in the configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as e:
-                err_out_screen(
-                    "Improper SuppPcpInputOffsets option specified in the configuration file.",
-                    e,
-                )
-            if len(self.supp_input_offsets) != self.number_supp_pcp:
-                err_out_screen(
-                    "Please specify SuppPcpInputOffsets values for each "
-                    "corresponding input forcings for SuppForcing."
-                )
-            # Check to make sure the input offset options make sense. There will be additional
-            # checking later when input choices are mapped to input products.
-            for inputOffset in self.supp_input_offsets:
-                if inputOffset < 0:
-                    err_out_screen(
-                        "Please specify SuppPcpInputOffsets values greater than or equal to zero."
-                    )
-
-            # Read in the optional parameter directory for supplemental precipitation.
-            try:
-                self.supp_precip_param_dir = cfg_bmi["SuppPcpParamDir"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpParamDir under the SuppForcing section  in the configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate SuppPcpParamDir under the SuppForcing section in the configuration file.",
-                    e,
-                )
-            except ValueError as e:
-                err_out_screen(
-                    "Improper SuppPcpParamDir option specified in the configuration file.",
-                    e,
-                )
-            if not os.path.isdir(self.supp_precip_param_dir):
-                try:
-                    os.makedirs(self.supp_precip_param_dir, exist_ok=True)
-                    LOG.debug(
-                        f"Created missing SuppPcpParamDir: {self.supp_precip_param_dir}"
-                    )
-                except OSError as e:
-                    err_out_screen(
-                        f"Unable to locate SuppPcpParamDir: {self.supp_precip_param_dir}. Error: {e}"
-                    )
-
-        if not self.precip_only_flag:
-            # Read in Ensemble information
-            # Read in CFS ensemble member information IF we have chosen CFSv2 as an input
-            # forcing.
-            for opt_tmp in self.input_forcings:
-                if opt_tmp == 7:
-                    try:
-                        self.cfsv2EnsMember = cfg_bmi["cfsEnsNumber"]
-                        LOG.debug(f"ens mem: {self.cfsv2EnsMember}")
-                        LOG.debug(f"cfg ens mem: {cfg_bmi['cfsEnsNumber']}")
-                    except KeyError as e:
-                        err_out_screen(
-                            "Unable to locate cfsEnsNumber under the Ensembles section of the configuration file",
-                            e,
-                        )
-                    except configparser.NoOptionError as e:
-                        err_out_screen(
-                            "Unable to locate cfsEnsNumber under the Ensembles section of the configuration file",
-                            e,
-                        )
-                    except json.JSONDecodeError as e:
-                        err_out_screen(
-                            "Improper cfsEnsNumber options specified in the configuration file",
-                            e,
-                        )
-                    if int(self.cfsv2EnsMember) < 1 or int(self.cfsv2EnsMember) > 4:
-                        err_out_screen(
-                            "Please chose an cfsEnsNumber value of 1,2,3 or 4."
-                        )
-
-            # Read in information for the custom input NetCDF files that are to be processed.
-            # Read in the ForecastInputHorizons options.
-            try:
-                self.customFcstFreq = cfg_bmi["custom_input_fcst_freq"]
-            except KeyError as e:
-                err_out_screen(
-                    "Unable to locate custom_input_fcst_freq under Custom section in configuration file.",
-                    e,
-                )
-            except configparser.NoOptionError as e:
-                err_out_screen(
-                    "Unable to locate custom_input_fcst_freq under Custom section in configuration file.",
-                    e,
-                )
-            except json.decoder.JSONDecodeError as je:
-                err_out_screen(
-                    "Improper custom_input_fcst_freq  option specified in configuration file: "
-                    + str(je)
-                )
-            if len(self.customFcstFreq) != self.number_custom_inputs:
-                err_out_screen(
-                    f"Improper custom_input fcst_freq specified. "
-                    f"This number ({len(self.customFcstFreq)}) must "
-                    f"match the frequency of custom input forcings selected "
-                    f"({self.number_custom_inputs})."
-                )
 
     @property
     def nwm_domain(self) -> str:
