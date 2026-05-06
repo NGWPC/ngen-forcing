@@ -6,12 +6,12 @@ This directory contains tests for the NextGen Forcing BMI Engine.
 
 Tests data is included in the `test_data` directory and includes configs, gpkgs, esmf_meshes, expected results and actual results. While the configs, gpkgs, esmf_meshes and expectd results are included in the repo and can be used as is, the following steps can be taken to re-create these test inputs.
 
----   
+---
 The initial test data was generated using `nwm-rte` to create a calibration realization
 for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
 using `nwm-rte's` run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
 
-More specifically the initial expected test data was developed with these specific configurations in `config.bashrc`. 
+More specifically the initial expected test data was developed with these specific configurations in `config.bashrc`.
 ```
 REPO_TAG_FCST_MGR="856fc0e1201076df909e56c7cd384f58e82965a2"
 REPO_TAG_MSW_MGR="693c206a22b5e9ffcca3103166c0ca59e2b11b25"
@@ -34,6 +34,7 @@ The test suite is organized into the following modules:
 - **`esmf_regrid/`** - Tests for ESMF regridding functionality
 - **`geomod/`** - Tests for geomod components
 - **`input_forcing/`** - Tests for input forcing data processing
+- **`bmi_model/`** - Tests for the BMI model lifecycle
 - **`test_utils.py`** - Shared test utilities and fixtures
 - **`conftest.py`** - Pytest configuration and shared fixtures
 
@@ -85,10 +86,14 @@ Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/esmf_regr
 # GeoMod tests
 Single processor: ( cd src/ngen-forcing && pytest tests/geomod)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/geomod)
- 
+
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/input_forcing)
+
+# BMI model tests
+Single processor: ( cd src/ngen-forcing && pytest tests/bmi_model)
+Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/bmi_model)
 ```
 
 Create new test output data (creates expected outputs for subsequent tests)
@@ -104,9 +109,13 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing)
+
+# BMI model tests
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/bmi_model)
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/bmi_model)
 ```
 
-In the rare case where you want to create new `expected` data and run the tests using `old` variable names use the following for `Input Forcing Tests`: 
+In the rare case where you want to create new `expected` data and run the tests using `old` variable names use the following for `Input Forcing Tests`:
 ```bash
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing --map_old_to_new_var_names False)
@@ -119,7 +128,7 @@ The test suite is configured via `pytest.ini` at the repository root:
 - **Python path**: Set to repository root (`.`)
 - **Logging**: Enabled with INFO level (DEBUG available by uncommenting)
 - **Verbosity**: Full trace with verbose output (`-vv`)
-- **Test paths**: Pre-configured to discover tests in `esmf_regrid`, `geomod`, and `input_forcing`
+- **Test paths**: Pre-configured to discover tests in `esmf_regrid`, `geomod`, `input_forcing`, and `bmi_model`
 
 
 ## Test Data
@@ -145,10 +154,10 @@ def test_my_feature():
     """Test description."""
     # Arrange
     input_data = ...
-    
+
     # Act
     result = function_under_test(input_data)
-    
+
     # Assert
     assert result == expected_output
 ```

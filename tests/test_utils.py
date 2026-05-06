@@ -426,6 +426,36 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         self.test_file_name_prefix = "input_forcing"
 
 
+class BMIForcingFixture_BmiModel(BMIForcingFixture_Class):
+    """Test fixture for BMI model tests."""
+
+    def __init__(
+        self,
+        bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
+        keys_to_check: tuple = (),
+        keys_to_exclude: tuple = (),
+    ) -> None:
+        """Initialize BMIForcingFixture_BmiModel.
+
+        Args:
+        ----
+            bmi_model: the BMI model to be used in the test fixture
+            keys_to_check: The keys to check
+            keys_to_exclude: The keys to exclude from the test results json and from
+                equality checks, for example because they contain non-deterministic
+                values or values that are not relevant to the test.
+
+        """
+        super().__init__(
+            bmi_model=bmi_model,
+            keys_to_check=keys_to_check,
+            keys_to_exclude=keys_to_exclude,
+        )
+        self.test_class = self.bmi_model
+
+        self.test_file_name_prefix = "bmi_model"
+
+
 class BMIForcingFixture_Regrid(BMIForcingFixture):
     def __init__(
         self,
