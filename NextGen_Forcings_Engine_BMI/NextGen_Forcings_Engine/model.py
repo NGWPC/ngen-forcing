@@ -29,8 +29,17 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3ConusProcessor,
     NWMV3OConusProcessor,
 )
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    LoggerWithPayload,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    Payload as Pld,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    Status as St,
+)
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = LoggerWithPayload(ewts.get_logger(ewts.FORCING_ID))
 
 
 @contextmanager
@@ -123,6 +132,9 @@ class NWMv3ForcingEngineModel:
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
+        LOG.debug(
+            "", Pld(St.INPROG, msg=f"Starting timestep with future_time={future_time}")
+        )
         (
             future_time,
             config_options,

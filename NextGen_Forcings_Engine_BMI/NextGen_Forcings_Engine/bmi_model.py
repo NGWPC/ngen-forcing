@@ -36,6 +36,15 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     UnstructuredGeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    LoggerWithPayload,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    Payload as Pld,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    Status as St,
+)
 
 from .core import (
     err_handler,
@@ -63,7 +72,7 @@ from typing import Any
 import ewts
 from numpy.typing import NDArray
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = LoggerWithPayload(ewts.get_logger(ewts.FORCING_ID))
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
@@ -183,7 +192,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         LOG.bind()
 
         LOG.info("---------------------------")
-        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
+        LOG.info(
+            f"BMI Forcing Engine initializing with {config_file}", pld=Pld(St.INITTING)
+        )
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
@@ -355,6 +366,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         self._configure_output_path(output_path)
 
+        LOG.info("BMI Forcing Engine initialized", pld=Pld(St.INITTED))
+
     def initialize_with_params(
         self,
         config_file: str,
@@ -521,6 +534,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # the job, and let the workflow clean them up after the
         # process exits
         gc.collect()  # make sure objects are deleted from memory
+        LOG.info("", Pld(St.COMPLETE))
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------

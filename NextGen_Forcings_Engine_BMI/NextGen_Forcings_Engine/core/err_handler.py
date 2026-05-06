@@ -4,13 +4,17 @@ import os
 import sys
 import traceback
 
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 import numpy as np
 from mpi4py import MPI
 from scipy import spatial
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
-LOG = ewts.get_logger(ewts.FORCING_ID)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.status_report import (
+    LoggerWithPayload,
+)
+
+LOG = LoggerWithPayload(ewts.get_logger(ewts.FORCING_ID))
 
 
 def in_exception_context() -> bool:
