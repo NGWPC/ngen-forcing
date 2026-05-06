@@ -48,7 +48,12 @@ class Payload(BaseModel):
 
 
 class LoggerWithPayload:
-    """Wrapper around ewts.logger.EwtsLogger to enable injection of JSON payload into messages."""
+    """Wrapper around ewts.logger.EwtsLogger to enable injection of JSON payload into messages.
+
+    Usage example:
+        LOG = LoggerWithPayload(ewts.get_logger(ewts.FORCING_ID))
+        LOG.info("This is the part of the msg not inside the payload", pld=Payload(Status.INPROG, 0.20, "Optional payload msg"))
+    """
 
     @validate_call(config=ConfigDict(arbitrary_types_allowed=True))
     def __init__(
