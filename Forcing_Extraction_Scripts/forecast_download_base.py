@@ -17,8 +17,7 @@ LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 class ForecastDownloader(ABC):
-    """
-    Abstract base class for structured forecast data downloads.
+    """Abstract base class for structured forecast data downloads.
 
     Supports:
     - Retry-safe downloading
@@ -38,25 +37,24 @@ class ForecastDownloader(ABC):
 
     def __init__(
         self,
-        out_dir,
-        start_time,
-        lookback_hours,
-        cleanback_hours,
-        lagback_hours,
-        ens_number,
-      input_horizon=None
-    ):
-        """
-        Initialize downloader with common configuration.
+        out_dir: str,
+        start_time: datetime,
+        lookback_hours: int | None,
+        cleanback_hours: int | None,
+        lagback_hours: int | None,
+        ens_number: int | None,
+        input_horizon=None,
+    ) -> None:
+        """Initialize downloader with common configuration.
 
         :param out_dir: Root output directory where files are saved
-        : param start_time: time to start forcing extraction
+        :param start_time: time to start forcing extraction
         :param lookback_hours: How many hours back to fetch forecasts
         :param cleanback_hours: How far back to clean old files
         :param lagback_hours: How many hours to lag before starting to fetch
-        :param input_horizon: Maximum forecast hour to downlaod (None = download all available timesteps)
+        :param ens_number: Ensemble number to fetch (if applicable)
+        :param input_horizon: Maximum forecast hour to download (None = download all available timesteps)
         """
-
         global LOG
         if hasattr(LOG, "bind"):
             # This is required prior to the first log message for the ewts package
@@ -92,9 +90,7 @@ class ForecastDownloader(ABC):
         os.makedirs(self.out_dir, exist_ok=True)
 
     def effective_lagback(self):
-        """
-        Determines the effective lag back window to avoid downloading data
-        that may not yet be published on the upstream server.
+        """Determine the effective lag back window to avoid downloading data that may not yet be published on the upstream server.
 
         - By default, this returns self.lagback_hours, which is set from the
           command-line argument --lagBackHours (default: 6 hours).
@@ -114,18 +110,20 @@ class ForecastDownloader(ABC):
 
     @classmethod
     def from_cli_args(cls):
-        """
-        Create an instance of the subclass using command-line arguments.
+        """Create an instance of the subclass using command-line arguments.
+
         Also prints the parsed arguments for logging/debugging.
         """
         parser = argparse.ArgumentParser()
-        parser.add_argument('outDir', type=str, help="Output directory path")
-        parser.add_argument('startTime', type=lambda s: datetime.strptime(s, "%Y-%m-%d %H:%M:%S"))
-        parser.add_argument('--lookBackHours', type=int, default=cls.default_lookback)
-        parser.add_argument('--cleanBackHours', type=int, default=cls.default_cleanback)
-        parser.add_argument('--lagBackHours', type=int, default=cls.default_lagback)
-        parser.add_argument('--ensNumber', type=int, default=None)
-        parser.add_argument('--inputHorizon', type=int, default=None)
+        parser.add_argument("outDir", type=str, help="Output directory path")
+        parser.add_argument(
+            "startTime", type=lambda s: datetime.strptime(s, "%Y-%m-%d %H:%M:%S")
+        )
+        parser.add_argument("--lookBackHours", type=int, default=cls.default_lookback)
+        parser.add_argument("--cleanBackHours", type=int, default=cls.default_cleanback)
+        parser.add_argument("--lagBackHours", type=int, default=cls.default_lagback)
+        parser.add_argument("--ensNumber", type=int, default=None)
+        parser.add_argument("--inputHorizon", type=int, default=None)
         args = parser.parse_args()
 
         print(f"{cls.__name__} args:", vars(args))
@@ -137,13 +135,11 @@ class ForecastDownloader(ABC):
             cleanback_hours=args.cleanBackHours,
             lagback_hours=args.lagBackHours,
             ens_number=args.ensNumber,
-            input_horizon=args.inputHorizon
+            input_horizon=args.inputHorizon,
         )
 
     def run(self):
-        """
-        Main method that orchestrates lock acquisition, cleanup, and downloading.
-        """
+        """Cleanup old data, then download new data."""
         self._cleanup_old_data()
         self._download_data()
 
@@ -159,8 +155,7 @@ class ForecastDownloader(ABC):
 
     @abstractmethod
     def get_download_targets(self, d_start):
-        """
-        Return a list of download targets for a given forecast cycle time.
+        """Return a list of download targets for a given forecast cycle time.
 
         This defines what files to download for each cycle timestamp (d_start).
         - For forecast datasets, this might be a list of forecast hours: [0, 1, ..., 18]
@@ -172,8 +167,7 @@ class ForecastDownloader(ABC):
         pass
 
     def should_process_hour(self, d_start: datetime) -> bool:
-        """
-        Determine whether a given forecast cycle hour should be processed.
+        """Determine whether a given forecast cycle hour should be processed.
 
         This acts as a fast filter for both downloading and cleanup.
         - Return True if the timestamp is valid for processing (e.g., it's a 6-hour cycle).
@@ -188,13 +182,12 @@ class ForecastDownloader(ABC):
 
     @abstractmethod
     def build_output_dir(self, d_start, ens_number):
-        """
-        Return the output directory for the given forecast cycle datetime.
-        """
+        """Return the output directory for the given forecast cycle datetime."""
         pass
 
     @abstractmethod
     def build_file_url_and_name(self, d_start, target, ens_number):
+        """Return the download URL and filename for a given forecast hour."""
         pass
 
     #
@@ -203,21 +196,24 @@ class ForecastDownloader(ABC):
 
     @property
     def recursive_cleanup(self) -> bool:
-        """
-        If True, recursively delete leaf directories and prune empty parent directories.
+        """If True, recursively delete leaf directories and prune empty parent directories.
+
         If False, use default build_output_dir() cleanup per timestamp.
         """
         return False
 
     def pre_download_hook(self, d_start):
-        """
+        """Pre-download hook.
+
         Optional hook called before downloading begins for a specific cycle.
+
         Use this to scrape directories or cache target lists.
         """
         pass
 
     def post_download_hook(self, d_start):
-        """
+        """Post download hook.
+
         Optional hook called after downloading completes for a specific cycle.
         Use this for logging or post-processing.
         """
@@ -228,7 +224,8 @@ class ForecastDownloader(ABC):
     #
 
     def _cleanup_old_data(self):
-        """
+        """Cleanup old data based on the configured lookback and lagback hours.
+
         Cleans up old data using either:
         - default timestamp-based cleanup (subdirectory per forecast cycle)
         - recursive directory cleanup with pruning
@@ -250,9 +247,8 @@ class ForecastDownloader(ABC):
                     shutil.rmtree(dir_path)
 
     @staticmethod
-    def _remove_dir_and_empty_parents(path, levels=2):
-        """
-        Removes a directory and prunes up to `levels` empty parent directories.
+    def _remove_dir_and_empty_parents(path, levels: int = 2) -> None:
+        """Remove a directory and prunes up to `levels` empty parent directories.
 
         :param path: Path to the target directory to remove.
         :param levels: Max number of parent levels to prune if empty.
@@ -270,9 +266,9 @@ class ForecastDownloader(ABC):
                 else:
                     break
 
-    def _download_data(self):
-        """
-        Download forecast files by iterating over the desired time range and download targets.
+    def _download_data(self) -> None:
+        """Download forecast files by iterating over the desired time range and download targets.
+
         Each timestamp may have one or more targets to process.
         """
         LOG.info(
@@ -293,6 +289,7 @@ class ForecastDownloader(ABC):
             self.pre_download_hook(d_start)
 
             targets = self.get_download_targets(d_start)
+
             for target in targets:
                 url, filename = self.build_file_url_and_name(
                     d_start, target, self.ens_number
@@ -310,8 +307,8 @@ class ForecastDownloader(ABC):
 
     # noinspection PyMethodMayBeStatic
     def _download_file(self, url, out_path):
-        """
-        Download to a unique temporary file, then "publish" it atomically.
+        """Download to a unique temporary file, then "publish" it atomically.
+
         Publishing is done by creating a hard link to the final path.
         This guarantees:
           - no overwriting if another process wins the race
@@ -404,8 +401,7 @@ class ForecastDownloader(ABC):
 
 
 class FixedFileDownloader(ForecastDownloader, ABC):
-    """
-    Subclass for forecast datasets that consist of one or more fixed files per cycle.
+    """Subclass for forecast datasets that consist of one or more fixed files per cycle.
 
     Intended for sources like MRMS and StageIV that have predefined filenames and subdirectories,
     without forecast-hour-based iteration.
@@ -415,17 +411,17 @@ class FixedFileDownloader(ForecastDownloader, ABC):
     """
 
     def build_file_url_and_name(self, d_start, target):
+        """Not used in FixedFileDownloader, since get_file_specs() provides full subdir and filename."""
         raise NotImplementedError("FixedFileDownloader uses get_file_specs() instead.")
 
     def get_download_targets(self, d_start):
+        """Not used in FixedFileDownloader, since targets are provided by get_file_specs()."""
         # Not used in FixedFileDownloader
         return []
 
     @abstractmethod
     def get_file_specs(self, d_start) -> list[tuple[str, str]]:
-        """
-        Return a list of (subdir, filename) tuples for files to be downloaded
-        """
+        """Return a list of (subdir, filename) tuples for files to be downloaded."""
         pass
 
     def _download_data(self):
@@ -456,8 +452,7 @@ class FixedFileDownloader(ForecastDownloader, ABC):
 
 class ScrapedFileDownloader(ForecastDownloader, ABC):
     # No longer used, but keeping just in case
-    """
-    Subclass for forecast datasets that must scrape an HTML directory to discover files.
+    """Subclass for forecast datasets that must scrape an HTML directory to discover files.
 
     Intended for sources like NBM, where forecast files are published dynamically and filenames
     may vary by cycle.
@@ -469,21 +464,26 @@ class ScrapedFileDownloader(ForecastDownloader, ABC):
 
     @abstractmethod
     def get_scrape_url(self, d_start):
+        """Return the URL to scrape for a given forecast cycle timestamp."""
         pass
 
     @abstractmethod
     def filter_url(self, url: str) -> bool:
+        """Return True if the URL points to a valid file to download."""
         pass
 
     def get_download_targets(self, _):
+        """Not used in ScrapedFileDownloader, since targets are discovered via scraping."""
         return [0]  # Satisfy the abstract method; not used for scraping
 
     def build_file_url_and_name(self, d_start, target):
+        """Not used in ScrapedFileDownloader, since URLs and filenames are discovered via scraping."""
         raise NotImplementedError(
             "ScrapedFileDownloader uses scraping logic instead of build_file_url_and_name()."
         )
 
     def _download_data(self):
+        """Download forecast files by scraping directories for the desired time range."""
         LOG.info(
             f"ScrapedFileDownloader: Download data. lookback: {self.lookback_hours} lagback: {self.effective_lagback()}"
         )
