@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import typing
+from dataclasses import dataclass
 
 if typing.TYPE_CHECKING:
     from test_utils import ClassAttrFetcher
@@ -65,3 +65,8 @@ class TestConfig_Regrid(TestConfig_Base):
 @dataclass(kw_only=True)
 class TestConfig_AnA(TestConfig_Base):
     """Configuration class for Analysis and Assimilation tests."""
+
+
+@dataclass(kw_only=True)
+class TestConfig_BmiModel(TestConfig_Base):
+    """Configuration class for BMI model tests."""

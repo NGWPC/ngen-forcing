@@ -173,7 +173,7 @@ def log_error(ConfigOptions, MpiConfig, msg: str = None):
             raise TypeError(
                 f"Expected type str or NoneType for msg, got type: {type(msg)}"
             )
-        ConfigOptions.statusMsg = msg
+        ConfigOptions.errMsg = msg
 
     try:
         LOG.error("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
@@ -200,7 +200,7 @@ def log_critical(ConfigOptions, MpiConfig, msg: str = None):
             raise TypeError(
                 f"Expected type str or NoneType for msg, got type: {type(msg)}"
             )
-        ConfigOptions.statusMsg = msg
+        ConfigOptions.errMsg = msg
 
     try:
         LOG.critical("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)

@@ -8,9 +8,20 @@ from collections import OrderedDict
 from dataclasses import dataclass
 from datetime import datetime
 
+import test_config_classes  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
+import test_consts  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
 import xarray as xr
+from test_config_classes import (
+    TestConfig_AnA,
+    TestConfig_Base,
+    TestConfig_BmiModel,
+    TestConfig_GeoMod,
+    TestConfig_InputForcing,
+    TestConfig_Regrid,
+)
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
+    BMIMODEL,
     NWMv3_Forcing_Engine_BMI_model_Base,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -29,18 +40,6 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
     ExpectVsActualError,
     assert_equal_with_tol,
     serialize_to_json,
-)
-
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import BMIMODEL
-
-import test_consts  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
-import test_config_classes  # noqa: F401 # Used by test implementations, more convenient to have it in here rather than using more importlib
-from test_config_classes import (
-    TestConfig_Base,
-    TestConfig_GeoMod,
-    TestConfig_InputForcing,
-    TestConfig_Regrid,
-    TestConfig_AnA,
 )
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
@@ -407,6 +406,19 @@ class BMIForcingFixture_AnA(BMIForcingFixture_Class):
         """
         super().__init__(cfg)
         self.test_class = self.bmi_model._output_obj
+
+
+class BMIForcingFixture_BmiModel(BMIForcingFixture_Class):
+    """Test fixture for BMI model tests."""
+
+    def __init__(self, cfg: TestConfig_BmiModel) -> None:
+        """Initialize BMIForcingFixture_AnA.
+
+        Args:
+            cfg: an instance of TestConfig_AnA
+        """
+        super().__init__(cfg)
+        self.test_class = self.bmi_model
 
 
 class BMIForcingFixture_Regrid(BMIForcingFixture):

@@ -1,20 +1,20 @@
 """Conventional pytest file conftest.py. Automatically discovered and implicitly imported by pytest."""
 
 import pytest
-
-from test_utils import (
-    BMIForcingFixture_AnA,
-    BMIForcingFixture_GeoMod,
-    BMIForcingFixture_InputForcing,
-    BMIForcingFixture_Regrid,
-)
-
 from test_config_classes import (
-    TestConfig_Base,
     TestConfig_AnA,
+    TestConfig_Base,
+    TestConfig_BmiModel,
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
+)
+from test_utils import (
+    BMIForcingFixture_AnA,
+    BMIForcingFixture_BmiModel,
+    BMIForcingFixture_GeoMod,
+    BMIForcingFixture_InputForcing,
+    BMIForcingFixture_Regrid,
 )
 
 
@@ -100,3 +100,19 @@ def bmi_forcing_fixture_ana(request) -> BMIForcingFixture_AnA:
     assert isinstance(cfg, TestConfig_AnA)
     update_cfg_with_cli_inputs(cfg, request)
     return BMIForcingFixture_AnA(cfg)
+
+
+@pytest.fixture
+def bmi_forcing_fixture_bmi_model(request) -> BMIForcingFixture_BmiModel:
+    """Construct class for running BMI model tests.
+    For example usage, see: tests/bmi_model/test_bmi_model.py.
+
+    Constructor for minimal class of classes for running BMI model tests.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    """
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_BmiModel)
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_BmiModel(cfg)
