@@ -114,7 +114,8 @@ def test_regrid(
         2. Hydrofabric discretization, HRRR and RAP forcing (individually), CONUS domain.
     NOTE ^^^ this has been tested for the above conditions only ^^^
     """
-    ### Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
+    ### Total number of timesteps needs to be at least 3, since the 1st and 2nd behaves differently than the others,
+    ### e.g. see `if config_options.current_output_step == 1` throughout the code and the regridded_forcings1 vs regridded_forcings2 weighting.
     total_timesteps = 3
 
     fixt = bmi_forcing_fixture_regrid
