@@ -1,34 +1,15 @@
 # This is a datetime module for handling datetime
 # calculations in the forcing engine.
-from __future__ import annotations
-
 import datetime
 import glob
 import math
 import os
-from typing import TYPE_CHECKING
 
 import ewts
 import numpy as np
 import pandas as pd
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import err_handler
-
-if TYPE_CHECKING:
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
-        ConfigOptions,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-        InputForcings,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
-        MpiConfig,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
-        supplemental_precip as SupplementalPrecip,
-    )
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
+from . import err_handler
 
 LOG = ewts.get_logger(ewts.FORCING_ID)
 
@@ -36,7 +17,7 @@ LOG = ewts.get_logger(ewts.FORCING_ID)
 NETCDF = "NETCDF"
 
 
-def calculate_lookback_window(config_options: ConfigOptions):
+def calculate_lookback_window(config_options):
     """Calculate the beginning, ending datetime variables for a look-back period.
 
     Also calculate the processing
@@ -91,12 +72,7 @@ def calculate_lookback_window(config_options: ConfigOptions):
         )
 
 
-def find_nldas_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find NLDAS neighbor files.
 
     Function to calculate the previous and after hourly NLDAS files for use in processing.
@@ -264,12 +240,7 @@ def find_nldas_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_aorc_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find AORC neighbor files.
 
     Function to calculate the previous and after hourly AORC files for use in processing.
@@ -430,12 +401,7 @@ def find_aorc_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_era5_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find ERA5 neighbor files.
 
     Function to calculate the previous and after hourly ERA5 timestamp for use in processing.
@@ -557,12 +523,7 @@ def find_era5_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_nwm_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find NWM neighbor files.
 
     Function to calculate the previous and after hourly AORC files for use in processing.
@@ -713,12 +674,7 @@ def find_nwm_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_ak_ext_ana_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find Alaska Extended Ana neighbor files.
 
     Function to calculate the previous and after Alaska Extended Ana cycles based on the current timestep.
@@ -912,12 +868,7 @@ def find_ak_ext_ana_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_conus_hrrr_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find CONUS HRRR neighbor files.
 
     Function to calculate the previous and after HRRR conus cycles based on the current timestep.
@@ -1160,12 +1111,7 @@ def find_conus_hrrr_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_ak_hrrr_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find AK HRRR neighbor files.
 
     Function to calculate the previous and after HRRR Alaska cycles based on the current timestep.
@@ -1542,12 +1488,7 @@ def find_ak_hrrr_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_conus_rap_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find CONUS RAP neighbor files.
 
     Function to calculate the previous and after RAP conus 13km cycles based on the current timestep.
@@ -1800,12 +1741,7 @@ def find_conus_rap_neighbors(
     err_handler.check_program_status(config_options, mpi_config)
 
 
-def find_gfs_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find GFS neighbor files.
 
     Function to calculate the previous and after GFS cycles based on the current timestep.
@@ -2116,12 +2052,7 @@ def find_gfs_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_nam_nest_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find NAM Nest neighbor files.
 
     Function to calculate the previous and after NAM Nest cycles based on the current timestep.
@@ -2363,12 +2294,7 @@ def find_nam_nest_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_cfsv2_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find CFSv2 neighbor files.
 
     Function that will calculate the neighboring CFSv2 global GRIB2 files for a given
@@ -2588,12 +2514,7 @@ def find_cfsv2_neighbors(
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_custom_hourly_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find hourly custom neighbor files.
 
     Function to calculate the previous and after hourly custom NetCDF files for use in processing.
@@ -2767,10 +2688,7 @@ def find_custom_hourly_neighbors(
 
 
 def find_hourly_mrms_radar_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find hourly MRMS radar neighbor files.
 
@@ -3050,10 +2968,7 @@ def find_hourly_mrms_radar_neighbors(
 
 
 def find_hourly_wrf_arw_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find hourly WRF-ARW neighbor files.
 
@@ -3311,12 +3226,7 @@ def find_hourly_wrf_arw_neighbors(
     # supplemental_precip.file_in2 = supplemental_precip.file_in1
 
 
-def find_sbcv2_lwf_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find SBCV2_LWF neighbor files.
 
     Function to calculate the previous and after hourly MRMS SBCV2_LWF files for use in processing.
@@ -3464,10 +3374,7 @@ def find_sbcv2_lwf_neighbors(
 
 
 def _find_ak_ext_ana_precip_stage4(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next Stage IV files we will be using.
@@ -3640,10 +3547,7 @@ def _find_ak_ext_ana_precip_stage4(
 
 
 def _find_conus_ext_ana_precip_stage4(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next Stage IV files we will be using.
@@ -3806,10 +3710,7 @@ def _find_conus_ext_ana_precip_stage4(
 
 
 def _find_ak_ext_ana_precip_mrms(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
@@ -3984,10 +3885,7 @@ def _find_ak_ext_ana_precip_mrms(
 
 
 def _find_conus_ext_ana_precip_mrms(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
@@ -4162,10 +4060,7 @@ def _find_conus_ext_ana_precip_mrms(
 
 
 def find_ak_ext_ana_precip_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find Alaska Extended Ana neighbor files.
 
@@ -4184,10 +4079,7 @@ def find_ak_ext_ana_precip_neighbors(
 
 
 def find_conus_ext_ana_precip_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find CONUS Extended Ana neighbor files.
 
@@ -4214,33 +4106,8 @@ def find_conus_ext_ana_precip_neighbors(
         )
 
 
-def construct_nbm_path(
-    current_nbm_cycle: datetime, adjacent_hour, supplemental_precip: SupplementalPrecip
-):
-    """Construct the expected NBM file path for a given date/time and forecast hour."""
-    date = current_nbm_cycle.strftime("%Y%m%d")
-    hour = current_nbm_cycle.strftime("%H")
-    adjacent_hour = str(adjacent_hour).zfill(3)
-    domain = {8: "co", 12: "co", 9: "ak", 15: "pr", 16: "hi"}.get(
-        supplemental_precip.keyValue
-    )
-    if domain is None:
-        return ""
-    else:
-        return os.path.join(
-            supplemental_precip.inDir,
-            f"blend.{date}",
-            hour,
-            "core",
-            f"blend.t{hour}z.core.f{adjacent_hour}.{domain}{supplemental_precip.file_ext}",
-        )
-
-
 def find_hourly_nbm_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find hourly NBM neighbor files.
 
@@ -4252,6 +4119,16 @@ def find_hourly_nbm_neighbors(
     :param mpi_config:
     :return:
     """
+    nbm_out_freq = {36: 60, 240: 360}
+
+    # First we need to find the nearest previous and next hour, which is
+    # the previous/next NBM files we will be using.
+    current_yr = d_current.year
+    current_mo = d_current.month
+    current_day = d_current.day
+    current_hr = d_current.hour
+    current_min = d_current.minute
+
     # First find the current NBM forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_nbm_cycle = config_options.current_fcst_cycle - datetime.timedelta(
@@ -4278,76 +4155,171 @@ def find_hourly_nbm_neighbors(
     ) % supplemental_precip.input_frequency
     if min_since_last_output == 0:
         min_since_last_output = supplemental_precip.input_frequency
-    supplemental_precip.fcst_date1 = d_current - datetime.timedelta(
-        seconds=min_since_last_output * 60
-    )
-
-    # Calculate the next file to process.
+    prev_nbm_date = d_current - datetime.timedelta(seconds=min_since_last_output * 60)
+    supplemental_precip.fcst_date1 = prev_nbm_date
     if min_since_last_output == supplemental_precip.input_frequency:
         min_until_next_output = 0
     else:
         min_until_next_output = (
             supplemental_precip.input_frequency - min_since_last_output
         )
-    supplemental_precip.fcst_date2 = d_current + datetime.timedelta(
-        seconds=min_until_next_output * 60
-    )
+    next_nbm_date = d_current + datetime.timedelta(seconds=min_until_next_output * 60)
+    supplemental_precip.fcst_date2 = next_nbm_date
 
     # Calculate the output forecast hours needed based on the prev/next dates.
-    dt_tmp = supplemental_precip.fcst_date2 - current_nbm_cycle
-    supplemental_precip.fcst_hour2 = int(dt_tmp.days * 24.0) + int(
-        dt_tmp.seconds / 3600.0
-    )
-
-    dt_tmp = supplemental_precip.fcst_date1 - current_nbm_cycle
-    supplemental_precip.fcst_hour1 = int(dt_tmp.days * 24.0) + int(
-        dt_tmp.seconds / 3600.0
-    )
-
+    dt_tmp = next_nbm_date - current_nbm_cycle
+    next_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    supplemental_precip.fcst_hour2 = next_nbm_forecast_hour
+    dt_tmp = prev_nbm_date - current_nbm_cycle
+    prev_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    supplemental_precip.fcst_hour1 = prev_nbm_forecast_hour
     # If we are on the first NBM forecast hour (1), and we have calculated the previous forecast
     # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
     # no interpolation is required.
-    if supplemental_precip.fcst_hour1 == 0:
+    if prev_nbm_forecast_hour == 0:
         prev_nbm_forecast_hour = 1
-    else:
-        prev_nbm_forecast_hour = supplemental_precip.fcst_hour1
 
-    supplemental_precip.file_in1 = construct_nbm_path(
-        current_nbm_cycle, supplemental_precip.fcst_hour2, supplemental_precip
-    )
-    supplemental_precip.file_in2 = construct_nbm_path(
-        current_nbm_cycle, prev_nbm_forecast_hour, supplemental_precip
-    )
+    # Calculate expected file paths.
+    if supplemental_precip.keyValue == 8 or supplemental_precip.keyValue == 21:  # CONUS
+        tmp_file1 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(next_nbm_forecast_hour).zfill(3)
+            + ".co"
+            + supplemental_precip.file_ext
+        )
+        tmp_file2 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(prev_nbm_forecast_hour).zfill(3)
+            + ".co"
+            + supplemental_precip.file_ext
+        )
+    elif supplemental_precip.keyValue == 9:  # ALASKA
+        tmp_file1 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(next_nbm_forecast_hour).zfill(3)
+            + ".ak"
+            + supplemental_precip.file_ext
+        )
+        tmp_file2 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(prev_nbm_forecast_hour).zfill(3)
+            + ".ak"
+            + supplemental_precip.file_ext
+        )
+    elif supplemental_precip.keyValue == 15:  # PR
+        tmp_file1 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(next_nbm_forecast_hour).zfill(3)
+            + ".pr"
+            + supplemental_precip.file_ext
+        )
+        tmp_file2 = (
+            supplemental_precip.inDir
+            + "/blend."
+            + current_nbm_cycle.strftime("%Y%m%d")
+            + "/"
+            + current_nbm_cycle.strftime("%H")
+            + "/core/blend.t"
+            + current_nbm_cycle.strftime("%H")
+            + "z.core.f"
+            + str(prev_nbm_forecast_hour).zfill(3)
+            + ".pr"
+            + supplemental_precip.file_ext
+        )
+    else:
+        tmp_file1 = tmp_file2 = ""
 
     if mpi_config.rank == 0:
         # config_options.statusMsg = "Prev NBM supplemental file: " + tmp_file2
-        # err_handler.log_msg(co, mpi_config, True)  # log at debug level
-        config_options.statusMsg = (
-            f"Next NBM supplemental file: {supplemental_precip.file_in1}"
-        )
+        # err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+        config_options.statusMsg = "Next NBM supplemental file: " + tmp_file1
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
     # regridding objects to communicate things need to be re-established.
-    LOG.debug(f"next_file: {supplemental_precip.file_in1}")
-    LOG.debug(f"previous_file: {supplemental_precip.file_in2}")
-    supplemental_precip.regridComplete = False
+    if (
+        supplemental_precip.file_in1 != tmp_file1
+        or supplemental_precip.file_in2 != tmp_file2
+    ):
+        supplemental_precip.regridded_precip1 = supplemental_precip.regridded_precip1
+        supplemental_precip.regridded_precip2 = supplemental_precip.regridded_precip2
+        if config_options.grid_type == "unstructured":
+            supplemental_precip.regridded_precip1_elem = (
+                supplemental_precip.regridded_precip1_elem
+            )
+            supplemental_precip.regridded_precip2_elem = (
+                supplemental_precip.regridded_precip2_elem
+            )
+
+        supplemental_precip.file_in1 = tmp_file1
+        supplemental_precip.file_in2 = tmp_file2
+        LOG.debug(f"tmp_file1: {tmp_file1}")
+        LOG.debug(f"tmp_file2: {tmp_file2}")
+        supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(supplemental_precip.file_in2) and (
             (supplemental_precip.keyValue == 8) or (supplemental_precip.keyValue == 9)
         ):
-            config_options.statusMsg = f"NBM file {supplemental_precip.file_in2} not found, will attempt to use {supplemental_precip.file_in1} instead."
+            config_options.statusMsg = (
+                "NBM file {} not found, will attempt to use {} instead.".format(
+                    supplemental_precip.file_in2, supplemental_precip.file_in1
+                )
+            )
             err_handler.log_warning(config_options, mpi_config)
             supplemental_precip.file_in2 = supplemental_precip.file_in1
         if not os.path.isfile(supplemental_precip.file_in2):
             if supplemental_precip.enforce == 1:
-                config_options.errMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found."
+                config_options.errMsg = (
+                    "Expected input NBM file: "
+                    + supplemental_precip.file_in2
+                    + " not found."
+                )
                 err_handler.log_critical(config_options, mpi_config)
             else:
-                config_options.statusMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found. Will not use in final layering."
+                config_options.statusMsg = (
+                    "Expected input NBM file: "
+                    + supplemental_precip.file_in2
+                    + " not found. "
+                    + "Will not use in final layering."
+                )
                 err_handler.log_warning(config_options, mpi_config)
                 config_options.statusMsg = "You can use Util/pull_s3_grib_vars.py to Download NBM data from AWS-S3 archive."
                 err_handler.log_warning(config_options, mpi_config)
@@ -4384,12 +4356,7 @@ def find_hourly_nbm_neighbors(
                 supplemental_precip.regridded_precip1[:] = config_options.globalNdv
 
 
-def find_ndfd_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find NDFD neighbor files."""
     current_cycle = config_options.current_fcst_cycle
     current_fcst = d_current - current_cycle
@@ -4508,10 +4475,7 @@ def find_ndfd_neighbors(
 
 
 def find_hourly_mrms_precip_flag(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find hourly MRMS neighbor files.
 
@@ -4650,12 +4614,7 @@ def find_hourly_mrms_precip_flag(
                 supplemental_precip.regridded_precip2[:] = config_options.globalNdv
 
 
-def find_input_neighbors(
-    input_forcings: InputForcings,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
-):
+def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
     """Find input neighbor files.
 
     Function to calculate the previous and after custom freq input cycles based on the current timestep.
@@ -4925,10 +4884,7 @@ def find_input_neighbors(
 
 
 def find_custom_freq_neighbors(
-    supplemental_precip: SupplementalPrecip,
-    config_options: ConfigOptions,
-    d_current: datetime,
-    mpi_config: MpiConfig,
+    supplemental_precip, config_options, d_current, mpi_config
 ):
     """Find custom frequency supplemental precipitation neighbor files.
 
