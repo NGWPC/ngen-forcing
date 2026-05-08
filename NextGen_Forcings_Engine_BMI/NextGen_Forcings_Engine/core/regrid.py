@@ -48,12 +48,6 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
         GeoMeta,
     )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
-        supplemental_precip,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-        InputForcings,
-    )
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
@@ -9685,7 +9679,7 @@ def regrid_sbcv2_liquid_water_fraction(
 
 
 def regrid_hourly_nbm(
-    forcings_or_precip:supplemental_precip|InputForcings, config_options:ConfigOptions, wrf_hydro_geo_meta:GeoMeta, mpi_config:MpiConfig
+    forcings_or_precip, config_options, wrf_hydro_geo_meta, mpi_config
 ):
     """Regrid hourly NBM precipitation.
 
@@ -9741,8 +9735,7 @@ def regrid_hourly_nbm(
         cmd = f'$WGRIB2 -match "({"|".join(fields)})" -not "prob" -not "ens" {forcings_or_precip.file_in1} -netcdf {nbm_tmp_nc}'
     else:
         # Perform a GRIB dump to NetCDF for the precip data.
-        time_str=f"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2} hour acc fcst"
-        fieldnbm_match1 = f'":APCP:surface:{time_str}:"'
+        fieldnbm_match1 = '":APCP:"'
         fieldnbm_match2 = (
             f'"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2}"'
         )
