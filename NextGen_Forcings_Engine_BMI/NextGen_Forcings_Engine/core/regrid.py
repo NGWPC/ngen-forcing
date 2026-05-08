@@ -11353,11 +11353,11 @@ def check_regrid_status(
                 [force_count, wrf_hydro_geo_meta.ny_local_elem], np.float32
             )
         elif config_options.grid_type == "hydrofabric":
-            input_forcings.regridded_forcings1 = np.empty(
-                [force_count, wrf_hydro_geo_meta.ny_local], np.float32
+            input_forcings.regridded_forcings1 = np.full(
+                [force_count, wrf_hydro_geo_meta.ny_local], np.nan,dtype=np.float32 #NOTE changed to np.full to be deterministic for unit tests.
             )
-            input_forcings.regridded_forcings2 = np.empty(
-                [force_count, wrf_hydro_geo_meta.ny_local], np.float32
+            input_forcings.regridded_forcings2 = np.full(
+                [force_count, wrf_hydro_geo_meta.ny_local], np.nan,dtype=np.float32 #NOTE changed to np.full to be deterministic for unit tests.
             )
 
     if mpi_config.rank == 0:
