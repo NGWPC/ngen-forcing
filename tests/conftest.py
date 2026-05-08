@@ -8,6 +8,7 @@ from test_config_classes import (
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
+    TestConfig_SuppPrecip,
 )
 from test_utils import (
     BMIForcingFixture_AnA,
@@ -15,6 +16,7 @@ from test_utils import (
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
+    BMIForcingFixture_SuppPrecip,
 )
 
 
@@ -86,6 +88,20 @@ def bmi_forcing_fixture_input_forcing(request) -> BMIForcingFixture_InputForcing
     assert isinstance(cfg, TestConfig_InputForcing)
     update_cfg_with_cli_inputs(cfg, request)
     return BMIForcingFixture_InputForcing(cfg)
+
+
+@pytest.fixture
+def bmi_forcing_fixture_supp_precip(request) -> BMIForcingFixture_SuppPrecip:
+    """Construct class for tests of supp_precip.
+    For example usage, see: tests/supp_precip/test_supp_precip.py.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    """
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_SuppPrecip)
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_SuppPrecip(cfg)
 
 
 @pytest.fixture

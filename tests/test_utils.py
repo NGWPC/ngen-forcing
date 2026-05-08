@@ -18,6 +18,7 @@ from test_config_classes import (
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
+    TestConfig_SuppPrecip,
 )
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.bmi_model import (
@@ -214,6 +215,7 @@ class BMIForcingFixture:
         self.config_options: ConfigOptions = self.bmi_model._job_meta
         self.geo_meta: GeoMeta = self.bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
+        self.supp_precip_mod: dict = self.bmi_model._supp_pcp_mod
 
         self.keys_to_check = cfg.keys_to_check
         self.keys_to_exclude = cfg.keys_to_exclude
@@ -393,6 +395,20 @@ class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):
         super().__init__(cfg)
         self.force_key = cfg.force_key
         self.test_class = self.input_forcing_mod[self.force_key]
+
+
+class BMIForcingFixture_SuppPrecip(BMIForcingFixture_Class):
+    """Test fixture for SuppPrecip tests."""
+
+    def __init__(self, cfg: TestConfig_SuppPrecip) -> None:
+        """Initialize BMIForcingFixture_SuppPrecip.
+
+        Args:
+            cfg: an instance of TestConfig_SuppPrecip
+        """
+        super().__init__(cfg)
+        self.force_key = cfg.force_key
+        self.test_class = self.supp_precip_mod[self.force_key]
 
 
 class BMIForcingFixture_AnA(BMIForcingFixture_Class):

@@ -34,7 +34,9 @@ The test suite is organized into the following modules:
 - **`esmf_regrid/`** - Tests for ESMF regridding functionality
 - **`geomod/`** - Tests for geomod components
 - **`input_forcing/`** - Tests for input forcing data processing
+- **`supp_precip/`** - Tests for supp precip data processing
 - **`bmi_model/`** - Tests for the BMI model lifecycle
+- **`config_options/`** - Tests config options
 - **`test_utils.py`** - Shared test utilities and fixtures
 - **`conftest.py`** - Pytest configuration and shared fixtures
 
@@ -68,6 +70,10 @@ Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/geomod)
 Single processor: ( cd src/ngen-forcing && pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/input_forcing)
 
+# Supp precip tests
+Single processor: ( cd src/ngen-forcing && pytest tests/supp_precip)
+Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/supp_precip)
+
 # Analysis and Assimilation tests
 Single processor: ( cd src/ngen-forcing && pytest tests/ana )
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/ana )
@@ -75,6 +81,10 @@ Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/ana )
 # BMI model tests
 Single processor: ( cd src/ngen-forcing && pytest tests/bmi_model)
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/bmi_model)
+
+# config options tests
+Single processor: ( cd src/ngen-forcing && pytest tests/config_options)
+Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/config_options)
 ```
 
 Create new test output data (creates expected outputs for subsequent tests)
@@ -91,6 +101,10 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing)
 
+# Supp precip tests
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/supp_precip)
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/supp_precip)
+
 # Analysis and Assimilation tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/ana )
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/ana )
@@ -98,6 +112,10 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 # BMI model tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/bmi_model)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/bmi_model)
+
+# config_options tests
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/config_options)
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/config_options)
 ```
 
 In the rare case where you want to create new `expected` data and run the tests using `old` variable names use the following for `Input Forcing Tests`:
@@ -105,6 +123,11 @@ In the rare case where you want to create new `expected` data and run the tests 
 # Input forcing tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/input_forcing --map_old_to_new_var_names False)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/input_forcing --map_old_to_new_var_names False)
+
+# Supp precip tests
+Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/supp_precip --map_old_to_new_var_names False)
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/supp_precip --map_old_to_new_var_names False)
+
 ```
 ## Test Configuration
 

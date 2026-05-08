@@ -14,35 +14,34 @@ spec.loader.exec_module(test_utils)
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
 
-TEST_FILE_NAME_PREFIX = "input_forcing"
+TEST_FILE_NAME_PREFIX = "supp_precip"
 
+### This disables a LOG call which was causing a crash at ioMod.py: LOG.debug(f"Wgrib2 command: {Wgrib2Cmd}", True)
+os.environ["MFE_SILENT"] = "true"
 
 TEST_CONFIGS = [
-    configs.TestConfig_InputForcing(
-        config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
+    configs.TestConfig_SuppPrecip(
+        config_file=consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_PR,
         keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
         keys_to_exclude=tuple(
             set(consts.KEYS_TO_EXCLUDE) | {"config_options", "geo_meta", "mpi_config"}
         ),
         grid_type=consts.GRID_TYPE,
-        force_key=12,
+        force_key=15,
         test_file_name_prefix=TEST_FILE_NAME_PREFIX,
     ),
 ]
 
 
-@pytest.mark.parametrize(
-    "bmi_forcing_fixture_input_forcing", TEST_CONFIGS, indirect=True
-)
-def test_input_forcing(
-    bmi_forcing_fixture_input_forcing: test_utils.BMIForcingFixture_InputForcing,  # pyright: ignore
+@pytest.mark.parametrize("bmi_forcing_fixture_supp_precip", TEST_CONFIGS, indirect=True)
+def test_supp_precip(
+    bmi_forcing_fixture_supp_precip: test_utils.BMIForcingFixture_SuppPrecip,  # pyright: ignore
 ) -> None:
-    """Pytest function for testing InputForcing functionality."""
-    ### Total number of timesteps needs to be at least 3, since the 1st and 2nd behaves differently than the others,
-    ### e.g. see `if config_options.current_output_step == 1` throughout the code and the regridded_forcings1 vs regridded_forcings2 weighting.
+    """Pytest function for testing SuppPrecip functionality."""
+    ### Total number of timesteps needs to be at least 2, since the 1st one behaves differently than the others, e.g. see `if config_options.current_output_step == 1` throughout the code.
     total_timesteps = 3
 
-    fixt = bmi_forcing_fixture_input_forcing
+    fixt = bmi_forcing_fixture_supp_precip
     if len(fixt.input_forcing_mod) != 1:
         raise ValueError(
             f"Expected 1 key for input_forcing_mod, got {len(fixt.input_forcing_mod)}: {list(fixt.input_forcing_mod.keys())}"

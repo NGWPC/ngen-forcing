@@ -46,6 +46,17 @@ class TestConfig_InputForcing(TestConfig_Base):
 
 
 @dataclass(kw_only=True)
+class TestConfig_SuppPrecip(TestConfig_Base):
+    """Configuration class for SuppPrecip Tests.
+
+    Args:
+        force_key: Force key to check (often associated with a particular source dataset)
+    """
+
+    force_key: int
+
+
+@dataclass(kw_only=True)
 class TestConfig_Regrid(TestConfig_Base):
     """Configuration class for Regrid Tests.
 
