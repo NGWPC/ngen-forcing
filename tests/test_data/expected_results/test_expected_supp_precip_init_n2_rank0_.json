@@ -14,11 +14,11 @@
   "file_in2": null,
   "file_type": "GRIB2",
   "final_supp_precip": [
-    0.0,
-    5e-324,
-    1e-323,
-    2.5e-323,
-    4.4e-323
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN
   ],
   "final_supp_precip_elem": null,
   "global_x_lower": null,
@@ -50,11 +50,11 @@
   "regridObj": null,
   "regridOpt": 1,
   "regridded_mask": [
-    128124608512.0,
-    3.1006531120115227e-41,
-    0.0,
-    0.0,
-    8.96831017167883e-44
+    NaN,
+    NaN,
+    NaN,
+    NaN,
+    NaN
   ],
   "regridded_mask_elem": null,
   "regridded_precip1": null,

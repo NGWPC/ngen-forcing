@@ -373,11 +373,12 @@ def initDict(ConfigOptions, GeoMetaWrfHydro):
             )
         elif ConfigOptions.grid_type == "hydrofabric":
             # Initialize the local final grid of values
-            InputDict[supp_pcp_key].final_supp_precip = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float64
+            # NOTE changed from np.empty to np.full for determinism of test data.
+            InputDict[supp_pcp_key].final_supp_precip = np.full(
+                [GeoMetaWrfHydro.ny_local], np.nan, dtype=np.float64
             )
-            InputDict[supp_pcp_key].regridded_mask = np.empty(
-                [GeoMetaWrfHydro.ny_local], np.float32
+            InputDict[supp_pcp_key].regridded_mask = np.full(
+                [GeoMetaWrfHydro.ny_local], np.nan, dtype=np.float32
             )
 
         InputDict[supp_pcp_key].userCycleOffset = ConfigOptions.supp_input_offsets[
