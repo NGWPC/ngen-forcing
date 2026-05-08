@@ -15,6 +15,7 @@ from test_config_classes import (
     TestConfig_AnA,
     TestConfig_Base,
     TestConfig_BmiModel,
+    TestConfig_ConfigOptions,
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
@@ -381,6 +382,19 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
         """
         super().__init__(cfg)
         self.test_class = self.geo_meta
+
+
+class BMIForcingFixture_ConfigOptions(BMIForcingFixture_Class):
+    """Test fixture for ConfigOptions tests."""
+
+    def __init__(self, cfg: TestConfig_ConfigOptions) -> None:
+        """Initialize BMIForcingFixture_ConfigOptions.
+
+        Args:
+            cfg: an instance of TestConfig_ConfigOptions
+        """
+        super().__init__(cfg)
+        self.test_class = self.config_options
 
 
 class BMIForcingFixture_InputForcing(BMIForcingFixture_Class):

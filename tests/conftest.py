@@ -5,6 +5,7 @@ from test_config_classes import (
     TestConfig_AnA,
     TestConfig_Base,
     TestConfig_BmiModel,
+    TestConfig_ConfigOptions,
     TestConfig_GeoMod,
     TestConfig_InputForcing,
     TestConfig_Regrid,
@@ -13,6 +14,7 @@ from test_config_classes import (
 from test_utils import (
     BMIForcingFixture_AnA,
     BMIForcingFixture_BmiModel,
+    BMIForcingFixture_ConfigOptions,
     BMIForcingFixture_GeoMod,
     BMIForcingFixture_InputForcing,
     BMIForcingFixture_Regrid,
@@ -74,6 +76,20 @@ def bmi_forcing_fixture_geomod(request) -> BMIForcingFixture_GeoMod:
     assert isinstance(cfg, TestConfig_GeoMod)
     update_cfg_with_cli_inputs(cfg, request)
     return BMIForcingFixture_GeoMod(cfg)
+
+
+@pytest.fixture
+def bmi_forcing_fixture_configoptions(request) -> BMIForcingFixture_ConfigOptions:
+    """Construct class for tests of ConfigOptions.
+    For example usage, see: tests/config_options/test_config_options.py.
+
+    Args:
+        request: A built-in convention for pytest.fixture.  It may be passed from @pytest.mark.parametrize usage elsewhere.
+    """
+    cfg = request.param
+    assert isinstance(cfg, TestConfig_ConfigOptions)
+    update_cfg_with_cli_inputs(cfg, request)
+    return BMIForcingFixture_ConfigOptions(cfg)
 
 
 @pytest.fixture

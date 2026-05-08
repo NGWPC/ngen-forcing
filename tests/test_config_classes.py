@@ -35,6 +35,11 @@ class TestConfig_GeoMod(TestConfig_Base):
 
 
 @dataclass(kw_only=True)
+class TestConfig_ConfigOptions(TestConfig_Base):
+    """Configuration class for ConfigOptions Tests"""
+
+
+@dataclass(kw_only=True)
 class TestConfig_InputForcing(TestConfig_Base):
     """Configuration class for InputForcing Tests.
 
