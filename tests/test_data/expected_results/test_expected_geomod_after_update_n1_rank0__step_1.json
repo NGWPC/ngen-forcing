@@ -22,6 +22,37 @@
     11475,
     11476
   ],
+  "elementcoords_global": [
+    [
+      -72.04918711744217,
+      41.824530105139985
+    ],
+    [
+      -72.0498876679477,
+      41.79153684369973
+    ],
+    [
+      -72.05118870198277,
+      41.739617787523294
+    ],
+    [
+      -72.04754380872834,
+      41.68903878715741
+    ],
+    [
+      -72.0554434265969,
+      41.66453348086255
+    ],
+    [
+      -72.03341338948294,
+      41.721705460500516
+    ],
+    [
+      -72.07444419922648,
+      41.77940007526497
+    ]
+  ],
+  "esmf_ds": null,
   "esmf_grid": {
     "_area": [
       null,
@@ -75,8 +106,116 @@
   },
   "esmf_lat": null,
   "esmf_lon": null,
+  "geogrid_ds": {
+    "attrs": {
+      "gridType": "unstructured",
+      "version": "0.9"
+    },
+    "coords": {},
+    "data_vars": {
+      "centerCoords": {
+        "attrs": {
+          "units": "degrees"
+        },
+        "data": [
+          [
+            -72.04918711744217,
+            41.824530105139985
+          ],
+          [
+            -72.0498876679477,
+            41.79153684369973
+          ],
+          [
+            -72.05118870198277,
+            41.739617787523294
+          ],
+          [
+            -72.04754380872834,
+            41.68903878715741
+          ],
+          [
+            -72.0554434265969,
+            41.66453348086255
+          ],
+          [
+            -72.03341338948294,
+            41.721705460500516
+          ],
+          [
+            -72.07444419922648,
+            41.77940007526497
+          ]
+        ],
+        "dims": [
+          "elementCount",
+          "coordDim"
+        ]
+      },
+      "elementConn": {
+        "attrs": {
+          "long_name": "Node Indices that define the element connectivity"
+        },
+        "data": "hash_-5156445445542653928",
+        "dims": [
+          "connectionCount"
+        ]
+      },
+      "element_id": {
+        "attrs": {
+          "long_name": "Catchment ID for hydrofabric"
+        },
+        "data": [
+          11466,
+          11467,
+          11468,
+          11469,
+          11470,
+          11475,
+          11476
+        ],
+        "dims": [
+          "elementCount"
+        ]
+      },
+      "nodeCoords": {
+        "attrs": {
+          "units": "degrees"
+        },
+        "data": null,
+        "dims": [
+          "nodeCount",
+          "coordDim"
+        ]
+      },
+      "numElementConn": {
+        "attrs": {
+          "long_name": "Number of nodes per element"
+        },
+        "data": [
+          102,
+          185,
+          130,
+          132,
+          90,
+          113,
+          124
+        ],
+        "dims": [
+          "elementCount"
+        ]
+      }
+    },
+    "dims": {
+      "connectionCount": 876,
+      "coordDim": 2,
+      "elementCount": 7,
+      "nodeCount": 653
+    }
+  },
   "height": null,
   "height_elem": null,
+  "heights_global": null,
   "inds": null,
   "lat_bounds": "hash_4066407811557226096",
   "latitude_grid": [
@@ -119,12 +258,24 @@
   "ny_global_elem": null,
   "ny_local": 7,
   "ny_local_elem": null,
+  "pet_element_inds": [
+    0,
+    1,
+    2,
+    3,
+    4,
+    5,
+    6
+  ],
   "sina_grid": null,
   "slope": null,
   "slope_elem": null,
+  "slopes_global": null,
   "slp_azi": null,
   "slp_azi_elem": null,
+  "slp_azi_global": null,
   "spatial_global_atts": null,
+  "spatial_metadata_exists": false,
   "x_coord_atts": null,
   "x_coords": null,
   "x_lower_bound": null,
