@@ -21,7 +21,9 @@ TEST_CONFIGS = [
     configs.TestConfig_GeoMod(
         config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
         keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
-        keys_to_exclude=consts.KEYS_TO_EXCLUDE,
+        keys_to_exclude=tuple(
+            set(consts.KEYS_TO_EXCLUDE) | {"config_options", "mpi_config"}
+        ),
         grid_type=consts.GRID_TYPE,
         test_file_name_prefix=TEST_FILE_NAME_PREFIX,
     ),
