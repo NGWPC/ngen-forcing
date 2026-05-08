@@ -1,19 +1,20 @@
 import argparse
 import importlib.util
-import yaml
 from datetime import datetime, timedelta
-from types import SimpleNamespace
 from pathlib import Path
+from types import SimpleNamespace
+
+import yaml
+
 from Forcing_Extraction_Scripts.forecast_download_base import (
-    ForecastDownloader,
     FixedFileDownloader,
+    ForecastDownloader,
     ScrapedFileDownloader,
 )
 
 
 def retrieve_forcing(cfg: "ConfigOptions"):
-    """
-    Download forecast forcing data based on requested sources in the forcing engine configuration file
+    """Download forecast forcing data based on requested sources in the forcing engine configuration file.
 
     :param cfg: dictionary of forcing engine config parameters
     """
@@ -140,7 +141,8 @@ def retrieve_forcing(cfg: "ConfigOptions"):
             lookback_hours=look_back_hours + lag_delt if lag_delt else look_back_hours,
             cleanback_hours=0,
             lagback_hours=0,
-            ens_number=int(ens_number) if ens_number not in ("", None) else None,
+            ens_number=int(ens_number) if ens_number not in ('', None) else None,
+            input_horizon=input_horizons[i] if input_horizons[i] > 0 else None,
         )
 
         # Run the download
