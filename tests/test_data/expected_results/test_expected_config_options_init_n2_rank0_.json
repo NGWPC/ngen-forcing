@@ -25,7 +25,6 @@
   "dScaleParamDirs": [
     "/ngen-app/data"
   ],
-  "d_program_init": "2026-05-08T17:05:24",
   "e_date_proc": null,
   "elemconn_var": "elementConn",
   "elemcoords_var": "centerCoords",
@@ -46,7 +45,6 @@
   ],
   "forcing_output": 0,
   "future_time": null,
-  "geogrid": "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/esmf_mesh/3b7f3fe7676d69c3_gauge_01123000_ESMF_Mesh.nc",
   "geopackage": "/workspaces/nwm-rte/src/ngen-forcing/tests/test_data/gpkg/gauge_01123000.gpkg",
   "globalNdv": -9999.0,
   "grid_meta": null,
@@ -123,7 +121,6 @@
   "rqiMethod": null,
   "rqiThresh": 1.0,
   "runCfsNldasBiasCorrect": false,
-  "scratch_dir": "/ngen-app/data/scratch/AORC/a00fc45eee325b1d",
   "sinalpha_var": null,
   "slope_azimuth_var": null,
   "slope_azimuth_var_elem": null,
