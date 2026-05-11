@@ -440,7 +440,10 @@ class AORCConusProcessor(BaseProcessor):
         if cached_data is not None:
             return cached_data
         try:
-            if self.current_timesteps_year != self.previous_timesteps_year:
+            if (
+                self.current_timesteps_year != self.previous_timesteps_year
+                and self.previous_timesteps_year in self.s3_lazy_ds
+            ):
                 del self.s3_lazy_ds[self.previous_timesteps_year]
             with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
@@ -773,10 +776,3 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         return ds
 
 
-import pandas as pd
-
-path1 = r"C:\Users\mdeshotel\Downloads\Import\Import\SMAPngen\gages-14166500_soil_moisture.csv"
-path2 = r"C:\Users\mdeshotel\Downloads\Import\Import\SMAPappEEARS\554ce064-5103-4a2d-9171-383ce2c377be\SMAP-SPL4-14166500-LONG-TOM-RIVER-NEAR-NOTI-OR-SPL4SMGP-008-results.csv"
-df1 = pd.read_csv(path1)
-
-df2 = pd.read_csv(path2)
