@@ -420,6 +420,16 @@ class AORCConusProcessor(BaseProcessor):
         return url
 
     @property
+    def current_timesteps_year(self):
+        """Year for the current timestep."""
+        return self.current_time.year
+
+    @property
+    def previous_timesteps_year(self):
+        """Year for the previous timestep."""
+        return (self.current_time - timedelta(hours=1)).year
+
+    @property
     def sliced_ds(self) -> xr.Dataset:
         """Sliced dataset.
 
@@ -430,14 +440,16 @@ class AORCConusProcessor(BaseProcessor):
         if cached_data is not None:
             return cached_data
         try:
+            if self.current_timesteps_year != self.previous_timesteps_year:
+                del self.s3_lazy_ds[self.previous_timesteps_year]
             with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
-                    self.slice_ds(self.s3_lazy_ds[self.current_time.year])
+                    self.slice_ds(self.s3_lazy_ds[self.current_timesteps_year])
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
         except Exception as e:
-            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_timesteps_year)}: {e}\n"
             LOG.critical(error_message)
             raise ValueError(error_message)
 
@@ -759,3 +771,12 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         ds.rio.write_crs(self.src_crs, inplace=True)
         return ds
+
+
+import pandas as pd
+
+path1 = r"C:\Users\mdeshotel\Downloads\Import\Import\SMAPngen\gages-14166500_soil_moisture.csv"
+path2 = r"C:\Users\mdeshotel\Downloads\Import\Import\SMAPappEEARS\554ce064-5103-4a2d-9171-383ce2c377be\SMAP-SPL4-14166500-LONG-TOM-RIVER-NEAR-NOTI-OR-SPL4SMGP-008-results.csv"
+df1 = pd.read_csv(path1)
+
+df2 = pd.read_csv(path2)
