@@ -420,16 +420,6 @@ class AORCConusProcessor(BaseProcessor):
         return url
 
     @property
-    def current_timesteps_year(self):
-        """Year for the current timestep."""
-        return self.current_time.year
-
-    @property
-    def previous_timesteps_year(self):
-        """Year for the previous timestep."""
-        return (self.current_time - timedelta(hours=1)).year
-
-    @property
     def sliced_ds(self) -> xr.Dataset:
         """Sliced dataset.
 
@@ -439,20 +429,23 @@ class AORCConusProcessor(BaseProcessor):
         cached_data = self.load_cache()
         if cached_data is not None:
             return cached_data
+        current_year = self.current_time.year
+        previous_year = (self.current_time - timedelta(hours=1)).year
         try:
             if (
-                self.current_timesteps_year != self.previous_timesteps_year
-                and self.previous_timesteps_year in self.s3_lazy_ds
+                current_year != previous_year
+                and previous_year in self.s3_lazy_ds
             ):
-                del self.s3_lazy_ds[self.previous_timesteps_year]
+                self.s3_lazy_ds[previous_year].close()
+                del self.s3_lazy_ds[previous_year]
             with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
-                    self.slice_ds(self.s3_lazy_ds[self.current_timesteps_year])
+                    self.slice_ds(self.s3_lazy_ds[current_year])
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
         except Exception as e:
-            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_timesteps_year)}: {e}\n"
+            error_message = f"Error opening {self.dataset_name} data from {self.url(current_year)}: {e}\n"
             LOG.critical(error_message)
             raise ValueError(error_message)
 
