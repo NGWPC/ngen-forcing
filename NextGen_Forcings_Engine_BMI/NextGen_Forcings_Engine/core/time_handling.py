@@ -1,5 +1,5 @@
-# This is a datetime module for handling datetime
-# calculations in the forcing engine.
+"""Datetime module for handling datetime calculations in the forcing engine."""
+
 from __future__ import annotations
 
 import datetime
