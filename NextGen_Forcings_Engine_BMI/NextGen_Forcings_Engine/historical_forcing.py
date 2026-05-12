@@ -398,6 +398,8 @@ class AORCConusProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
+        self._ds: xr.Dataset = None
+        self._ds_year = None
 
     @cached_property
     def src_crs(self) -> CRS:
@@ -431,13 +433,15 @@ class AORCConusProcessor(BaseProcessor):
             return cached_data
         current_year = self.current_time.year
         try:
-            object_store = obstore.store.from_url(self.url(self.current_time.year), skip_signature=True)
-            with (
-                xr.open_zarr(ObjectStore(object_store)) as ds,
-                self.timing_block(f"Loading {self.dataset_name} data")
-            ):
+            if self._ds_year != current_year:
+                if self._ds is not None:
+                    self._ds.close()
+                object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
+                self._ds = xr.open_zarr(ObjectStore(object_store))
+                self._ds_year = current_year
+            with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
-                    self.slice_ds(ds)
+                    self.slice_ds(self._ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
