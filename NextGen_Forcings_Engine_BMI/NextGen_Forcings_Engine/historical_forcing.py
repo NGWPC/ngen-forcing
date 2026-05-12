@@ -9,6 +9,7 @@ from functools import cached_property
 from time import perf_counter, sleep
 
 import ewts
+import gc
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -223,6 +224,7 @@ class BaseProcessor:
         self.current_time = current_time
         if self.current_time in self.start_end_datetimes.keys():
             self.computed_ds = self.compute_ds()
+            gc.collect()  # reclaim potentially large previous computed_ds explicitly since memory management is an ongoing issue
         if self.current_time not in self.computed_ds.time.values:
             raise IndexError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
@@ -429,26 +431,22 @@ class AORCConusProcessor(BaseProcessor):
         cached_data = self.load_cache()
         if cached_data is not None:
             return cached_data
+        current_year = self.current_time.year
         try:
-            with self.timing_block(f"Loading {self.dataset_name} data"):
+            object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
+            with (
+                xr.open_dataset(ObjectStore(object_store), engine="zarr") as ds,
+                self.timing_block(f"Loading {self.dataset_name} data")
+            ):
                 return (
-                    self.slice_ds(self.s3_lazy_ds[self.current_time.year])
+                    self.slice_ds(ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
         except Exception as e:
-            error_message = f"Error opening {self.dataset_name} data from {self.url(self.current_time.year)}: {e}\n"
+            error_message = f"Error opening {self.dataset_name} data from {self.url(current_year)}: {e}\n"
             LOG.critical(error_message)
             raise ValueError(error_message)
-
-    @cached_property
-    def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
-        """Lazy load dataset from S3."""
-        year_datasets = {}
-        for year in self.years:
-            object_store = obstore.store.from_url(self.url(year), skip_signature=True)
-            year_datasets[year] = xr.open_zarr(ObjectStore(object_store))
-        return year_datasets
 
 
 class AORCAlaskaProcessor(BaseProcessor):
@@ -601,6 +599,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                    object_store = obstore.store.from_url(self.url(var), skip_signature=True)
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
@@ -759,3 +758,5 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         ds.rio.write_crs(self.src_crs, inplace=True)
         return ds
+
+
