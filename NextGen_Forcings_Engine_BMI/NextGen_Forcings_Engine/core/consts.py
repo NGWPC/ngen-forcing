@@ -7,6 +7,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.timeInterpMod impo
     no_interpolation,
     weighted_average,
 )
+
 GEOMOD = {
     "GeoMeta": [
         "nodeCoords",
@@ -1076,65 +1077,7 @@ GEOMOD = {
         "longitude_grid_elem",
     ],
 }
-BMI_MODEL = {
-    "extension_map": {
-        "gridded": "GRIDDED",
-        "hydrofabric": "HYDROFABRIC",
-        "unstructured": "MESH",
-    },
-    "_output_var_names": [
-        "U2D_ELEMENT",
-        "V2D_ELEMENT",
-        "LWDOWN_ELEMENT",
-        "SWDOWN_ELEMENT",
-        "T2D_ELEMENT",
-        "Q2D_ELEMENT",
-        "PSFC_ELEMENT",
-        "RAINRATE_ELEMENT",
-    ],
-    "_output_var_names_unstructured": [
-        "U2D_NODE",
-        "V2D_NODE",
-        "LWDOWN_NODE",
-        "SWDOWN_NODE",
-        "T2D_NODE",
-        "Q2D_NODE",
-        "PSFC_NODE",
-        "RAINRATE_NODE",
-    ],
-    "_var_name_units_map": {
-        "U2D_ELEMENT": ["10-m U-component of wind", "m/s"],
-        "V2D_ELEMENT": ["10-m V-component of wind", "m/s"],
-        "T2D_ELEMENT": ["2-m Air Temperature", "K"],
-        "Q2D_ELEMENT": ["2-m Specific Humidity", "kg/kg"],
-        "LWDOWN_ELEMENT": [
-            "Surface downward long-wave radiation flux",
-            "W/m^2",
-        ],
-        "SWDOWN_ELEMENT": [
-            "Surface downward short-wave radiation flux",
-            "W/m^2",
-        ],
-        "PSFC_ELEMENT": ["Surface Pressure", "Pa"],
-        "RAINRATE_ELEMENT": ["Surface Precipitation Rate", "mm/s"],
-    },
-    "_var_name_units_map_unstructured": {
-        "U2D_NODE": ["10-m U-component of wind", "m/s"],
-        "V2D_NODE": ["10-m V-component of wind", "m/s"],
-        "T2D_NODE": ["2-m Air Temperature", "K"],
-        "Q2D_NODE": ["2-m Specific Humidity", "kg/kg"],
-        "LWDOWN_NODE": [
-            "Surface downward long-wave radiation flux",
-            "W/m^2",
-        ],
-        "SWDOWN_NODE": [
-            "Surface downward short-wave radiation flux",
-            "W/m^2",
-        ],
-        "PSFC_NODE": ["Surface Pressure", "Pa"],
-        "RAINRATE_NODE": ["Surface Precipitation Rate", "mm/s"],
-    },
-}
+
 FORCINGINPUTMOD = {
     "InputForcings": [
         "nx_global",
