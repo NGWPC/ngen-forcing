@@ -9,6 +9,7 @@ from functools import cached_property
 from time import perf_counter, sleep
 
 import ewts
+import gc
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -223,6 +224,7 @@ class BaseProcessor:
         self.current_time = current_time
         if self.current_time in self.start_end_datetimes.keys():
             self.computed_ds = self.compute_ds()
+            gc.collect()  # reclaim potentially large previous computed_ds explicitly since memory management is an ongoing issue
         if self.current_time not in self.computed_ds.time.values:
             raise IndexError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
@@ -398,8 +400,6 @@ class AORCConusProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
-        self._ds: xr.Dataset = None
-        self._ds_year = None
 
     @cached_property
     def src_crs(self) -> CRS:
@@ -433,15 +433,13 @@ class AORCConusProcessor(BaseProcessor):
             return cached_data
         current_year = self.current_time.year
         try:
-            if self._ds_year != current_year:
-                if self._ds is not None:
-                    self._ds.close()
-                object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
-                self._ds = xr.open_zarr(ObjectStore(object_store))
-                self._ds_year = current_year
-            with self.timing_block(f"Loading {self.dataset_name} data"):
+            object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
+            with (
+                xr.open_dataset(ObjectStore(object_store), engine="zarr") as ds,
+                self.timing_block(f"Loading {self.dataset_name} data")
+            ):
                 return (
-                    self.slice_ds(self._ds)
+                    self.slice_ds(ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
