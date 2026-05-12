@@ -430,17 +430,14 @@ class AORCConusProcessor(BaseProcessor):
         if cached_data is not None:
             return cached_data
         current_year = self.current_time.year
-        previous_year = (self.current_time - timedelta(hours=1)).year
         try:
-            if (
-                current_year != previous_year
-                and previous_year in self.s3_lazy_ds
+            object_store = obstore.store.from_url(self.url(self.current_time.year), skip_signature=True)
+            with (
+                xr.open_zarr(ObjectStore(object_store)) as ds,
+                self.timing_block(f"Loading {self.dataset_name} data")
             ):
-                self.s3_lazy_ds[previous_year].close()
-                del self.s3_lazy_ds[previous_year]
-            with self.timing_block(f"Loading {self.dataset_name} data"):
                 return (
-                    self.slice_ds(self.s3_lazy_ds[current_year])
+                    self.slice_ds(ds)
                     .rename({self.x_label: "x", self.y_label: "y"})
                     .load()
                 )
@@ -448,15 +445,6 @@ class AORCConusProcessor(BaseProcessor):
             error_message = f"Error opening {self.dataset_name} data from {self.url(current_year)}: {e}\n"
             LOG.critical(error_message)
             raise ValueError(error_message)
-
-    @cached_property
-    def s3_lazy_ds(self) -> dict[int, xr.Dataset]:
-        """Lazy load dataset from S3."""
-        year_datasets = {}
-        for year in self.years:
-            object_store = obstore.store.from_url(self.url(year), skip_signature=True)
-            year_datasets[year] = xr.open_zarr(ObjectStore(object_store))
-        return year_datasets
 
 
 class AORCAlaskaProcessor(BaseProcessor):
@@ -609,6 +597,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
+                    object_store = obstore.store.from_url(self.url(var), skip_signature=True)
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
