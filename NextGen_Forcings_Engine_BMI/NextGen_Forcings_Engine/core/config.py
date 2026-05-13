@@ -3,7 +3,6 @@ import json
 import os
 import re
 from datetime import datetime, timedelta, timezone
-from functools import cached_property
 
 import ewts
 import numpy as np
@@ -37,15 +36,17 @@ class ConfigOptions:
             geogrid (str, optional): The filepath to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings. If not provided, it will be read from the configuration file.
 
         """
+        if geogrid is not None:
+            self.user_provided_geogrid_flag = True
+        else:
+            self.user_provided_geogrid_flag = False
+
+        self.b_date_proc = b_date
+        self._cfg_bmi = cfg_bmi
+        self._geogrid = geogrid
+
         self.bmi_time_index = 0
         self.precip_only_flag = False
-        self.number_custom_inputs = 0
-        self.useCompression = 0
-        self.useFloats = 0
-        self._b_date_proc = b_date
-        self._cfg_bmi = cfg_bmi
-        self.runCfsNldasBiasCorrect = False
-        self.rqiThresh = 1.0
         self.globalNdv = -9999.0
         self.d_program_init = datetime.now(timezone.utc)
         self.errFlag = 0
@@ -56,16 +57,56 @@ class ConfigOptions:
             "{source}/{year}/{year}{month:02d}/AK_AORC-OWP_{date}.nc4"
         )
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
-        self._geogrid = geogrid
+
         self.broadcast_new_64bit_uid()
 
         self._scratch_dir_has_been_uniquefied = False
+        # Create temporary array to hold flags if we need input parameter files.
+        self.param_flag = np.zeros([len(self.input_forcings)], int)
 
         # set list of attibutes from consts.py to None.
         # These are indexed from the consts dictionary using the class name
         for attr in CONFIGOPTIONS[self.__class__.__name__]:
             setattr(self, attr, None)
-        self._validate_config()
+
+        self.set_attrs(self.try_config_get_except_attr_map)
+        self.supp_precip_forcings = self.extract_input_variable("SuppPcp")
+        self.set_attrs(CONFIGOPTIONS["extract_input_variable_attrs_map"])
+
+        if self.precip_only_flag:
+            self.set_attrs(
+                CONFIGOPTIONS["extract_input_variable_attrs_map_precip_only"]
+            )
+        else:
+            self.set_attrs(
+                CONFIGOPTIONS["extract_input_variable_attrs_map_not_precip_only"]
+            )
+            if 27 in self.input_forcings:
+                self.nwm_geogrid = self.extract_input_variable("NWMGeogridIn")
+
+        if self.perform_downscaling:
+            self.set_attrs(CONFIGOPTIONS["downscaling_attrs_map"])
+            if self.grid_type == "unstructured":
+                self.set_attrs(CONFIGOPTIONS["downscaling_unstructred_attrs_map"])
+
+        for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
+            "extract_input_variable_set_default_attrs_map"
+        ].items():
+            setattr(
+                self,
+                config_options_attr,
+                self.extract_input_variable_set_default(cfg_bmi_attr),
+            )
+
+    @property
+    def try_config_get_except_attr_map(self) -> dict:
+        """Get the mapping of configuration variable names to class attribute names for variables that are extracted directly from the configuration file without any additional processing. This is used to control how variables are extracted from the configuration file and assigned to class attributes in a consistent way based on the mapping specified in the consts.py file."""
+        dict_map = CONFIGOPTIONS["try_config_get_except_attr_map"]
+        if self._b_date_proc is not None:
+            dict_map.pop("b_date_proc")
+        if self._geogrid is not None:
+            dict_map.pop("geogrid")
+        return dict_map
 
     @property
     def cfg_bmi(self) -> dict:
@@ -79,7 +120,6 @@ class ConfigOptions:
             raise TypeError(
                 f"Expected dict, got {type(value)} for type of cfg_bmi: {value}"
             )
-        self._validate_config()
         self._cfg_bmi = value
 
     @property
@@ -106,18 +146,11 @@ class ConfigOptions:
             if int(self.supp_precip_forcings[0]) == 14:
                 return True
 
-    def set_attrs(self):
+    def set_attrs(self, attrs_dict: dict):
         """Set the attributes of the class based on the configuration file. This is used to populate the attributes of the class after they have been read in and validated from the configuration file."""
-        for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
-            "cfg_bmi_to_attrs_map"
-        ].items():
+        for cfg_bmi_attr, config_options_attr in attrs_dict.items():
             setattr(
                 self, config_options_attr, self.extract_input_variable(cfg_bmi_attr)
-            )
-
-        if self.output_freq <= 0:
-            err_out_screen(
-                "Please specify an OutputFrequency that is greater than zero minutes."
             )
 
     def extract_input_variable(self, variable_name: str) -> str:
@@ -152,10 +185,10 @@ class ConfigOptions:
             err_out_screen(f"Please choose a {variable_name} value of 0  or 1.")
         return variable
 
-    def try_config_get(self, variable_name: str, default=None) -> str:
+    def try_config_get(self, variable_name: str) -> str:
         """Try to get a variable from the configuration file, and return a default value if it is not found."""
         try:
-            var = self.cfg_bmi.get(variable_name, default)
+            var = self.cfg_bmi.get(variable_name)
             if var is None:
                 err_out_screen(
                     f"Unable to locate {variable_name} in the configuration file."
@@ -182,7 +215,7 @@ class ConfigOptions:
     def check_number_of_inputs_supp_pcp(self, value: list, variable_name: str) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for supplemental precip forcing variables which should match the number of supplemental precip forcing options specified by the user in the configuration file."""
         return self.check_number_of_inputs(
-            value, variable_name, " supplemental precip forcings"
+            value, variable_name, " SupplementalPrecipForcings"
         )
 
     def check_input_values_in_range(
@@ -220,12 +253,11 @@ class ConfigOptions:
             )
         self.scratch_dir = os.path.join(self.scratch_dir, uid)
         self._scratch_dir_has_been_uniquefied = True
-        self.make_scratch_dir()
 
-    def make_scratch_dir(self) -> None:
+    def make_scratch_dir(self, scratch_dir: str) -> None:
         """Make the scratch dir and its parents."""
-        os.makedirs(self.scratch_dir, exist_ok=True)
-        LOG.debug(f"Scratch dir: {self.scratch_dir}")
+        os.makedirs(scratch_dir, exist_ok=True)
+        LOG.debug(f"Scratch dir: {scratch_dir}")
 
     def broadcast_new_64bit_uid(self) -> None:
         """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks.
@@ -237,15 +269,208 @@ class ConfigOptions:
         self.uid64 = mpi_utils.get_new_broadcasted_uid()
 
     @property
+    def supp_precip_forcings(self):
+        """Choose a set of supplemental precipitation file(s) to layer into the final LDASIN forcing files processed from the options above. The following is a mapping of numeric values to external input native forcing files.
+
+        1. MRMS GRIB2 hourly radar-only QPE
+        2. MRMS GRIB2 hourly gage-corrected radar QPE
+        3. WRF-ARW 2.5 km 48-hr Hawaii nest precipitation.
+        4. WRF-ARW 2.5 km 48-hr Puerto Rico nest precipitation.
+        5. CONUS MRMS GRIB2 hourly MultiSensor QPE (Pass 2 or Pass 1)
+        6. Hawaii MRMS GRIB2 hourly MultiSensor QPE (Pass 2 or Pass 1)
+        7. MRMS SBCv2 Liquid Water Fraction (netCDF only)
+        8. NBM Conus MR
+        9. NBM Alaska MR
+        10. Alaska MRMS (no liquid water fraction)
+        11. Alaska Stage IV NWS Precip
+        12. CONUS Stage IV NWS Precip
+        13. MRMS PrecipFlag precipitation classification file
+        14. Custom Frequency Supplementary Precipitation product (sub-hourly precip)
+        15. NBM Puerto Rico
+        16. NBM Hawaii
+        - Example- SuppPcp: [1, 5, 13]
+        """
+        return self._supp_precip_forcings
+
+    @supp_precip_forcings.setter
+    def supp_precip_forcings(self, value: list) -> None:
+        """Set the list of supplemental precip forcing options specified by the user in the configuration file. This is used to control which supplemental precip forcings are processed and how they are processed based on the other configuration options specified for each supplemental precip forcing."""
+        self.check_input_values_in_range(
+            value,
+            "SuppPcp",
+            list(range(1, self.supp_precip_count + 1)),
+        )
+        self._supp_precip_forcings = value
+
+    @property
+    def output_freq(self) -> int:
+        """Get the output frequency in minutes specified by the user in the configuration file. This is used to control the output frequency of the processed forcings, and is necessary for both realtime and reforecast simulations."""
+        return self._output_freq
+
+    @output_freq.setter
+    def output_freq(self, value: int) -> None:
+        """Specify the output frequency in minutes. Note that any frequencies at higher intervals than what if provided as input will entail input forcing data being temporally interpolated.
+
+        Example- OutputFrequency: 60
+        """
+        self.check_input_values_positive([value], "OutputFrequency")
+        self._output_freq = value
+
+    @property
+    def sub_output_hour(self) -> int:
+        """Get the sub-daily output hour specified by the user in the configuration file. This is used to control the output frequency of the processed forcings for sub-daily output frequencies, and is only necessary if the user has chosen a sub-daily output frequency in the configuration file."""
+        return self._sub_output_hour
+
+    @sub_output_hour.setter
+    def sub_output_hour(self, value: int) -> None:
+        """Sub output hour.
+
+        New variable currently for NWMv3.1 operations to properly ingest GFS 13km forecast data that outputs various frequencies throughout the forecast cycle lifetime. This variable will properly account for reading time slices of the forecast cycle. Currently only needed for GFS 13km operational configuration. Otherwise, set this value to 0.
+
+        Example- SubOutputHour: 0
+        """
+        self.check_input_values_positive([value], "SubOutputHour")
+        if value < 0:
+            err_out_screen(
+                "Please specify an SubOutputHour that is greater than zero minutes."
+            )
+        if value == 0:
+            value = None
+        self._sub_output_hour = value
+
+    @property
+    def sub_output_freq(self) -> int:
+        """Calculate the sub-daily output frequency in minutes based on the output frequency and sub-daily output hour specified by the user in the configuration file. This is used to control the output frequency of the processed forcings for sub-daily output frequencies, and is only necessary if the user has chosen a sub-daily output frequency in the configuration file."""
+        return self._sub_output_freq
+
+    @sub_output_freq.setter
+    def sub_output_freq(self, value: int) -> None:
+        """Sub output frequency.
+
+        New variable currently for NWMv3.1 operations to properly ingest GFS 13km forecast data that outputs various frequencies throughout the forecast cycle lifetime. This variable will properly account for reading time slices of the forecast cycle. Currently only needed for GFS 13km operational configuration. Otherwise, set this value to 0.
+
+        Example- SubOutputFreq: 0
+        """
+        if value < 0:
+            err_out_screen(
+                "Please specify an SubOutFreq that is greater than zero minutes."
+            )
+        if value == 0:
+            value = None
+        self._sub_output_freq = value
+
+    @property
+    def scratch_dir(self) -> str:
+        """Specify a scratch directory that will be used for storage of temporary files. These files will be removed automatically by the program. at the end of the BMI instance. However, this directory will also store the output forcing file if requested by the user as well (will not be deleted in this instance).
+
+        Example- ScratchDir: "./ScratchDir
+        """
+        return self._scratch_dir
+
+    @scratch_dir.setter
+    def scratch_dir(self, value: str) -> None:
+        """Set the pathway to the scratch directory specified by the user in the configuration file. This is used to control where intermediate files are written during processing, and is necessary for both realtime and reforecast simulations."""
+        self.make_scratch_dir(value)
+        self._scratch_dir = value
+
+    @property
+    def useCompression(self) -> int:
+        """Flag to activate scale_factor / add_offset byte packing in the output files. 0 - Deactivate compression 1 - Activate compression, Only applicable in this instance when you request a netcdf output forcing file (Output: 1). Otherwise, just set to 0.
+
+        Example- compressOutput: 0
+        """
+        return self._useCompression
+
+    @useCompression.setter
+    def useCompression(self, value: int) -> None:
+        """Set the flag for whether to use compression when writing output files specified by the user in the configuration file. This is used to control whether output files are compressed, which can save disk space but may increase processing time."""
+        if value is None:
+            value = 0
+        self.check_input_values_in_range([value], "compressOutput", [0, 1])
+        self._useCompression = value
+
+    @property
+    def ana_flag(self) -> int:
+        """If this is AnA run, set AnAFlag to 1, otherwise 0. Setting this flag will change the behavior of some Bias Correction routines as the ForecastInputOffsets options.
+
+        Example- AnAFlag: 1
+        """
+        return self._ana_flag
+
+    @ana_flag.setter
+    def ana_flag(self, value: int) -> None:
+        """Set the flag for whether to include the analysis time step in the output files specified by the user in the configuration file. This is used to control whether the analysis time step is included in the output files, which can be useful for certain applications but may not be necessary for all users."""
+        value = int(value)
+        self.check_input_values_in_range([value], "AnAFlag", [0, 1])
+        self._ana_flag = value
+
+    @property
+    def look_back(self) -> int:
+        """Specify a lookback period in minutes to process data. This is required if you are only processing an AnA operational configuration. This value should specify how far back you need to look in time from your "RefcstBDateProc" start date that you specified. In this instance, that start date will be your actual end date. If no LookBack specified, please specify -9999.
+
+        Example- LookBack: 180
+        """
+        return self._look_back
+
+    @look_back.setter
+    def look_back(self, value: int) -> None:
+        """Set the look back window in hours specified by the user in the configuration file. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        if value <= 0 and value != -9999:
+            err_out_screen("Please specify a positive LookBack or -9999 for realtime.")
+        if value != -9999:
+            calculate_lookback_window(self)
+        self._look_back = value
+
+    @property
+    def fcst_freq(self) -> int:
+        """Specify a forecast frequency in minutes. This value specifies how often to generate a set of forecast forcings. If generating hourly retrospective forcings, specify this value to be 60.
+
+        Example- ForecastFrequency: 60
+        """
+        return self._fcst_freq
+
+    @fcst_freq.setter
+    def fcst_freq(self, value: int) -> None:
+        """Set the forecast frequency in hours specified by the user in the configuration file. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        self.check_input_values_positive([value], "ForecastFrequency")
+        if value > 1440:
+            err_out_screen(
+                "Only forecast cycles of daily or sub-daily are supported at this time"
+            )
+        self._fcst_freq = value
+
+    @property
+    def spatial_meta(self):
+        """Specify the optional land spatial metadata file. If found, coordinate projection information and coordinate will be translated from to the final output file. This variable is only a special case if the user is specifying the original WRF-Hydro domain from earlier NWM versions. Otherwise, just leave the one blank ('').
+
+        Example- SpatialMetaIn: ./GEOGRID_LDASOUT_Spatial_Metadata_CONUS.nc
+        """
+        return self._spatial_meta
+
+    @spatial_meta.setter
+    def spatial_meta(self, value: str) -> None:
+        """Set the spatial metadata options specified by the user in the configuration file. This is used to control how spatial metadata is handled during processing, and is necessary for both realtime and reforecast simulations."""
+        if len(value) == 0:
+            # No spatial metadata file found.
+            value = None
+        else:
+            if not os.path.isfile(value):
+                err_out_screen(
+                    f"Unable to locate optional spatial metadata file: {value}."
+                )
+        self._spatial_meta = value
+
+    @property
     def b_date_proc(self) -> str:
-        """Get the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        """If running an operational configuration in realtime or just using a retrospective dataset (NWM, AORC, ERA5), this will be the defined start date for the NextGen Forcing Engine BMI which is assumed to be the beginning of the forecast cycle (i.e. hour 0) or just the start date of the retrospective dataset. From there the first time step will be hour 1 from the start date specified here. If you're running an AnA configuration however, this variable becomes the end date of the simulation and the "LookBack" value specified above will be how far back you look in time for the AnA operational configuration.
+
+        Example- RefcstBDateProc: 202210071400
+        """
         return self._bdate_proc
 
     @b_date_proc.setter
     def b_date_proc(self, value: str | datetime) -> None:
-        """Set the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
-        if value is None:
-            value = self.try_config_get("RefcstBDateProc")
+        """Set the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations."""
         if isinstance(value, datetime):
             self._b_date_proc = value
         if value != -9999:
@@ -268,11 +493,15 @@ class ConfigOptions:
     def realtime_flag(self) -> bool:
         """Flag to indicate whether the user has chosen to run a realtime simulation, which will trigger some different processing pathways and error checking for certain configuration options, and will also control how the processing window is calculated."""
         if self.look_back == -9999:
-            return False
+            value = False
         elif self.b_date_proc == -9999:
-            return True
+            value = True
         else:
-            return False
+            value = False
+        # Calculate the beginning/ending processing dates if we are running realtime
+        if value:
+            calculate_lookback_window(self)
+        return value
 
     @property
     def refcst_flag(self) -> bool:
@@ -292,34 +521,31 @@ class ConfigOptions:
     @geopackage.setter
     def geopackage(self, value: str) -> None:
         """Set the pathway to the geopackage file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
-        if value is not None:
-            self._geopackage = value
-        else:
-            self._geopackage = self.try_config_get("Geopackage")
+        self._geopackage = value
 
     @property
     def geogrid(self) -> str:
-        """Get the pathway to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        """Specify a geogrid file (e.g. latitude, longitude, mesh connectivity, elevation, slope) that defines domain to which the forcings are being processed to.
+
+        Example- GeogridIn: ./geo_em_CONUS.nc
+        """
         return self._geogrid
 
     @geogrid.setter
     def geogrid(self, value: str) -> None:
         """Set the pathway to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
-        if value is not None:
+        if self.user_provided_geogrid_flag:
             self._geogrid = value
+        if value is None:
+            err_out_screen("Unable to locate GeogridIn in the configuration file.")
         else:
-            geogrid_base = self.try_config_get("GeogridIn")
-            if geogrid_base is None:
-                err_out_screen("Unable to locate GeogridIn in the configuration file.")
-                self.geogrid = None
-            else:
-                geogrid_parent = os.path.dirname(geogrid_base)
-                geogrid_filename = os.path.basename(geogrid_base)
-                if self.uid64 is None:
-                    raise ValueError("self.uid64 cannot be None, please initialize it.")
-                self._geogrid = os.path.join(
-                    geogrid_parent, f"{self.uid64}_{geogrid_filename}"
-                )
+            geogrid_parent = os.path.dirname(value)
+            geogrid_filename = os.path.basename(value)
+            if self.uid64 is None:
+                raise ValueError("self.uid64 cannot be None, please initialize it.")
+            self._geogrid = os.path.join(
+                geogrid_parent, f"{self.uid64}_{geogrid_filename}"
+            )
         self.try_make_dir(geogrid_parent, " esmf_mesh")
 
     def try_make_dir(self, directory: str, optional_str: str = "") -> None:
@@ -334,21 +560,18 @@ class ConfigOptions:
                 )
 
     @property
-    def input_forcing_options(self) -> list:
+    def input_forcings(self) -> list:
         """Get the list of input forcing options specified by the user in the configuration file. This is used to control which input forcings are processed and how they are processed based on the other configuration options specified for each input forcing."""
-        return self._input_forcing_options
+        return self._input_forcings
 
-    @input_forcing_options.setter
-    def input_forcing_options(self, value: list) -> None:
+    @input_forcings.setter
+    def input_forcings(self, value: list) -> None:
         """Set the list of input forcing options specified by the user in the configuration file. This is used to control which input forcings are processed and how they are processed based on the other configuration options specified for each input forcing."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("InputForcings")
         if not self.precip_only_flag:
-            for force_opt in value:
-                self.check_input_values_in_range(
-                    value, "InputForcings", list(range(1, self.force_count + 1))
-                )
-            self._input_forcing_options = value
+            self.check_input_values_in_range(
+                value, "InputForcings", list(range(1, self.force_count + 1))
+            )
+            self._input_forcings = value
 
     @property
     def number_inputs(self) -> int:
@@ -358,30 +581,32 @@ class ConfigOptions:
                 err_out_screen(
                     "Please choose at least one InputForcings dataset to process"
                 )
-            return len(self.input_forcing_options)
+            return len(self.input_forcings)
 
     @property
     def number_custom_inputs(self) -> int:
         """Calculate the number of custom input forcing options specified by the user in the configuration file. This is used to control the flow of the program based on how many custom input forcings are being processed, since custom input forcings require some different processing pathways."""
         if not self.precip_only_flag:
             count = 0
-            for force_opt in self.input_forcing_options:
+            for force_opt in self.input_forcings:
                 if force_opt == 10:
                     count += 1
             return count
+        else:
+            return 0
 
     @property
     def nwm_geogrid(self) -> str:
-        """Get the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
+        """Only for the NWM v3 retorspective forcing module option (27) that requires the geo_em_NWM_DOMAIN.nc file as input for the NextGen Forcings Engine to properly setup up the ESMF grid object for the NWM forcing files since that information is not readily available in the NWM v3 retrospective forcing files."""
         return self._nwm_geogrid
 
     @nwm_geogrid.setter
     def nwm_geogrid(self, value: str) -> None:
         """Set the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            if 27 in self.input_forcing_options:
-                value = self.extract_input_variable("NWM_Geogrid")
-        self._nwm_geogrid = value
+        if not self.precip_only_flag and 27 in self.input_forcings:
+            self._nwm_geogrid = value
+        else:
+            self._nwm_geogrid = None
 
     @property
     def input_force_types(self) -> list:
@@ -390,9 +615,10 @@ class ConfigOptions:
 
     @input_force_types.setter
     def input_force_types(self, value: list) -> None:
-        """Set the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("InputForcingTypes")
+        """Specify the file type for each forcing (comma separated). Valid types are GRIB1, GRIB2, NETCDF, and NETCDF4.
+        
+        Example- InputForcingTypes: [GRIB2,GRIB2]\
+        """
         if not self.precip_only_flag:
             if value == [""]:
                 value = []
@@ -401,6 +627,8 @@ class ConfigOptions:
                 value, "InputForcingTypes", self.file_types
             )
             self._input_force_types = value
+        else:
+            self._input_force_types = None
 
     @property
     def file_types(self):
@@ -414,9 +642,10 @@ class ConfigOptions:
 
     @input_force_dirs.setter
     def input_force_dirs(self, value: list) -> None:
-        """Set the list of input forcing directories specified by the user in the configuration file. This is used to control where input forcings are read in from for each input forcing specified by the user in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("InputForcingDirectories")
+        """Specify the input directories for each forcing product. If a user has the ability to connect to the AWS servers and they specify configuration #12 (CONUS AORC data) or configuration #27 (NWM retrospective forcing data) then this specific configuration input can be left as a blank string ("").
+
+        Example- InputForcingDirectories: [./GFS,./NDFD]
+        """
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "InputForcingDirectories")
             # Loop through and ensure all input directories exist. Also strip out any whitespace
@@ -424,7 +653,7 @@ class ConfigOptions:
             for dir_tmp in range(0, len(value)):
                 value[dir_tmp] = value[dir_tmp].strip()
                 dir_path = value[dir_tmp]
-                forcing_type = self.input_forcing_options[dir_tmp]
+                forcing_type = self.input_forcings[dir_tmp]
                 is_aws_forcing = forcing_type in [12, 21, 27]
 
                 if not os.path.isdir(dir_path):
@@ -433,6 +662,8 @@ class ConfigOptions:
                     else:
                         self.try_make_dir(dir_path, " forcing")
             self._input_force_dirs = value
+        else:
+            self._input_force_dirs = None
 
     def input_force_mandatory(self) -> list:
         """Get the list of input forcing mandatory flags specified by the user in the configuration file. This is used to control whether the program should raise an error if input forcings for a given forecast cycle are not found for each input forcing specified by the user in the configuration file."""
@@ -440,12 +671,16 @@ class ConfigOptions:
 
     @input_force_mandatory.setter
     def input_force_mandatory(self, value: list) -> None:
-        """Set the list of input forcing mandatory flags specified by the user in the configuration file. This is used to control whether the program should raise an error if input forcings for a given forecast cycle are not found for each input forcing specified by the user in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("InputMandatory")
+        """Specify whether the input forcings listed above are mandatory, or optional. This is important for layering contingencies if a product is missing, but forcing files are still desired. 0 - Not mandatory, 1 - Mandatory. NOTE!!! If no files are found for any products, code will error out indicating the final field is all missing values.
+
+        Example- InputMandatory: [1,1]
+        """
+        if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "InputMandatory")
             self.check_input_values_in_range(value, "InputMandatory", [0, 1])
-        self._input_force_mandatory = value
+            self._input_force_mandatory = value
+        else:
+            self._input_force_mandatory = None
 
     def customSuppPcpFreq(self) -> int:
         """Get the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
@@ -454,81 +689,85 @@ class ConfigOptions:
     @customSuppPcpFreq.setter
     def customSuppPcpFreq(self, value: int) -> None:
         """Set the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
-        if value is None and self.precip_only_flag:
-            value = self.extract_input_variable("customSuppPcpFreq")
+        if self.precip_only_flag:
             self.check_input_values_positive([value], "customSuppPcpFreq")
-        self._customSuppPcpFreq = value
-
-    @property
-    def include_lqfrac(self):
-        """Get the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
-        return self._include_lqfrac
-
-    @include_lqfrac.setter
-    def include_lqfrac(self, value):
-        """Set the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
-        if value is None:
-            value = self.extract_input_variable_set_default("includeLQFrac", default=0)
-
-    @property
-    def include_lqfrac(self):
-        """Get the flag for whether to include the liquid/solid precipitation fraction variable in the output files specified by the user in the configuration file. This is used to control whether the liquid/solid precipitation fraction variable is included in the output files."""
-        return self._include_lqfrac
-
-    @include_lqfrac.setter
-    def include_lqfrac(self, value):
-        if value is None:
-            value = self.extract_input_variable_set_default("includeLQFrac", default=0)
-        self._include_lqfrac = value
-
-    @property
-    def forcing_output(self) -> int:
-        """Get the flag for whether to output the input forcings specified by the user in the configuration file. This is used to control whether the input forcings are output in addition to the processed forcings."""
-        return self._forcing_output
-
-    @forcing_output.setter
-    def forcing_output(self, value: int) -> None:
-        if value is None:
-            value = self.extract_input_variable_set_default("Output", default=0)
-        self._forcing_output = value
+            self._customSuppPcpFreq = value
+        else:
+            self._customSuppPcpFreq = None
 
     def fcst_shift(self) -> int:
-        """Get the forecast shift specified by the user in the configuration file. This is used to control the calculation of the processing window for realtime simulations."""
+        """Forecast cycles are determined by splitting up a day by equal ForecastFrequency interval. If there is a desire to shift the cycles to a different time step, ForecastShift will shift forecast cycles ahead by a determined set of minutes. For example, ForecastFrequency of 6 hours will produce forecasts cycles at 00, 06, 12, and 18 UTC. However, a ForecastShift of 1 hour will produce forecast cycles at 01, 07, 13, and 18 UTC. NOTE - This is only used by the realtime instance to calculate forecast cycles accordingly. Re-forecasts will use the beginning and ending dates specified in conjunction with the forecast frequency to determine forecast cycle dates.
+
+        Example- ForecastShift: 0
+        """
         return self._fcst_shift
 
     @fcst_shift.setter
     def fcst_shift(self, value: int) -> None:
+        if True:  # was: self.realtime_flag:
+            self.check_input_values_positive([value], "ForecastShift")
+            # Calculate the beginning/ending processing dates if we are running realtime
+            if self.realtime_flag:
+                calculate_lookback_window(self)
+            self._fcst_shift = value
+
+            # NOTE this commented out code copied from pre-refactored code on 5/6/2026
+            # if self.refcst_flag:
+            # Calculate the number of forecasts to issue, and verify the user has chosen a
+            # correct divider based on the dates
+            # dt_tmp = self.e_date_proc - self.b_date_proc
+            # if (dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) % self.fcst_freq != 0:
+            #    err_out_screen('Please choose an equal divider forecast frequency for your '
+            #                               'specified reforecast range.')
+            # self.nFcsts = int((dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) / self.fcst_freq)
+
+            # Flag to constrain AORC forcing data cycle output
+            # for optTmp in self.input_forcings:
+            # if optTmp == 12:
+            # self.nFcsts = 1
+
+    @property
+    def nFcsts(self):
+        """Get the number of forecasts to issue for a reforecast simulation based on the forecast shift and the processing window specified by the user in the configuration file. This is used to control how many forecast time steps are output for a reforecast simulation, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        return self._nFcsts
+
+    @nFcsts.setter
+    def nFcsts(self, value: int) -> None:
+        """Set the number of forecasts to issue for a reforecast simulation based on the forecast shift and the processing window specified by the user in the configuration file. This is used to control how many forecast time steps are output for a reforecast simulation, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
         if value is None:
-            value = self.extract_input_variable("ForecastShift")
-        self.check_input_values_positive([value], "ForecastShift")
-        self._fcst_shift = value
+            value = 1
+        self._nFcsts = value
 
     @property
     def fcst_input_horizons(self) -> list:
-        """Get the list of forecast input horizons specified by the user in the configuration file. This is used to control the calculation of the forecast cycle length and the processing of input forcings based on the forecast time horizons specified for each input forcing."""
+        """Specify how much (in minutes) of each input forcing is desires for each forecast cycle. See documentation for examples. The length of this array must match the input forcing choices.
+
+        - Example- ForecastInputHorizons: [60, 60]
+        """
         return self._fcst_input_horizons
 
     @fcst_input_horizons.setter
     def fcst_input_horizons(self, value: list) -> None:
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ForecastInputHorizons")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForecastInputHorizons")
             self.check_input_values_positive(value, "ForecastInputHorizons")
         else:
-            if value is None:
-                value = self.extract_input_variable("ForecastInputHorizons")
+            if len(self.fcst_input_horizons) != 1:
+                err_out_screen(
+                    "Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts."
+                )
         self._fcst_input_horizons = value
 
     @property
     def fcst_input_offsets(self):
-        """Get the list of forecast input offsets specified by the user in the configuration file. This is used to control the calculation of the processing window for both realtime and reforecast simulations based on the forecast time horizons and input offsets specified for each input forcing."""
+        """Option for applying an offset to input forcings to use a different forecasted interval. For example, a user may wish to use 4-5 hour forecasted fields from an NWP grid from one of their input forcings. In that instance the offset would be 4 hours, but 0 for other remaining forcings.
+
+        Example- ForecastInputOffsets: [0, 0]
+        """
         return self._fcst_input_offsets
 
     @fcst_input_offsets.setter
     def fcst_input_offsets(self, value: list) -> None:
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ForecastInputOffsets")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForecastInputOffsets")
             self.check_input_values_positive(value, "ForecastInputOffsets")
@@ -547,6 +786,7 @@ class ConfigOptions:
             )
         return cycle_len
 
+    @property
     def num_output_steps(self) -> int:
         """Calculate the number of output time steps per forecast cycle based on the forecast cycle length and the output frequency specified by the user in the configuration file."""
         if self.sub_output_hour is None:
@@ -562,11 +802,13 @@ class ConfigOptions:
             )
         return num_steps
 
+    @property
     def num_supp_output_steps(self) -> int:
         """Calculate the number of supplemental precip output time steps per forecast cycle based on the forecast cycle length and the custom supplemental precip output frequency specified by the user in the configuration file."""
         if self.precip_only_flag:
             return int(self.cycle_length_minutes / self.customSuppPcpFreq)
 
+    @property
     def actual_output_steps(self) -> int:
         """Calculate the actual number of output time steps per forecast cycle based on whether the user has chosen to run a reforecast simulation with a specified processing window, which will only output time steps for which input forcings are available based on the processing window and forecast time horizons specified by the user in the configuration file."""
         if self.ana_flag:
@@ -576,16 +818,17 @@ class ConfigOptions:
 
     @property
     def grid_type(self) -> str:
-        """Get the grid type specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings based on the grid type specified by the user in the configuration file."""
+        """Tells the NextGen Forcings Engine BMI which grid type the engine is initalizing as a BMI instance. This is a required field and the proper string values should be "gridded", "hydrofabric", or "unstructured".
+
+        Example- GRID_TYPE: "gridded"
+        """
         return self._grid_type
 
     @grid_type.setter
     def grid_type(self, value: str) -> None:
         """Set the grid type specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings based on the grid type specified by the user in the configuration file."""
-        if value is None:
-            value = self.extract_input_variable("GRID_TYPE")
         self.check_input_values_in_range(
-            [value], "GRID_TYPE", ["gridded", "unstructured", "hydrofabric"]
+            [value.lower()], "GRID_TYPE", ["gridded", "unstructured", "hydrofabric"]
         )
         self._grid_type = value.lower()
 
@@ -597,7 +840,10 @@ class ConfigOptions:
 
     @property
     def lon_var(self) -> str:
-        """Get the longitude variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a gridded grid type in the configuration file."""
+        """Naming convention of the longitude variable within the "GeogridIn" file the user has specified. Variable naming convention ONLY for gridded domain configurations. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object. In the case for "gridded" domain configuration options and a user specifying downscaling options while only specifying a height variable feature on the grid, this netcdf variable (LONVAR) is then EXPECTED to contain a netcdf metadata attribute called "dx" that specifies the grid spacing in the longtiudinal direction. Otherwise, it will throw an error and not be able to calculate the slope and tilt of each grid cell.
+
+        Example- LONVAR: "XLONG_M"
+        """
         if self.grid_type == "gridded":
             return self.extract_input_variable("LONVAR")
         else:
@@ -605,7 +851,10 @@ class ConfigOptions:
 
     @property
     def lat_var(self) -> str:
-        """Get the latitude variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a gridded grid type in the configuration file."""
+        """Naming convention of the latitude variable within the "GeogridIn" file the user has specified. Variable naming convention ONLY for gridded domain configurations. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object. In the case for "gridded" domain configuration options and a user specifying downscaling options while only specifying a height variable feature on the grid, this netcdf variable (LATVAR) is then EXPECTED to contain a netcdf metadata attribute called "dy" that specifies the grid spacing in the latitudinal direction. Otherwise, it will throw an error and not be able to calculate the slope and tilt of each grid cell.
+
+        Example- LATVAR: "XLAT_M"
+        """
         if self.grid_type == "gridded":
             return self.extract_input_variable("LATVAR")
         else:
@@ -613,7 +862,10 @@ class ConfigOptions:
 
     @property
     def nodecoords_var(self) -> str:
-        """Get the node coordinates variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        """Naming convention of the node coordinates variable within the "GeogridIn" file the user has specified for ONLY an unstructured mesh or the NextGen hydrofabric. This is a 2-D array stating the latitude and longitude coordinates for all the nodes in the mesh. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object.
+
+        Example- NodeCoods: "nodecoords"
+        """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("NodeCoords")
         else:
@@ -621,7 +873,10 @@ class ConfigOptions:
 
     @property
     def elemcoords_var(self) -> str:
-        """Get the element coordinates variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        """Naming convention of the element coordinates variable within the "GeogridIn" file the user has specified for ONLY an unstructured mesh or the NextGen hydrofabric. This is a 2-D array stating the latitude and longitude coordinates for all the elements in the mesh. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object.
+
+        Example- ElemCoods: "elemcoords"
+        """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("ElemCoords")
         else:
@@ -629,7 +884,10 @@ class ConfigOptions:
 
     @property
     def elemconn_var(self) -> str:
-        """Get the element connectivity variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        """Naming convention of the element connectivity variable within the "GeogridIn" file the user has specified for ONLY an unstructured mesh or the NextGen hydrofabric. This is a 2-D array stating the node ids for each element connecting the entire mesh structure. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object.
+
+        Example- ElemConn: "elemconn"
+        """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("ElemConn")
         else:
@@ -637,7 +895,10 @@ class ConfigOptions:
 
     @property
     def numelemconn_var(self) -> str:
-        """Get the number of element connectivity variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen an unstructured or hydrofabric grid type in the configuration file."""
+        """Naming convention of the number of nodes per element variable within the "GeogridIn" file the user has specified for ONLY an unstructured mesh or the NextGen hydrofabric. This is a 1-D array stating the how many nodes are connecting each element within the unstructured mesh. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object.
+
+        Example- NumElemConn: "numelemconn"
+        """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("NumElemConn")
         else:
@@ -645,7 +906,10 @@ class ConfigOptions:
 
     @property
     def element_id_var(self) -> str:
-        """Get the element ID variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for regridding input forcings if the user has chosen a hydrofabric grid type in the configuration file."""
+        """Naming convention of the element id variable within the "GeogridIn" file the user has specified for ONLY the NextGen hydrofabric. This is a 1-D array stating the catchment id numeric naming convention within the "divides" geopackage layer of a given NextGen hydrofabric file. This variable is required in order for the NextGen Forcings Engine to properly advertise the element ids of the unstructured mesh linked to the NextGen hydrofabric catchment ids.
+
+        Example- ElemID: "element_ids"
+        """
         if self.grid_type == "hydrofabric":
             return self.extract_input_variable("ElemID")
         else:
@@ -653,29 +917,31 @@ class ConfigOptions:
 
     @property
     def ignored_border_widths(self) -> list:
-        """Get the list of ignored border widths specified by the user in the configuration file. This is used to control how the program processes input forcings based on the ignored border widths specified for each input forcing in the configuration file."""
+        """Border width (in grid cells) to ignore for each input dataset. NOTE: generally, the first input forcing should always be zero or there will be missing data in the final output.
+
+        Example- IgnoredBorderWidths: [0,10]
+        """
         return self._ignored_border_widths
 
     @ignored_border_widths.setter
     def ignored_border_widths(self, value: list) -> None:
         """Set the list of ignored border widths specified by the user in the configuration file. This is used to control how the program processes input forcings based on the ignored border widths specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("IgnoredBorderWidths")
-        if self.precip_only_flag:
+        if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "IgnoredBorderWidths")
             self.check_input_values_positive(value, "IgnoredBorderWidths")
             self._ignored_border_widths = value
 
     @property
     def regrid_opt(self):
-        """Get the list of regridding options specified by the user in the configuration file. This is used to control how input forcings are regridded based on the regridding option specified for each input forcing in the configuration file."""
+        """Choose regridding options for each input forcing files being used. Options available are: 1 - ESMF Bilinear, 2 - ESMF Nearest Neighbor, 3 - ESMF Conservative Bilinear.
+
+        Example- RegridOpt: [1,1]
+        """
         return self._regrid_opt
 
     @regrid_opt.setter
     def regrid_opt(self, value: list) -> None:
         """Set the list of regridding options specified by the user in the configuration file. This is used to control how input forcings are regridded based on the regridding option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("RegridOpt")
         if self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "RegridOpt")
             self.check_input_values_in_range(value, "RegridOpt", [1, 2, 3])
@@ -689,9 +955,7 @@ class ConfigOptions:
     @weightsDir.setter
     def weightsDir(self, value: str) -> None:
         """Set the pathway to the ESMF weights directory specified by the user in the configuration file. This is used to control where the program looks for ESMF weights files if the user has chosen to use pre-generated ESMF weights files for regridding input forcings in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.try_config_get("RegridWeightsDir")
-        if self.precip_only_flag:
+        if not self.precip_only_flag:
             if value is not None and not os.path.exists(value):
                 err_out_screen(
                     f"ESMF Weights file directory specified ({value}) but does not exist"
@@ -705,26 +969,10 @@ class ConfigOptions:
 
     @forceTemoralInterp.setter
     def forceTemoralInterp(self, value: list) -> None:
-        """Set the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ForcingTemporalInterpolation")
-        if not self.precip_only_flag:
-            self.check_number_of_inputs_forcings(value, "ForcingTemporalInterpolation")
-            self.check_input_values_in_range(
-                value, "ForcingTemporalInterpolation", [0, 1, 2]
-            )
-            self._forceTemoralInterp = value
+        """Specify an temporal interpolation for the forcing variables. Interpolation will be done between the two neighboring input forcing states that exist. If only one nearest state exist (I.E. only a state forward in time, or behind), then that state will be used as a "nearest neighbor". NOTE - All input options here must be of the same length of the input forcing number. Also note all temporal interpolation occurs BEFORE downscaling and bias correction. 0 - No temporal interpolation. 1 - Nearest Neighbor, 2 - Linear weighted,  average.
 
-    @property
-    def forceTemoralInterp(self):
-        """Get the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
-        return self._forceTemoralInterp
-
-    @forceTemoralInterp.setter
-    def forceTemoralInterp(self, value):
-        """Set the list of forcing temporal interpolation options specified by the user in the configuration file. This is used to control how input forcings are temporally interpolated based on the temporal interpolation option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ForcingTemporalInterpolation")
+        Example- ForcingTemporalInterpolation: [0,0]
+        """
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForcingTemporalInterpolation")
             self.check_input_values_in_range(
@@ -734,29 +982,36 @@ class ConfigOptions:
 
     @property
     def t2dDownscaleOpt(self) -> list:
-        """Get the list of temperature downscaling options specified by the user in the configuration file. This is used to control how temperature input forcings are downscaled based on the temperature downscaling option specified for each input forcing in the configuration file."""
+        """Specify a temperature downscaling method: 0 - No downscaling, 1 - Use a simple lapse rate of 6.75 degrees Celsius to get from the model elevation to the WRF-Hydro elevation, 2 - Use a pre-calculated lapse rate regridded to the WRF-Hydro domain (only NWM), 3 - Use a dynamic lapse rate calculated at each timstep.
+
+        Example- TemperatureDownscaling: [3, 3]
+        """
         return self._t2dDownscaleOpt
 
     @t2dDownscaleOpt.setter
     def t2dDownscaleOpt(self, value: list) -> None:
         """Set the list of temperature downscaling options specified by the user in the configuration file. This is used to control how temperature input forcings are downscaled based on the temperature downscaling option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("TemperatureDownscaling")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "TemperatureDownscaling")
             self.check_input_values_in_range(value, "TemperatureDownscaling", [0, 1, 2])
+            count = 0
+            for opt in value:
+                if opt == 2:
+                    self.param_flag[count] = 1
+                count += 1
             self._t2dDownscaleOpt = value
 
     @property
     def psfcDownscaleOpt(self) -> list:
-        """Get the list of pressure downscaling options specified by the user in the configuration file. This is used to control how pressure input forcings are downscaled based on the pressure downscaling option specified for each input forcing in the configuration file."""
+        """Specify a surface pressure downscaling method: 0 - No downscaling, 1 - Use input elevation and WRF-Hydro elevation to downscale surface pressure.
+
+        Example- PressureDownscaling: [1, 1]
+        """
         return self._psfcDownscaleOpt
 
     @psfcDownscaleOpt.setter
     def psfcDownscaleOpt(self, value: list) -> None:
         """Set the list of pressure downscaling options specified by the user in the configuration file. This is used to control how pressure input forcings are downscaled based on the pressure downscaling option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("PressureDownscaling")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "PressureDownscaling")
             self.check_input_values_in_range(value, "PressureDownscaling", [0, 1])
@@ -764,14 +1019,15 @@ class ConfigOptions:
 
     @property
     def swDownscaleOpt(self) -> list:
-        """Get the list of shortwave downscaling options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are downscaled based on the shortwave downscaling option specified for each input forcing in the configuration file."""
+        """Specify a shortwave radiation downscaling routine. 0 - No downscaling, 1 - Run a topographic adjustment using the WRF-Hydro elevation.
+
+        Example- ShortwaveDownscaling: [1, 1]
+        """
         return self._swDownscaleOpt
 
     @swDownscaleOpt.setter
     def swDownscaleOpt(self, value: list) -> None:
         """Set the list of shortwave downscaling options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are downscaled based on the shortwave downscaling option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ShortwaveDownscaling")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ShortwaveDownscaling")
             self.check_input_values_in_range(value, "ShortwaveDownscaling", [0, 1])
@@ -779,14 +1035,15 @@ class ConfigOptions:
 
     @property
     def q2dDownscaleOpt(self) -> list:
-        """Get the list of humidity downscaling options specified by the user in the configuration file. This is used to control how humidity input forcings are downscaled based on the humidity downscaling option specified for each input forcing in the configuration file."""
+        """Specify a specific humidity downscaling routine. 0 - No downscaling, 1 - Use regridded humidity, along with downscaled temperature/pressure to extrapolate a downscaled surface specific humidty.
+
+        Example- HumidityDownscaling: [1, 1]
+        """
         return self._q2dDownscaleOpt
 
     @q2dDownscaleOpt.setter
     def q2dDownscaleOpt(self, value: list) -> None:
         """Set the list of humidity downscaling options specified by the user in the configuration file. This is used to control how humidity input forcings are downscaled based on the humidity downscaling option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("HumidityDownscaling")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "HumidityDownscaling")
             self.check_input_values_in_range(value, "HumidityDownscaling", [0, 1])
@@ -794,29 +1051,36 @@ class ConfigOptions:
 
     @property
     def precipDownscaleOpt(self) -> list:
-        """Get the list of precipitation downscaling options specified by the user in the configuration file. This is used to control how precipitation input forcings are downscaled based on the precipitation downscaling option specified for each input forcing in the configuration file."""
+        """Specify a precipitation downscaling routine. 0 - No downscaling, 1 - NWM mountain mapper downscaling using monthly PRISM climo.
+
+        Example- PrecipDownscaling: [0, 0]
+        """
         return self._precipDownscaleOpt
 
     @precipDownscaleOpt.setter
     def precipDownscaleOpt(self, value: list) -> None:
         """Set the list of precipitation downscaling options specified by the user in the configuration file. This is used to control how precipitation input forcings are downscaled based on the precipitation downscaling option specified for each input forcing in the configuration file."""
-        if value is None:
-            value = self.extract_input_variable("PrecipDownscaling")
-        self.check_number_of_inputs_forcings(value, "PrecipDownscaling")
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "PrecipDownscaling")
         self.check_input_values_in_range(value, "PrecipDownscaling", [0, 1])
-
+        count = 0
+        for opt in value:
+            if opt == 1:
+                self.param_flag[count] = 1
+            count += 1
         self._precipDownscaleOpt = value
 
     @property
     def dScaleParamDirs(self) -> list:
-        """Get the list of downscaling parameter directories specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for each input forcing based on the downscaling parameter directory specified for each input forcing in the configuration file."""
+        """Specify the input parameter directory containing necessary downscaling grids. This is ONLY needed for the original NWM WRF-Hydro domain. Otherwise, just point it to a random directory and it will be ignored.
+
+        Example- DownscalingParamDirs: ["./forcingParam/AnA", "./forcingParam/AnA"]
+        """
         return self._dScaleParamDirs
 
     @dScaleParamDirs.setter
     def dScaleParamDirs(self, value: list) -> None:
         """Set the list of downscaling parameter directories specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for each input forcing based on the downscaling parameter directory specified for each input forcing in the configuration file."""
-        if value is None:
-            value = self.extract_input_variable("DownscalingParamDirs")
         self.check_number_of_inputs_forcings(value, "DownscalingParamDirs")
         for dirTmp in range(0, len(value)):
             dir_path = value[dirTmp]
@@ -838,72 +1102,16 @@ class ConfigOptions:
             return True
 
     @property
-    def sinalpha_var(self) -> str:
-        """Get the sine of the grid orientation variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the grid orientation variable specified for each input forcing in the configuration file."""
-        if self.perform_downscaling:
-            return self.extract_input_variable("SINALPHA")
-
-    @property
-    def cosalpha_var(self) -> str:
-        """Get the cosine of the grid orientation variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the grid orientation variable specified for each input forcing in the configuration file."""
-        if self.perform_downscaling:
-            return self.extract_input_variable("COSALPHA")
-
-    @property
-    def slope_var(self) -> str:
-        """Get the slope variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope variable specified for each input forcing in the configuration file."""
-        if self.perform_downscaling:
-            return self.extract_input_variable("SLOPE")
-
-    @property
-    def slope_azimuth_var(self) -> str:
-        """Get the slope azimuth variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope azimuth variable specified for each input forcing in the configuration file."""
-        if self.perform_downscaling:
-            return self.extract_input_variable("SLOPE_AZIMUTH")
-
-    @property
-    def slope_var_elem(self) -> str:
-        """Get the slope variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope variable specified for each input forcing in the configuration file for element-based grids."""
-        if self.perform_downscaling:
-            if self.grid_type == "unstructured":
-                return self.extract_input_variable("SLOPE_ELEM")
-            else:
-                self.raise_grid_type_error(self.grid_type, "SLOPE_ELEM")
-
-    @property
-    def slope_azimuth_var_elem(self) -> str:
-        """Get the slope azimuth variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the slope azimuth variable specified for each input forcing in the configuration file for element-based grids."""
-        if self.perform_downscaling:
-            if self.grid_type == "unstructured":
-                return self.extract_input_variable("SLOPE_AZIMUTH_ELEM")
-            else:
-                self.raise_grid_type_error(self.grid_type, "SLOPE_AZIMUTH_ELEM")
-
-    @property
-    def hgt_elem_var(self) -> str:
-        """Get the height variable name specified by the user in the configuration file for element-based grids. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the height variable specified for each input forcing in the configuration file for element-based grids."""
-        if self.perform_downscaling:
-            if self.grid_type == "unstructured":
-                return self.extract_input_variable("HGT_ELEM")
-            else:
-                self.raise_grid_type_error(self.grid_type, "HGT_ELEM")
-
-    @property
-    def hgt_var(self) -> str:
-        """Get the height variable name specified by the user in the configuration file. This is used to control how the program reads in and processes the geogrid information for downscaling input forcings based on the height variable specified for each input forcing in the configuration file."""
-        if self.perform_downscaling:
-            return self.extract_input_variable("HGT")
-
-    @property
     def t2BiasCorrectOpt(self) -> list:
-        """Get the list of temperature bias correction options specified by the user in the configuration file. This is used to control how temperature input forcings are bias corrected based on the temperature bias correction option specified for each input forcing in the configuration file."""
+        """Specify a temperature bias correction method. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY, 2 - Custom NCAR bias-correction based on HRRRv3 analysis - based on hour of day (USE WITH CAUTION), 3 - NCAR parametric GFS bias correction, 4 - NCAR parametric HRRR bias correction.
+
+        Example- TemperatureBiasCorrection: [0, 4]
+        """
         return self._t2BiasCorrectOpt
 
     @t2BiasCorrectOpt.setter
     def t2BiasCorrectOpt(self, value: list) -> None:
         """Set the list of temperature bias correction options specified by the user in the configuration file. This is used to control how temperature input forcings are bias corrected based on the temperature bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("TemperatureBiasCorrection")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "TemperatureBiasCorrection")
             self.check_input_values_in_range(
@@ -913,14 +1121,15 @@ class ConfigOptions:
 
     @property
     def psfcBiasCorrectOpt(self) -> list:
-        """Get the list of pressure bias correction options specified by the user in the configuration file. This is used to control how pressure input forcings are bias corrected based on the pressure bias correction option specified for each input forcing in the configuration file."""
+        """Specify a surface pressure bias correction method. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY.
+
+        Example- PressureBiasCorrection: [0,0]
+        """
         return self._psfcBiasCorrectOpt
 
     @psfcBiasCorrectOpt.setter
     def psfcBiasCorrectOpt(self, value: list) -> None:
         """Set the list of pressure bias correction options specified by the user in the configuration file. This is used to control how pressure input forcings are bias corrected based on the pressure bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("PressureBiasCorrection")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "PressureBiasCorrection")
             self.check_input_values_in_range(value, "PressureBiasCorrection", [0, 1])
@@ -928,14 +1137,15 @@ class ConfigOptions:
 
     @property
     def q2BiasCorrectOpt(self):
-        """Get the list of humidity bias correction options specified by the user in the configuration file. This is used to control how humidity input forcings are bias corrected based on the humidity bias correction option specified for each input forcing in the configuration file."""
+        """Specify a specific humidity bias correction method. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY, 2 - Custom NCAR bias-correction based on HRRRv3 analysis - based on hour of day (USE WITH CAUTION).
+
+        Example- HumidityBiasCorrection: [0,0]
+        """
         return self._q2BiasCorrectOpt
 
     @q2BiasCorrectOpt.setter
     def q2BiasCorrectOpt(self, value):
         """Set the list of humidity bias correction options specified by the user in the configuration file. This is used to control how humidity input forcings are bias corrected based on the humidity bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("HumidityBiasCorrection")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "HumidityBiasCorrection")
             self.check_input_values_in_range(value, "HumidityBiasCorrection", [0, 1, 2])
@@ -943,63 +1153,65 @@ class ConfigOptions:
 
     @property
     def windBiasCorrect(self):
-        """Get the list of wind bias correction options specified by the user in the configuration file. This is used to control how wind input forcings are bias corrected based on the wind bias correction option specified for each input forcing in the configuration file."""
+        """Specify a wind bias correction. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY, 2 - Custom NCAR bias-correction based on HRRRv3 analysis - based on hour of day (USE WITH CAUTION), 3 - NCAR parametric GFS bias correction, 4 - NCAR parametric HRRR bias correction.
+
+        Example- WindBiasCorrection: [0, 4]
+        """
         return self._windBiasCorrect
 
     @windBiasCorrect.setter
     def windBiasCorrect(self, value):
         """Set the list of wind bias correction options specified by the user in the configuration file. This is used to control how wind input forcings are bias corrected based on the wind bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("WindBiasCorrection")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "WindBiasCorrection")
-            self.check_input_values_in_range(value, "WindBiasCorrection", [0, 4])
+            self.check_input_values_in_range(
+                value, "WindBiasCorrection", [0, 1, 2, 3, 4]
+            )
             self._windBiasCorrect = value
 
     @property
     def swBiasCorrectOpt(self) -> list:
-        """Get the list of shortwave radiation bias correction options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are bias corrected based on the shortwave radiation bias correction option specified for each input forcing in the configuration file."""
+        """Specify a bias correction for incoming short wave radiation flux. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY, 2 - Custom NCAR bias-correction based on HRRRv3 analysis (USE WITH CAUTION).
+
+        Example- SwBiasCorrection: [0, 2]
+        """
         return self._swBiasCorrectOpt
 
     @swBiasCorrectOpt.setter
     def swBiasCorrectOpt(self, value: list) -> None:
         """Set the list of shortwave radiation bias correction options specified by the user in the configuration file. This is used to control how shortwave radiation input forcings are bias corrected based on the shortwave radiation bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("ShortwaveBiasCorrection")
         if not self.precip_only_flag:
-            self.check_number_of_inputs_forcings(value, "ShortwaveBiasCorrection")
-            self.check_input_values_in_range(
-                value, "ShortwaveBiasCorrection", [0, 1, 2]
-            )
+            self.check_number_of_inputs_forcings(value, "SwBiasCorrection")
+            self.check_input_values_in_range(value, "SwBiasCorrection", [0, 1, 2])
             self._swBiasCorrectOpt = value
 
     @property
     def lwBiasCorrectOpt(self) -> list:
-        """Get the list of longwave radiation bias correction options specified by the user in the configuration file. This is used to control how longwave radiation input forcings are bias corrected based on the longwave radiation bias correction option specified for each input forcing in the configuration file."""
+        """Specify a bias correction for incoming long wave radiation flux. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY, 2 - Custom NCAR bias-correction based on HRRRv3 analysis, blanket adjustment (USE WITH CAUTION), 3 - NCAR parametric GFS bias correction.
+
+        Example- LwBiasCorrection: [0, 2]
+        """
         return self._lwBiasCorrectOpt
 
     @lwBiasCorrectOpt.setter
     def lwBiasCorrectOpt(self, value: list) -> None:
         """Set the list of longwave radiation bias correction options specified by the user in the configuration file. This is used to control how longwave radiation input forcings are bias corrected based on the longwave radiation bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("LongwaveBiasCorrection")
         if not self.precip_only_flag:
-            self.check_number_of_inputs_forcings(value, "LongwaveBiasCorrection")
-            self.check_input_values_in_range(
-                value, "LongwaveBiasCorrection", [0, 1, 2, 4]
-            )
+            self.check_number_of_inputs_forcings(value, "LwBiasCorrection")
+            self.check_input_values_in_range(value, "LwBiasCorrection", [0, 1, 2, 3, 4])
             self._lwBiasCorrectOpt = value
 
     @property
     def precipBiasCorrectOpt(self):
-        """Get the list of precipitation bias correction options specified by the user in the configuration file. This is used to control how precipitation input forcings are bias corrected based on the precipitation bias correction option specified for each input forcing in the configuration file."""
+        """Specify a bias correction for precipitation. 0 - No bias correction, 1 - CFSv2 - NLDAS2 Parametric Distribution - NWM ONLY.
+
+        Example- PrecipBiasCorrection: [0, 0]
+        """
         return self._precipBiasCorrectOpt
 
     @precipBiasCorrectOpt.setter
     def precipBiasCorrectOpt(self, value):
         """Set the list of precipitation bias correction options specified by the user in the configuration file. This is used to control how precipitation input forcings are bias corrected based on the precipitation bias correction option specified for each input forcing in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("PrecipBiasCorrection")
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "PrecipBiasCorrection")
             self.check_input_values_in_range(value, "PrecipBiasCorrection", [0, 1])
@@ -1008,8 +1220,8 @@ class ConfigOptions:
     @property
     def bias_correction_properties(self) -> dict:
         """Get the dictionary of bias correction properties specified by the user in the configuration file. This is used to control how input forcings are bias corrected based on the bias correction options specified for each input forcing in the configuration file."""
-        bias_correction_properties = {
-            "surface temperature": self.t2BiasCorrectOpt,
+        return {
+            # "surface temperature": self.t2BiasCorrectOpt, #NOTE surface temperature was excluded from this consideration in the orignal code (5/7/2026 pre-refactor). Should it actually be included?
             "surface pressure": self.psfcBiasCorrectOpt,
             "specific humidity": self.q2BiasCorrectOpt,
             "wind forcings": self.windBiasCorrect,
@@ -1017,16 +1229,17 @@ class ConfigOptions:
             "long-wave radiation": self.lwBiasCorrectOpt,
             "Precipitation": self.precipBiasCorrectOpt,
         }
-        return bias_correction_properties
 
     @property
     def runCfsNldasBiasCorrect(self) -> bool:
         """Get the flag for whether to run the NWM-specific bias correction of CFSv2 input forcings specified by the user in the configuration file. This is used to control whether the NWM-specific bias correction of CFSv2 input forcings is run based on whether the user has chosen to run this bias correction in the configuration file."""
-        for optTmp in self.bias_correction_properties.values():
-            if optTmp == 1:
-                runCfsNldasBiasCorrect = True
-                break
-        if runCfsNldasBiasCorrect:
+        run_cfs_nldas_bias_correct = False
+        for bias_option in self.bias_correction_properties.values():
+            for opt in bias_option:
+                if opt == 1:
+                    run_cfs_nldas_bias_correct = True
+                    break
+        if run_cfs_nldas_bias_correct:
             for (
                 bias_correct_name,
                 bias_correct,
@@ -1041,7 +1254,9 @@ class ConfigOptions:
                         err_out_screen(
                             "CFSv2-NLDAS NWM bias correction can only be used in CFSv2-only configurations"
                         )
+        return run_cfs_nldas_bias_correct
 
+    @property
     def number_supp_pcp(self) -> int:
         """Get the number of supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how many supplemental precipitation input forcings are processed based on the number of supplemental precipitation input forcings specified in the configuration file."""
         return len(self.supp_precip_forcings)
@@ -1054,13 +1269,10 @@ class ConfigOptions:
     @supp_precip_file_types.setter
     def supp_precip_file_types(self, value: list) -> None:
         """Set the list of supplemental precipitation input forcing file types specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are read in and processed based on the file types specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None:
-            value = self.try_config_get("SuppPcpForcingTypes")
         if value is not None:
             value = [stype.strip() for stype in value]
         if value == [""]:
             value = []
-
         self.check_number_of_inputs_supp_pcp(value, "SuppPcpForcingTypes")
         self.check_input_values_in_range(
             value,
@@ -1076,120 +1288,103 @@ class ConfigOptions:
 
     @property
     def rqiMethod(self) -> list:
-        """Get the list of radar quality index (RQI) thresholding methods specified by the user in the configuration file. This is used to control how radar-based supplemental precipitation input forcings are processed based on the RQI thresholding method specified for each radar-based supplemental precipitation input forcing in the configuration file."""
+        """Optional RQI method for radar-based data. 0 - Do not use any RQI filtering. Use all radar-based estimates. 1 - Use hourly MRMS Radar Quality Index grids, 2 - Use NWM monthly climatology grids (NWM only!!!!).
+
+        Example- RqiMethod: 2
+        """
+        value = None
         if self.number_supp_pcp > 0:
             for suppOpt in self.supp_precip_forcings:
                 # Read in RQI threshold to apply to radar products.
                 if suppOpt in (1, 2, 7, 10, 11, 12):
-                    rqiMethod = self.extract_input_variable("RqiMethod")
+                    value = self.extract_input_variable("RqiMethod")
 
                     # Check that if we have more than one RqiMethod, it's the correct number
-                    if type(rqiMethod) is list:
-                        self.check_number_of_inputs_supp_pcp(rqiMethod, "RqiMethod")
-                    elif type(rqiMethod) is int:
+                    if type(value) is list:
+                        self.check_number_of_inputs_supp_pcp(value, "RqiMethod")
+                    elif type(value) is int:
                         # Support 'classic' mode of single method
-                        rqiMethod = [rqiMethod] * self.number_supp_pcp
+                        value = [value] * self.number_supp_pcp
 
                     # Make sure the RqiMethod(s) makes sense.
-                    for method in rqiMethod:
+                    for method in value:
                         self.check_input_values_in_range(method, "RqiMethod", [0, 1, 2])
-            return rqiMethod
+        return value
 
     @property
     def rqiThresh(self):
-        """Get the radar quality index (RQI) threshold value specified by the user in the configuration file. This is used to control how radar-based supplemental precipitation input forcings are processed based on the RQI threshold value specified in the configuration file."""
+        """Optional RQI threshold to be used to mask out. Currently used for MRMS products. Please choose a value from 0.0-1.0. Associated radar quality index files will be expected from MRMS data.
+
+        Example- RqiThreshold: 0.9
+        """
+        value = 1.0
         if self.number_supp_pcp > 0:
-            for suppOpt in self.supp_precip_forcings:
+            for supp_opt in self.supp_precip_forcings:
                 # Read in RQI threshold to apply to radar products.
-                if suppOpt in (1, 2, 7, 10, 11, 12):
-                    rqiThresh = self.extract_input_variable("RqiThresh")
+                if supp_opt in (1, 2, 7, 10, 11, 12):
+                    value = self.extract_input_variable("RqiThresh")
 
                     # Check that if we have more than one RqiThresh, it's the correct number
-                    if type(rqiThresh) is list:
-                        self.check_number_of_inputs_supp_pcp(rqiThresh, "RqiThresh")
-                    elif type(rqiThresh) is (int, float):
+                    if type(value) is list:
+                        self.check_number_of_inputs_supp_pcp(value, "RqiThresh")
+                    elif type(value) is (int, float):
                         # Support 'classic' mode of single threshold
-                        rqiThresh = [rqiThresh] * self.number_supp_pcp
+                        value = [value] * self.number_supp_pcp
 
                     # Make sure the RqiThresh(es) makes sense.
-                    for threshold in self.rqiThresh:
+                    for threshold in value:
                         if threshold < 0.0 or threshold > 1.0:
                             err_out_screen(
                                 "Please specify RqiThresholds between 0.0 and 1.0."
                             )
-            return threshold
-
-    @property
-    def supp_precip_dirs(self):
-        """Get the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
-        if self.number_supp_pcp > 0:
-            return self._supp_precip_dirs
-
-    @supp_precip_dirs.setter
-    def supp_precip_dirs(self, value):
-        """Set the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpDirectories")
-        if value > 0:
-            self.check_number_of_inputs_supp_pcp(value, "SuppPcpDirectories")
-            for dirTmp in range(0, len(value)):
-                value[dirTmp] = value[dirTmp].strip()
-                if not os.path.isdir(value[dirTmp]):
-                    try:
-                        os.makedirs(value[dirTmp], exist_ok=True)
-                        LOG.debug(f"Created supp pcp directory: {value[dirTmp]}")
-                    except OSError as e:
-                        err_out_screen(
-                            f"Unable to create supp pcp directory: {value[dirTmp]}. Error: {e}"
-                        )
-            self._supp_precip_dirs = value
+        return value
 
     @property
     def supp_precip_mandatory(self):
-        """Get the list of flags for whether each supplemental precipitation input forcing specified by the user in the configuration file is mandatory or optional. This is used to control whether an error is raised if supplemental precipitation input forcing files are not found for each supplemental precipitation input forcing based on whether the user has specified each supplemental precipitation input forcing as mandatory or optional in the configuration file."""
+        """Specify whether the Supplemental Precips listed above are mandatory, or optional. This is important for layering contingencies if a product is missing, but forcing files are still desired. 0 - Not mandatory, 1 - Mandatory.
+
+        Example- SuppPcpMandatory: [0, 0, 0]
+        """
         return self._supp_precip_mandatory
 
     @supp_precip_mandatory.setter
     def supp_precip_mandatory(self, value):
         """Set the list of flags for whether each supplemental precipitation input forcing specified by the user in the configuration file is mandatory or optional. This is used to control whether an error is raised if supplemental precipitation input forcing files are not found for each supplemental precipitation input forcing based on whether the user has specified each supplemental precipitation input forcing as mandatory or optional in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpMandatory")
         if self.number_supp_pcp > 0:
-            for enforceOpt in value:
-                self.check_input_values_in_range(enforceOpt, "SuppPcpMandatory", [0, 1])
+            self.check_input_values_in_range(value, "SuppPcpMandatory", [0, 1])
             self._supp_precip_mandatory = value
 
     @property
     def regrid_opt_supp_pcp(self):
-        """Get the list of regridding options for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are regridded based on the regridding option specified for each supplemental precipitation input forcing in the configuration file."""
+        """Specify regridding options for the supplemental precipitation products. Options available are: 1 - ESMF Bilinear, 2 - ESMF Nearest Neighbor, 3 - ESMF Conservative Bilinear.
+
+        Example- RegridOptSuppPcp: [1, 1, 1]
+        """
         return self._regrid_opt_supp_pcp
 
     @regrid_opt_supp_pcp.setter
     def regrid_opt_supp_pcp(self, value):
         """Set the list of regridding options for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are regridded based on the regridding option specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("RegridOptSuppPcp")
         if self.number_supp_pcp > 0:
-            for optTmp in value:
-                self.check_input_values_in_range(optTmp, "RegridOptSuppPcp", [1, 2, 3])
+            self.check_input_values_in_range(value, "RegridOptSuppPcp", [1, 2, 3])
             self._regrid_opt_supp_pcp = value
 
     @property
     def suppTemporalInterp(self):
-        """Get the list of flags for whether temporal interpolation of supplemental precipitation input forcings specified by the user in the configuration file is performed or not. This is used to control whether temporal interpolation of supplemental precipitation input forcings is performed based on whether the user has chosen to perform temporal interpolation for each supplemental precipitation input forcing in the configuration file."""
+        """Specify the time interpretation methods for the supplemental precipitation products.
+
+        Example- SuppPcpTemporalInterpolation: [0, 0, 0]
+        """
         if self.number_supp_pcp > 0:
             return self._suppTemporalInterp
 
     @suppTemporalInterp.setter
     def suppTemporalInterp(self, value):
         """Set the list of flags for whether temporal interpolation of supplemental precipitation input forcings specified by the user in the configuration file is performed or not. This is used to control whether temporal interpolation of supplemental precipitation input forcings is performed based on whether the user has chosen to perform temporal interpolation for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpTemporalInterpolation")
         if self.number_supp_pcp > 0:
-            for optTmp in value:
-                self.check_input_values_in_range(
-                    optTmp, "SuppPcpTemporalInterpolation", [0, 1, 2]
-                )
+            self.check_input_values_in_range(
+                value, "SuppPcpTemporalInterpolation", [0, 1, 2]
+            )
             self._suppTemporalInterp = value
 
     @property
@@ -1201,8 +1396,6 @@ class ConfigOptions:
     @supp_pcp_max_hours.setter
     def supp_pcp_max_hours(self, value):
         """Set the list of maximum forecast hours for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are processed based on the maximum forecast hour specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpMaxHours")
         if self.number_supp_pcp > 0:
             if isinstance(value, list):
                 self.check_input_values_positive(value, "SuppPcpMaxHours")
@@ -1213,59 +1406,36 @@ class ConfigOptions:
 
     @property
     def supp_input_offsets(self):
-        """Get the list of time offsets to apply to supplemental precipitation input forcing files specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are processed based on the time offset specified for each supplemental precipitation input forcing in the configuration file."""
+        """In AnA runs, this value is the offset from the available forecast and 00z. For example, if forecast are available at 06z and 18z, set this value to 6.
+
+        Example- SuppPcpInputOffsets = [0, 0, 0]
+        """
         return self._supp_input_offsets
 
     @supp_input_offsets.setter
     def supp_input_offsets(self, value):
         """Set the list of time offsets to apply to supplemental precipitation input forcing files specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are processed based on the time offset specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpInputOffsets")
         if self.number_supp_pcp > 0:
             self.check_number_of_inputs_supp_pcp(value, "SuppPcpInputOffsets")
 
     @property
-    def supp_precip_param_dir(self):
-        """Get the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
-        if self.number_supp_pcp > 0:
-            return self._supp_precip_param_dir
-
-    @supp_precip_param_dir.setter
-    def supp_precip_param_dir(self, value):
-        """Set the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpDownscalingParamDir")
-        if self.number_supp_pcp > 0:
-            if not os.path.isdir(value):
-                err_out_screen(
-                    f"Unable to locate parameter directory: {os.path.abspath(value)}"
-                )
-            self._supp_precip_param_dir = value
-
-    @property
     def supp_precip_dirs(self):
-        """Get the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
-        if self.number_supp_pcp > 0:
-            return self._supp_precip_dirs
+        """Specify the correponding supplemental precipitation directories that will be searched for input files.
+
+        Example- SuppPcpDirectories: ['./MRMS_CONUS_GAUGE', './MRMS_CONUS_MULTISENSOR', './MRMS_CLASSIFICATION']
+        """
+        return self._supp_precip_dirs
 
     @supp_precip_dirs.setter
     def supp_precip_dirs(self, value):
         """Set the list of pathways to the supplemental precipitation input forcing directories specified by the user in the configuration file. This is used to control where the program looks for supplemental precipitation input forcing files for each supplemental precipitation input forcing based on the directory specified for each supplemental precipitation input forcing in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpDirectories")
         if self.number_supp_pcp > 0:
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpDirectories")
             # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
             # or new line characters.
             for dirTmp in range(0, len(value)):
                 value[dirTmp] = value[dirTmp].strip()
-                if not os.path.isdir(value[dirTmp]):
-                    try:
-                        os.makedirs(value[dirTmp], exist_ok=True)
-                        LOG.debug(f"Created supp pcp directory: {value[dirTmp]}")
-                    except OSError as e:
-                        err_out_screen(
-                            f"Unable to create supp pcp directory: {value[dirTmp]}. Error: {e}"
-                        )
+                self.try_make_dir(value[dirTmp], " supp pcp")
 
             # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
             if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
@@ -1275,34 +1445,31 @@ class ConfigOptions:
                     )
                 value = [",".join(value)]
             self._supp_precip_dirs = value
+        else:
+            self._supp_precip_dirs = None
 
     @property
     def supp_precip_param_dir(self):
-        """Get the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
+        """Specify an optional directory that contains supplemental precipitation parameter fields, I.E monthly RQI climatology. This is ONLY needed for the original NWM WRF-Hydro domain. Otherwise, just point it to a random directory and it will be ignored.
+
+        Example- SuppPcpParamDir: ['./forcingParam/AnA','./forcingParam/AnA','./forcingParam/AnA']
+        """
         if self.number_supp_pcp > 0:
             return self._supp_precip_param_dir
 
     @supp_precip_param_dir.setter
     def supp_precip_param_dir(self, value):
         """Set the directory where downscaling parameters for supplemental precipitation input forcings are stored specified by the user in the configuration file. This is used to control where the program looks for downscaling parameter files for supplemental precipitation input forcings based on the directory specified for supplemental precipitation input forcings in the configuration file."""
-        if value is None and self.number_supp_pcp > 0:
-            value = self.extract_input_variable("SuppPcpDownscalingParamDir")
         if self.number_supp_pcp > 0:
-            try:
-                os.makedirs(value, exist_ok=True)
-                LOG.debug(f"Created missing SuppPcpParamDir: {value}")
-            except OSError as e:
-                err_out_screen(f"Unable to locate SuppPcpParamDir: {value}. Error: {e}")
+            self.try_make_dir(value, " SuppPcpParamDir")
+            self._supp_precip_param_dir = value
+        else:
+            self._supp_precip_param_dir = None
 
     @property
     def cfsv2EnsMember(self):
-        """Get the CFSv2 ensemble member to process specified by the user in the configuration file. This is used to control which CFSv2 ensemble member is processed for CFSv2 input forcings based on the ensemble member specified in the configuration file."""
-        return self._cfsv2EnsMember
-
-    @cfsv2EnsMember.setter
-    def cfsv2EnsMember(self, value):
         """Set the CFSv2 ensemble member to process specified by the user in the configuration file. This is used to control which CFSv2 ensemble member is processed for CFSv2 input forcings based on the ensemble member specified in the configuration file."""
-        if value is None and not self.precip_only_flag:
+        if not self.precip_only_flag:
             # Read in Ensemble information
             # Read in CFS ensemble member information IF we have chosen CFSv2 as an input
             # forcing.
@@ -1312,6 +1479,7 @@ class ConfigOptions:
                     self.check_input_values_in_range(
                         value, "cfsEnsNumber", [1, 2, 3, 4]
                     )
+            return value
 
     @property
     def customFcstFreq(self):
@@ -1320,124 +1488,18 @@ class ConfigOptions:
 
     @customFcstFreq.setter
     def customFcstFreq(self, value):
-        """Set the custom forecast frequency in minutes specified by the user in the configuration file. This is used to control how often forecasts are issued based on the custom forecast frequency specified in the configuration file."""
-        if value is None and not self.precip_only_flag:
-            value = self.extract_input_variable("CustomFcstFreq")
-            if len(self.customFcstFreq) != self.number_custom_inputs:
+        """Options for specifying custom input NetCDF forcing files (in minutes). Choose the input frequency of files that are being processed. I.E., are the input files every 15 minutes, 60 minutes, 3-hours, etc. Please specify the length of custom input frequencies to match the number of custom NetCDF inputs selected above in the Logistics section.
+
+        Example-  custom_input_fcst_freq: []
+        """
+        if not self.precip_only_flag:
+            if len(value) != self.number_custom_inputs:
                 err_out_screen(
-                    f"Improper custom_input fcst_freq specified. This number ({len(self.customFcstFreq)}) must match the frequency of custom input forcings selected ({self.number_custom_inputs})."
+                    f"Improper custom_input fcst_freq specified. This number ({len(value)}) must match the frequency of custom input forcings selected ({self.number_custom_inputs})."
                 )
             self._customFcstFreq = value
-
-    def _validate_config(self) -> None:
-        """Validate in options from the configuration file and check that proper options were provided."""
-        self.b_date_proc
-
-        # if not self.precip_only_flag:
-
-        if self.output_freq <= 0:
-            err_out_screen(
-                "Please specify an OutputFrequency that is greater than zero minutes."
-            )
-
-        if self.sub_output_hour < 0:
-            err_out_screen(
-                "Please specify an SubOutputHour that is greater than zero minutes."
-            )
-        if self.sub_output_hour == 0:
-            self.sub_output_hour = None
-
-        if self.sub_output_freq < 0:
-            err_out_screen(
-                "Please specify an SubOutFreq that is greater than zero minutes."
-            )
-        if self._sub_output_freq == 0:
-            self.sub_output_freq = None
-
-        # TODO Can this be a /tmp directory?
-        self.make_scratch_dir()
-
-        if self.useCompression not in [0, 1]:
-            err_out_screen("Please choose a compressOut value of 0 or 1.")
-
-        if self.ana_flag in [0, 1]:
-            err_out_screen("Please choose a AnAFlag value of 0 or 1.")
-
-        if self.look_back <= 0 and self.look_back != -9999:
-            err_out_screen("Please specify a positive LookBack or -9999 for realtime.")
-
-        if self.fcst_freq <= 0:
-            err_out_screen(
-                "Please specify a ForecastFrequency in the configuration file greater than zero."
-            )
-        # Currently, we only support daily or sub-daily forecasts. Any other iterations should
-        # be done using custom config files for each forecast cycle.
-        if self.fcst_freq > 1440:
-            err_out_screen(
-                "Only forecast cycles of daily or sub-daily are supported at this time"
-            )
-
-        # Read in the ForecastShift option. This is ONLY done for the realtime instance as
-        # it's used to calculate the beginning of the processing window.
-        if True:  # was: self.realtime_flag:
-            self.fcst_shift = self.extract_input_variable("ForecastShift")
-            if self.fcst_shift < 0:
-                err_out_screen(
-                    "Please specify a ForecastShift in the configuration file greater than or equal to zero."
-                )
-
-            # Calculate the beginning/ending processing dates if we are running realtime
-            if self.realtime_flag:
-                calculate_lookback_window(self)
-
-        # if self.refcst_flag:
-        # Calculate the number of forecasts to issue, and verify the user has chosen a
-        # correct divider based on the dates
-        # dt_tmp = self.e_date_proc - self.b_date_proc
-        # if (dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) % self.fcst_freq != 0:
-        #    err_out_screen('Please choose an equal divider forecast frequency for your '
-        #                               'specified reforecast range.')
-        # self.nFcsts = int((dt_tmp.days * 1440 + dt_tmp.seconds / 60.0) / self.fcst_freq)
-
-        # Flag to constrain AORC forcing data cycle output
-        # for optTmp in self.input_forcings:
-        # if optTmp == 12:
-        # self.nFcsts = 1
-        self.nFcsts = 1
-
-        if self.look_back != -9999:
-            calculate_lookback_window(self)
-
-        # Process geospatial information
-
-        if len(self.spatial_meta) == 0:
-            # No spatial metadata file found.
-            self.spatial_meta = None
         else:
-            if not os.path.isfile(self.spatial_meta):
-                err_out_screen(
-                    "Unable to locate optional spatial metadata file: "
-                    + self.spatial_meta
-                )
-
-        # Calculate the beginning/ending processing dates if we are running realtime
-        if self.realtime_flag:
-            calculate_lookback_window(self)
-
-        # Create temporary array to hold flags if we need input parameter files.
-        param_flag = np.zeros([len(self.input_forcings)], int)
-
-        count_tmp = 0
-        for optTmp in self.precipDownscaleOpt:
-            if optTmp == 1:
-                param_flag[count_tmp] = 1
-            count_tmp = count_tmp + 1
-
-            for suppOpt in self.supp_precip_forcings:
-                if suppOpt not in list(range(1, self.supp_precip_count + 1)):
-                    err_out_screen(
-                        f"Please specify SuppForcing values between 1 and {self.supp_precip_count}."
-                    )
+            self._customFcstFreq = None
 
     @property
     def nwm_domain(self) -> str:

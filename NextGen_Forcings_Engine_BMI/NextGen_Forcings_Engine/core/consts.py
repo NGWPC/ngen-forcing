@@ -1072,17 +1072,78 @@ CONFIGOPTIONS = {
         "uid64",
     ],
     "var_rename_map": {"config_path": "cfg_bmi"},
-    "cfg_bmi_to_attrs_map": {
+    "extract_input_variable_attrs_map": {
         "SuppPcp": "supp_precip_forcings",
         "OutputFrequency": "output_freq",
         "SubOutputHour": "sub_output_hour",
         "SubOutFreq": "sub_output_freq",
         "ScratchDir": "scratch_dir",
-        "compressOutput": "useCompression",
+        "compressOutput": "useCompression",  # 0
         "AnAFlag": "ana_flag",
         "LookBack": "look_back",
         "ForecastFrequency": "fcst_freq",
+        "ForecastShift": "fcst_shift",
+        "GRID_TYPE": "grid_type",
+        "DownscalingParamDirs": "dScaleParamDirs",
+        "SuppPcpDirectories": "supp_precip_dirs",
+        "SuppPcpMandatory": "supp_precip_mandatory",
+        "RegridOptSuppPcp": "regrid_opt_supp_pcp",
+        "SuppPcpTemporalInterpolation": "suppTemporalInterp",
+        "SuppPcpMaxHours": "supp_pcp_max_hours",
+        "SuppPcpInputOffsets": "supp_input_offsets",
+        "SuppPcpParamDirs": "supp_precip_param_dir",
+    },
+    "extract_input_variable_attrs_map_precip_only": {
+        "customSuppPcpFreq": "customSuppPcpFreq",
+    },
+    "extract_input_variable_attrs_map_not_precip_only": {
+        "ForecastInputHorizons": "fcst_input_horizons",  # np
+        "ForecastInputOffsets": "fcst_input_offsets",  # np
+        "IgnoredBorderWidths": "ignored_border_widths",  # np
+        "RegridOpt": "regrid_opt",  # np
+        "RegridWeightsDir": "weightsDir",  # np
+        "ForcingTemporalInterpolation": "forceTemoralInterp",  # np
+        "TemperatureDownscaling": "t2dDownscaleOpt",  # np
+        "PressureDownscaling": "psfcDownscaleOpt",  # np
+        "ShortwaveDownscaling": "swDownscaleOpt",  # np
+        "HumidityDownscaling": "q2dDownscaleOpt",  # np
+        "PrecipDownscaling": "precipDownscaleOpt",  # np -complicated partial np
+        "TemperatureBiasCorrection": "t2BiasCorrectOpt",  # np #no
+        "PressureBiasCorrection": "psfcBiasCorrectOpt",  # np  #yes
+        "HumidityBiasCorrection": "q2BiasCorrectOpt",  # np #yes
+        "WindBiasCorrection": "windBiasCorrect",  # np #yes
+        "SwBiasCorrection": "swBiasCorrectOpt",  # np #yes
+        "LwBiasCorrection": "lwBiasCorrectOpt",  # np #yes
+        "PrecipBiasCorrection": "precipBiasCorrectOpt",  # np #yes
+        "InputForcings": "input_forcings",  # np
+        "InputForcingTypes": "input_force_types",  # np
+        "InputForcingDirectories": "input_force_dirs",  # np
+        "InputMandatory": "input_force_mandatory",  # np
+        "custom_input_fcst_freq": "customFcstFreq",  # np
+    },
+    "downscaling_attrs_map": {
+        "SINALPHA": "sinalpha_var",
+        "COSALPHA": "cosalpha_var",
+        "SLOPE": "slope_var",
+        "SLOPE_AZIMUTH": "slope_azimuth_var",
+        "HGT": "hgt_var",
+    },
+    "downscaling_unstructred_attrs_map": {
+        "SLOPE_ELEM": "slope_var_elem",
+        "SLOPE_AZIMUTH_ELEM": "slope_azimuth_var_elem",
+        "HGT_ELEM": "hgt_elem_var",
+    },
+    "extract_input_variable_set_default_attrs_map": {
+        "includeLQFrac": "include_lqfrac",
+        "floatOutput": "useFloats",
+        "Output": "forcing_output",
+    },
+    "try_config_get_except_attr_map": {
+        "RefcstBDateProc": "b_date_proc",
+        "Geopackage": "geopackage",
+        "GeogridIn": "geogrid",
         "SpatialMetaIn": "spatial_meta",
+        "SuppPcpForcingTypes": "supp_precip_file_types",
     },
     "file_types": ["GRIB1", "GRIB2", "NETCDF", "NETCDF4", "NWM", "ZARR"],
 }
