@@ -1,5 +1,6 @@
 """Classes to enable status reporting through log calls with sentinel strings and JSON payloads."""
 
+import re
 from enum import StrEnum
 from typing import Any
 
@@ -8,6 +9,9 @@ from pydantic import BaseModel, ConfigDict, Field, validate_call
 
 MSG_PAYLOAD_SENTINEL_START = "<MSG_DATA>"
 MSG_PAYLOAD_SENTINEL_END = "</MSG_DATA>"
+EXTRACT_PATTERN = re.compile(
+    rf"{MSG_PAYLOAD_SENTINEL_START}(.*?){MSG_PAYLOAD_SENTINEL_END}"
+)
 
 
 class Status(StrEnum):
@@ -46,6 +50,54 @@ class Payload(BaseModel):
         """__init__ is defined simply to allow positional arguments within Pydanic BaseModel framework."""
         super().__init__(status=status, prog=prog, msg=msg, modnm=modnm)
 
+    @property
+    def json(self) -> str:
+        """A json string (dict) representation for logging."""
+        return self.model_dump_json()
+
+    @property
+    def json_wrapped(self) -> str:
+        """A json string (dict) representation for logging, wrapped with sentinel strings."""
+        return f"{MSG_PAYLOAD_SENTINEL_START}{self.json}{MSG_PAYLOAD_SENTINEL_END}"
+
+
+def extract_payload_from_log_msg(log_msg: str) -> Payload | None:
+    """Extract a Payload object from a log message, if it contains the sentinel. Otherwise, return None.
+    Requires that the provided string is one line (Payloads should have escape newline chars via Pydantic model_dump_json()).
+
+    Parameters
+    ----------
+    log_msg : str
+        The log message to extract the payload from.
+
+    Returns
+    -------
+    Payload | None
+        The extracted Payload object if sentinel wrapping found, else None.
+
+    Raises
+    ----------
+    ValueError
+        If the log message contains a sentinel string wrapping but the content between cannot be parsed into a Payload instance.
+        If the log message contains multiple sentinel string wrappings.
+    """
+    matches = EXTRACT_PATTERN.findall(log_msg)
+    if matches:
+        if len(matches) != 1:
+            raise ValueError(
+                f"{len(matches)} payloads detected in log message. Expected 1. Full message: {log_msg}"
+            )
+        payload_raw_str = matches[0]
+        try:
+            payload = Payload.model_validate_json(payload_raw_str)
+        except Exception as e:
+            raise ValueError(
+                f"Payload was detected in log message, but failed to parse as JSON into a Payload instance. Full message: {repr(log_msg)}. Payload raw string: {repr(payload_raw_str)}. Exception: {e}"
+            ) from e
+        return payload
+    else:
+        return None
+
 
 class LoggerWithPayload:
     """Wrapper around ewts.logger.EwtsLogger to enable injection of JSON payload into messages.
@@ -67,7 +119,7 @@ class LoggerWithPayload:
         Then builds and returns the message including the JSON pld and sentinel string."""
         if pld is not None:
             pld.modnm = self.logger.ewts_id
-            msg = f"{msg}{MSG_PAYLOAD_SENTINEL_START}{pld.model_dump_json()}{MSG_PAYLOAD_SENTINEL_END}"
+            msg = f"{msg}{pld.json_wrapped}"
         return msg
 
     def debug(self, msg, *args, pld: Payload | None = None, **kwargs):
