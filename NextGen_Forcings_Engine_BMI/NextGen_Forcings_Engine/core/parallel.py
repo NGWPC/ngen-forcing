@@ -46,6 +46,8 @@ class MpiConfig:
         self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
         self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
         self.log_warning = partial(err_handler.log_warning, self.config_options, self)
+
+        self.original_excepthook = None  # Will be set to the original sys.excepthook when __register_exit_handlers is called
         self.__register_exit_handlers()
 
     def initialize_comm(self, comm=None):
@@ -145,6 +147,7 @@ class MpiConfig:
         against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
         rank 0 break out of a collective call if it happens to be waiting at one)."""
         # Exceptions
+        self.original_excepthook = sys.excepthook
         sys.excepthook = self.__excepthook
         # Regular exits
         atexit.register(self._cleanup)
@@ -154,13 +157,23 @@ class MpiConfig:
 
     def __excepthook(self, ex_type, value, tb) -> None:
         """Custom excepthook which follows these steps:
-        1. Call Python's built-in excepthook.
+        1. Call original excepthook which had been saved earlier.
         2. Log .errMsg as CRITICAL (unless it is None).
         3. Cleanup.
         4. MPI Abort.
 
-        To apply, set `sys.excepthook` to this method."""
-        sys.__excepthook__(ex_type, value, tb)
+        To apply:
+            Set `self.original_excepthook = sys.excepthook`,
+            Then set `sys.excepthook = {this method}`.
+        """
+        # Call original excepthook stored earlier (not raw sys.__excepthook__)
+        if self.original_excepthook is None:
+            raise RuntimeError(
+                "In custom __excepthook, but self.original_excepthook does not contain the saved original hook as expected."
+            )
+        self.original_excepthook(ex_type, value, tb)
+
+        # Perform additional actions
         if self.config_options.errMsg is not None:
             err_handler.log_critical(
                 self.config_options,
