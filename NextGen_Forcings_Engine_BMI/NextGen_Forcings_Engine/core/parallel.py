@@ -145,7 +145,7 @@ class MpiConfig:
         against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
         rank 0 break out of a collective call if it happens to be waiting at one)."""
         # Exceptions
-        sys.exepthook = self.__excepthook
+        sys.excepthook = self.__excepthook
         # Regular exits
         atexit.register(self._cleanup)
         # Signals
