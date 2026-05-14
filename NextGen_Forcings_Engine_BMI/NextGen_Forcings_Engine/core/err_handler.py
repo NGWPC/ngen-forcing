@@ -19,7 +19,7 @@ def in_exception_context() -> bool:
     return False
 
 
-def err_out_screen(err_msg: str, exc: BaseException | None = None):
+def err_out_screen(err_msg: str | None, exc: BaseException | None = None):
     """Print an error message to the screen and exit the program gracefully.
 
     Generic routine to exit the program gracefully. This specific error function does not log
@@ -31,6 +31,7 @@ def err_out_screen(err_msg: str, exc: BaseException | None = None):
 
     Logan Karsten - National Center for Atmospheric Research, karsten@ucar.edu
     """
+    err_msg = str(err_msg)
     if exc is not None:
         err_msg += f" - {exc}"
     err_msg_out = "ERROR: " + err_msg
