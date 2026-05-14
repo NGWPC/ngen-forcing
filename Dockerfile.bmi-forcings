@@ -11,9 +11,14 @@ ARG IMAGE_NAMESPACE=ngwpc
 # External repository sources (org and ref/branch overrides)
 ARG EWTS_ORG=${GH_ORG}
 ARG EWTS_REF=development
-############################################################################
 
+# External dependency versions
+ARG ESMF_VERSION=8.8.0
+ARG GDAL_VERSION=3.7.3
+
+############################################################################
 # Image selection
+############################################################################
 ## TODO: replace with base image created under NGWPC-3223 ##
 ## see: https://jira.nextgenwaterprediction.com/browse/NGWPC-3223
 ARG BMI_BASE_REPO=rockylinux
@@ -21,12 +26,20 @@ ARG BMI_BASE_TAG=8
 
 FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
 
-# Re-expose args after FROM for the remaining build stage
-# Keeps whatever value was already set
+# Re-expose args after FROM for the remaining build stage.
 ARG GH_ORG
 ARG IMAGE_NAMESPACE
 ARG EWTS_ORG
 ARG EWTS_REF
+ARG ESMF_VERSION
+ARG GDAL_VERSION
+
+# Optional cache-bust args.
+# Leave these at 0 for normal builds. Override only when you intentionally want
+# that dependency layer rebuilt even though the Dockerfile inputs did not change.
+ARG ESMF_CACHE_BUST=0
+ARG EWTS_CACHE_BUST=0
+ARG WGRIB2_CACHE_BUST=0
 
 # OCI Metadata Arguments
 ARG BMI_BASE_REPO
@@ -54,17 +67,20 @@ LABEL org.opencontainers.image.base.name="${BMI_BASE_NAME}" \
     io.${IMAGE_NAMESPACE}.ewts.ref="${EWTS_REF}" \
     io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
 
-# ensure local python is preferred over distribution python
+# Ensure local python is preferred over distribution python.
 ENV PATH="/usr/local/bin:$PATH"
 
-# cannot remove LANG even though https://bugs.python.org/issue19846 is fixed
-# last attempted removal of LANG broke many users:
+# Cannot remove LANG even though https://bugs.python.org/issue19846 is fixed.
+# Last attempted removal of LANG broke many users:
 # https://github.com/docker-library/python/pull/570
 ENV LANG="C.UTF-8"
 
-## FIXME: Replace installation and build of FOSS dependencies wiith a base image. ##
+############################################################################
+# System/FOSS dependencies
+############################################################################
 
-# runtime dependencies
+## FIXME: Replace installation and build of FOSS dependencies with a base image. ##
+
 RUN set -eux; \
     dnf install -y dnf-plugins-core; \
     dnf install -y epel-release; \
@@ -81,7 +97,6 @@ RUN set -eux; \
         findutils \
         git \
         jq \
-## FIXME: replace GNU compilers with Intel compiler ##
         gcc-toolset-10 \
         gcc-toolset-10-libasan-devel \
         gcc-toolset-10-gcc-gfortran \
@@ -91,7 +106,6 @@ RUN set -eux; \
         libffi libffi-devel \
         libpng libpng-devel \
         m4 \
-## FIXME: replace openmpi with Intel MPI libraries ##
         openmpi openmpi-devel \
         openssl openssl-devel \
         python3.11 \
@@ -110,10 +124,17 @@ RUN set -eux; \
 
 ## FIXME: replace GNU compilers with Intel compiler ##
 SHELL [ "/usr/bin/scl", "enable", "gcc-toolset-10"]
+
 ## FIXME: replace openmpi with Intel MPI libraries ##
 ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
 
-RUN set -eux; \
+############################################################################
+# Rarely changing compiled dependencies
+############################################################################
+
+RUN --mount=type=cache,target=/root/.cache/build-wgrib2,id=build-wgrib2 \
+    echo "WGRIB2 cache bust: ${WGRIB2_CACHE_BUST}"; \
+    set -eux; \
     curl --location --output wgrib2.tgz "https://ftp.cpc.ncep.noaa.gov/wd51we/wgrib2/wgrib2.tgz" ; \
     mkdir --parents /usr/src/wgrib2 ; \
     tar --extract --directory /usr/src/wgrib2 --strip-components=1 --file wgrib2.tgz ; \
@@ -134,13 +155,17 @@ RUN set -eux; \
     chmod +x /usr/local/bin/wgrib2 ; \
     rm --recursive --force /usr/src/wgrib2
 
-# Build and install ESMF 8.8.0
-RUN set -eux; \
-    curl --location --output esmf-8.8.0.tar.gz "https://github.com/esmf-org/esmf/archive/refs/tags/v8.8.0.tar.gz"; \
-    tar --extract --gzip --file esmf-8.8.0.tar.gz; \
-    rm esmf-8.8.0.tar.gz; \
-    cd esmf-8.8.0; \
-    export ESMF_DIR=/esmf-8.8.0; \
+# Build and install ESMF.
+# Normal builds should reuse this layer. Override ESMF_CACHE_BUST only when you
+# intentionally want to force a rebuild of this layer.
+RUN --mount=type=cache,target=/root/.cache/build-esmf,id=build-esmf \
+    echo "ESMF version: ${ESMF_VERSION}; cache bust: ${ESMF_CACHE_BUST}" && \
+    set -eux; \
+    curl --location --output esmf-${ESMF_VERSION}.tar.gz "https://github.com/esmf-org/esmf/archive/refs/tags/v${ESMF_VERSION}.tar.gz"; \
+    tar --extract --gzip --file esmf-${ESMF_VERSION}.tar.gz; \
+    rm esmf-${ESMF_VERSION}.tar.gz; \
+    cd esmf-${ESMF_VERSION}; \
+    export ESMF_DIR=/esmf-${ESMF_VERSION}; \
     export ESMF_INSTALL_PREFIX=/usr/local/esmf; \
     export ESMF_COMPILER=gfortran; \
     export ESMF_COMM=openmpi; \
@@ -150,12 +175,12 @@ RUN set -eux; \
     make all; \
     make install; \
     cd ..; \
-    rm -rf esmf-8.8.0
+    rm -rf esmf-${ESMF_VERSION}
 
-# Build GDAL from source
+# Build GDAL from source.
 RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
     set -eux && \
-    curl --location --output gdal.tar.gz https://github.com/OSGeo/gdal/releases/download/v3.7.3/gdal-3.7.3.tar.gz && \
+    curl --location --output gdal.tar.gz "https://github.com/OSGeo/gdal/releases/download/v${GDAL_VERSION}/gdal-${GDAL_VERSION}.tar.gz" && \
     mkdir --parents /usr/src/gdal && \
     tar --extract --directory /usr/src/gdal --strip-components=1 --file gdal.tar.gz && \
     cd /usr/src/gdal && \
@@ -165,67 +190,70 @@ RUN --mount=type=cache,target=/root/.cache/gdal,id=gdal-build \
     ldconfig && \
     rm --recursive --force /usr/src/gdal gdal.tar.gz
 
-# -------------------------------
-# Create a self-contained venv for ngen-forcing
-# -------------------------------
+############################################################################
+# Python environment and stable Python dependencies
+############################################################################
+
+# Create a self-contained venv for ngen-forcing.
 ENV VIRTUAL_ENV="/ngen-app/ngen-python"
 RUN python3.11 -m venv ${VIRTUAL_ENV}
 ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
     PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages"
 
-# Install ESMPy
+# Install ESMPy against the installed ESMF.
 ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
-RUN set -eux; \
-    pip3.11 install setuptools-git-versioning; \
-    git clone --depth 1 --branch v8.8.0 https://github.com/esmf-org/esmf.git; \
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    set -eux; \
+    pip install --upgrade pip setuptools wheel; \
+    pip install setuptools-git-versioning; \
+    git clone --depth 1 --branch v${ESMF_VERSION} https://github.com/esmf-org/esmf.git; \
     cd esmf/src/addon/esmpy; \
     python3.11 -m pip install .; \
     cd /; \
     rm -rf esmf
 
+# mpi4py is a stable dependency; keep it before COPY . so source changes in
+# ngen-bmi-forcing do not force mpi4py to reinstall.
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    set -eux; \
+    pip install mpi4py
 
 ENV PATH="/usr/local/bin:${PATH}"
-
 ENV WGRIB2=/usr/local/bin/wgrib2
 
-# Fix OpenMPI transport for containers
+# Fix OpenMPI transport for containers.
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
 ENV OMPI_MCA_btl=^openib,ofi
 ENV OMPI_MCA_pml=ob1
 ENV OMPI_MCA_btl_base_warn_component_unused=0
 
-################################################
+############################################################################
+# EWTS Python package - changes rarely
+############################################################################
 
-# Reset SHELL so we're not locked into the gcc-10 build environment
+# Reset SHELL so we're not locked into the gcc-10 build environment.
 SHELL ["/bin/bash", "-c"]
 
-# ── EWTS (Error, Warning and Trapping System)
-# ngen-bmi-forcing only needs the EWTS Python package (not the C/C++/Fortran
-# libraries or ngen bridge that the full ngen image requires).
+# ngen-bmi-forcing only needs the EWTS Python package, not the C/C++/Fortran
+# libraries or ngen bridge that the full ngen image requires.
 #
 # Build args – override at build time to pin a branch, tag, or full commit SHA:
 #   docker build --build-arg EWTS_REF=v1.2.3 ...
 #   docker build --build-arg EWTS_REF=abc123def456 ...
 #
-# Clone nwm-ewts, install the Python package, capture git metadata for
-# provenance, then remove the source tree.
-# Try shallow clone by branch/tag name first; fall back to full clone + checkout
-# for bare commit SHAs (which git clone -b doesn't support).
+# Cache bust – override only when you need to force a rebuild of this layer:
+#   docker build --build-arg EWTS_CACHE_BUST="$(date +%s)" ...
 #
-# NOTE: Unlike the ngen Dockerfile, clone + pip install + cleanup are kept in a
-# single RUN so the source tree never persists in a layer.  In ngen the split is
-# safe because cmake installs the wheel to /opt/ewts before the source is removed;
-# here there is no cmake step, so the source must remain until pip finishes.
+# Try shallow clone by branch/tag name first; fall back to full clone + checkout
+# for bare commit SHAs, which git clone -b does not support.
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    echo "EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
     set -eux && \
     (git clone --depth 1 -b "${EWTS_REF}" \
         "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts \
      || (git clone "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts && \
          cd /tmp/nwm-ewts && git checkout "${EWTS_REF}")) && \
     cd /tmp/nwm-ewts && \
-    # ── Capture EWTS git provenance ──
-    # Saved as a JSON sidecar so the git-info step below can merge EWTS
-    # metadata alongside ngen-bmi-forcing.
     jq -n \
       --arg commit_hash "$(git rev-parse HEAD)" \
       --arg branch "$(git branch -r --contains HEAD 2>/dev/null | grep -v '\->' | sed 's|origin/||' | head -n1 | xargs || echo "${EWTS_REF}")" \
@@ -236,33 +264,34 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
       --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
       '{"nwm-ewts": {commit_hash: $commit_hash, branch: $branch, tags: $tags, author: $author, commit_date: $commit_date, message: $message, build_date: $build_date}}' \
       > /ngen-app/nwm-ewts_git_info.json && \
-    # ── Install the EWTS Python package into the venv ──
-    # This is what makes "import ewts" work for ngen-bmi-forcing.
-    # For example, bmi_model.py does:  import ewts; LOG = ewts.get_logger(ewts.FORCING_ID)
     pip install /tmp/nwm-ewts/runtime/python/ewts && \
-    # ── Cleanup ──
     cd / && \
     rm -rf /tmp/nwm-ewts
 
+############################################################################
+# ngen-bmi-forcing - most frequently changing layer
+############################################################################
+
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    set -eux; \
+    pip install --upgrade pip setuptools wheel
+
+# Keep COPY near the end. Source changes should invalidate only this section
+# and the git-info section below, not ESMF, GDAL, ESMPy, mpi4py, or EWTS.
 COPY . /ngen-app/ngen-forcing/
 
-# Install ngen-forcing as a Python package
 WORKDIR /ngen-app/ngen-forcing
-RUN set -eux; \
-    pip install --upgrade pip setuptools wheel; \
-    pip install --no-cache-dir mpi4py .
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
+    set -eux; \
+    pip install .
 
 ARG CI_COMMIT_REF_NAME
 
 RUN set -eux; \
-    # Get the remote URL from Git configuration
     repo_url=$(git config --get remote.origin.url); \
-    # Extract the repo name (everything after the last slash) and remove any trailing .git
     key=${repo_url##*/}; \
     key=${key%.git}; \
-    # ngen-forcing is different from the other repos.  We don't use the repo name directly
     GIT_INFO_PATH="/ngen-app/ngen-bmi-forcing_git_info.json"; \
-    # Determine branch name: use CI_COMMIT_REF_NAME if set; otherwise, use git's current branch
     branch=$( [ -n "${CI_COMMIT_REF_NAME:-}" ] && echo "${CI_COMMIT_REF_NAME}" || git rev-parse --abbrev-ref HEAD ); \
     jq -n \
       --arg commit_hash "$(git rev-parse HEAD)" \
@@ -274,7 +303,6 @@ RUN set -eux; \
       --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
       "{\"ngen-bmi-forcing\": {commit_hash: \$commit_hash, branch: \$branch, tags: \$tags, author: \$author, commit_date: \$commit_date, message: \$message, build_date: \$build_date}}" \
       > $GIT_INFO_PATH; \
-    # Merge EWTS git provenance if it exists
     if [ -f /ngen-app/nwm-ewts_git_info.json ]; then \
       jq -s 'add' $GIT_INFO_PATH /ngen-app/nwm-ewts_git_info.json > ${GIT_INFO_PATH}.tmp; \
       mv ${GIT_INFO_PATH}.tmp $GIT_INFO_PATH; \
