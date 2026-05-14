@@ -52,7 +52,7 @@ def err_out_screen(err_msg: str | None, exc: BaseException | None = None):
     sys.exit(1)
 
 
-def err_out_screen_para(err_msg: str, MpiConfig, exc: BaseException | None = None):
+def err_out_screen_para(err_msg: str | None, MpiConfig, exc: BaseException | None = None):
     """Print an error message to the screen and abort MPI.
 
     Generic function for printing an error message to the screen and aborting MPI.
@@ -66,6 +66,7 @@ def err_out_screen_para(err_msg: str, MpiConfig, exc: BaseException | None = Non
     :param exc: Optional exception object to append to the error message.
     :return: None
     """
+    err_msg = str(err_msg)
     if exc is not None:
         err_msg += f" - {exc}"
     err_msg_out = f"ERROR: RANK - {MpiConfig.rank} : {err_msg}"
