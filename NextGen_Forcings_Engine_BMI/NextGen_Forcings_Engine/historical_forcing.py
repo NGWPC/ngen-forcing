@@ -735,11 +735,24 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         return self.geo_grid["crs"].attrs["spatial_ref"]
 
     @property
+    def geogrid_ldasout_spatial_metadata_path(self) -> str:
+        """Path to geogrid spatial metadata file for assigning CRS.
+
+        Currently assumed to exist as a sibling file to the nwm_geogrid file.
+        TODO consider using forcing config attribute SpatialMetaIn, see: https://github.com/NGWPC/ngen-forcing/blob/0992b43391ba141717b7a80f10ef38478cef2eee/NextGen_Forcings_Engine_BMI/BMI_NextGen_Configs/README.md?plain=1#L136-L138
+        """
+        basename = "GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
+        parent_dir = os.path.dirname(self.config_options.nwm_geogrid)
+        p = os.path.join(parent_dir, basename)
+        LOG.warning(
+            f"For Alaska NWM forcing, not using SpatialMetaIn. Using this instead to define the mesh CRS (this path assumed to be sibling of NWM_Geogrid): {p}"
+        )
+        return p
+
+    @property
     def geo_grid(self) -> xr.Dataset:
         """Load geogrid metadata."""
-        geo_grid = xr.open_dataset(
-            "/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
-        )
+        geo_grid = xr.open_dataset(self.geogrid_ldasout_spatial_metadata_path)
         return geo_grid
 
     @cached_property
