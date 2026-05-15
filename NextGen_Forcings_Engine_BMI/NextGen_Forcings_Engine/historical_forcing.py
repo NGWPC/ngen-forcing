@@ -433,10 +433,12 @@ class AORCConusProcessor(BaseProcessor):
             return cached_data
         current_year = self.current_time.year
         try:
-            object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
+            object_store = obstore.store.from_url(
+                self.url(current_year), skip_signature=True
+            )
             with (
                 xr.open_dataset(ObjectStore(object_store), engine="zarr") as ds,
-                self.timing_block(f"Loading {self.dataset_name} data")
+                self.timing_block(f"Loading {self.dataset_name} data"),
             ):
                 return (
                     self.slice_ds(ds)
@@ -599,7 +601,9 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    object_store = obstore.store.from_url(self.url(var), skip_signature=True)
+                    object_store = obstore.store.from_url(
+                        self.url(var), skip_signature=True
+                    )
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
@@ -771,5 +775,3 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         ds.rio.write_crs(self.src_crs, inplace=True)
         return ds
-
-
