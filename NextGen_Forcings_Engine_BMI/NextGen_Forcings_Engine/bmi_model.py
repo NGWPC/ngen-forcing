@@ -216,16 +216,16 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             self._job_meta = ConfigOptions(self.cfg_bmi)
 
         # Parse the configuration options
-        try:
-            self._job_meta.validate_config(self.cfg_bmi)
-        except KeyboardInterrupt as e:
-            err_handler.err_out_screen("User keyboard interrupt", e)
-        except ImportError as e:
-            err_handler.err_out_screen("Missing Python packages", e)
-        except InterruptedError as e:
-            err_handler.err_out_screen("External kill signal detected", e)
-        except Exception as e:
-            err_handler.err_out_screen("Unhandled exception", e)
+        # try:
+        #     self._job_meta.validate_config(self.cfg_bmi)
+        # except KeyboardInterrupt as e:
+        #     err_handler.err_out_screen("User keyboard interrupt", e)
+        # except ImportError as e:
+        #     err_handler.err_out_screen("Missing Python packages", e)
+        # except InterruptedError as e:
+        #     err_handler.err_out_screen("External kill signal detected", e)
+        # except Exception as e:
+        #     err_handler.err_out_screen("Unhandled exception", e)
 
         # Set NWM version and config, if provided in the config
         if self.cfg_bmi.get("NWM_VERSION") is not None:
@@ -389,8 +389,24 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         :param output_path: The output path for model results. If omitted, a default path will be generated.
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
+        # This is required prior to the first log message.
+        LOG.bind()
+
+        bmi_cfg_file = Path(config_file).resolve()
+        if not bmi_cfg_file.is_file():
+            LOG.critical(f"Config file {bmi_cfg_file} not found, nothing to do...")
+            raise RuntimeError(
+                f"Config file {bmi_cfg_file} not found, nothing to do..."
+            )
+
+        LOG.info(f"Reading config file: {bmi_cfg_file}")
+        with bmi_cfg_file.open("r") as fp:
+            cfg = yaml.safe_load(fp)
+
+        self.cfg_bmi = parse_config(cfg)
         # Set the job metadata parameters (b_date, geogrid) using config_options
-        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
+        self.cfg_bmi = parse_config(cfg)
+        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid=geogrid)
 
         # Now that _job_meta is set, call initialize() to set up the core model
         self.initialize(config_file, output_path=output_path)
