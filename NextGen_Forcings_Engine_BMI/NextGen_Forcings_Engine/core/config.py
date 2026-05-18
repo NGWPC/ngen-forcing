@@ -42,11 +42,10 @@ class ConfigOptions:
             self.user_provided_geogrid_flag = False
 
         self.b_date_proc = b_date
-        self._cfg_bmi = cfg_bmi
-        self._geogrid = geogrid
+        self.cfg_bmi = cfg_bmi
+        self.geogrid = geogrid
 
         self.bmi_time_index = 0
-        self.precip_only_flag = False
         self.globalNdv = -9999.0
         self.d_program_init = datetime.now(timezone.utc)
         self.errFlag = 0
@@ -58,9 +57,13 @@ class ConfigOptions:
         )
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
 
-        self.broadcast_new_64bit_uid()
-
+        
         self._scratch_dir_has_been_uniquefied = False
+        self.supp_precip_forcings = self.extract_input_variable("SuppPcp")
+        if not self.precip_only_flag:
+            self.input_forcings = self.extract_input_variable("InputForcings")
+        
+
         # Create temporary array to hold flags if we need input parameter files.
         self.param_flag = np.zeros([len(self.input_forcings)], int)
 
@@ -68,9 +71,11 @@ class ConfigOptions:
         # These are indexed from the consts dictionary using the class name
         for attr in CONFIGOPTIONS[self.__class__.__name__]:
             setattr(self, attr, None)
+        self.broadcast_new_64bit_uid()
 
-        self.set_attrs(self.try_config_get_except_attr_map)
-        self.supp_precip_forcings = self.extract_input_variable("SuppPcp")
+        for cfg_bmi_attr, config_options_attr in self.try_config_get_except_attr_map.items():
+            setattr(self,config_options_attr,self.try_config_get(cfg_bmi_attr))
+        
         self.set_attrs(CONFIGOPTIONS["extract_input_variable_attrs_map"])
 
         if self.precip_only_flag:
@@ -92,20 +97,24 @@ class ConfigOptions:
         for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
             "extract_input_variable_set_default_attrs_map"
         ].items():
+            if config_options_attr=="supp_pcp_max_hours":
+                default=None
+            else:
+                default=0
             setattr(
                 self,
                 config_options_attr,
-                self.extract_input_variable_set_default(cfg_bmi_attr),
+                self.extract_input_variable_set_default(cfg_bmi_attr,default),
             )
 
     @property
     def try_config_get_except_attr_map(self) -> dict:
         """Get the mapping of configuration variable names to class attribute names for variables that are extracted directly from the configuration file without any additional processing. This is used to control how variables are extracted from the configuration file and assigned to class attributes in a consistent way based on the mapping specified in the consts.py file."""
         dict_map = CONFIGOPTIONS["try_config_get_except_attr_map"]
-        if self._b_date_proc is not None:
-            dict_map.pop("b_date_proc")
-        if self._geogrid is not None:
-            dict_map.pop("geogrid")
+        if self._b_date_proc is not None and "RefcstBDateProc" in dict_map:
+            dict_map.pop("RefcstBDateProc")
+        if self.geogrid is not None and "GeogridIn" in dict_map:
+            dict_map.pop("GeogridIn")
         return dict_map
 
     @property
@@ -125,7 +134,7 @@ class ConfigOptions:
     @property
     def force_count(self) -> int:
         """Calculate the number of total possible input forcing options based on the length of the InputForcings list in the consts.py file. This is used for error checking to ensure users specify valid input forcing options in the configuration file."""
-        return len(FORCINGINPUTMOD["InputForcings"]["PRODUCT_NAME"])
+        return len(FORCINGINPUTMOD["PRODUCT_NAME"])
 
     @property
     def supp_precip_count(self) -> int:
@@ -142,9 +151,11 @@ class ConfigOptions:
     @property
     def precip_only_flag(self) -> bool:
         """Flag to indicate whether the user has chosen to run the supplemental precip forcings module only, which will trigger some different processing pathways and error checking for certain configuration options."""
+        precip_only = False
         if self.number_supp_pcp == 1:
             if int(self.supp_precip_forcings[0]) == 14:
-                return True
+                precip_only = True
+        return precip_only
 
     def set_attrs(self, attrs_dict: dict):
         """Set the attributes of the class based on the configuration file. This is used to populate the attributes of the class after they have been read in and validated from the configuration file."""
@@ -152,7 +163,12 @@ class ConfigOptions:
             setattr(
                 self, config_options_attr, self.extract_input_variable(cfg_bmi_attr)
             )
-
+    def set_attrs_use_default(self,attrs_dict:dict):
+        """Set the attributes of the class based on the configuration file. Set default value to default if not found in config file."""
+        for cfg_bmi_attr, config_options_attr in attrs_dict.items():
+            setattr(
+                self, config_options_attr, self.extract_input_variable_set_default(cfg_bmi_attr)
+            )
     def extract_input_variable(self, variable_name: str) -> str:
         """Extract the variable name from the configuration file for a given variable."""
         try:
@@ -181,8 +197,9 @@ class ConfigOptions:
             err_out_screen(
                 f"Improper {variable_name} value: {self.cfg_bmi[variable_name]}", e
             )
-        if variable not in [0, 1]:
-            err_out_screen(f"Please choose a {variable_name} value of 0  or 1.")
+        if default==0:
+            if variable not in [0, 1]:
+                err_out_screen(f"Please choose a {variable_name} value of 0  or 1.")
         return variable
 
     def try_config_get(self, variable_name: str) -> str:
@@ -200,22 +217,22 @@ class ConfigOptions:
             )
 
     def check_number_of_inputs(
-        self, value: list, variable_name: str, input_type: str
+        self, value: list, variable_name: str, input_type: str,number_inputs:int
     ) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable."""
-        if len(value) != self.number_inputs:
+        if len(value) != number_inputs:
             err_out_screen(
                 f"Number of {variable_name} values must match the number of {input_type} in the configuration file."
             )
 
     def check_number_of_inputs_forcings(self, value: list, variable_name: str) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for input forcings variables which should match the number of input forcing options specified by the user in the configuration file."""
-        return self.check_number_of_inputs(value, variable_name, " InputForcings")
+        return self.check_number_of_inputs(value, variable_name, " InputForcings",self.number_inputs)
 
     def check_number_of_inputs_supp_pcp(self, value: list, variable_name: str) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for supplemental precip forcing variables which should match the number of supplemental precip forcing options specified by the user in the configuration file."""
         return self.check_number_of_inputs(
-            value, variable_name, " SupplementalPrecipForcings"
+            value, variable_name, " SupplementalPrecipForcings",self.number_supp_pcp
         )
 
     def check_input_values_in_range(
@@ -223,9 +240,17 @@ class ConfigOptions:
     ) -> None:
         """Check that the input values specified by the user in the configuration file are within a valid range for a given variable."""
         for val in value:
-            if val in valid_input_options:
+            if val not in valid_input_options:
                 err_out_screen(
                     f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify valid values: {valid_input_options}."
+                )
+
+    def check_input_values_non_negative(self, value: list, variable_name: str) -> None:
+        """Check that the input values specified by the user in the configuration file are positive for a given variable."""
+        for val in value:
+            if float(val) < 0:
+                err_out_screen(
+                    f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify values greater than or equal to zero."
                 )
 
     def check_input_values_positive(self, value: list, variable_name: str) -> None:
@@ -235,7 +260,6 @@ class ConfigOptions:
                 err_out_screen(
                     f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify values greater than zero."
                 )
-
     def uniquefy_scratch_dir_as_child(self, uid: str) -> None:
         """Modify the existing scratch dir by adding the UID string available to all ranks from the MpiConfig class.
 
@@ -295,11 +319,12 @@ class ConfigOptions:
     @supp_precip_forcings.setter
     def supp_precip_forcings(self, value: list) -> None:
         """Set the list of supplemental precip forcing options specified by the user in the configuration file. This is used to control which supplemental precip forcings are processed and how they are processed based on the other configuration options specified for each supplemental precip forcing."""
-        self.check_input_values_in_range(
-            value,
-            "SuppPcp",
-            list(range(1, self.supp_precip_count + 1)),
-        )
+        if len(value)>0:
+            self.check_input_values_in_range(
+                [int(i) for i in value],
+                "SuppPcp",
+                list(range(1, self.supp_precip_count + 1)),
+            )
         self._supp_precip_forcings = value
 
     @property
@@ -313,7 +338,7 @@ class ConfigOptions:
 
         Example- OutputFrequency: 60
         """
-        self.check_input_values_positive([value], "OutputFrequency")
+        self.check_input_values_non_negative([value], "OutputFrequency")
         self._output_freq = value
 
     @property
@@ -329,11 +354,7 @@ class ConfigOptions:
 
         Example- SubOutputHour: 0
         """
-        self.check_input_values_positive([value], "SubOutputHour")
-        if value < 0:
-            err_out_screen(
-                "Please specify an SubOutputHour that is greater than zero minutes."
-            )
+        self.check_input_values_non_negative([value], "SubOutputHour")
         if value == 0:
             value = None
         self._sub_output_hour = value
@@ -432,7 +453,7 @@ class ConfigOptions:
     @fcst_freq.setter
     def fcst_freq(self, value: int) -> None:
         """Set the forecast frequency in hours specified by the user in the configuration file. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
-        self.check_input_values_positive([value], "ForecastFrequency")
+        self.check_input_values_non_negative([value], "ForecastFrequency")
         if value > 1440:
             err_out_screen(
                 "Only forecast cycles of daily or sub-daily are supported at this time"
@@ -466,7 +487,7 @@ class ConfigOptions:
 
         Example- RefcstBDateProc: 202210071400
         """
-        return self._bdate_proc
+        return self._b_date_proc
 
     @b_date_proc.setter
     def b_date_proc(self, value: str | datetime) -> None:
@@ -537,7 +558,8 @@ class ConfigOptions:
         if self.user_provided_geogrid_flag:
             self._geogrid = value
         if value is None:
-            err_out_screen("Unable to locate GeogridIn in the configuration file.")
+            self._geogrid = value
+            # err_out_screen("Unable to locate GeogridIn in the configuration file.")
         else:
             geogrid_parent = os.path.dirname(value)
             geogrid_filename = os.path.basename(value)
@@ -546,7 +568,8 @@ class ConfigOptions:
             self._geogrid = os.path.join(
                 geogrid_parent, f"{self.uid64}_{geogrid_filename}"
             )
-        self.try_make_dir(geogrid_parent, " esmf_mesh")
+            self.try_make_dir(geogrid_parent, " esmf_mesh")
+
 
     def try_make_dir(self, directory: str, optional_str: str = "") -> None:
         """Try to make a directory, and catch any errors."""
@@ -571,7 +594,7 @@ class ConfigOptions:
             self.check_input_values_in_range(
                 value, "InputForcings", list(range(1, self.force_count + 1))
             )
-            self._input_forcings = value
+        self._input_forcings = value
 
     @property
     def number_inputs(self) -> int:
@@ -626,14 +649,13 @@ class ConfigOptions:
             self.check_input_values_in_range(
                 value, "InputForcingTypes", self.file_types
             )
-            self._input_force_types = value
-        else:
-            self._input_force_types = None
+        self._input_force_types = value
+
 
     @property
     def file_types(self):
         """Get the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
-        return self.CONFIGOPTIONS["file_types"]
+        return CONFIGOPTIONS["file_types"]
 
     @property
     def input_force_dirs(self) -> list:
@@ -661,10 +683,9 @@ class ConfigOptions:
                         self.aws = True
                     else:
                         self.try_make_dir(dir_path, " forcing")
-            self._input_force_dirs = value
-        else:
-            self._input_force_dirs = None
+        self._input_force_dirs = value
 
+    @property
     def input_force_mandatory(self) -> list:
         """Get the list of input forcing mandatory flags specified by the user in the configuration file. This is used to control whether the program should raise an error if input forcings for a given forecast cycle are not found for each input forcing specified by the user in the configuration file."""
         return self._input_force_mandatory
@@ -678,10 +699,10 @@ class ConfigOptions:
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "InputMandatory")
             self.check_input_values_in_range(value, "InputMandatory", [0, 1])
-            self._input_force_mandatory = value
-        else:
-            self._input_force_mandatory = None
+        self._input_force_mandatory = value
 
+
+    @property
     def customSuppPcpFreq(self) -> int:
         """Get the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
         return self._customSuppPcpFreq
@@ -690,11 +711,12 @@ class ConfigOptions:
     def customSuppPcpFreq(self, value: int) -> None:
         """Set the custom supplemental precip output frequency specified by the user in the configuration file. This is used to control the output frequency of supplemental precip forcings if the user has chosen to run the supplemental precip forcings module only."""
         if self.precip_only_flag:
-            self.check_input_values_positive([value], "customSuppPcpFreq")
+            self.check_input_values_non_negative([value], "customSuppPcpFreq")
             self._customSuppPcpFreq = value
         else:
             self._customSuppPcpFreq = None
 
+    @property
     def fcst_shift(self) -> int:
         """Forecast cycles are determined by splitting up a day by equal ForecastFrequency interval. If there is a desire to shift the cycles to a different time step, ForecastShift will shift forecast cycles ahead by a determined set of minutes. For example, ForecastFrequency of 6 hours will produce forecasts cycles at 00, 06, 12, and 18 UTC. However, a ForecastShift of 1 hour will produce forecast cycles at 01, 07, 13, and 18 UTC. NOTE - This is only used by the realtime instance to calculate forecast cycles accordingly. Re-forecasts will use the beginning and ending dates specified in conjunction with the forecast frequency to determine forecast cycle dates.
 
@@ -705,7 +727,7 @@ class ConfigOptions:
     @fcst_shift.setter
     def fcst_shift(self, value: int) -> None:
         if True:  # was: self.realtime_flag:
-            self.check_input_values_positive([value], "ForecastShift")
+            self.check_input_values_non_negative([value], "ForecastShift")
             # Calculate the beginning/ending processing dates if we are running realtime
             if self.realtime_flag:
                 calculate_lookback_window(self)
@@ -750,7 +772,7 @@ class ConfigOptions:
     def fcst_input_horizons(self, value: list) -> None:
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForecastInputHorizons")
-            self.check_input_values_positive(value, "ForecastInputHorizons")
+            self.check_input_values_non_negative(value, "ForecastInputHorizons")
         else:
             if len(self.fcst_input_horizons) != 1:
                 err_out_screen(
@@ -770,7 +792,7 @@ class ConfigOptions:
     def fcst_input_offsets(self, value: list) -> None:
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForecastInputOffsets")
-            self.check_input_values_positive(value, "ForecastInputOffsets")
+            self.check_input_values_non_negative(value, "ForecastInputOffsets")
             self._fcst_input_offsets = value
 
     @property
@@ -928,7 +950,7 @@ class ConfigOptions:
         """Set the list of ignored border widths specified by the user in the configuration file. This is used to control how the program processes input forcings based on the ignored border widths specified for each input forcing in the configuration file."""
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "IgnoredBorderWidths")
-            self.check_input_values_positive(value, "IgnoredBorderWidths")
+            self.check_input_values_non_negative(value, "IgnoredBorderWidths")
             self._ignored_border_widths = value
 
     @property
@@ -1090,6 +1112,7 @@ class ConfigOptions:
                 )
         self._dScaleParamDirs = value
 
+    @property
     def perform_downscaling(self) -> bool:
         """Determine whether downscaling of input forcings is necessary based on the downscaling options specified by the user for each input forcing in the configuration file."""
         if (
@@ -1375,8 +1398,7 @@ class ConfigOptions:
 
         Example- SuppPcpTemporalInterpolation: [0, 0, 0]
         """
-        if self.number_supp_pcp > 0:
-            return self._suppTemporalInterp
+        return self._suppTemporalInterp
 
     @suppTemporalInterp.setter
     def suppTemporalInterp(self, value):
@@ -1390,17 +1412,15 @@ class ConfigOptions:
     @property
     def supp_pcp_max_hours(self):
         """Get the list of maximum forecast hours for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are processed based on the maximum forecast hour specified for each supplemental precipitation input forcing in the configuration file."""
-        if self.number_supp_pcp > 0:
-            return self._supp_pcp_max_hours
+        return self._supp_pcp_max_hours
 
     @supp_pcp_max_hours.setter
     def supp_pcp_max_hours(self, value):
         """Set the list of maximum forecast hours for supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how supplemental precipitation input forcings are processed based on the maximum forecast hour specified for each supplemental precipitation input forcing in the configuration file."""
         if self.number_supp_pcp > 0:
             if isinstance(value, list):
-                self.check_input_values_positive(value, "SuppPcpMaxHours")
+                self.check_number_of_inputs_supp_pcp(value, "SuppPcpMaxHours")
             elif isinstance(value, float) or isinstance(value, int):
-                self.check_input_values_positive(value, "SuppPcpMaxHours")
                 value = [value] * self.number_supp_pcp
             self._supp_pcp_max_hours = value
 
@@ -1454,8 +1474,7 @@ class ConfigOptions:
 
         Example- SuppPcpParamDir: ['./forcingParam/AnA','./forcingParam/AnA','./forcingParam/AnA']
         """
-        if self.number_supp_pcp > 0:
-            return self._supp_precip_param_dir
+        return self._supp_precip_param_dir
 
     @supp_precip_param_dir.setter
     def supp_precip_param_dir(self, value):
