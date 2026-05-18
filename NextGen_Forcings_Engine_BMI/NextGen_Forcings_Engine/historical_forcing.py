@@ -248,7 +248,9 @@ class BaseProcessor:
                 ds = self.sliced_ds.rio.write_crs(self.src_crs)
         self.mpi_config.comm.barrier()
         ds = self.mpi_config.comm.bcast(ds, root=0)
-        if self.mpi_config.rank == 0:
+        # Note: temporarily turning off the caching as it was causing problems in deployment.
+        # This is intended as a temporary, costly, quick fix to the problem whilst a good solution is worked on.
+        if False and self.mpi_config.rank == 0:
             if not os.path.exists(self.nc_path):
                 tmp_file = (
                     f"{self.nc_path}.{rand_str(12)}{os.path.splitext(self.nc_path)[1]}"
