@@ -1,11 +1,12 @@
 from __future__ import annotations
+
 import atexit
-from functools import partial
 import os
 import signal
 import sys
-import typing
-from typing import TypeVar
+from functools import partial
+from typing import TYPE_CHECKING
+
 import mpi4py
 import numpy as np
 
@@ -13,8 +14,11 @@ mpi4py.rc.threads = False
 
 from mpi4py import MPI  # noqa: E402
 
-from . import err_handler
-from . import mpi_utils
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+from . import err_handler, mpi_utils
 
 # If MPI was initialized outside of python,
 # disable initialization/finalization behavior
@@ -23,8 +27,8 @@ if MPI.Is_initialized():
     mpi4py.rc.finalize = False
 
 if typing.TYPE_CHECKING:
-    from .geoMod import GriddedGeoMeta
     from .config import ConfigOptions
+    from .geoMod import GriddedGeoMeta
 
 _T = TypeVar("_T")
 
