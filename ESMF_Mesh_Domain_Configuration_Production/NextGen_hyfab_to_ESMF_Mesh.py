@@ -41,7 +41,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
 
     # Eventually, we'll add code to slice catchment ids
     # but for now just use feature ids
-    element_ids = np.array(np.array([elem.split('-')[1] for elem in np.array(hyfab.divide_id.values, dtype=str)], dtype=float), dtype=int)
+    element_ids = np.array(np.array([elem for elem in np.array(hyfab.div_id.values, dtype=str)], dtype=float), dtype=int)
     hyfab_coords = np.empty((len(element_ids), 2), dtype=float)
     hyfab_coords[:, 0] = element_ids
     hyfab_coords[:, 1] = element_ids
