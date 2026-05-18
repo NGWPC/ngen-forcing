@@ -1,10 +1,17 @@
+from __future__ import annotations
+
 import functools
 import time
 import traceback
 import types
+from typing import TYPE_CHECKING
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import ConfigOptions
+
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
 
 
 def retry_w_mpi_context(
