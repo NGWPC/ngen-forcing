@@ -1,9 +1,11 @@
+from __future__ import annotations
+
 import atexit
-from functools import partial
 import os
-import uuid
 import signal
 import sys
+from functools import partial
+from typing import TYPE_CHECKING
 
 import mpi4py
 import numpy as np
@@ -12,9 +14,11 @@ mpi4py.rc.threads = False
 
 from mpi4py import MPI
 
-from .config import ConfigOptions
-from . import err_handler
-from . import mpi_utils
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+from . import err_handler, mpi_utils
 
 # If MPI was initialized outside of python,
 # disable initialization/finalization behavior
