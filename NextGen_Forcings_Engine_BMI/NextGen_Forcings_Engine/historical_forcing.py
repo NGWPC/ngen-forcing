@@ -1,6 +1,7 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
+import gc
 import os
 import typing
 from contextlib import contextmanager
@@ -9,7 +10,6 @@ from functools import cached_property
 from time import perf_counter, sleep
 
 import ewts
-import gc
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -253,25 +253,14 @@ class BaseProcessor:
                 tmp_file = (
                     f"{self.nc_path}.{rand_str(12)}{os.path.splitext(self.nc_path)[1]}"
                 )
-                c = 0
-                while c < 10:
-                    LOG.info(f"Writing tmp file: {tmp_file}")
-                    try:
-                        ds.to_netcdf(tmp_file, "w")
-                        LOG.info(f"Renaming: {tmp_file} -> {self.nc_path}")
-                        os.replace(tmp_file, self.nc_path)
-                        LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
-                        break
-                    except Exception as e:
-                        LOG.warning(
-                            f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c}). | Error: {e}"
-                        )
-                        sleep(1)
-                        c += 1
-                else:
-                    raise PermissionError(
-                        f"Could not write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
-                    )
+                LOG.info(f"Writing tmp file: {tmp_file}")
+                try:
+                    ds.to_netcdf(tmp_file, "w")
+                    LOG.info(f"Renaming: {tmp_file} -> {self.nc_path}")
+                    os.replace(tmp_file, self.nc_path)
+                    LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
+                except Exception as e:
+                    pass
         return ds
 
     @cached_property
