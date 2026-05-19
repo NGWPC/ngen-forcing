@@ -1,6 +1,7 @@
 """Module for processing AORC and NWM data."""
 
 import datetime
+import gc
 import os
 import typing
 from contextlib import contextmanager
@@ -9,7 +10,6 @@ from functools import cached_property
 from time import perf_counter, sleep
 
 import ewts
-import gc
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -148,7 +148,7 @@ class BaseProcessor:
     @property
     def nc_path(self) -> str:
         """Construct file path for cached netcdf files."""
-        return f"/tmp/{self.cache_filename}.nc"
+        return f"{os.environ.get('TMPDIR', '/tmp')}/{self.cache_filename}.nc"
 
     @property
     def cache_filename(self):
@@ -253,25 +253,14 @@ class BaseProcessor:
                 tmp_file = (
                     f"{self.nc_path}.{rand_str(12)}{os.path.splitext(self.nc_path)[1]}"
                 )
-                c = 0
-                while c < 10:
-                    LOG.info(f"Writing tmp file: {tmp_file}")
-                    try:
-                        ds.to_netcdf(tmp_file, "w")
-                        LOG.info(f"Renaming: {tmp_file} -> {self.nc_path}")
-                        os.replace(tmp_file, self.nc_path)
-                        LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
-                        break
-                    except Exception as e:
-                        LOG.warning(
-                            f"There appears to be a lock on the netcdf cache file while writing. Sleeping 1 second and trying again ({c}). | Error: {e}"
-                        )
-                        sleep(1)
-                        c += 1
-                else:
-                    raise PermissionError(
-                        f"Could not write the netcdf cache file within the specified number of retries(10): {self.nc_path}"
-                    )
+                LOG.info(f"Writing tmp file: {tmp_file}")
+                try:
+                    ds.to_netcdf(tmp_file, "w")
+                    LOG.info(f"Renaming: {tmp_file} -> {self.nc_path}")
+                    os.replace(tmp_file, self.nc_path)
+                    LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
+                except Exception as e:
+                    pass
         return ds
 
     @cached_property
@@ -433,10 +422,12 @@ class AORCConusProcessor(BaseProcessor):
             return cached_data
         current_year = self.current_time.year
         try:
-            object_store = obstore.store.from_url(self.url(current_year), skip_signature=True)
+            object_store = obstore.store.from_url(
+                self.url(current_year), skip_signature=True
+            )
             with (
                 xr.open_dataset(ObjectStore(object_store), engine="zarr") as ds,
-                self.timing_block(f"Loading {self.dataset_name} data")
+                self.timing_block(f"Loading {self.dataset_name} data"),
             ):
                 return (
                     self.slice_ds(ds)
@@ -599,7 +590,10 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    object_store = obstore.store.from_url(self.url(var), skip_signature=True)
+                    # TODO this object_store var is not used
+                    object_store = obstore.store.from_url(
+                        self.url(var), skip_signature=True
+                    )
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
@@ -735,11 +729,24 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         return self.geo_grid["crs"].attrs["spatial_ref"]
 
     @property
+    def geogrid_ldasout_spatial_metadata_path(self) -> str:
+        """Path to geogrid spatial metadata file for assigning CRS.
+
+        Currently assumed to exist as a sibling file to the nwm_geogrid file.
+        TODO consider using forcing config attribute SpatialMetaIn, see: https://github.com/NGWPC/ngen-forcing/blob/0992b43391ba141717b7a80f10ef38478cef2eee/NextGen_Forcings_Engine_BMI/BMI_NextGen_Configs/README.md?plain=1#L136-L138
+        """
+        basename = "GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
+        parent_dir = os.path.dirname(self.config_options.nwm_geogrid)
+        p = os.path.join(parent_dir, basename)
+        LOG.warning(
+            f"For Alaska NWM forcing, not using SpatialMetaIn. Using this instead to define the mesh CRS (this path assumed to be sibling of NWM_Geogrid): {p}"
+        )
+        return p
+
+    @property
     def geo_grid(self) -> xr.Dataset:
         """Load geogrid metadata."""
-        geo_grid = xr.open_dataset(
-            "/ngen-app/data/GEOGRID_LDASOUT_Spatial_Metadata_AK.nc"
-        )
+        geo_grid = xr.open_dataset(self.geogrid_ldasout_spatial_metadata_path)
         return geo_grid
 
     @cached_property
@@ -758,5 +765,3 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         )
         ds.rio.write_crs(self.src_crs, inplace=True)
         return ds
-
-

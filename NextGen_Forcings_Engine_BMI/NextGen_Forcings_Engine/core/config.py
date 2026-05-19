@@ -354,10 +354,11 @@ class ConfigOptions:
                     "NETCDF4",
                     "NWM",
                     "ZARR",
+                    "GRIB2_CFS",
                 ]:
                     err_out_screen(
                         f'Invalid forcing file type "{file_type}" specified. '
-                        "Only GRIB1, GRIB2, NETCDF, NWM, and ZARR are supported"
+                        "Only GRIB1, GRIB2, NETCDF, NWM, ZARR, and GRIB2_CFS are supported"
                     )
 
             # Read in the input directories for each forcing option.

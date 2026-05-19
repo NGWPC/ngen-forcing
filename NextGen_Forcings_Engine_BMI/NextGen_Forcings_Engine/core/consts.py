@@ -936,6 +936,7 @@ FORCINGINPUTMOD = {
         "NETCDF4": ".nc4",
         "NWM": ".LDASIN_DOMAIN1",
         "ZARR": ".zarr",
+        "GRIB2_CFS": ".grb2",
     },
     "config_vars_for_mapping": [
         "input_forcings",
@@ -1878,6 +1879,7 @@ FORCINGINPUTMOD = {
         "NETCDF4": ".nc4",
         "NWM": ".LDASIN_DOMAIN1",
         "ZARR": ".zarr",
+        "GRIB2_CFS": ".grb2",
     },
     "config_vars_for_mapping": [
         "input_forcings",
