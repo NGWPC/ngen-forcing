@@ -6,8 +6,8 @@ from time import time
 import ewts
 import numpy as np
 import pandas as pd
-from ewts.data_payloads import Payload as Pld
-from ewts.data_payloads import Status as St
+from ewts import Payload as Pld
+from ewts import Status as St
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     bias_correction,

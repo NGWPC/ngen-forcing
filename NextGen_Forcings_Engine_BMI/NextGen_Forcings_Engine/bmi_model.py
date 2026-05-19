@@ -20,8 +20,8 @@ import pandas as pd
 # Configuration file functionality
 import yaml
 from bmipy import Bmi
-from ewts.data_payloads import Payload as Pld
-from ewts.data_payloads import Status as St
+from ewts import Payload as Pld
+from ewts import Status as St
 
 # Import MPI Python module
 from mpi4py import MPI
