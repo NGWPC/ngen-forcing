@@ -4,13 +4,14 @@ import functools
 import time
 import traceback
 import types
-from typing import TYPE_CHECKING
-
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
         ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+        MpiConfig,
     )
 
 
@@ -47,6 +48,13 @@ def retry_w_mpi_context(
             *args,
             **kwargs,
         ):
+            from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+                ConfigOptions,
+            )
+            from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+                MpiConfig,
+            )
+
             if not isinstance(mpi_config, MpiConfig):
                 raise TypeError(
                     f"Expected type {MpiConfig} for mpi_config, got: {type(mpi_config)}"
