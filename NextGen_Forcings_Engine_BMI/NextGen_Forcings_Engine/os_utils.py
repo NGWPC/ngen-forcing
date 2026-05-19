@@ -5,7 +5,7 @@ import types
 import typing
 from typing import TYPE_CHECKING
 
-from . import retry_utils
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine import retry_utils
 
 if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
