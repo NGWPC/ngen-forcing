@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import configparser
 import json
 import os
 import re
 from datetime import datetime, timedelta, timezone
+from typing import TYPE_CHECKING, Any
 
 import ewts
 import numpy as np
@@ -57,12 +60,10 @@ class ConfigOptions:
         )
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
 
-        
         self._scratch_dir_has_been_uniquefied = False
         self.supp_precip_forcings = self.extract_input_variable("SuppPcp")
         if not self.precip_only_flag:
             self.input_forcings = self.extract_input_variable("InputForcings")
-        
 
         # Create temporary array to hold flags if we need input parameter files.
         self.param_flag = np.zeros([len(self.input_forcings)], int)
@@ -73,18 +74,29 @@ class ConfigOptions:
             setattr(self, attr, None)
         self.broadcast_new_64bit_uid()
 
-        for cfg_bmi_attr, config_options_attr in self.try_config_get_except_attr_map.items():
-            setattr(self,config_options_attr,self.try_config_get(cfg_bmi_attr))
-        
+        for (
+            cfg_bmi_attr,
+            config_options_attr,
+        ) in self.try_config_get_except_attr_map.items():
+            setattr(self, config_options_attr, self.try_config_get(cfg_bmi_attr))
+
         self.set_attrs(CONFIGOPTIONS["extract_input_variable_attrs_map"])
 
         if self.precip_only_flag:
             self.set_attrs(
                 CONFIGOPTIONS["extract_input_variable_attrs_map_precip_only"]
             )
+            self.set_attrs(
+                CONFIGOPTIONS["extract_input_variable_attrs_map_not_precip_only"],
+                set_none=True,
+            )
         else:
             self.set_attrs(
                 CONFIGOPTIONS["extract_input_variable_attrs_map_not_precip_only"]
+            )
+            self.set_attrs(
+                CONFIGOPTIONS["extract_input_variable_attrs_map_precip_only"],
+                set_none=True,
             )
             if 27 in self.input_forcings:
                 self.nwm_geogrid = self.extract_input_variable("NWMGeogridIn")
@@ -97,14 +109,14 @@ class ConfigOptions:
         for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
             "extract_input_variable_set_default_attrs_map"
         ].items():
-            if config_options_attr=="supp_pcp_max_hours":
-                default=None
+            if config_options_attr == "supp_pcp_max_hours":
+                default = None
             else:
-                default=0
+                default = 0
             setattr(
                 self,
                 config_options_attr,
-                self.extract_input_variable_set_default(cfg_bmi_attr,default),
+                self.extract_input_variable_set_default(cfg_bmi_attr, default),
             )
 
     @property
@@ -157,18 +169,24 @@ class ConfigOptions:
                 precip_only = True
         return precip_only
 
-    def set_attrs(self, attrs_dict: dict):
+    def set_attrs(self, attrs_dict: dict, set_none: bool = False):
         """Set the attributes of the class based on the configuration file. This is used to populate the attributes of the class after they have been read in and validated from the configuration file."""
         for cfg_bmi_attr, config_options_attr in attrs_dict.items():
-            setattr(
-                self, config_options_attr, self.extract_input_variable(cfg_bmi_attr)
-            )
-    def set_attrs_use_default(self,attrs_dict:dict):
+            if set_none:
+                attr = None
+            else:
+                attr = self.extract_input_variable(cfg_bmi_attr)
+            setattr(self, config_options_attr, attr)
+
+    def set_attrs_use_default(self, attrs_dict: dict):
         """Set the attributes of the class based on the configuration file. Set default value to default if not found in config file."""
         for cfg_bmi_attr, config_options_attr in attrs_dict.items():
             setattr(
-                self, config_options_attr, self.extract_input_variable_set_default(cfg_bmi_attr)
+                self,
+                config_options_attr,
+                self.extract_input_variable_set_default(cfg_bmi_attr),
             )
+
     def extract_input_variable(self, variable_name: str) -> str:
         """Extract the variable name from the configuration file for a given variable."""
         try:
@@ -197,7 +215,7 @@ class ConfigOptions:
             err_out_screen(
                 f"Improper {variable_name} value: {self.cfg_bmi[variable_name]}", e
             )
-        if default==0:
+        if default == 0:
             if variable not in [0, 1]:
                 err_out_screen(f"Please choose a {variable_name} value of 0  or 1.")
         return variable
@@ -217,7 +235,7 @@ class ConfigOptions:
             )
 
     def check_number_of_inputs(
-        self, value: list, variable_name: str, input_type: str,number_inputs:int
+        self, value: list, variable_name: str, input_type: str, number_inputs: int
     ) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable."""
         if len(value) != number_inputs:
@@ -227,12 +245,14 @@ class ConfigOptions:
 
     def check_number_of_inputs_forcings(self, value: list, variable_name: str) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for input forcings variables which should match the number of input forcing options specified by the user in the configuration file."""
-        return self.check_number_of_inputs(value, variable_name, " InputForcings",self.number_inputs)
+        return self.check_number_of_inputs(
+            value, variable_name, " InputForcings", self.number_inputs
+        )
 
     def check_number_of_inputs_supp_pcp(self, value: list, variable_name: str) -> None:
         """Check that the number of inputs specified by the user in the configuration file matches the expected number of inputs for a given variable, specifically for supplemental precip forcing variables which should match the number of supplemental precip forcing options specified by the user in the configuration file."""
         return self.check_number_of_inputs(
-            value, variable_name, " SupplementalPrecipForcings",self.number_supp_pcp
+            value, variable_name, " SupplementalPrecipForcings", self.number_supp_pcp
         )
 
     def check_input_values_in_range(
@@ -260,6 +280,7 @@ class ConfigOptions:
                 err_out_screen(
                     f"Invalid {variable_name} value '{val}' specified in configuration file. Please specify values greater than zero."
                 )
+
     def uniquefy_scratch_dir_as_child(self, uid: str) -> None:
         """Modify the existing scratch dir by adding the UID string available to all ranks from the MpiConfig class.
 
@@ -319,7 +340,7 @@ class ConfigOptions:
     @supp_precip_forcings.setter
     def supp_precip_forcings(self, value: list) -> None:
         """Set the list of supplemental precip forcing options specified by the user in the configuration file. This is used to control which supplemental precip forcings are processed and how they are processed based on the other configuration options specified for each supplemental precip forcing."""
-        if len(value)>0:
+        if len(value) > 0:
             self.check_input_values_in_range(
                 [int(i) for i in value],
                 "SuppPcp",
@@ -570,7 +591,6 @@ class ConfigOptions:
             )
             self.try_make_dir(geogrid_parent, " esmf_mesh")
 
-
     def try_make_dir(self, directory: str, optional_str: str = "") -> None:
         """Try to make a directory, and catch any errors."""
         if not os.path.isdir(directory):
@@ -651,7 +671,6 @@ class ConfigOptions:
             )
         self._input_force_types = value
 
-
     @property
     def file_types(self):
         """Get the list of input forcing file types specified by the user in the configuration file. This is used to control how input forcings are read in and processed based on the file type specified for each input forcing in the configuration file."""
@@ -660,7 +679,10 @@ class ConfigOptions:
     @property
     def input_force_dirs(self) -> list:
         """Get the list of input forcing directories specified by the user in the configuration file. This is used to control where input forcings are read in from for each input forcing specified by the user in the configuration file."""
-        return self._input_force_dirs
+        if self._input_force_dirs:
+            return self._input_force_dirs
+        else:
+            None
 
     @input_force_dirs.setter
     def input_force_dirs(self, value: list) -> None:
@@ -700,7 +722,6 @@ class ConfigOptions:
             self.check_number_of_inputs_forcings(value, "InputMandatory")
             self.check_input_values_in_range(value, "InputMandatory", [0, 1])
         self._input_force_mandatory = value
-
 
     @property
     def customSuppPcpFreq(self) -> int:
@@ -854,12 +875,6 @@ class ConfigOptions:
         )
         self._grid_type = value.lower()
 
-    def raise_grid_type_error(self, grid_type: str, variable_name: str) -> None:
-        """Raise an error if a variable is requested that is not valid for the given grid type."""
-        err_out_screen(
-            f"{variable_name} is not a valid variable for grid type {grid_type}. Please check your configuration file."
-        )
-
     @property
     def lon_var(self) -> str:
         """Naming convention of the longitude variable within the "GeogridIn" file the user has specified. Variable naming convention ONLY for gridded domain configurations. This is required so the NextGen Forcings Engine BMI can dyanmically initialize the domain geogrid as an ESMF regridding object. In the case for "gridded" domain configuration options and a user specifying downscaling options while only specifying a height variable feature on the grid, this netcdf variable (LONVAR) is then EXPECTED to contain a netcdf metadata attribute called "dx" that specifies the grid spacing in the longtiudinal direction. Otherwise, it will throw an error and not be able to calculate the slope and tilt of each grid cell.
@@ -868,8 +883,6 @@ class ConfigOptions:
         """
         if self.grid_type == "gridded":
             return self.extract_input_variable("LONVAR")
-        else:
-            self.raise_grid_type_error(self.grid_type, "LONVAR")
 
     @property
     def lat_var(self) -> str:
@@ -879,8 +892,6 @@ class ConfigOptions:
         """
         if self.grid_type == "gridded":
             return self.extract_input_variable("LATVAR")
-        else:
-            self.raise_grid_type_error(self.grid_type, "LATVAR")
 
     @property
     def nodecoords_var(self) -> str:
@@ -890,8 +901,6 @@ class ConfigOptions:
         """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("NodeCoords")
-        else:
-            self.raise_grid_type_error(self.grid_type, "NodeCoords")
 
     @property
     def elemcoords_var(self) -> str:
@@ -901,8 +910,6 @@ class ConfigOptions:
         """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("ElemCoords")
-        else:
-            self.raise_grid_type_error(self.grid_type, "ElemCoords")
 
     @property
     def elemconn_var(self) -> str:
@@ -912,8 +919,6 @@ class ConfigOptions:
         """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("ElemConn")
-        else:
-            self.raise_grid_type_error(self.grid_type, "ElemConn")
 
     @property
     def numelemconn_var(self) -> str:
@@ -923,8 +928,6 @@ class ConfigOptions:
         """
         if self.grid_type in ["unstructured", "hydrofabric"]:
             return self.extract_input_variable("NumElemConn")
-        else:
-            self.raise_grid_type_error(self.grid_type, "NumElemConn")
 
     @property
     def element_id_var(self) -> str:
@@ -934,8 +937,6 @@ class ConfigOptions:
         """
         if self.grid_type == "hydrofabric":
             return self.extract_input_variable("ElemID")
-        else:
-            self.raise_grid_type_error(self.grid_type, "ElemID")
 
     @property
     def ignored_border_widths(self) -> list:
@@ -968,6 +969,8 @@ class ConfigOptions:
             self.check_number_of_inputs_forcings(value, "RegridOpt")
             self.check_input_values_in_range(value, "RegridOpt", [1, 2, 3])
             self._regrid_opt = value
+        else:
+            self._regrid_opt = None
 
     @property
     def weightsDir(self) -> str:
@@ -1376,6 +1379,8 @@ class ConfigOptions:
         if self.number_supp_pcp > 0:
             self.check_input_values_in_range(value, "SuppPcpMandatory", [0, 1])
             self._supp_precip_mandatory = value
+        else:
+            self._supp_precip_mandatory = None
 
     @property
     def regrid_opt_supp_pcp(self):
@@ -1391,6 +1396,8 @@ class ConfigOptions:
         if self.number_supp_pcp > 0:
             self.check_input_values_in_range(value, "RegridOptSuppPcp", [1, 2, 3])
             self._regrid_opt_supp_pcp = value
+        else:
+            self._regrid_opt_supp_pcp = None
 
     @property
     def suppTemporalInterp(self):
@@ -1408,6 +1415,8 @@ class ConfigOptions:
                 value, "SuppPcpTemporalInterpolation", [0, 1, 2]
             )
             self._suppTemporalInterp = value
+        else:
+            self._suppTemporalInterp = None
 
     @property
     def supp_pcp_max_hours(self):
@@ -1423,6 +1432,8 @@ class ConfigOptions:
             elif isinstance(value, float) or isinstance(value, int):
                 value = [value] * self.number_supp_pcp
             self._supp_pcp_max_hours = value
+        else:
+            self._supp_pcp_max_hours = None
 
     @property
     def supp_input_offsets(self):
@@ -1437,6 +1448,9 @@ class ConfigOptions:
         """Set the list of time offsets to apply to supplemental precipitation input forcing files specified by the user in the configuration file. This is used to control how supplemental precipitation input forcing files are processed based on the time offset specified for each supplemental precipitation input forcing in the configuration file."""
         if self.number_supp_pcp > 0:
             self.check_number_of_inputs_supp_pcp(value, "SuppPcpInputOffsets")
+            self._supp_input_offsets = value
+        else:
+            self._supp_input_offsets = None
 
     @property
     def supp_precip_dirs(self):
@@ -1488,6 +1502,7 @@ class ConfigOptions:
     @property
     def cfsv2EnsMember(self):
         """Set the CFSv2 ensemble member to process specified by the user in the configuration file. This is used to control which CFSv2 ensemble member is processed for CFSv2 input forcings based on the ensemble member specified in the configuration file."""
+        value = None
         if not self.precip_only_flag:
             # Read in Ensemble information
             # Read in CFS ensemble member information IF we have chosen CFSv2 as an input
