@@ -148,7 +148,7 @@ class BaseProcessor:
     @property
     def nc_path(self) -> str:
         """Construct file path for cached netcdf files."""
-        return f"/tmp/{self.cache_filename}.nc"
+        return f"{os.environ.get('TMPDIR', '/tmp')}/{self.cache_filename}.nc"
 
     @property
     def cache_filename(self):
