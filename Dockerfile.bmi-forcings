@@ -38,17 +38,21 @@ ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_VENDOR="unknown"
 ARG IMAGE_VERSION="unknown"
 ARG IMAGE_REVISION="unknown"
+ARG EWTS_REVISION="unknown"
 
-# OCI Standard Labels
+# Image Labels: OCI-spec annotations followed by custom source-repo metadata.
 LABEL org.opencontainers.image.base.name="${BMI_BASE_NAME}" \
     org.opencontainers.image.base.digest="${BMI_BASE_DIGEST}" \
-    io.${IMAGE_NAMESPACE}.image.base.revision="${BMI_BASE_REVISION}" \
     org.opencontainers.image.source="${IMAGE_SOURCE}" \
     org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
     org.opencontainers.image.version="${IMAGE_VERSION}" \
     org.opencontainers.image.revision="${IMAGE_REVISION}" \
     org.opencontainers.image.title="NGEN BMI Forcing" \
-    org.opencontainers.image.description="Docker image for the NGEN BMI Forcings application"
+    org.opencontainers.image.description="Docker image for the NGEN BMI Forcings application" \
+    io.${IMAGE_NAMESPACE}.image.base.revision="${BMI_BASE_REVISION}" \
+    io.${IMAGE_NAMESPACE}.ewts.org="${EWTS_ORG}" \
+    io.${IMAGE_NAMESPACE}.ewts.ref="${EWTS_REF}" \
+    io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
 
 # ensure local python is preferred over distribution python
 ENV PATH="/usr/local/bin:$PATH"

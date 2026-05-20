@@ -81,6 +81,7 @@ jobs:
       bmi_base_tag: ${{ steps.vars.outputs.bmi_base_tag }}
       bmi_base_digest: ${{ steps.vars.outputs.bmi_base_digest }}
       bmi_base_revision: ${{ steps.vars.outputs.bmi_base_revision }}
+      ewts_revision: ${{ steps.vars.outputs.ewts_revision }}
       commit_sha: ${{ steps.vars.outputs.commit_sha }}
       commit_sha_short: ${{ steps.vars.outputs.commit_sha_short }}
       test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
@@ -131,9 +132,23 @@ jobs:
             BMI_BASE_TAG="8"
           fi
           BMI_BASE_NAME="${BMI_BASE_REPO}:${BMI_BASE_TAG}"
-          BMI_BASE_INSPECT=$(skopeo inspect "docker://${BMI_BASE_NAME}")
+          BMI_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${BMI_BASE_NAME}")
           BMI_BASE_DIGEST=$(echo "$BMI_BASE_INSPECT" | jq -r '.Digest // "unknown"')
           BMI_BASE_REVISION=$(echo "$BMI_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+
+          # resolve each source repo's ref (branch/tag/SHA) to its commit SHA for revision labels
+          resolve_sha() {
+            local url="$1" ref="$2" out sha
+            # a full 40-char SHA can't be looked up via ls-remote; use it directly
+            if [[ "$ref" =~ ^[0-9a-f]{40}$ ]]; then echo "$ref"; return; fi
+            out=$(git ls-remote "$url" "$ref" "refs/tags/${ref}^{}" 2>/dev/null)
+            # prefer the dereferenced commit (^{}) for annotated tags; else first match
+            sha=$(echo "$out" | grep '\^{}$' | head -n1 | cut -f1)
+            [ -z "$sha" ] && sha=$(echo "$out" | head -n1 | cut -f1)
+            echo "${sha:-unknown}"
+          }
+
+          EWTS_REVISION=$(resolve_sha "https://github.com/${{ inputs.EWTS_ORG || github.repository_owner }}/nwm-ewts.git" "${{ inputs.EWTS_REF || 'development' }}")
 
           # logic for the tags:
           # test_image_tag (commit short sha): used for the initial build and test
@@ -154,17 +169,20 @@ jobs:
           fi
 
           # save outputs
-          echo "org=${ORG}" >> "$GITHUB_OUTPUT"
-          echo "bmi_image=${IMAGE_BASE}/ngen-bmi-forcing" >> "$GITHUB_OUTPUT"
-          echo "bmi_base_name=${BMI_BASE_NAME}" >> "$GITHUB_OUTPUT"
-          echo "bmi_base_tag=${BMI_BASE_TAG}" >> "$GITHUB_OUTPUT"
-          echo "bmi_base_digest=${BMI_BASE_DIGEST}" >> "$GITHUB_OUTPUT"
-          echo "bmi_base_revision=${BMI_BASE_REVISION}" >> "$GITHUB_OUTPUT"
-          echo "test_image_tag=${TEST_TAG}" >> "$GITHUB_OUTPUT"
-          echo "alias_tag=${ALIAS}" >> "$GITHUB_OUTPUT"
-          echo "commit_sha=${REAL_SHA}" >> "$GITHUB_OUTPUT"
-          echo "commit_sha_short=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
-          echo "clean_ref=${CLEAN_REF}" >> "$GITHUB_OUTPUT"
+          cat >> "$GITHUB_OUTPUT" <<EOF
+          org=${ORG}
+          bmi_image=${IMAGE_BASE}/ngen-bmi-forcing
+          bmi_base_name=${BMI_BASE_NAME}
+          bmi_base_tag=${BMI_BASE_TAG}
+          bmi_base_digest=${BMI_BASE_DIGEST}
+          bmi_base_revision=${BMI_BASE_REVISION}
+          ewts_revision=${EWTS_REVISION}
+          test_image_tag=${TEST_TAG}
+          alias_tag=${ALIAS}
+          commit_sha=${REAL_SHA}
+          commit_sha_short=${SHORT_SHA}
+          clean_ref=${CLEAN_REF}
+          EOF
 
   # CodeQL scan
   codeql-scan:
@@ -236,6 +254,7 @@ jobs:
             BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || 'development' }}
+            EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
@@ -320,7 +339,7 @@ jobs:
     name: trigger-ngen
     if: |
       success() && (
-        (github.event_name == 'push' && github.ref_name == 'development') ||
+        (github.event_name == 'push' && (github.ref_name == 'development' || github.ref_name == 'ngwpc-candidate' || github.ref_name == 'ngwpc-release')) ||
         (github.event_name == 'workflow_dispatch' && inputs.TRIGGER_DOWNSTREAM)
       )
     runs-on: ubuntu-latest
@@ -338,9 +357,9 @@ jobs:
       - name: Trigger ngen CI/CD
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          NGEN_REF: ${{ inputs.NGEN_REF || 'development' }}
-          NWM_CAL_MGR_REF: ${{ inputs.NWM_CAL_MGR_REF || 'development' }}
-          NWM_FCST_MGR_REF: ${{ inputs.NWM_FCST_MGR_REF || 'development' }}
+          NGEN_REF: ${{ inputs.NGEN_REF || github.ref_name }}
+          NWM_CAL_MGR_REF: ${{ inputs.NWM_CAL_MGR_REF || github.ref_name }}
+          NWM_FCST_MGR_REF: ${{ inputs.NWM_FCST_MGR_REF || github.ref_name }}
           EWTS_ORG: ${{ inputs.EWTS_ORG || github.repository_owner }}
           EWTS_REF: ${{ inputs.EWTS_REF || 'development' }}
           MSW_MGR_ORG: ${{ inputs.MSW_MGR_ORG || github.repository_owner }}
