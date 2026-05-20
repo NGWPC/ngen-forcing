@@ -109,7 +109,7 @@ class ConfigOptions:
         for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
             "extract_input_variable_set_default_attrs_map"
         ].items():
-            if config_options_attr == "supp_pcp_max_hours":
+            if config_options_attr in ["supp_pcp_max_hours","weightsDir"]:
                 default = None
             else:
                 default = 0
@@ -965,7 +965,7 @@ class ConfigOptions:
     @regrid_opt.setter
     def regrid_opt(self, value: list) -> None:
         """Set the list of regridding options specified by the user in the configuration file. This is used to control how input forcings are regridded based on the regridding option specified for each input forcing in the configuration file."""
-        if self.precip_only_flag:
+        if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "RegridOpt")
             self.check_input_values_in_range(value, "RegridOpt", [1, 2, 3])
             self._regrid_opt = value
