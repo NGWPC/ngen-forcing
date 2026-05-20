@@ -87,6 +87,7 @@ jobs:
       test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
       alias_tag: ${{ steps.vars.outputs.alias_tag }}
       clean_ref: ${{ steps.vars.outputs.clean_ref }}
+      default_ref: ${{ steps.vars.outputs.default_ref }}
     steps:
       - name: Compute image vars
         id: vars
@@ -118,6 +119,18 @@ jobs:
           CLEAN_REF=$(echo "$REAL_REF" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
           SHORT_SHA="${REAL_SHA:0:7}"
 
+          # default source-repo ref: follow the release-line branch we're building from
+          # (development / ngwpc-candidate / ngwpc-release); tags and other branches fall
+          # back to development. Override per source repo via the *_REF dispatch inputs.
+          case "${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}" in
+            branch:development|branch:ngwpc-candidate|branch:ngwpc-release)
+              DEFAULT_REF="$GITHUB_REF_NAME" ;;
+            *)
+              DEFAULT_REF="development" ;;
+          esac
+          # use an explicit *_REF input if provided, else DEFAULT_REF
+          ref_or_default() { [ -n "$1" ] && echo "$1" || echo "$DEFAULT_REF"; }
+
           # skopeo is needed to inspect the base image
           if ! command -v skopeo >/dev/null 2>&1; then
             sudo apt-get update -y
@@ -148,7 +161,7 @@ jobs:
             echo "${sha:-unknown}"
           }
 
-          EWTS_REVISION=$(resolve_sha "https://github.com/${{ inputs.EWTS_ORG || github.repository_owner }}/nwm-ewts.git" "${{ inputs.EWTS_REF || 'development' }}")
+          EWTS_REVISION=$(resolve_sha "https://github.com/${{ inputs.EWTS_ORG || github.repository_owner }}/nwm-ewts.git" "$(ref_or_default "${{ inputs.EWTS_REF }}")")
 
           # logic for the tags:
           # test_image_tag (commit short sha): used for the initial build and test
@@ -182,6 +195,7 @@ jobs:
           commit_sha=${REAL_SHA}
           commit_sha_short=${SHORT_SHA}
           clean_ref=${CLEAN_REF}
+          default_ref=${DEFAULT_REF}
           EOF
 
   # CodeQL scan
@@ -245,7 +259,6 @@ jobs:
           cache-to: type=gha,mode=max
           context: .
           file: Dockerfile.bmi-forcings
-          # file: Dockerfile.test
           push: true
           tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
@@ -253,7 +266,7 @@ jobs:
             BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
             BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
-            EWTS_REF=${{ inputs.EWTS_REF || 'development' }}
+            EWTS_REF=${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
             EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
@@ -357,13 +370,13 @@ jobs:
       - name: Trigger ngen CI/CD
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          NGEN_REF: ${{ inputs.NGEN_REF || github.ref_name }}
-          NWM_CAL_MGR_REF: ${{ inputs.NWM_CAL_MGR_REF || github.ref_name }}
-          NWM_FCST_MGR_REF: ${{ inputs.NWM_FCST_MGR_REF || github.ref_name }}
+          NGEN_REF: ${{ inputs.NGEN_REF || needs.setup.outputs.default_ref }}
+          NWM_CAL_MGR_REF: ${{ inputs.NWM_CAL_MGR_REF || needs.setup.outputs.default_ref }}
+          NWM_FCST_MGR_REF: ${{ inputs.NWM_FCST_MGR_REF || needs.setup.outputs.default_ref }}
           EWTS_ORG: ${{ inputs.EWTS_ORG || github.repository_owner }}
-          EWTS_REF: ${{ inputs.EWTS_REF || 'development' }}
+          EWTS_REF: ${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
           MSW_MGR_ORG: ${{ inputs.MSW_MGR_ORG || github.repository_owner }}
-          MSW_MGR_REF: ${{ inputs.MSW_MGR_REF || 'development' }}
+          MSW_MGR_REF: ${{ inputs.MSW_MGR_REF || needs.setup.outputs.default_ref }}
           GHCR_ORG: ${{ inputs.GHCR_ORG || needs.setup.outputs.org }}
           NGEN_FORCING_IMAGE_TAG: ${{ needs.setup.outputs.alias_tag }}
         run: |
