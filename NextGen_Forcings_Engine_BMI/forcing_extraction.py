@@ -65,7 +65,7 @@ def retrieve_forcing(config_options: ConfigOptions):
                 "supp1",
                 "supp2",
                 "supp6",
-                "supp10",
+                #"supp10",
                 "supp11",
                 "supp12",
             ):
