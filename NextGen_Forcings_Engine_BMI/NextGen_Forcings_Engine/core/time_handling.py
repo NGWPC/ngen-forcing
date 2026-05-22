@@ -750,11 +750,9 @@ def find_ak_hrrr_neighbors(
     current_hrrr_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
     )
-    print(f"Current HRRR cycle before snapping to 3-hour boundary: {current_hrrr_cycle}")
     # Snap to nearest 3-hour boundary for AK's 3-hourly cycle cadence
     shift = current_hrrr_cycle.hour % 3
     current_hrrr_cycle = current_hrrr_cycle.replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=shift)
-    print(f"Current HRRR cycle after snapping to 3-hour boundary: {current_hrrr_cycle}")
 
     if current_hrrr_cycle.hour % 6 == 0:
         hrrr_horizon = six_hr_horizon
