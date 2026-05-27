@@ -82,29 +82,24 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     It includes methods for initializing the model, updating it, accessing model variables,
     and managing model configuration. This class is responsible for interacting with
     geospatial data and forcing inputs for the model simulation.
-
-    Attributes
-    ----------
-    _values : dict
-        Dictionary storing model values.
-    _start_time : float
-        The start time for the simulation.
-    _end_time : float
-        The end time for the simulation.
-    _model : object
-        The model object.
-    _comm : object
-        The MPI communicator.
-    var_array_lengths : int
-        Length of the variable arrays.
-
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        config_file: str,
+        b_date: str = None,
+        geogrid: str = None,
+        output_path: str = None,
+    ) -> None:
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
+        # This is required prior to the first log message.
+        LOG.bind()
+
+        LOG.info("---------------------------")
+        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
         super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
         self._values = {}
         self._start_time = 0.0
@@ -120,7 +115,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self.cfg_bmi = None
         self._job_meta = None
         self._mpi_meta = None
-        self.geo_meta = None
+        self._geo_meta = None
         self._grid_type = None
         self._grids = None
         self._grid_map = None
@@ -131,127 +126,132 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._var_units_map = None
         self._input_forcing_mod = None
         self._supp_pcp_mod = None
+        self._output_obj = None
         self._model_parameters_list = []
-
-        # Diagnostic timing setup
 
         self._call_counts = defaultdict(int)
         self._call_times = defaultdict(float)
         self._total_start = None
+        self._att_map = BMI_MODEL["att_map"]
+        self._input_var_names = []
+        self._model_parameters_list = []
+        self._config_file = config_file
+        self._geogrid = geogrid
+        self.get_grid_edge_count
 
-    # ----------------------------------------------
-    # Required, static attributes of the model
-    # ----------------------------------------------
-    _att_map = BMI_MODEL["att_map"]
+        # Now that _job_meta is set, call initialize() to set up the core model
+        self.initialize(config_file, output_path=output_path)
 
-    # ---------------------------------------------
-    # Input variable names (CSDMS standard names)
-    # ---------------------------------------------
-    # Forcings engine requires no inputs currently
-    # and only provides model output
-    _input_var_names = []
-
-    _input_var_types = {}
-
-    # ------------------------------------------------------
-    # A list of static attributes/parameters.
-    # ------------------------------------------------------
-    _model_parameters_list = []
-
-    # ------------------------------------------------------------
-    # ------------------------------------------------------------
-    # BMI: Model Control Functions
-    # ------------------------------------------------------------
-    # ------------------------------------------------------------
-
-    # -------------------------------------------------------------------
-    def initialize(self, config_file: str, output_path: str | None = None) -> None:
-        """Initialize the model using a configuration file.
-
-        This function is part of the BMI (Basic Model Interface) specification and is automatically
-        invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
-        which sets additional parameters such as `b_date`, `geogrid`, and `output_path`.
-
-        This function is responsible for:
-        - Setting up core model attributes, grids, and MPI communication.
-        - Reading the BMI configuration file and initializing basic model components.
-
-        :param config_file: The path to the configuration file for model initialization.
-        :raises RuntimeError: If the configuration file is invalid or missing.
-        """
-        # This is required prior to the first log message.
-        LOG.bind()
-
-        LOG.info("---------------------------")
-        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
-
-        # -------------- Read in the BMI configuration -------------------------#
-        if not isinstance(config_file, str) or len(config_file) == 0:
+    @property
+    def bmi_cfg_file(self):
+        """Validate and return the BMI configuration file path."""
+        if not isinstance(self._config_file, str) or len(self._config_file) == 0:
             LOG.critical("No BMI initialize configuration provided, nothing to do...")
             raise RuntimeError(
                 "No BMI initialize configuration provided, nothing to do..."
             )
-
-        bmi_cfg_file = Path(config_file).resolve()
+        bmi_cfg_file = Path(self._config_file).resolve()
         if not bmi_cfg_file.is_file():
             LOG.critical(f"Config file {bmi_cfg_file} not found, nothing to do...")
             raise RuntimeError(
                 f"Config file {bmi_cfg_file} not found, nothing to do..."
             )
+        return bmi_cfg_file
 
-        LOG.info(f"Reading config file: {bmi_cfg_file}")
-        with bmi_cfg_file.open("r") as fp:
+    @property
+    def cfg_bmi(self):
+        """Read and parse the BMI configuration file."""
+        if self._cfg_bmi is not None:
+            return self._cfg_bmi
+        LOG.info(f"Reading config file: {self.bmi_cfg_file}")
+        with self.bmi_cfg_file.open("r") as fp:
             cfg = yaml.safe_load(fp)
+        return parse_config(cfg)
 
-        self.cfg_bmi = parse_config(cfg)
+    @cfg_bmi.setter
+    def cfg_bmi(self, value):
+        """Set the BMI configuration."""
+        self._cfg_bmi = value
 
-        # If _job_meta was not set by initialize_with_params(), create a default one
-        if self._job_meta is None:
-            self._job_meta = ConfigOptions(self.cfg_bmi)
+    @property
+    def _job_meta(self):
+        """Return the job metadata object."""
+        return self.__job_meta
 
-        # Parse the configuration options
-        try:
-            self._job_meta.validate_config(self.cfg_bmi)
-        except KeyboardInterrupt as e:
-            err_handler.err_out_screen("User keyboard interrupt", e)
-        except ImportError as e:
-            err_handler.err_out_screen("Missing Python packages", e)
-        except InterruptedError as e:
-            err_handler.err_out_screen("External kill signal detected", e)
-        except Exception as e:
-            err_handler.err_out_screen("Unhandled exception", e)
+    @_job_meta.setter
+    def _job_meta(self, value):
+        """Set the job metadata object."""
+        if value is None:
+            value = ConfigOptions(
+                self.cfg_bmi, b_date=self._b_date, geogrid_arg=self._geogrid
+            )
+            try:
+                value.validate_config(self.cfg_bmi)
+            except KeyboardInterrupt as e:
+                err_handler.err_out_screen("User keyboard interrupt", e)
+            except ImportError as e:
+                err_handler.err_out_screen("Missing Python packages", e)
+            except InterruptedError as e:
+                err_handler.err_out_screen("External kill signal detected", e)
+            except Exception as e:
+                err_handler.err_out_screen("Unhandled exception", e)
+        value.nwmVersion = self.cfg_bmi.get("NWM_VERSION")
+        value.nwmConfig = self.cfg_bmi.get("NWM_CONFIG")
+        self.__job_meta = value
 
-        # Set NWM version and config, if provided in the config
-        if self.cfg_bmi.get("NWM_VERSION") is not None:
-            self._job_meta.nwmVersion = self.cfg_bmi["NWM_VERSION"]
+    @property
+    def _mpi_meta(self):
+        """Return the MPI metadata object."""
+        if self.__mpi_meta is None:
+            self.__mpi_meta = MpiConfig(self._job_meta)
+        return self.__mpi_meta
 
-        # Place NWM configuration (if provided by the user). This will be placed into the final
-        # output files as a global attribute.
-        if self.cfg_bmi.get("NWM_CONFIG") is not None:
-            self._job_meta.nwmConfig = self.cfg_bmi["NWM_CONFIG"]
+    @_mpi_meta.setter
+    def _mpi_meta(self, value):
+        """Set the MPI metadata object."""
+        self.__mpi_meta = value
 
-        # Initialize MPI communication
-        self._mpi_meta = MpiConfig(self._job_meta)
+    @property
+    def geo_meta(self):
+        """Return the geospatial metadata object."""
+        if self._geo_meta is None:
+            self._geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+        return self._geo_meta
 
-        self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+    @geo_meta.setter
+    def geo_meta(self, value):
+        """Set the geospatial metadata object."""
+        self._geo_meta = value
 
+    def init_mpi(self):
+        """Set up MPI communication for the model."""
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
             self._mpi_meta.initialize_comm(comm=comm)
         except Exception as e:
             err_handler.err_out_screen(self._job_meta.errMsg, e)
 
-        ### Reassign the scratch dir to a new child dir of the current scratch dir,
-        ### applying uniqueness to the final path. This must be called by all ranks, once.
+    def init_scratch_dir(self):
+        """Set up the scratch directory for the model, ensuring it is unique for each job.
+
+        Reassign the scratch dir to a new child dir of the current scratch dir,
+        applying uniqueness to the final path. This must be called by all ranks, once.
+        """
         self._job_meta.uniquefy_scratch_dir_as_child(self._mpi_meta.uid64)
 
-        # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
-        # Call ESMF mesh creation process
+    def create_esmf_mesh(self):
+        """Create the ESMF mesh for the model."""
         if self._mpi_meta.rank == 0:
             esmf_creation.create_mesh(self._job_meta)
         self._mpi_meta.comm.Barrier()
 
-        # Call forcing_extraction process
+    def fetch_raw_forcing_data(self):
+        """Fetch raw forcing data for the model.
+
+        This function is responsible for retrieving the raw forcing data needed for the model simulation.
+        It is called during the initialization process and ensures that all necessary data is available
+        before the model runs.
+        """
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
             if self._mpi_meta.rank == 0:
                 err_handler.log_msg(
@@ -269,54 +269,79 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 )
         self._mpi_meta.comm.Barrier()
 
-        # Assign grid type to BMI class for grid information
-        self._grid_type = self._job_meta.grid_type.lower()
-        self.set_var_names()
+    @property
+    def _grid_type(self):
+        """Return the grid type of the model."""
+        return self._job_meta.grid_type.lower()
 
-        # ----- Create some lookup tabels from the long variable names --------#
-        self._var_name_map_long_first = {
+    @property
+    def _var_name_map_long_first(self):
+        """Return the variable name mapping from long names to short names."""
+        return {
             long_name: self._var_name_units_map[long_name][0]
             for long_name in self._var_name_units_map.keys()
         }
-        self._var_name_map_short_first = {
+
+    @property
+    def _var_name_map_short_first(self):
+        """Return the variable name mapping from short names to long names."""
+        return {
             self._var_name_units_map[long_name][0]: long_name
             for long_name in self._var_name_units_map.keys()
         }
-        self._var_units_map = {
+
+    @property
+    def _var_units_map(self):
+        """Return the variable units mapping."""
+        return {
             long_name: self._var_name_units_map[long_name][1]
             for long_name in self._var_name_units_map.keys()
         }
 
-        # Check to make sure we have enough dimensionality to run regridding. We assume that hydrofabric discretizations are large
-        # enough that 1x1 (single catchment) will provide enough points. For gridded and unstructured domains, we need to make sure
-        # that the local grid size for each processor is at least 2x2 to run the regridding process.
-        # forcing_input dimensionality is checked in regrid.py.
+    @property
+    def dimensionality(self):
+        """Return the dimensionality of the model grid based on the grid type.
 
-        dimensionality = 1 if self._grid_type == "hydrofabric" else 2
+        Check to make sure we have enough dimensionality to run regridding. We assume that hydrofabric discretizations are large
+        enough that 1x1 (single catchment) will provide enough points. For gridded and unstructured domains, we need to make sure
+        that the local grid size for each processor is at least 2x2 to run the regridding process.
+        forcing_input dimensionality is checked in regrid.py.
+        """
+        if self._grid_type == "hydrofabric":
+            return 1
+        else:
+            return 2
 
+    def check_dimensionality(self):
+        """Check that the local grid size is sufficient for the specified number of cores."""
         if (
-            self.geo_meta.nx_local < dimensionality
-            or self.geo_meta.ny_local < dimensionality
+            self.geo_meta.nx_local < self.dimensionality
+            or self.geo_meta.ny_local < self.dimensionality
         ):
             self._job_meta.errMsg = (
                 f"You have specified too many cores for your WRF-Hydro grid. "
-                f"Local grid Must have x/y dimension size of {dimensionality}."
+                f"Local grid Must have x/y dimension size of {self.dimensionality}."
             )
             err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
-        # Initialize our output object, which includes local slabs from the output grid.
+    def init_output_obj(self):
+        """Initialize our output object, which includes local slabs from the output grid."""
         try:
             self._output_obj = ioMod.OutputObj(self._job_meta, self.geo_meta)
         except Exception as e:
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
-        # Next, initialize our input forcing classes. These objects will contain
-        # information about our source products (I.E. data type, grid sizes, etc).
-        # Information will be mapped via the options specified by the user.
-        # In addition, input ESMF grid objects will be created to hold data for
-        # downscaling and regridding purposes.
+    def init_input_forcing_mod(self):
+        """Initialize the input forcing module.
+
+        Next, initialize our input forcing classes. These objects will contain
+        information about our source products (I.E. data type, grid sizes, etc).
+        Information will be mapped via the options specified by the user.
+        In addition, input ESMF grid objects will be created to hold data for
+        downscaling and regridding purposes.
+        """
         try:
             self._input_forcing_mod = forcingInputMod.init_dict(
                 self._job_meta, self.geo_meta, self._mpi_meta
@@ -325,26 +350,49 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
-        # If we have specified supplemental precipitation products, initialize
-        # the supp class.
+    def init_supp_pcp_mod(self):
+        """Initialize the supplemental precipitation module, if applicable."""
         if self._job_meta.number_supp_pcp > 0:
             self._supp_pcp_mod = suppPrecipMod.initDict(self._job_meta, self.geo_meta)
         else:
             self._supp_pcp_mod = None
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
-        # ------------- Initialize the parameters, inputs and outputs ----------#
+    def initialize_parameters(self):
+        """Initialize the parameters, inputs and outputs."""
         for parm in self._model_parameters_list:
             self._values[self._var_name_map_short_first[parm]] = self.cfg_bmi[parm]
 
-        self.get_size_of_arrays()
-
-        # for model_input in self.get_input_var_names():
-        #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
-
-        # Set initial time and step
+    def set_initial_time_and_step(self) -> None:
+        """Set the initial time and time step size for the model."""
         self._values["current_model_time"] = self.cfg_bmi["initial_time"]
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
+
+    def initialize(self, config_file: str) -> None:
+        """Initialize the model using a configuration file.
+
+        This function is part of the BMI (Basic Model Interface) specification and is automatically
+        invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
+        which sets additional parameters such as `b_date`, `geogrid`, and `output_path`.
+
+        This function is responsible for:
+        - Setting up core model attributes, grids, and MPI communication.
+        - Reading the BMI configuration file and initializing basic model components.
+
+        :param config_file: The path to the configuration file for model initialization.
+        :raises RuntimeError: If the configuration file is invalid or missing.
+        """
+        self.init_mpi()
+        self.init_scratch_dir()
+        self.create_esmf_mesh()
+        self.fetch_raw_forcing_data()
+        self.set_var_names()
+        self.check_dimensionality()
+        self.init_output_obj()
+        self.init_input_forcing_mod()
+        self.init_supp_pcp_mod()
+        self.get_size_of_arrays()
+        self.set_initial_time_and_step()
 
         # Initialize the Forcings Engine model
         self._model = NWMv3ForcingEngineModel()
@@ -353,41 +401,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         if self._grid_type == "hydrofabric":
             self._values["CAT-ID"] = self.geo_meta.element_ids_global
 
-        self._configure_output_path(output_path)
-
-    def initialize_with_params(
-        self,
-        config_file: str,
-        b_date: str = None,
-        geogrid: str = None,
-        output_path: str = None,
-    ) -> None:
-        """Initialize the NWMv3 Forcings Engine model with additional job metadata parameters.
-
-        This function **must be called by the user** to fully initialize the NWMv3 Forcings Engine model,
-        including both core model setup and additional job metadata configuration (such as b_date, geogrid, and output path).
-
-        It performs the following:
-        - Sets up job metadata (b_date, geogrid) by calling `config_options`.
-        - Calls the `initialize()` function to handle core model setup (reading the config file,
-          initializing basic model attributes like MPI, grids, etc.).
-        - Handles additional configuration options, such as determining the output path
-          for model results.
-
-        **DO NOT call `initialize()` directly**. Always use this function, which ensures proper
-        initialization of all necessary parameters and job metadata.
-
-        :param config_file: The configuration file path for the model initialization.
-        :param b_date: The start date for the simulation. Typically the forecast cycle start time.
-        :param geogrid: The path to the geospatial grid data, such as a geospatial file for the grid.
-        :param output_path: The output path for model results. If omitted, a default path will be generated.
-        :raises ValueError: If an invalid grid type is specified, an exception is raised.
-        """
-        # Set the job metadata parameters (b_date, geogrid) using config_options
-        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
-
-        # Now that _job_meta is set, call initialize() to set up the core model
-        self.initialize(config_file, output_path=output_path)
+        self._configure_output_path(self.output_path)
 
     def _configure_output_path(self, output_path: str | None = None) -> None:
         """Set the output path and initializes the output NetCDF file if forcing output is enabled.
@@ -1570,12 +1584,18 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
     geospatial data and forcing inputs for the model simulation.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        config_file: str,
+        b_date: str = None,
+        geogrid: str = None,
+        output_path: str = None,
+    ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__()
+        super().__init__(config_file, b_date, geogrid, output_path)
         self.GeoMeta = GriddedGeoMeta
 
     def grid_ranks(self) -> list[int]:
@@ -1636,12 +1656,18 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
     geospatial data and forcing inputs for the model simulation.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        config_file: str,
+        b_date: str = None,
+        geogrid: str = None,
+        output_path: str = None,
+    ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__()
+        super().__init__(config_file, b_date, geogrid, output_path)
         self.GeoMeta = HydrofabricGeoMeta
 
     def grid_ranks(self) -> list[int]:
@@ -1698,12 +1724,18 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
     geospatial data and forcing inputs for the model simulation.
     """
 
-    def __init__(self):
+    def __init__(
+        self,
+        config_file: str,
+        b_date: str = None,
+        geogrid: str = None,
+        output_path: str = None,
+    ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__()
+        super().__init__(config_file, b_date, geogrid, output_path)
         self.GeoMeta = UnstructuredGeoMeta
 
     def grid_ranks(self) -> list[int]:
