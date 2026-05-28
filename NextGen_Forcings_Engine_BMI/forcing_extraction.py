@@ -60,12 +60,12 @@ def retrieve_forcing(config_options: ConfigOptions):
             forcing_start_time = refcstbdate + timedelta(hours=1)
         elif ana_flag == 1:
             lookback_hours = int(look_back / 60)
-            forcing_start_time = refcstbdate + timedelta(hours=(lookback_hours - 1))
+            forcing_start_time = refcstbdate + timedelta(hours=(lookback_hours))
             if input_forcings[i] in (
                 "supp1",
                 "supp2",
                 "supp6",
-                "supp10",
+                #"supp10",
                 "supp11",
                 "supp12",
             ):
