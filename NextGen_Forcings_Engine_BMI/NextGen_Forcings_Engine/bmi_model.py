@@ -20,6 +20,9 @@ import pandas as pd
 # Configuration file functionality
 import yaml
 from bmipy import Bmi
+from ewts import Payload as Pld
+from ewts import Status as St
+from ewts.modules import ModuleKey
 
 # Import MPI Python module
 from mpi4py import MPI
@@ -68,6 +71,9 @@ LOG = ewts.get_logger(ewts.FORCING_ID)
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
     manager = ESMF.api.esmpymanager.Manager(endFlag=ESMF.constants.EndAction.KEEP_MPI)
+
+
+MODNM = ModuleKey.FORCING.value
 
 
 class UnknownBMIVariable(RuntimeError):
@@ -183,7 +189,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         LOG.bind()
 
         LOG.info("---------------------------")
-        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
+        LOG.info(
+            f"BMI Forcing Engine initializing with {config_file}{Pld(St.INITTING, modnm=MODNM)}"
+        )
 
         # -------------- Read in the BMI configuration -------------------------#
         if not isinstance(config_file, str) or len(config_file) == 0:
@@ -355,6 +363,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         self._configure_output_path(output_path)
 
+        LOG.info(f"BMI Forcing Engine initialized{Pld(St.INITTED, modnm=MODNM)}")
+
     def initialize_with_params(
         self,
         config_file: str,
@@ -521,6 +531,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # the job, and let the workflow clean them up after the
         # process exits
         gc.collect()  # make sure objects are deleted from memory
+        LOG.info(Pld(St.COMPLETE, msg="Finishing BMI finalize()", modnm=MODNM))
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------
