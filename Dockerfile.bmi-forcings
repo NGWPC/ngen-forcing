@@ -253,6 +253,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
     USE_EWTS_NORMALIZED="$(echo "${USE_EWTS}" | tr '[:lower:]' '[:upper:]')" && \
     if [[ "${USE_EWTS_NORMALIZED}" =~ ^(ON|YES|TRUE|1)$ ]]; then \
         echo "Installing EWTS Python package"; \
+        rm -rf /tmp/nwm-ewts && \
         (git clone --depth 1 -b "${EWTS_REF}" \
             "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts \
          || (git clone "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts && \
