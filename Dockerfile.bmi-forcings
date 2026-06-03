@@ -30,7 +30,7 @@ FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
 # Re-expose args after FROM for the remaining build stage.
 ARG GH_ORG
 ARG IMAGE_NAMESPACE
-ARG USE_EWTS
+ARG USE_EWTS=ON
 ARG EWTS_ORG
 ARG EWTS_REF
 ARG ESMF_VERSION
@@ -239,13 +239,17 @@ SHELL ["/bin/bash", "-c"]
 # ngen-bmi-forcing only needs the EWTS Python package, not the C/C++/Fortran
 # libraries or ngen bridge that the full ngen image requires.
 #
+# Ensures an unset or empty USE_EWTS defaults to ON
+#
 # USE_EWTS accepted ON values:
 #   ON, YES, TRUE, 1
 #
 # Everything else is treated as OFF.
+#
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
-    echo "USE_EWTS=${USE_EWTS}; EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
     set -eux && \
+    USE_EWTS="${USE_EWTS:-ON}" && \
+    echo "USE_EWTS=${USE_EWTS}; EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
     USE_EWTS_NORMALIZED="$(echo "${USE_EWTS}" | tr '[:lower:]' '[:upper:]')" && \
     if [[ "${USE_EWTS_NORMALIZED}" =~ ^(ON|YES|TRUE|1)$ ]]; then \
         echo "Installing EWTS Python package"; \
