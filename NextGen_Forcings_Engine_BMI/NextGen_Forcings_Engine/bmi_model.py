@@ -79,7 +79,7 @@ class StdoutStyleFormatter(logging.Formatter):
     )
 
     DETAILED_FORMAT = (
-        "%(asctime)s %(name)-8sT%(levelname)-7s "
+        "%(asctime)s %(name)-8s %(levelname)-7s "
         "%(message)s "
         "[%(filename)s.%(funcName)s(L%(lineno)s)]"
     )
@@ -94,7 +94,7 @@ class StdoutStyleFormatter(logging.Formatter):
     
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
-        return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3] + "Z"
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
 
 
 def _configure_stdout_logging():
