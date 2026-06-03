@@ -17,8 +17,7 @@ except ImportError:
 
 from functools import cached_property, wraps
 from typing import Any
-
-import ewts
+import logging
 import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -30,7 +29,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 
 
 def set_none(func) -> Any:

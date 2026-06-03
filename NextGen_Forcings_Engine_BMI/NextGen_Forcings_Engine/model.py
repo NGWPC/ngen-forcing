@@ -2,8 +2,7 @@ import datetime
 import os
 from contextlib import contextmanager
 from time import time
-
-import ewts
+import logging
 import numpy as np
 import pandas as pd
 from ewts import Payload as Pld
@@ -33,7 +32,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3OConusProcessor,
 )
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 
 MODNM = ModuleKey.FORCING.value
 

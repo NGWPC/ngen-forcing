@@ -9,6 +9,7 @@ ARG GH_ORG=NGWPC
 ARG IMAGE_NAMESPACE=ngwpc
 
 # External repository sources (org and ref/branch overrides)
+ARG USE_EWTS=ON
 ARG EWTS_ORG=${GH_ORG}
 ARG EWTS_REF=development
 
@@ -29,6 +30,7 @@ FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
 # Re-expose args after FROM for the remaining build stage.
 ARG GH_ORG
 ARG IMAGE_NAMESPACE
+ARG USE_EWTS=ON
 ARG EWTS_ORG
 ARG EWTS_REF
 ARG ESMF_VERSION
@@ -228,7 +230,7 @@ ENV OMPI_MCA_pml=ob1
 ENV OMPI_MCA_btl_base_warn_component_unused=0
 
 ############################################################################
-# EWTS Python package - changes rarely
+# Optional EWTS Python package
 ############################################################################
 
 # Reset SHELL so we're not locked into the gcc-10 build environment.
@@ -237,36 +239,44 @@ SHELL ["/bin/bash", "-c"]
 # ngen-bmi-forcing only needs the EWTS Python package, not the C/C++/Fortran
 # libraries or ngen bridge that the full ngen image requires.
 #
-# Build args – override at build time to pin a branch, tag, or full commit SHA:
-#   docker build --build-arg EWTS_REF=v1.2.3 ...
-#   docker build --build-arg EWTS_REF=abc123def456 ...
+# Ensures an unset or empty USE_EWTS defaults to ON
 #
-# Cache bust – override only when you need to force a rebuild of this layer:
-#   docker build --build-arg EWTS_CACHE_BUST="$(date +%s)" ...
+# USE_EWTS accepted ON values:
+#   ON, YES, TRUE, 1
 #
-# Try shallow clone by branch/tag name first; fall back to full clone + checkout
-# for bare commit SHAs, which git clone -b does not support.
+# Everything else is treated as OFF.
+#
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache \
-    echo "EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
     set -eux && \
-    (git clone --depth 1 -b "${EWTS_REF}" \
-        "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts \
-     || (git clone "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts && \
-         cd /tmp/nwm-ewts && git checkout "${EWTS_REF}")) && \
-    cd /tmp/nwm-ewts && \
-    jq -n \
-      --arg commit_hash "$(git rev-parse HEAD)" \
-      --arg branch "$(git branch -r --contains HEAD 2>/dev/null | grep -v '\->' | sed 's|origin/||' | head -n1 | xargs || echo "${EWTS_REF}")" \
-      --arg tags "$(git tag --points-at HEAD 2>/dev/null | tr '\n' ' ')" \
-      --arg author "$(git log -1 --pretty=format:'%an')" \
-      --arg commit_date "$(date -u -d @$(git log -1 --pretty=format:'%ct') +'%Y-%m-%d %H:%M:%S UTC')" \
-      --arg message "$(git log -1 --pretty=format:'%s' | tr '\n' ';')" \
-      --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
-      '{"nwm-ewts": {commit_hash: $commit_hash, branch: $branch, tags: $tags, author: $author, commit_date: $commit_date, message: $message, build_date: $build_date}}' \
-      > /ngen-app/nwm-ewts_git_info.json && \
-    pip install /tmp/nwm-ewts/runtime/python/ewts && \
-    cd / && \
-    rm -rf /tmp/nwm-ewts
+    USE_EWTS="${USE_EWTS:-ON}" && \
+    echo "USE_EWTS=${USE_EWTS}; EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
+    USE_EWTS_NORMALIZED="$(echo "${USE_EWTS}" | tr '[:lower:]' '[:upper:]')" && \
+    if [[ "${USE_EWTS_NORMALIZED}" =~ ^(ON|YES|TRUE|1)$ ]]; then \
+        echo "Installing EWTS Python package"; \
+        rm -rf /tmp/nwm-ewts && \
+        (git clone --depth 1 -b "${EWTS_REF}" \
+            "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts \
+         || (git clone "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts && \
+             cd /tmp/nwm-ewts && git checkout "${EWTS_REF}")) && \
+        cd /tmp/nwm-ewts && \
+        jq -n \
+          --arg commit_hash "$(git rev-parse HEAD)" \
+          --arg branch "$(git branch -r --contains HEAD 2>/dev/null | grep -v '\->' | sed 's|origin/||' | head -n1 | xargs || echo "${EWTS_REF}")" \
+          --arg tags "$(git tag --points-at HEAD 2>/dev/null | tr '\n' ' ')" \
+          --arg author "$(git log -1 --pretty=format:'%an')" \
+          --arg commit_date "$(date -u -d @$(git log -1 --pretty=format:'%ct') +'%Y-%m-%d %H:%M:%S UTC')" \
+          --arg message "$(git log -1 --pretty=format:'%s' | tr '\n' ';')" \
+          --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
+          '{"nwm-ewts": {commit_hash: $commit_hash, branch: $branch, tags: $tags, author: $author, commit_date: $commit_date, message: $message, build_date: $build_date}}' \
+          > /ngen-app/nwm-ewts_git_info.json && \
+        pip install /tmp/nwm-ewts/runtime/python/ewts && \
+        cd / && \
+        rm -rf /tmp/nwm-ewts; \
+    else \
+        echo "EWTS disabled; ensuring ewts package is absent"; \
+        pip uninstall -y ewts || true; \
+        rm -f /ngen-app/nwm-ewts_git_info.json; \
+    fi
 
 ############################################################################
 # ngen-bmi-forcing - most frequently changing layer

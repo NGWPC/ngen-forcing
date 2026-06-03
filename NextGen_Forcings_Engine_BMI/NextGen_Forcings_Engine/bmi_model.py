@@ -8,8 +8,8 @@ import os
 import time
 from collections import defaultdict
 from pathlib import Path
-
-import ewts
+from datetime import datetime, timezone
+import logging
 import netCDF4 as nc
 
 # import data_tools
@@ -62,11 +62,51 @@ except ImportError:
 
 from typing import Any
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 from numpy.typing import NDArray
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
+try:
+    from ewts.helper import getenv_any
+    from ewts.logger import configure_existing_logger
+    FORCING_USE_EWTS = True
+except ImportError:
+    FORCING_USE_EWTS = False
+
+class StdoutStyleFormatter(logging.Formatter):
+
+    INFO_FORMAT = (
+        "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
+    )
+
+    DETAILED_FORMAT = (
+        "%(asctime)s %(name)-8s %(levelname)-7s "
+        "%(message)s "
+        "[%(filename)s.%(funcName)s(L%(lineno)s)]"
+    )
+
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            self._style._fmt = self.INFO_FORMAT
+        else:
+            self._style._fmt = self.DETAILED_FORMAT
+
+        return super().format(record)
+    
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+
+
+def _configure_stdout_logging():
+    LOG.setLevel(logging.INFO)
+
+    if not LOG.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(StdoutStyleFormatter())
+        LOG.addHandler(handler)
+
+    LOG.propagate = False
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
@@ -111,6 +151,17 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         Initializes the model with default values for time, variables, and grid types.
         """
+        # This is required prior to the first log message.
+        if FORCING_USE_EWTS:
+            val = getenv_any("EWTS_USE_NGEN_BRIDGE", "").strip().lower()
+            if val in {"1", "true", "yes", "on"}:
+                configure_existing_logger(LOG)
+            else:
+                _configure_stdout_logging()
+                LOG.warning("ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging.")
+        else:
+            _configure_stdout_logging()
+
         super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
         self._values = {}
         self._start_time = 0.0
@@ -185,8 +236,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
-        # This is required prior to the first log message.
-        LOG.bind()
 
         LOG.info("---------------------------")
         LOG.info(
