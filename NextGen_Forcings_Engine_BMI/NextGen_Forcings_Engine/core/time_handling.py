@@ -7,8 +7,7 @@ import glob
 import math
 import os
 from typing import TYPE_CHECKING
-
-import ewts
+import logging
 import numpy as np
 import pandas as pd
 
@@ -27,10 +26,8 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
         supplemental_precip as SupplementalPrecip,
     )
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 
 
 NETCDF = "NETCDF"

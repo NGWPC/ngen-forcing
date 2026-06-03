@@ -10,7 +10,8 @@ import numpy as np
 from mpi4py import MPI
 from scipy import spatial
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+# Use the Error, Warning, and Trapping System Package for logging
+LOG = logging.getLogger("FORCING")
 
 
 def in_exception_context() -> bool:

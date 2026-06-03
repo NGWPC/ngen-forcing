@@ -8,8 +8,7 @@ from contextlib import contextmanager
 from datetime import timedelta
 from functools import cached_property
 from time import perf_counter, sleep
-
-import ewts
+import logging
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -28,7 +27,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 
 zarr.config.set({"async.concurrency": 100})
 

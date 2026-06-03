@@ -13,14 +13,13 @@ import shutil
 import subprocess
 import sys
 from typing import Optional
-
-import ewts
+import logging
 import numpy as np
 from netCDF4 import Dataset
 
 from . import err_handler
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 
 
 if "WGRIB2" not in os.environ:
