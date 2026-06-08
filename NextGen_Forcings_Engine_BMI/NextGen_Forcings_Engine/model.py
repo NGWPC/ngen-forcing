@@ -227,34 +227,36 @@ class NWMv3ForcingEngineModel:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
-            if config_options.input_forcings[0] in [20, 22]:
-                config_options.current_fcst_cycle = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.current_time = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.future_time = future_time
-            else:
-                # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
-                config_options.current_fcst_cycle = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.current_time = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
-                )
+            
+            #if config_options.input_forcings[0] in [20, 22]:
+            #     config_options.current_fcst_cycle = (
+            #         config_options.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     config_options.current_time = (
+            #         config_options.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     config_options.future_time = future_time
+            # else:
+             
+            # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
+            config_options.current_fcst_cycle = (
+                config_options.b_date_proc
+                + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), "s"
+                )[0]
+            )
+            config_options.current_time = (
+                config_options.b_date_proc
+                + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), "s"
+                )[0]
+            )
         else:
             # Forecast-only mode — use BMI timestamp as-is
             config_options.current_fcst_cycle = config_options.b_date_proc
