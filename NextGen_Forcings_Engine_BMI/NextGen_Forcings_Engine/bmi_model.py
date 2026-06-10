@@ -779,10 +779,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            if arr.dtype != np.int32:
-                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
-                LOG.critical(msg)
-                raise RuntimeError(msg)
+            pass # allow CAT-ID to pass on whatever the dtype is based on the input data
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."

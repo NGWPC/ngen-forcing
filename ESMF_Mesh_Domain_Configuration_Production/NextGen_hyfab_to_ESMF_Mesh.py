@@ -40,7 +40,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
 
     # Eventually, we'll add code to slice catchment ids
     # but for now just use feature ids
-    element_ids = np.array(hyfab.div_id.values, dtype=int)
+    element_ids = np.array(hyfab.div_id.values, dtype=np.int64)
     hyfab_coords = np.empty((len(element_ids), 2), dtype=float)
     hyfab_coords[:, 0] = element_ids
     hyfab_coords[:, 1] = element_ids
@@ -206,7 +206,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     node_count_dim = nc.createDimension("coordDim", 2)
     node_coords_var = nc.createVariable("nodeCoords", 'f8', ("nodeCount", "coordDim"))
     node_coords_var.units = "degrees"
-    elem_id = nc.createVariable("element_id", "i", "elementCount")
+    elem_id = nc.createVariable("element_id", "i8", "elementCount")
     elem_id.long_name = "Catchment ID for hydrofabric"
     elem_conn_var = nc.createVariable("elementConn", "i4", ("connectionCount"))
     elem_conn_var.long_name = "Node Indices that define the element connectivity"
