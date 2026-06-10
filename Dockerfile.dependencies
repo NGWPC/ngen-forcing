@@ -14,10 +14,10 @@
 #   - GDAL
 ############################################################################
 
-ARG BMI_BASE_REPO=rockylinux
-ARG BMI_BASE_TAG=8
+ARG DEPS_BASE_REPO=rockylinux
+ARG DEPS_BASE_TAG=8
 
-FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
+FROM ${DEPS_BASE_REPO}:${DEPS_BASE_TAG}
 
 ARG SZIP_VERSION=2.1.1
 ARG HDF5_VERSION=1.10.11

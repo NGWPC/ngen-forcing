@@ -9,6 +9,14 @@ on:
       - nwm-master
       - development
       - release-candidate
+    # A change to ONLY the dependencies image must not self-trigger this forcing
+    # build. dependencies.yml builds the new base first, then dispatches this
+    # workflow against it (see its trigger-forcing job), preserving deps-before-
+    # forcing order. Without this, a deps push would race a forcing build here
+    # against the old base.
+    paths-ignore:
+      - 'Dockerfile.dependencies'
+      - '.github/workflows/dependencies.yml'
   pull_request:
     branches:
       - ngwpc-candidate
@@ -17,10 +25,17 @@ on:
       - nwm-master
       - development
       - release-candidate
+    paths-ignore:
+      - 'Dockerfile.dependencies'
+      - '.github/workflows/dependencies.yml'
   workflow_dispatch:
     inputs:
+      BMI_BASE_REPO:
+        description: 'Base dependencies image repo (default ghcr.io/<org>/ngen-dependencies-rocky8)'
+        required: false
+        type: string
       BMI_BASE_TAG:
-        description: 'BMI_BASE_TAG'
+        description: 'Base dependencies image tag (default latest)'
         required: false
         type: string
       GHCR_ORG:
@@ -68,7 +83,6 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  BMI_BASE_REPO: rockylinux
 
 jobs:
   # set variables for use in other jobs
@@ -77,6 +91,7 @@ jobs:
     outputs:
       org: ${{ steps.vars.outputs.org }}
       bmi_image: ${{ steps.vars.outputs.bmi_image }}
+      bmi_base_repo: ${{ steps.vars.outputs.bmi_base_repo }}
       bmi_base_name: ${{ steps.vars.outputs.bmi_base_name }}
       bmi_base_tag: ${{ steps.vars.outputs.bmi_base_tag }}
       bmi_base_digest: ${{ steps.vars.outputs.bmi_base_digest }}
@@ -138,15 +153,15 @@ jobs:
             sudo apt-get install -y --no-install-recommends skopeo
           fi
 
-          # base image metadata for BMI Dockerfile labels
-          BMI_BASE_TAG_INPUT="${{ github.event.inputs.BMI_BASE_TAG || '' }}"
-          if [ -n "$BMI_BASE_TAG_INPUT" ]; then
-            BMI_BASE_TAG="$BMI_BASE_TAG_INPUT"
-          else
-            BMI_BASE_TAG="8"
-          fi
+          # base image = the prebuilt compiled-dependencies image that
+          # Dockerfile.bmi-forcings builds FROM (published by dependencies.yml).
+          # Both repo and tag are overridable so any base can be passed in;
+          # default is ngen-dependencies-rocky8:latest in this org's registry.
+          BMI_BASE_REPO="${{ inputs.BMI_BASE_REPO || '' }}"
+          [ -n "$BMI_BASE_REPO" ] || BMI_BASE_REPO="${REGISTRY}/${ORG}/ngen-dependencies-rocky8"
+          BMI_BASE_TAG="${{ inputs.BMI_BASE_TAG || 'latest' }}"
           BMI_BASE_NAME="${BMI_BASE_REPO}:${BMI_BASE_TAG}"
-          BMI_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${BMI_BASE_NAME}")
+          BMI_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${BMI_BASE_NAME}" 2>/dev/null || echo '{}')
           BMI_BASE_DIGEST=$(echo "$BMI_BASE_INSPECT" | jq -r '.Digest // "unknown"')
           BMI_BASE_REVISION=$(echo "$BMI_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
 
@@ -201,6 +216,7 @@ jobs:
           cat >> "$GITHUB_OUTPUT" <<EOF
           org=${ORG}
           bmi_image=${IMAGE_BASE}/ngen-bmi-forcing
+          bmi_base_repo=${BMI_BASE_REPO}
           bmi_base_name=${BMI_BASE_NAME}
           bmi_base_tag=${BMI_BASE_TAG}
           bmi_base_digest=${BMI_BASE_DIGEST}
@@ -279,6 +295,7 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
+            BMI_BASE_REPO=${{ needs.setup.outputs.bmi_base_repo }}
             BMI_BASE_TAG=${{ needs.setup.outputs.bmi_base_tag }}
             BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
             BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}

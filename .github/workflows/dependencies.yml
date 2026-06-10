@@ -1,0 +1,271 @@
+name: Dependencies Image
+
+# Builds and publishes the slow-moving compiled dependency base image
+# (ngen-dependencies-<base>) that Dockerfile.bmi-forcings builds FROM. This is
+# deliberately kept out of cicd.yml so a normal ngen-bmi-forcing build never
+# rebuilds the heavy compiled stack (WGRIB2, ESMF, SZIP, HDF5, NetCDF, Boost,
+# GDAL) and stays fast.
+#
+# Runs only when the dependencies actually change:
+#   - manually (workflow_dispatch), where the base image is customizable, and
+#   - automatically when Dockerfile.dependencies (or this workflow) changes.
+#
+# The published package name reflects the base image, e.g. rockylinux:8 ->
+# ngen-dependencies-rocky8. Change DEPS_BASE_REPO/DEPS_BASE_TAG to move off Rocky
+# and the name follows; override DEPS_BASE_SUFFIX if you want a specific name.
+
+on:
+  workflow_dispatch:
+    inputs:
+      DEPS_BASE_REPO:
+        description: 'Base image to compile the dependencies from (default rockylinux)'
+        required: false
+        type: string
+      DEPS_BASE_TAG:
+        description: 'Base image tag (default 8)'
+        required: false
+        type: string
+      DEPS_BASE_SUFFIX:
+        description: 'Override the published name suffix (default derived from the base, e.g. rocky8)'
+        required: false
+        type: string
+      GHCR_ORG:
+        description: 'GHCR_ORG'
+        required: false
+        type: string
+  push:
+    branches:
+      - development
+      - ngwpc-candidate
+      - ngwpc-release
+    paths:
+      - 'Dockerfile.dependencies'
+      - '.github/workflows/dependencies.yml'
+  pull_request:
+    branches:
+      - development
+      - ngwpc-candidate
+      - ngwpc-release
+    paths:
+      - 'Dockerfile.dependencies'
+      - '.github/workflows/dependencies.yml'
+
+permissions:
+  contents: read
+  packages: write
+  security-events: write
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  # set variables for use in other jobs
+  setup:
+    name: setup
+    runs-on: ubuntu-latest
+    outputs:
+      deps_image: ${{ steps.vars.outputs.deps_image }}
+      base_suffix: ${{ steps.vars.outputs.base_suffix }}
+      deps_base_repo: ${{ steps.vars.outputs.deps_base_repo }}
+      deps_base_tag: ${{ steps.vars.outputs.deps_base_tag }}
+      test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
+      alias_tag: ${{ steps.vars.outputs.alias_tag }}
+    steps:
+      - name: Compute image vars
+        id: vars
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # org (lowercased for GHCR); GHCR_ORG input overrides the repo owner
+          ORG="$(echo "${{ inputs.GHCR_ORG || github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+
+          # one datetime for all time variables
+          NOW=$(date -u +'%Y-%m-%d %H:%M:%S')
+          TIMESTAMP=$(date -u -d "$NOW" +'%Y%m%d%H%M%SZ')
+
+          # real branch name and commit SHA (handle pull_request head)
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            REAL_REF="${{ github.head_ref }}"
+            REAL_SHA="${{ github.event.pull_request.head.sha }}"
+          else
+            REAL_REF="${{ github.ref_name }}"
+            REAL_SHA="${GITHUB_SHA}"
+          fi
+          CLEAN_REF=$(echo "$REAL_REF" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
+          SHORT_SHA="${REAL_SHA:0:7}"
+
+          # base image the dependencies are compiled FROM (customizable)
+          DEPS_BASE_REPO="${{ inputs.DEPS_BASE_REPO || 'rockylinux' }}"
+          DEPS_BASE_TAG="${{ inputs.DEPS_BASE_TAG || '8' }}"
+
+          # derive the published name suffix from the base image (unless overridden)
+          # so the package name reflects its base (rockylinux:8 -> rocky8):
+          #   - keep only the last path segment (drop any registry/namespace)
+          #   - drop the literal "linux" (rockylinux -> rocky)
+          #   - append the tag reduced to alphanumerics (8 -> 8, 24.04 -> 2404)
+          #   - lowercase
+          SUFFIX_INPUT="${{ inputs.DEPS_BASE_SUFFIX || '' }}"
+          if [ -n "$SUFFIX_INPUT" ]; then
+            BASE_SUFFIX="$SUFFIX_INPUT"
+          else
+            base_name="${DEPS_BASE_REPO##*/}"
+            base_name="${base_name//linux/}"
+            tag_clean="$(echo "$DEPS_BASE_TAG" | tr -cd '[:alnum:]')"
+            BASE_SUFFIX="$(echo "${base_name}${tag_clean}" | tr '[:upper:]' '[:lower:]')"
+          fi
+
+          DEPS_IMAGE="${REGISTRY}/${ORG}/ngen-dependencies-${BASE_SUFFIX}"
+
+          # test_image_tag (commit short sha): used for the build/scan
+          # alias_tag: applied on success (timestamp-branch, or pr-<n>-build)
+          TEST_TAG="${SHORT_SHA}"
+          if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+            ALIAS="pr-${{ github.event.pull_request.number }}-build"
+          else
+            ALIAS="${TIMESTAMP}-${CLEAN_REF}"
+          fi
+
+          # save outputs
+          cat >> "$GITHUB_OUTPUT" <<EOF
+          deps_image=${DEPS_IMAGE}
+          base_suffix=${BASE_SUFFIX}
+          deps_base_repo=${DEPS_BASE_REPO}
+          deps_base_tag=${DEPS_BASE_TAG}
+          test_image_tag=${TEST_TAG}
+          alias_tag=${ALIAS}
+          EOF
+
+  # build the compiled-dependencies base image
+  build-dependencies:
+    name: build-dependencies
+    runs-on: ubuntu-latest
+    needs: setup
+    steps:
+      - uses: actions/checkout@v6
+      - name: Free disk space
+        run: |
+          # the compiled dependency stack (ESMF/GDAL/Boost/NetCDF) is large;
+          # reclaim runner space before building
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          df -h
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v4
+      - name: Log in to registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # No GHA layer cache here: this image is built from scratch by design when
+      # it runs (rare), and its layers are multi-GB. The published image is the
+      # reuse mechanism for downstream builds (Dockerfile.bmi-forcings FROM it).
+      - name: Build & push dependencies image
+        uses: docker/build-push-action@v7
+        with:
+          load: false
+          platforms: linux/amd64
+          context: .
+          file: Dockerfile.dependencies
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ needs.setup.outputs.deps_image }}:${{ needs.setup.outputs.test_image_tag }}
+          build-args: |
+            DEPS_BASE_REPO=${{ needs.setup.outputs.deps_base_repo }}
+            DEPS_BASE_TAG=${{ needs.setup.outputs.deps_base_tag }}
+      - name: Install Trivy
+        if: github.event_name != 'pull_request'
+        uses: aquasecurity/setup-trivy@v0.2.6
+        with:
+          cache: true
+          version: v0.69.3
+      - name: Trivy scan (dependencies)
+        if: github.event_name != 'pull_request'
+        env:
+          TMPDIR: /mnt/trivy-temp
+        run: |
+          sudo mkdir -p $TMPDIR
+          sudo chown -R $USER:$USER $TMPDIR
+
+          trivy image \
+            --format sarif \
+            --output trivy-results-dependencies.sarif \
+            --severity CRITICAL,HIGH \
+            --scanners vuln \
+            --ignore-unfixed \
+            --timeout 45m \
+            ${{ needs.setup.outputs.deps_image }}:${{ needs.setup.outputs.test_image_tag }}
+      - name: Promote Tags
+        if: success() && github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # ensure skopeo is available for promotion
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
+
+          IMAGE_BASE="${{ needs.setup.outputs.deps_image }}"
+          TEST_TAG="${{ needs.setup.outputs.test_image_tag }}"
+          ALIAS_TAG="${{ needs.setup.outputs.alias_tag }}"
+
+          # apply the primary alias (timestamp-branch)
+          skopeo copy \
+            --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+            --all \
+            "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
+
+          # consumers pull :latest by default; promote it on development
+          if [ "$GITHUB_REF_NAME" = "development" ]; then
+            skopeo copy \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --all \
+              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
+          fi
+
+  # rebuild ngen-bmi-forcing against the deps image we just published so a
+  # dependency update always flows into the forcing image (and on down the
+  # chain). Rebuilding deps without rebuilding what consumes it is never useful,
+  # so this is not optional.
+  #
+  # This is also what guarantees order: it `needs` build-dependencies and runs
+  # only on success, so the deps image is fully built and promoted BEFORE the
+  # forcing build is dispatched. It pins the exact image just built (repo +
+  # alias), so forcing never races against the old base.
+  trigger-forcing:
+    name: trigger-forcing
+    if: |
+      success() && (
+        (github.event_name == 'push' && (github.ref_name == 'development' || github.ref_name == 'ngwpc-candidate' || github.ref_name == 'ngwpc-release')) ||
+        (github.event_name == 'workflow_dispatch')
+      )
+    runs-on: ubuntu-latest
+    needs:
+      - setup
+      - build-dependencies
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ secrets.PIPELINE_APP_ID }}
+          private-key: ${{ secrets.PIPELINE_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+      - name: Trigger ngen-forcing CI/CD on the new dependencies image
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          DEPS_IMAGE: ${{ needs.setup.outputs.deps_image }}
+          DEPS_TAG: ${{ needs.setup.outputs.alias_tag }}
+        run: |
+          gh workflow run cicd.yml \
+            --repo ${{ github.repository_owner }}/ngen-forcing \
+            --ref "${{ github.ref_name }}" \
+            -f TRIGGER_DOWNSTREAM=true \
+            -f BMI_BASE_REPO="$DEPS_IMAGE" \
+            -f BMI_BASE_TAG="$DEPS_TAG"
