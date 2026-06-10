@@ -1,16 +1,20 @@
-import atexit
+from __future__ import annotations
 from functools import partial
 import os
-import uuid
 import signal
 import sys
+import typing
+if typing.TYPE_CHECKING:
+    from typing import Any, Type, TypeVar
+    from .geoMod import GriddedGeoMeta
+    T = TypeVar("T")
 
 import mpi4py
 import numpy as np
 
 mpi4py.rc.threads = False
 
-from mpi4py import MPI
+from mpi4py import MPI  # noqa: E402
 
 from .config import ConfigOptions
 from . import err_handler
@@ -46,7 +50,6 @@ class MpiConfig:
         self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
         self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
         self.log_warning = partial(err_handler.log_warning, self.config_options, self)
-        self.__register_exit_handlers()
 
     def initialize_comm(self, comm=None):
         """Initialize MPI communication.
@@ -57,25 +60,29 @@ class MpiConfig:
         try:
             self.comm = comm if comm is not None else MPI.COMM_WORLD
             self.comm.Set_errhandler(MPI.ERRORS_ARE_FATAL)
-        except AttributeError as ae:
+        except AttributeError:
             self.config_options.errMsg = (
                 "Unable to initialize the MPI Communicator object"
             )
-            raise ae
+            raise
 
         try:
             self.size = self.comm.Get_size()
-        except MPI.Exception as mpi_exception:
+        except MPI.Exception:
             self.config_options.errMsg = "Unable to retrieve the MPI size."
-            raise mpi_exception
+            raise
 
         try:
             self.rank = self.comm.Get_rank()
-        except MPI.Exception as mpi_exception:
+        except MPI.Exception:
             self.config_options.errMsg = "Unable to retrieve the MPI processor rank."
-            raise mpi_exception
+            raise
 
-        self.__broadcast_new_64bit_uid()
+        try:
+            self.uid64 = mpi_utils.get_new_broadcasted_uid()
+        except Exception:
+            self.config_options.errMsg = "Unable to generate a global unique ID."
+            raise
 
         wait_for_debug = os.getenv("WAIT_FOR_DEBUGPY", "")
         if wait_for_debug.lower() in ("true", "1"):
@@ -107,93 +114,18 @@ class MpiConfig:
         """Call cleanup methods, before calling MPI Abort.
         Do not make direct calls to MPI Abort without this method.
         Use this method for all MPI abort needs."""
-        comm = getattr(self, "comm", None)
+        comm: MPI.Comm = getattr(self, "comm", None)
         if comm is None:
             raise RuntimeError("comm is not initialized")
-        # if self.rank == 0:
-        if True:
-            self._cleanup()
-            err_handler.log_msg(
-                self.config_options, self, debug=True, msg="About to MPI Abort"
-            )
-            comm.Abort(errorcode)
-        comm.Barrier()  # For testing case of only rank 0 aborting.
-        raise RuntimeError("At bottom of abort_with_cleanup, should not get here.")
+        self.cleanup()
+        self.log_debug("About to MPI Abort")
+        comm.Abort(errorcode)
 
-    def __signals_handled(self) -> tuple[int]:
-        """Return a tuple of signals to be handled by cleanup routine."""
-        ### signal.valid_signals() contains many that are unrelated to stoppage / interruption / error.
-        # sigs = [s for s in signal.valid_signals() if s not in (signal.SIGKILL, signal.SIGSTOP)]
-        sigs = (
-            signal.SIGINT,
-            signal.SIGTERM,
-            signal.SIGHUP,
-            signal.SIGQUIT,
-            signal.SIGSEGV,
-            signal.SIGABRT,
-            signal.SIGFPE,
-            signal.SIGBUS,
-            signal.SIGILL,
-        )
-        return sigs
-
-    def __register_exit_handlers(self) -> None:
-        """Register exit handlers for unhandled exceptions, signals, and regular exits.
-        TODO: consider WCOSS gating.
-        TODO: note that when non-0 ranks call Abort directly, the rank 0 exit handler is still invoked, at least in some cases,
-        so there may be opportunities to streamline this further to have only rank 0 perform the cleanup. Would need to test
-        against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
-        rank 0 break out of a collective call if it happens to be waiting at one)."""
-        # Exceptions
-        sys.exepthook = self.__excepthook
-        # Regular exits
-        atexit.register(self._cleanup)
-        # Signals
-        for sig in self.__signals_handled():
-            signal.signal(sig, self.__signal_handler)
-
-    def __excepthook(self, ex_type, value, tb) -> None:
-        """Custom excepthook which follows these steps:
-        1. Call Python's built-in excepthook.
-        2. Log .errMsg as CRITICAL (unless it is None).
-        3. Cleanup.
-        4. MPI Abort.
-
-        To apply, set `sys.excepthook` to this method."""
-        sys.__excepthook__(ex_type, value, tb)
-        if self.config_options.errMsg is not None:
-            err_handler.log_critical(
-                self.config_options,
-                self,
-                msg=f"In excepthook, found errMsg = {repr(self.config_options.errMsg)}",
-            )
-        self.abort_with_cleanup(1)
-
-    def __signal_handler(self, signum, frame) -> None:
-        """Handle termination signals by cleaning up before exit."""
-        ### Unregister the signal handler
-        for s in self.__signals_handled():
-            signal.signal(s, signal.SIG_DFL)
-        ### Cleanup and re-send the original signal to itself
-        # self._cleanup()
-        # os.kill(os.getpid(), signum)
-        ### Cleanup and abort directly
-        self.abort_with_cleanup(signum)
-
-    def _cleanup(self) -> None:
-        """High-level cleanup routine called by exit handlers."""
-        # if self.rank != 0:
-        #     return
-        err_handler.log_msg(
-            self.config_options, self, debug=True, msg="About to clean up"
-        )
+    def cleanup(self) -> None:
+        """High-level cleanup routine called during BMI finalization."""
+        self.log_debug("About to clean up")
         self._cleanup_scratch_dir()
         self._cleanup_geogrid()
-        # TODO: Consider if this can be gated for non-wcoss only
-        try:
-            atexit.unregister(self._cleanup)
-        except Exception:
-            pass
 
     def _cleanup_scratch_dir(self) -> None:
         """Remove contents of scratch dir.
@@ -222,7 +154,7 @@ class MpiConfig:
         #
         # Only delete files that don't start with either of these
         skip_starts = (".nfs", "NextGen_Forcings_Engine")
-        to_delete = [_ for _ in contents if not _.startswith(skip_starts)]
+        to_delete = [n for n in contents if not n.startswith(skip_starts)]
         for fn in to_delete:
             fp = os.path.join(self.config_options.scratch_dir, fn)
             if os.path.isfile(fp):
@@ -342,10 +274,6 @@ class MpiConfig:
         self.log_debug(msg)
         raise RuntimeError(msg)
 
-    def __broadcast_new_64bit_uid(self):
-        """Broadcast a random uint64 then save the hash of that to self.uid64, which effectively broadcasts the same unique string to all ranks."""
-        self.uid64 = mpi_utils.get_new_broadcasted_uid()
-
     def wait_for_debugpy_client(self):
         """Block until the debugpy clients have attached to cppdbg/gdb.
 
@@ -357,7 +285,7 @@ class MpiConfig:
         debugpy.listen(("localhost", 5678 + self.rank))
         debugpy.wait_for_client()
 
-    def broadcast_parameter(self, value_broadcast, config_options, param_type):
+    def broadcast_parameter(self, value_broadcast: Any, config_options: ConfigOptions, param_type: Type[T]) -> T:
         """Broadcast a single parameter value to all processors.
 
         Generic function for sending a parameter value out to the processors.
@@ -380,74 +308,14 @@ class MpiConfig:
             return None
         return param.item(0)
 
-    def scatter_array_logan(self, geoMeta, array_broadcast, ConfigOptions):
+    def scatter_array(self, geo_meta: GriddedGeoMeta, src_array: np.ndarray, config_options: ConfigOptions):
         """Scatter an array based on the input dataset type.
 
         Generic function for calling scatter functons based on
         the input dataset type.
-        :param geoMeta:
+        :param geo_meta:
         :param array_broadcast:
-        :param ConfigOptions:
-        :return:
-        """
-        # Determine which type of input array we have based on the
-        # type of numpy array.
-        data_type_flag = -1
-        if self.rank == 0:
-            if array_broadcast.dtype == np.float32:
-                data_type_flag = 1
-            if array_broadcast.dtype == np.float64:
-                data_type_flag = 2
-
-        # Broadcast the numpy datatype to the other processors.
-        if self.rank == 0:
-            tmpDict = {"varTmp": data_type_flag}
-        else:
-            tmpDict = None
-        try:
-            tmpDict = self.comm.bcast(tmpDict, root=0)
-        except Exception:
-            ConfigOptions.errMsg = (
-                "Unable to broadcast numpy datatype value from rank 0"
-            )
-            err_handler.log_critical(ConfigOptions, self)
-            return None
-        data_type_flag = tmpDict["varTmp"]
-
-        # Broadcast the global array to the child processors, then
-        if self.rank == 0:
-            arrayGlobalTmp = array_broadcast
-        else:
-            if data_type_flag == 1:
-                arrayGlobalTmp = np.empty(
-                    [geoMeta.ny_global, geoMeta.nx_global], np.float32
-                )
-            else:  # data_type_flag == 2:
-                arrayGlobalTmp = np.empty(
-                    [geoMeta.ny_global, geoMeta.nx_global], np.float64
-                )
-        try:
-            self.comm.Bcast(arrayGlobalTmp, root=0)
-        except Exception:
-            ConfigOptions.errMsg = (
-                "Unable to broadcast a global numpy array from rank 0"
-            )
-            err_handler.log_critical(ConfigOptions, self)
-            return None
-        arraySub = arrayGlobalTmp[
-            geoMeta.y_lower_bound : geoMeta.y_upper_bound,
-            geoMeta.x_lower_bound : geoMeta.x_upper_bound,
-        ]
-        return arraySub
-
-    def scatter_array_scatterv_no_cache(self, geoMeta, src_array, ConfigOptions):
-        """Scatter an array based on the input dataset type.
-
-        Generic function for calling scatter functons based on
-        the input dataset type.
-        :param geoMeta:
-        :param array_broadcast:
-        :param ConfigOptions:
+        :param config_options:
         :return:
         """
         # Determine which type of input array we have based on the
@@ -469,34 +337,33 @@ class MpiConfig:
 
         try:
             self.comm.Bcast(data_type_buffer, root=0)
-        except:
-            ConfigOptions.errMsg = (
+        except Exception:
+            config_options.errMsg = (
                 "Unable to broadcast numpy datatype value from rank 0"
             )
-            err_handler.err_out(ConfigOptions)
+            err_handler.err_out(config_options)
             return None
 
         data_type_flag = data_type_buffer[0]
-        data_type_buffer = None
 
         # gather buffer offsets and bounds to rank 0
         bounds = np.array(
             [
-                np.int32(geoMeta.x_lower_bound),
-                np.int32(geoMeta.y_lower_bound),
-                np.int32(geoMeta.x_upper_bound),
-                np.int32(geoMeta.y_upper_bound),
+                np.int32(geo_meta.x_lower_bound),
+                np.int32(geo_meta.y_lower_bound),
+                np.int32(geo_meta.x_upper_bound),
+                np.int32(geo_meta.y_upper_bound),
             ]
         )
         global_bounds = np.zeros((self.size * 4), np.int32)
 
         try:
             self.comm.Allgather([bounds, MPI.INTEGER], [global_bounds, MPI.INTEGER])
-        except:
-            ConfigOptions.errMsg = "Failed all gathering global bounds at rank" + str(
+        except Exception:
+            config_options.errMsg = "Failed all gathering global bounds at rank" + str(
                 self.rank
             )
-            err_handler.err_out(ConfigOptions)
+            err_handler.err_out(config_options)
             return None
 
         # create slices for x and y bounds arrays
@@ -544,9 +411,9 @@ class MpiConfig:
         # scatter the data
         try:
             self.comm.Scatterv([sendbuf, counts, offsets, data_type], recvbuf, root=0)
-        except:
-            ConfigOptions.errMsg = "Failed Scatterv from rank 0"
-            err_handler.error_out(ConfigOptions)
+        except Exception:
+            config_options.errMsg = "Failed Scatterv from rank 0"
+            err_handler.err_out(config_options)
             return None
 
         subarray = np.reshape(
@@ -558,10 +425,7 @@ class MpiConfig:
         ).copy()
         return subarray
 
-    # use scatterv based scatter_array
-    scatter_array = scatter_array_scatterv_no_cache
-
-    def merge_slabs_gatherv(self, local_slab, options, allgather: bool = False):
+    def merge_slabs_gatherv(self, local_slab: np.ndarray, options: ConfigOptions, allgather: bool = False):
         """If allgather is True, then Allgatherv will be used instead of Gatherv, which causes all ranks to be distributed to all other ranks.
 
         This is necessary for the hydrofabric case, to handle how ngen's hydrologic
@@ -581,13 +445,10 @@ class MpiConfig:
 
         try:
             self.comm.Allgather([shapes, MPI.INTEGER], [global_shapes, MPI.INTEGER])
-        except:
+        except Exception:
             options.errMsg = "Failed all gathering slab shapes at rank" + str(self.rank)
             err_handler.log_critical(options, self)
-            global_bounds = None
-
-        # options.errMsg = "All gather for global shapes complete"
-        # err_handler.log_msg(options,self)
+            return None
 
         if len(local_slab.shape) == 2:
             # check that all slabes are the same width and sum the number of rows
@@ -601,14 +462,7 @@ class MpiConfig:
                         + str(i)
                     )
                     err_handler.log_critical(options, self)
-                    # TODO why was there an abort here?
-                    # Switched it to a new wrapped/cleanup abort,
-                    # but would like to remove that call too if
-                    # there is no reason to keep it.
-                    self.abort_with_cleanup(1)
-
-            # options.errMsg = "Checking of Rows and Columns complete"
-            # err_handler.log_msg(options,self)
+                    return None
 
             # generate counts
             counts = [
@@ -620,9 +474,6 @@ class MpiConfig:
             offsets = [0]
             for i in range(0, len(counts) - 1):
                 offsets.append(offsets[i] + counts[i])
-
-            # options.errMsg = "Counts and Offsets generated"
-            # err_handler.log_msg(options,self)
 
             # create the receive buffer
             if allgather or self.rank == 0:
@@ -637,9 +488,6 @@ class MpiConfig:
             offsets = [0]
             for i in range(0, len(counts) - 1):
                 offsets.append(offsets[i] + counts[i])
-
-            # options.errMsg = "Counts and Offsets generated"
-            # err_handler.log_msg(options,self)
 
             # create the receive buffer
             if allgather or self.rank == 0:
@@ -668,12 +516,9 @@ class MpiConfig:
                     recvbuf=[recvbuf, counts, offsets, data_type],
                     root=0,
                 )
-        except:
+        except Exception:
             options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
             err_handler.log_critical(options, self)
             return None
-
-        # options.errMsg = "Gatherv complete"
-        # err_handler.log_msg(options,self)
 
         return recvbuf
