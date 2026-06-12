@@ -1,59 +1,87 @@
 name: Dependencies Image
 
-# Builds and publishes the slow-moving compiled dependency base image
-# (ngen-dependencies-<base>) that Dockerfile.bmi-forcings builds FROM. This is
-# deliberately kept out of cicd.yml so a normal ngen-bmi-forcing build never
-# rebuilds the heavy compiled stack (WGRIB2, ESMF, SZIP, HDF5, NetCDF, Boost,
-# GDAL) and stays fast.
+# Reusable workflow (called by cicd.yml, it does not run on its own). Builds and
+# publishes the compiled-dependency base image (ngen-dependencies-<base>) that
+# Dockerfile.bmi-forcings builds FROM. Because cicd.yml calls this as a job, the
+# forcing build can order itself after a base rebuild with `needs`, and the base
+# is only rebuilt when the dependency files change.
 #
-# Runs only when the dependencies actually change:
-#   - manually (workflow_dispatch), where the base image is customizable, and
-#   - automatically when Dockerfile.dependencies (or this workflow) changes.
+# The published image name follows the base image, so rockylinux:8 publishes
+# ngen-dependencies-rocky8. Change deps_base_repo / deps_base_tag to move off
+# Rocky and the name follows; set deps_base_suffix to force a specific name.
 #
-# The published package name reflects the base image, e.g. rockylinux:8 ->
-# ngen-dependencies-rocky8. Change DEPS_BASE_REPO/DEPS_BASE_TAG to move off Rocky
-# and the name follows; override DEPS_BASE_SUFFIX if you want a specific name.
+# Outputs the published repo and tag so the caller can build FROM exactly what
+# was just built.
 
 on:
-  workflow_dispatch:
+  workflow_call:
     inputs:
-      DEPS_BASE_REPO:
+      deps_base_repo:
         description: 'Base image to compile the dependencies from (default rockylinux)'
         required: false
         type: string
-      DEPS_BASE_TAG:
+        default: ''
+      deps_base_tag:
         description: 'Base image tag (default 8)'
         required: false
         type: string
-      DEPS_BASE_SUFFIX:
+        default: ''
+      deps_base_suffix:
         description: 'Override the published name suffix (default derived from the base, e.g. rocky8)'
         required: false
         type: string
-      GHCR_ORG:
-        description: 'GHCR_ORG'
+        default: ''
+      ghcr_org:
+        description: 'GHCR org (default repo owner, lowercased)'
         required: false
         type: string
-  push:
-    branches:
-      - development
-      - ngwpc-candidate
-      - ngwpc-release
-    paths:
-      - 'Dockerfile.dependencies'
-      - '.github/workflows/dependencies.yml'
-  pull_request:
-    branches:
-      - development
-      - ngwpc-candidate
-      - ngwpc-release
-    paths:
-      - 'Dockerfile.dependencies'
-      - '.github/workflows/dependencies.yml'
+        default: ''
+      szip_version:
+        description: 'SZIP version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      hdf5_version:
+        description: 'HDF5 version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      netcdf_c_version:
+        description: 'NetCDF-C version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      netcdf_fortran_version:
+        description: 'NetCDF-Fortran version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      boost_version:
+        description: 'Boost version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      esmf_version:
+        description: 'ESMF version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      gdal_version:
+        description: 'GDAL version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+    outputs:
+      image:
+        description: 'Published deps image repo (no tag)'
+        value: ${{ jobs.setup.outputs.deps_image }}
+      tag:
+        description: 'Tag of the deps image just built'
+        value: ${{ jobs.setup.outputs.test_image_tag }}
 
 permissions:
   contents: read
   packages: write
-  security-events: write
 
 env:
   REGISTRY: ghcr.io
@@ -65,11 +93,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deps_image: ${{ steps.vars.outputs.deps_image }}
-      base_suffix: ${{ steps.vars.outputs.base_suffix }}
-      deps_base_repo: ${{ steps.vars.outputs.deps_base_repo }}
-      deps_base_tag: ${{ steps.vars.outputs.deps_base_tag }}
       test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
       alias_tag: ${{ steps.vars.outputs.alias_tag }}
+      build_args: ${{ steps.vars.outputs.build_args }}
     steps:
       - name: Compute image vars
         id: vars
@@ -77,8 +103,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          # org (lowercased for GHCR); GHCR_ORG input overrides the repo owner
-          ORG="$(echo "${{ inputs.GHCR_ORG || github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
+          # org (lowercased for GHCR); ghcr_org input overrides the repo owner
+          ORG="$(echo "${{ inputs.ghcr_org || github.repository_owner }}" | tr '[:upper:]' '[:lower:]')"
 
           # one datetime for all time variables
           NOW=$(date -u +'%Y-%m-%d %H:%M:%S')
@@ -95,9 +121,12 @@ jobs:
           CLEAN_REF=$(echo "$REAL_REF" | tr '[:upper:]' '[:lower:]' | sed 's/\//-/g')
           SHORT_SHA="${REAL_SHA:0:7}"
 
-          # base image the dependencies are compiled FROM (customizable)
-          DEPS_BASE_REPO="${{ inputs.DEPS_BASE_REPO || 'rockylinux' }}"
-          DEPS_BASE_TAG="${{ inputs.DEPS_BASE_TAG || '8' }}"
+          # base image the dependencies are compiled FROM. inputs may arrive empty
+          # (the caller passes them through on every event), so fall back here.
+          DEPS_BASE_REPO="${{ inputs.deps_base_repo }}"
+          [ -n "$DEPS_BASE_REPO" ] || DEPS_BASE_REPO="rockylinux"
+          DEPS_BASE_TAG="${{ inputs.deps_base_tag }}"
+          [ -n "$DEPS_BASE_TAG" ] || DEPS_BASE_TAG="8"
 
           # derive the published name suffix from the base image (unless overridden)
           # so the package name reflects its base (rockylinux:8 -> rocky8):
@@ -105,7 +134,7 @@ jobs:
           #   - drop the literal "linux" (rockylinux -> rocky)
           #   - append the tag reduced to alphanumerics (8 -> 8, 24.04 -> 2404)
           #   - lowercase
-          SUFFIX_INPUT="${{ inputs.DEPS_BASE_SUFFIX || '' }}"
+          SUFFIX_INPUT="${{ inputs.deps_base_suffix }}"
           if [ -n "$SUFFIX_INPUT" ]; then
             BASE_SUFFIX="$SUFFIX_INPUT"
           else
@@ -117,8 +146,9 @@ jobs:
 
           DEPS_IMAGE="${REGISTRY}/${ORG}/ngen-dependencies-${BASE_SUFFIX}"
 
-          # test_image_tag (commit short sha): used for the build/scan
-          # alias_tag: applied on success (timestamp-branch, or pr-<n>-build)
+          # test_image_tag (commit short sha): always pushed, so the caller can
+          # build FROM it. alias_tag: promoted on success (timestamp-branch, or
+          # pr-<n>-build).
           TEST_TAG="${SHORT_SHA}"
           if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
             ALIAS="pr-${{ github.event.pull_request.number }}-build"
@@ -126,15 +156,48 @@ jobs:
             ALIAS="${TIMESTAMP}-${CLEAN_REF}"
           fi
 
-          # save outputs
-          cat >> "$GITHUB_OUTPUT" <<EOF
-          deps_image=${DEPS_IMAGE}
-          base_suffix=${BASE_SUFFIX}
-          deps_base_repo=${DEPS_BASE_REPO}
-          deps_base_tag=${DEPS_BASE_TAG}
-          test_image_tag=${TEST_TAG}
-          alias_tag=${ALIAS}
-          EOF
+          # Build the list of docker build-args for the dependencies image. Start
+          # with the base image, then append each library version ONLY if the
+          # caller provided it. Empty values are skipped so that version stays at
+          # the default baked into Dockerfile.dependencies (single source of truth
+          # for versions; the workflow only overrides when asked).
+          ARGS=( "DEPS_BASE_REPO=${DEPS_BASE_REPO}" "DEPS_BASE_TAG=${DEPS_BASE_TAG}" )
+          # add NAME VALUE -> appends "NAME=VALUE" to ARGS when VALUE is non-empty
+          # (the "|| true" keeps the skipped case from tripping "set -e").
+          add() { [ -n "$2" ] && ARGS+=("$1=$2") || true; }
+          add SZIP_VERSION "${{ inputs.szip_version }}"
+          add HDF5_VERSION "${{ inputs.hdf5_version }}"
+          add NETCDF_C_VERSION "${{ inputs.netcdf_c_version }}"
+          add NETCDF_FORTRAN_VERSION "${{ inputs.netcdf_fortran_version }}"
+          add BOOST_VERSION "${{ inputs.boost_version }}"
+          add ESMF_VERSION "${{ inputs.esmf_version }}"
+          add GDAL_VERSION "${{ inputs.gdal_version }}"
+
+          # Publish step outputs. $GITHUB_OUTPUT is a FILE the runner provides;
+          # every line appended to it becomes ${{ steps.vars.outputs.<name> }},
+          # which the setup job re-exports as a job output so other jobs can read
+          # it via needs.setup.outputs.<name>.
+          #
+          # Most outputs are one line: "name=value". But build_args holds MANY
+          # lines (one docker build-arg each), which "name=value" can't represent.
+          # GitHub's multi-line output syntax handles that:
+          #     name<<MARKER
+          #     ...value lines...
+          #     MARKER
+          # Everything between the opening "build_args<<BUILDARGS_EOF" line and the
+          # closing "BUILDARGS_EOF" line becomes the value of build_args. printf
+          # writes each ARGS element on its own line in between. BUILDARGS_EOF is
+          # just an arbitrary end marker (any unique word works). Downstream,
+          # build-dependencies passes needs.setup.outputs.build_args straight to
+          # docker/build-push-action, which splits it into one --build-arg per line.
+          {
+            echo "deps_image=${DEPS_IMAGE}"
+            echo "test_image_tag=${TEST_TAG}"
+            echo "alias_tag=${ALIAS}"
+            echo "build_args<<BUILDARGS_EOF"
+            printf '%s\n' "${ARGS[@]}"
+            echo "BUILDARGS_EOF"
+          } >> "$GITHUB_OUTPUT"
 
   # build the compiled-dependencies base image
   build-dependencies:
@@ -162,7 +225,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # No GHA layer cache here: this image is built from scratch by design when
       # it runs (rare), and its layers are multi-GB. The published image is the
-      # reuse mechanism for downstream builds (Dockerfile.bmi-forcings FROM it).
+      # reuse mechanism for the forcing build (it builds FROM this image).
       - name: Build & push dependencies image
         uses: docker/build-push-action@v7
         with:
@@ -170,19 +233,18 @@ jobs:
           platforms: linux/amd64
           context: .
           file: Dockerfile.dependencies
-          push: ${{ github.event_name != 'pull_request' }}
+          push: true
           tags: ${{ needs.setup.outputs.deps_image }}:${{ needs.setup.outputs.test_image_tag }}
-          build-args: |
-            DEPS_BASE_REPO=${{ needs.setup.outputs.deps_base_repo }}
-            DEPS_BASE_TAG=${{ needs.setup.outputs.deps_base_tag }}
+          # multi-line string (one NAME=VALUE per line) assembled in the setup
+          # job; see the build_args output there. build-push-action turns each
+          # line into a --build-arg.
+          build-args: ${{ needs.setup.outputs.build_args }}
       - name: Install Trivy
-        if: github.event_name != 'pull_request'
         uses: aquasecurity/setup-trivy@v0.2.6
         with:
           cache: true
           version: v0.69.3
       - name: Trivy scan (dependencies)
-        if: github.event_name != 'pull_request'
         env:
           TMPDIR: /mnt/trivy-temp
         run: |
@@ -198,7 +260,7 @@ jobs:
             --timeout 45m \
             ${{ needs.setup.outputs.deps_image }}:${{ needs.setup.outputs.test_image_tag }}
       - name: Promote Tags
-        if: success() && github.event_name != 'pull_request'
+        if: success()
         shell: bash
         run: |
           set -euo pipefail
@@ -228,44 +290,3 @@ jobs:
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
           fi
-
-  # rebuild ngen-bmi-forcing against the deps image we just published so a
-  # dependency update always flows into the forcing image (and on down the
-  # chain). Rebuilding deps without rebuilding what consumes it is never useful,
-  # so this is not optional.
-  #
-  # This is also what guarantees order: it `needs` build-dependencies and runs
-  # only on success, so the deps image is fully built and promoted BEFORE the
-  # forcing build is dispatched. It pins the exact image just built (repo +
-  # alias), so forcing never races against the old base.
-  trigger-forcing:
-    name: trigger-forcing
-    if: |
-      success() && (
-        (github.event_name == 'push' && (github.ref_name == 'development' || github.ref_name == 'ngwpc-candidate' || github.ref_name == 'ngwpc-release')) ||
-        (github.event_name == 'workflow_dispatch')
-      )
-    runs-on: ubuntu-latest
-    needs:
-      - setup
-      - build-dependencies
-    steps:
-      - name: Generate GitHub App token
-        id: app-token
-        uses: actions/create-github-app-token@v3
-        with:
-          client-id: ${{ secrets.PIPELINE_APP_ID }}
-          private-key: ${{ secrets.PIPELINE_APP_PRIVATE_KEY }}
-          owner: ${{ github.repository_owner }}
-      - name: Trigger ngen-forcing CI/CD on the new dependencies image
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-          DEPS_IMAGE: ${{ needs.setup.outputs.deps_image }}
-          DEPS_TAG: ${{ needs.setup.outputs.alias_tag }}
-        run: |
-          gh workflow run cicd.yml \
-            --repo ${{ github.repository_owner }}/ngen-forcing \
-            --ref "${{ github.ref_name }}" \
-            -f TRIGGER_DOWNSTREAM=true \
-            -f BMI_BASE_REPO="$DEPS_IMAGE" \
-            -f BMI_BASE_TAG="$DEPS_TAG"

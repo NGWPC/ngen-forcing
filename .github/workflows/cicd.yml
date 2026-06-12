@@ -9,14 +9,6 @@ on:
       - nwm-master
       - development
       - release-candidate
-    # A change to ONLY the dependencies image must not self-trigger this forcing
-    # build. dependencies.yml builds the new base first, then dispatches this
-    # workflow against it (see its trigger-forcing job), preserving deps-before-
-    # forcing order. Without this, a deps push would race a forcing build here
-    # against the old base.
-    paths-ignore:
-      - 'Dockerfile.dependencies'
-      - '.github/workflows/dependencies.yml'
   pull_request:
     branches:
       - ngwpc-candidate
@@ -25,17 +17,31 @@ on:
       - nwm-master
       - development
       - release-candidate
-    paths-ignore:
-      - 'Dockerfile.dependencies'
-      - '.github/workflows/dependencies.yml'
   workflow_dispatch:
     inputs:
+      rebuild_deps:
+        description: 'Force a rebuild of the dependencies image before building forcing'
+        required: false
+        default: false
+        type: boolean
+      deps_base_repo:
+        description: 'Base image to compile the dependencies from (default rockylinux)'
+        required: false
+        type: string
+      deps_base_tag:
+        description: 'Dependencies base image tag (default 8)'
+        required: false
+        type: string
+      deps_base_suffix:
+        description: 'Override the published deps name suffix (default derived, e.g. rocky8)'
+        required: false
+        type: string
       BMI_BASE_REPO:
-        description: 'Base dependencies image repo (default ghcr.io/<org>/ngen-dependencies-rocky8)'
+        description: 'Deps image repo to build forcing FROM when not rebuilding deps (default ghcr.io/<org>/ngen-dependencies-rocky8)'
         required: false
         type: string
       BMI_BASE_TAG:
-        description: 'Base dependencies image tag (default latest)'
+        description: 'Deps image tag to build forcing FROM when not rebuilding deps (default latest)'
         required: false
         type: string
       GHCR_ORG:
@@ -75,6 +81,34 @@ on:
         description: 'MSW_MGR_REF'
         required: false
         type: string
+      SZIP_VERSION:
+        description: 'Deps image: SZIP version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      HDF5_VERSION:
+        description: 'Deps image: HDF5 version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      NETCDF_C_VERSION:
+        description: 'Deps image: NetCDF-C version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      NETCDF_FORTRAN_VERSION:
+        description: 'Deps image: NetCDF-Fortran version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      BOOST_VERSION:
+        description: 'Deps image: Boost version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      ESMF_VERSION:
+        description: 'Deps image: ESMF version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      GDAL_VERSION:
+        description: 'Deps image: GDAL version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -91,18 +125,13 @@ jobs:
     outputs:
       org: ${{ steps.vars.outputs.org }}
       bmi_image: ${{ steps.vars.outputs.bmi_image }}
-      bmi_base_repo: ${{ steps.vars.outputs.bmi_base_repo }}
-      bmi_base_name: ${{ steps.vars.outputs.bmi_base_name }}
-      bmi_base_tag: ${{ steps.vars.outputs.bmi_base_tag }}
-      bmi_base_digest: ${{ steps.vars.outputs.bmi_base_digest }}
-      bmi_base_revision: ${{ steps.vars.outputs.bmi_base_revision }}
-      ewts_revision: ${{ steps.vars.outputs.ewts_revision }}
       commit_sha: ${{ steps.vars.outputs.commit_sha }}
       commit_sha_short: ${{ steps.vars.outputs.commit_sha_short }}
       test_image_tag: ${{ steps.vars.outputs.test_image_tag }}
       alias_tag: ${{ steps.vars.outputs.alias_tag }}
       clean_ref: ${{ steps.vars.outputs.clean_ref }}
       default_ref: ${{ steps.vars.outputs.default_ref }}
+      ewts_revision: ${{ steps.vars.outputs.ewts_revision }}
       ewts_cache_bust: ${{ steps.vars.outputs.ewts_cache_bust }}
     steps:
       - name: Compute image vars
@@ -146,24 +175,6 @@ jobs:
           esac
           # use an explicit *_REF input if provided, else DEFAULT_REF
           ref_or_default() { [ -n "$1" ] && echo "$1" || echo "$DEFAULT_REF"; }
-
-          # skopeo is needed to inspect the base image
-          if ! command -v skopeo >/dev/null 2>&1; then
-            sudo apt-get update -y
-            sudo apt-get install -y --no-install-recommends skopeo
-          fi
-
-          # base image = the prebuilt compiled-dependencies image that
-          # Dockerfile.bmi-forcings builds FROM (published by dependencies.yml).
-          # Both repo and tag are overridable so any base can be passed in;
-          # default is ngen-dependencies-rocky8:latest in this org's registry.
-          BMI_BASE_REPO="${{ inputs.BMI_BASE_REPO || '' }}"
-          [ -n "$BMI_BASE_REPO" ] || BMI_BASE_REPO="${REGISTRY}/${ORG}/ngen-dependencies-rocky8"
-          BMI_BASE_TAG="${{ inputs.BMI_BASE_TAG || 'latest' }}"
-          BMI_BASE_NAME="${BMI_BASE_REPO}:${BMI_BASE_TAG}"
-          BMI_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${BMI_BASE_NAME}" 2>/dev/null || echo '{}')
-          BMI_BASE_DIGEST=$(echo "$BMI_BASE_INSPECT" | jq -r '.Digest // "unknown"')
-          BMI_BASE_REVISION=$(echo "$BMI_BASE_INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
 
           # resolve each source repo's ref (branch/tag/SHA) to its commit SHA for revision labels
           resolve_sha() {
@@ -216,11 +227,6 @@ jobs:
           cat >> "$GITHUB_OUTPUT" <<EOF
           org=${ORG}
           bmi_image=${IMAGE_BASE}/ngen-bmi-forcing
-          bmi_base_repo=${BMI_BASE_REPO}
-          bmi_base_name=${BMI_BASE_NAME}
-          bmi_base_tag=${BMI_BASE_TAG}
-          bmi_base_digest=${BMI_BASE_DIGEST}
-          bmi_base_revision=${BMI_BASE_REVISION}
           ewts_revision=${EWTS_REVISION}
           ewts_cache_bust=${EWTS_CACHE_BUST}
           test_image_tag=${TEST_TAG}
@@ -230,6 +236,56 @@ jobs:
           clean_ref=${CLEAN_REF}
           default_ref=${DEFAULT_REF}
           EOF
+
+  # detect whether this change touched the dependency image files, so the deps
+  # rebuild below runs only when needed (or when manually forced)
+  changes:
+    name: changes
+    runs-on: ubuntu-latest
+    outputs:
+      deps: ${{ steps.filter.outputs.deps || 'false' }}
+      versions: ${{ steps.versions.outputs.set || 'false' }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: filter
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          filters: |
+            deps:
+              - 'Dockerfile.dependencies'
+              - '.github/workflows/dependencies.yml'
+      - name: Detect dependency version overrides
+        id: versions
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          # if any dependency version input was provided, force a deps rebuild so
+          # the override actually takes effect
+          if [ -n "${{ inputs.SZIP_VERSION }}${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}" ]; then
+            echo "set=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  # rebuild the compiled-dependencies base image, ONLY when the deps files
+  # changed or a rebuild is forced. pipeline-bmi `needs` this, so forcing always
+  # builds AFTER the new base exists. This is the reusable workflow dependencies.yml.
+  dependencies:
+    name: dependencies
+    needs: changes
+    if: ${{ needs.changes.outputs.deps == 'true' || inputs.rebuild_deps || needs.changes.outputs.versions == 'true' }}
+    uses: ./.github/workflows/dependencies.yml
+    with:
+      deps_base_repo: ${{ inputs.deps_base_repo }}
+      deps_base_tag: ${{ inputs.deps_base_tag }}
+      deps_base_suffix: ${{ inputs.deps_base_suffix }}
+      ghcr_org: ${{ inputs.GHCR_ORG }}
+      szip_version: ${{ inputs.SZIP_VERSION }}
+      hdf5_version: ${{ inputs.HDF5_VERSION }}
+      netcdf_c_version: ${{ inputs.NETCDF_C_VERSION }}
+      netcdf_fortran_version: ${{ inputs.NETCDF_FORTRAN_VERSION }}
+      boost_version: ${{ inputs.BOOST_VERSION }}
+      esmf_version: ${{ inputs.ESMF_VERSION }}
+      gdal_version: ${{ inputs.GDAL_VERSION }}
 
   # CodeQL scan
   codeql-scan:
@@ -264,12 +320,14 @@ jobs:
   # build ngen-bmi-forcing Docker image
   pipeline-bmi:
     name: pipeline-bmi
-    if: |
-      (github.event_name == 'pull_request') ||
-      (github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch')
+    # run whether the deps rebuild happened or was skipped, but not if anything
+    # upstream failed or was cancelled
+    if: ${{ !cancelled() && !failure() }}
     runs-on: ubuntu-latest
-    needs: setup
+    needs:
+      - setup
+      - changes
+      - dependencies
     outputs:
       bmi_digest: ${{ steps.build_bmi_image.outputs.digest }}
     steps:
@@ -282,6 +340,36 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Resolve base (deps) image
+        id: base
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # if the dependencies job rebuilt the image this run, build FROM exactly
+          # that; otherwise use the override inputs, else this org's deps :latest
+          REPO="${{ needs.dependencies.outputs.image }}"
+          TAG="${{ needs.dependencies.outputs.tag }}"
+          [ -n "$REPO" ] || REPO="${{ inputs.BMI_BASE_REPO }}"
+          [ -n "$REPO" ] || REPO="${REGISTRY}/${{ needs.setup.outputs.org }}/ngen-dependencies-rocky8"
+          [ -n "$TAG" ] || TAG="${{ inputs.BMI_BASE_TAG }}"
+          [ -n "$TAG" ] || TAG="latest"
+
+          # inspect the base for the OCI base.* labels on the forcing image
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
+          INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${REPO}:${TAG}" 2>/dev/null || echo '{}')
+          DIGEST=$(echo "$INSPECT" | jq -r '.Digest // "unknown"')
+          REVISION=$(echo "$INSPECT" | jq -r '.Labels["org.opencontainers.image.revision"] // .Labels["io.ngwpc.image.base.revision"] // "unknown"')
+
+          cat >> "$GITHUB_OUTPUT" <<EOF
+          repo=${REPO}
+          tag=${TAG}
+          digest=${DIGEST}
+          revision=${REVISION}
+          EOF
       - name: Build & push BMI Forcing
         id: build_bmi_image # set ID to capture output from this step to use outputs like digest, imageid, and metadata
         uses: docker/build-push-action@v7
@@ -295,10 +383,10 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            BMI_BASE_REPO=${{ needs.setup.outputs.bmi_base_repo }}
-            BMI_BASE_TAG=${{ needs.setup.outputs.bmi_base_tag }}
-            BMI_BASE_DIGEST=${{ needs.setup.outputs.bmi_base_digest }}
-            BMI_BASE_REVISION=${{ needs.setup.outputs.bmi_base_revision }}
+            BMI_BASE_REPO=${{ steps.base.outputs.repo }}
+            BMI_BASE_TAG=${{ steps.base.outputs.tag }}
+            BMI_BASE_DIGEST=${{ steps.base.outputs.digest }}
+            BMI_BASE_REVISION=${{ steps.base.outputs.revision }}
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
             EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
