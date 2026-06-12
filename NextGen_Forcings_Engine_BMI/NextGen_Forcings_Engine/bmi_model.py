@@ -313,7 +313,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
         self._mpi_meta.comm.Bcast(cat_ids, root=0)
-        self._values["CAT-ID"] = cat_ids
 
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
@@ -406,9 +405,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # for model_input in self.get_input_var_names():
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
 
-        # Set initial time and step
+        # Set initial time, step, and true catchment IDs
         self._values["current_model_time"] = self.cfg_bmi["initial_time"]
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
+        self._values["CAT-ID"] = cat_ids
 
         # Initialize the Forcings Engine model
         self._model = NWMv3ForcingEngineModel()
@@ -782,7 +782,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            pass # allow CAT-ID to pass on whatever the dtype is based on the input data
+            return arr # allow CAT-ID to pass on whatever the dtype is based on the input data
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
