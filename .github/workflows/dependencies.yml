@@ -174,7 +174,7 @@ jobs:
           add GDAL_VERSION "${{ inputs.gdal_version }}"
 
           # Publish step outputs. $GITHUB_OUTPUT is a FILE the runner provides;
-          # every line appended to it becomes ${{ steps.vars.outputs.<name> }},
+          # every line appended to it becomes `steps.vars.outputs.<name>`,
           # which the setup job re-exports as a job output so other jobs can read
           # it via needs.setup.outputs.<name>.
           #
