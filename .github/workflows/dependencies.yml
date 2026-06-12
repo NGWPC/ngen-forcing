@@ -128,6 +128,18 @@ jobs:
           DEPS_BASE_TAG="${{ inputs.deps_base_tag }}"
           [ -n "$DEPS_BASE_TAG" ] || DEPS_BASE_TAG="8"
 
+          # resolve the base image's manifest digest for the OCI base.digest
+          # label (passed through as the DEPS_BASE_DIGEST build-arg below). skopeo
+          # inspect reads the manifest without pulling; --override-os/--override-arch
+          # pin the amd64 digest (the platform this image builds for) so the value
+          # does not vary with the runner's own architecture.
+          if ! command -v skopeo >/dev/null 2>&1; then
+            sudo apt-get update -y
+            sudo apt-get install -y --no-install-recommends skopeo
+          fi
+          DEPS_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${DEPS_BASE_REPO}:${DEPS_BASE_TAG}" 2>/dev/null || echo '{}')
+          DEPS_BASE_DIGEST=$(echo "$DEPS_BASE_INSPECT" | jq -r '.Digest // "unknown"')
+
           # derive the published name suffix from the base image (unless overridden)
           # so the package name reflects its base (rockylinux:8 -> rocky8):
           #   - keep only the last path segment (drop any registry/namespace)
@@ -157,11 +169,16 @@ jobs:
           fi
 
           # Build the list of docker build-args for the dependencies image. Start
-          # with the base image, then append each library version ONLY if the
-          # caller provided it. Empty values are skipped so that version stays at
-          # the default baked into Dockerfile.dependencies (single source of truth
-          # for versions; the workflow only overrides when asked).
-          ARGS=( "DEPS_BASE_REPO=${DEPS_BASE_REPO}" "DEPS_BASE_TAG=${DEPS_BASE_TAG}" )
+          # with the base image identity (repo, tag, resolved digest), then append
+          # each library version ONLY if the caller provided it. Empty values are
+          # skipped so that version stays at the default baked into
+          # Dockerfile.dependencies (single source of truth for versions; the
+          # workflow only overrides when asked).
+          ARGS=(
+            "DEPS_BASE_REPO=${DEPS_BASE_REPO}"
+            "DEPS_BASE_TAG=${DEPS_BASE_TAG}"
+            "DEPS_BASE_DIGEST=${DEPS_BASE_DIGEST}"
+          )
           # add NAME VALUE -> appends "NAME=VALUE" to ARGS when VALUE is non-empty
           # (the "|| true" keeps the skipped case from tripping "set -e").
           add() { [ -n "$2" ] && ARGS+=("$1=$2") || true; }
