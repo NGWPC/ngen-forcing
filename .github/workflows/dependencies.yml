@@ -156,7 +156,7 @@ jobs:
             BASE_SUFFIX="$(echo "${base_name}${tag_clean}" | tr '[:upper:]' '[:lower:]')"
           fi
 
-          DEPS_IMAGE="${REGISTRY}/${ORG}/ngen-forcing/ngen-dependencies-${BASE_SUFFIX}"
+          DEPS_IMAGE="${REGISTRY}/${ORG}/ngen-dependencies-${BASE_SUFFIX}"
 
           # test_image_tag (commit short sha): always pushed, so the caller can
           # build FROM it. alias_tag: promoted on success (timestamp-branch, or
