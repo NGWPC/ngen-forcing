@@ -27,6 +27,7 @@ ARG DEPS_BASE_REPO
 ARG DEPS_BASE_TAG
 ARG DEPS_BASE_NAME="${DEPS_BASE_REPO}:${DEPS_BASE_TAG}"
 ARG DEPS_BASE_DIGEST="unknown"
+ARG IMAGE_SOURCE="unknown"
 
 ARG SZIP_VERSION=2.1.1
 ARG HDF5_VERSION=1.10.11
@@ -39,14 +40,15 @@ ARG GDAL_VERSION=3.7.3
 # Image Labels: OCI-spec base annotations first, then the compiled library
 # versions baked into this image.
 LABEL org.opencontainers.image.base.name="${DEPS_BASE_NAME}" \
-      org.opencontainers.image.base.digest="${DEPS_BASE_DIGEST}" \
-      io.ngwpc.szip.version="${SZIP_VERSION}" \
-      io.ngwpc.hdf5.version="${HDF5_VERSION}" \
-      io.ngwpc.netcdf-c.version="${NETCDF_C_VERSION}" \
-      io.ngwpc.netcdf-fortran.version="${NETCDF_FORTRAN_VERSION}" \
-      io.ngwpc.boost.version="${BOOST_VERSION}" \
-      io.ngwpc.esmf.version="${ESMF_VERSION}" \
-      io.ngwpc.gdal.version="${GDAL_VERSION}"
+    org.opencontainers.image.base.digest="${DEPS_BASE_DIGEST}" \
+    org.opencontainers.image.source="${IMAGE_SOURCE}" \
+    io.ngwpc.szip.version="${SZIP_VERSION}" \
+    io.ngwpc.hdf5.version="${HDF5_VERSION}" \
+    io.ngwpc.netcdf-c.version="${NETCDF_C_VERSION}" \
+    io.ngwpc.netcdf-fortran.version="${NETCDF_FORTRAN_VERSION}" \
+    io.ngwpc.boost.version="${BOOST_VERSION}" \
+    io.ngwpc.esmf.version="${ESMF_VERSION}" \
+    io.ngwpc.gdal.version="${GDAL_VERSION}"
 
 ENV LANG="C.UTF-8"
 ENV PATH="/usr/local/bin:${PATH}"
