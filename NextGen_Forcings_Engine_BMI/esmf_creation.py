@@ -1,5 +1,5 @@
 import argparse
-import os
+from pathlib import Path
 from types import SimpleNamespace
 
 import yaml
@@ -19,13 +19,13 @@ def create_mesh(cfg: ConfigOptions):
     """
     # Set the mesh file name based on the hydrofabric file
     hyfab_name = cfg.geopackage
-    mesh_outPath = cfg.geogrid
+    mesh_out_path = Path(cfg.geogrid)
 
-    # Check if the mesh file already exists and skip conversion if it does
-    if not os.path.exists(mesh_outPath):
-        convert_hyfab_to_esmf(hyfab_gpkg=hyfab_name, esmf_mesh_output=mesh_outPath)
-    else:
-        print(f"ESMF mesh file already exists at {mesh_outPath}, skipping conversion.")
+    # Check if the mesh file already exists and remake if it does.
+    # The remake is necessary to ensure the same true catchment IDs will be generated.
+    if mesh_out_path.is_file():
+        mesh_out_path.unlink()
+    return convert_hyfab_to_esmf(hyfab_gpkg=hyfab_name, esmf_mesh_output=mesh_out_path)
 
 
 def main():

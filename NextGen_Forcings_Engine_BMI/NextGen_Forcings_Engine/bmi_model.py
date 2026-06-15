@@ -305,8 +305,14 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
-            esmf_creation.create_mesh(self._job_meta)
-        self._mpi_meta.comm.Barrier()
+            cat_ids = esmf_creation.create_mesh(self._job_meta)
+        cat_count = np.array([
+            len(cat_ids) if self._mpi_meta.rank == 0 else 0
+        ], dtype=np.intc)
+        self._mpi_meta.comm.Bcast(cat_count, root=0)
+        if self._mpi_meta.rank != 0:
+            cat_ids = np.empty(cat_count[0], dtype=np.int64)
+        self._mpi_meta.comm.Bcast(cat_ids, root=0)
 
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
@@ -399,16 +405,13 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # for model_input in self.get_input_var_names():
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
 
-        # Set initial time and step
+        # Set initial time, step, and true catchment IDs
         self._values["current_model_time"] = self.cfg_bmi["initial_time"]
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
+        self._values["CAT-ID"] = cat_ids
 
         # Initialize the Forcings Engine model
         self._model = NWMv3ForcingEngineModel()
-
-        # Set catchment ids if using hydrofabric
-        if self._grid_type == "hydrofabric":
-            self._values["CAT-ID"] = self.geo_meta.element_ids_global
 
         self._configure_output_path(output_path)
 
@@ -482,7 +485,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 )
 
             self._output_obj.init_forcing_file(
-                self._job_meta, self.geo_meta, self._mpi_meta
+                self._job_meta, self.geo_meta, self._mpi_meta, self._values["CAT-ID"]
             )
             self._output_configured = True
 
@@ -779,10 +782,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            if arr.dtype != np.int32:
-                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
-                LOG.critical(msg)
-                raise RuntimeError(msg)
+            return arr # allow CAT-ID to pass on whatever the dtype is based on the input data
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."

@@ -805,7 +805,6 @@ class NWMv3ForcingEngineModel:
                 model[variable + "_ELEMENT"] = output_obj.output_global[
                     count, :
                 ].flatten()
-                model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
 
         return (
             model,
