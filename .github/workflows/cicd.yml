@@ -473,9 +473,17 @@ jobs:
   # always passes TRIGGER_DOWNSTREAM=true to ngen so the chain propagates to nwm-cal-mgr and nwm-fcst-mgr
   trigger-ngen:
     name: trigger-ngen
-    if: |
-      success() && (
-        (github.event_name == 'push' && (github.ref_name == 'development' || github.ref_name == 'ngwpc-candidate' || github.ref_name == 'ngwpc-release')) ||
+    if: >-
+      !cancelled() && !failure() &&
+      (
+        (
+          github.event_name == 'push' &&
+          (
+            github.ref_name == 'development' ||
+            github.ref_name == 'ngwpc-candidate' ||
+            github.ref_name == 'ngwpc-release'
+          )
+        ) ||
         (github.event_name == 'workflow_dispatch' && inputs.TRIGGER_DOWNSTREAM)
       )
     runs-on: ubuntu-latest
