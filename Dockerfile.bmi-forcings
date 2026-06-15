@@ -1,15 +1,15 @@
+# syntax=docker/dockerfile:1.4
+
 ############################################################################
 # Change/Verify these values when adopting this Dockerfile into another org:
 #   GH_ORG, GHCR_ORG, IMAGE_NAMESPACE,
 #   EWTS_ORG, EWTS_REF
 ############################################################################
 
-# Ownership / branding overrides
 ARG GH_ORG=NGWPC
 ARG GHCR_ORG=ngwpc
 ARG IMAGE_NAMESPACE=ngwpc
 
-# External repository sources (org and ref/branch overrides)
 ARG USE_EWTS=ON
 ARG EWTS_ORG=${GH_ORG}
 ARG EWTS_REF=development
@@ -45,10 +45,6 @@ ARG IMAGE_NAMESPACE
 ARG USE_EWTS=ON
 ARG EWTS_ORG
 ARG EWTS_REF
-
-# Optional cache-bust args.
-# Leave this at 0 for normal builds. Override only when you intentionally want
-# the EWTS layer rebuilt even though the Dockerfile inputs did not change.
 ARG EWTS_CACHE_BUST=0
 
 # OCI Metadata Arguments
@@ -77,45 +73,39 @@ LABEL org.opencontainers.image.base.name="${DEPS_IMAGE_NAME}" \
     io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
 
 ############################################################################
-# Python environment inherited from dependencies image
+# Python environment inherited from dependency image
 ############################################################################
 
-# Re-expose the shared Python virtual environment created by the dependency
-# image. Do not recreate it here; forcing, ngen, and downstream images should
-# all install into and reuse the same venv.
-ENV VIRTUAL_ENV="/ngen-app/ngen-python"
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
-    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages:/usr/local/lib64/python3.11/site-packages:${PYTHONPATH}"
+# Reuse the shared venv created by ngen-dependencies-bookworm. Do not recreate it
+# here; forcing, ngen, and downstream images should all install into the same env.
+ENV VIRTUAL_ENV="/ngen-app/ngen-python" \
+    PATH="${VIRTUAL_ENV}/bin:${PATH}" \
+    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages:/usr/local/lib/python3.14/site-packages:${PYTHONPATH}"
 
+ENV WGRIB2=/usr/local/bin/wgrib2
+ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib:/usr/local/lib:/usr/local/lib64:${LD_LIBRARY_PATH}"
+
+SHELL ["/bin/bash", "-c"]
 
 ############################################################################
 # Optional EWTS Python package
 ############################################################################
 
-SHELL ["/bin/bash", "-c"]
-
-# ngen-bmi-forcing only needs the EWTS Python package, not the C/C++/Fortran
-# libraries or ngen bridge that the full ngen image requires.
-#
-# Ensures an unset or empty USE_EWTS defaults to ON.
-#
-# USE_EWTS accepted ON values:
-#   ON, YES, TRUE, 1
-#
-# Everything else is treated as OFF.
-RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
+# ngen-bmi-forcing only needs the EWTS Python package. Full EWTS C/C++/Fortran
+# libraries are built later in the ngen image and inherited by downstream images.
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux && \
     USE_EWTS="${USE_EWTS:-ON}" && \
     echo "USE_EWTS=${USE_EWTS}; EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
     USE_EWTS_NORMALIZED="$(echo "${USE_EWTS}" | tr '[:lower:]' '[:upper:]')" && \
     if [[ "${USE_EWTS_NORMALIZED}" =~ ^(ON|YES|TRUE|1)$ ]]; then \
         echo "Installing EWTS Python package"; \
-        rm -rf /tmp/nwm-ewts && \
+        rm -rf /tmp/nwm-ewts; \
         (git clone --depth 1 -b "${EWTS_REF}" \
             "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts \
          || (git clone "https://github.com/${EWTS_ORG}/nwm-ewts.git" /tmp/nwm-ewts && \
-             cd /tmp/nwm-ewts && git checkout "${EWTS_REF}")) && \
-        cd /tmp/nwm-ewts && \
+             cd /tmp/nwm-ewts && git checkout "${EWTS_REF}")); \
+        cd /tmp/nwm-ewts; \
         jq -n \
           --arg commit_hash "$(git rev-parse HEAD)" \
           --arg branch "$(git branch -r --contains HEAD 2>/dev/null | grep -v '\->' | sed 's|origin/||' | head -n1 | xargs || echo "${EWTS_REF}")" \
@@ -125,9 +115,9 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
           --arg message "$(git log -1 --pretty=format:'%s' | tr '\n' ';')" \
           --arg build_date "$(date -u +'%Y-%m-%d %H:%M:%S UTC')" \
           '{"nwm-ewts": {commit_hash: $commit_hash, branch: $branch, tags: $tags, author: $author, commit_date: $commit_date, message: $message, build_date: $build_date}}' \
-          > /ngen-app/nwm-ewts_git_info.json && \
-        python -m pip install /tmp/nwm-ewts/runtime/python/ewts && \
-        cd / && \
+          > /ngen-app/nwm-ewts_git_info.json; \
+        python -m pip install /tmp/nwm-ewts/runtime/python/ewts; \
+        cd /; \
         rm -rf /tmp/nwm-ewts; \
     else \
         echo "EWTS disabled; ensuring ewts package is absent"; \
@@ -136,18 +126,16 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
     fi
 
 ############################################################################
-# ngen-bmi-forcing - most frequently changing layer
+# ngen-bmi-forcing
 ############################################################################
 
-# Keep COPY near the end. Source changes should invalidate only this section
-# and the git-info section below, not the inherited compiled dependencies,
-# ESMPy, mpi4py, or EWTS.
 COPY . /ngen-app/ngen-forcing/
 
 WORKDIR /ngen-app/ngen-forcing
-RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
-    python -m pip install .
+    python -m pip install .; \
+    python -m pip cache purge
 
 ARG CI_COMMIT_REF_NAME
 
@@ -174,5 +162,4 @@ RUN set -eux; \
     fi
 
 WORKDIR /
-
-ENTRYPOINT [ "/bin/bash" ]
+ENTRYPOINT ["/bin/bash"]
