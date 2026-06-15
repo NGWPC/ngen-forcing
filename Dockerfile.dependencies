@@ -1,133 +1,111 @@
 # syntax=docker/dockerfile:1.4
 
 ############################################################################
-# Rocky compiled dependency base image for ngen-bmi-forcing / ngen
+# Bookworm dependency base image for ngen-bmi-forcing / ngen
 #
-# Contains slow-moving compiled dependencies:
-#   - WGRIB2
-#   - ESMF
-#   - SZIP
+# Uses Debian packages where practical:
 #   - HDF5
 #   - NetCDF-C
 #   - NetCDF-Fortran
-#   - Boost
 #   - GDAL
-#   - UDUNITS2
-#   - ecFlow Python client
-############################################################################
-
-ARG BASE_IMAGE=rockylinux:8
 
 FROM ${BASE_IMAGE}
 
-# Re-expose the base args after FROM (an ARG declared before FROM is only in
-# scope for the FROM line) so they can populate the OCI base.* image labels.
-# DEPS_BASE_NAME is composed here; DEPS_BASE_DIGEST defaults to "unknown" and is
-# overridden by the build-arg dependencies.yml resolves with skopeo at build time.
-ARG BASE_IMAGE
-ARG BASE_IMAGE_NAME="${BASE_IMAGE}"
-ARG BASE_IMAGE_DIGEST="unknown"
-ARG IMAGE_SOURCE="unknown"
+#
+# Builds from source where still needed:
+#   - WGRIB2
+#   - Boost
+#   - ESMF + ESMPy
+############################################################################
 
-ARG SZIP_VERSION=2.1.1
-ARG HDF5_VERSION=1.10.11
-ARG NETCDF_C_VERSION=4.7.4
-ARG NETCDF_FORTRAN_VERSION=4.5.4
-ARG BOOST_VERSION=1.86.0
+ARG DEPS_BASE_REPO=python
+ARG DEPS_BASE_TAG=3.14-slim-bookworm
+
+FROM ${DEPS_BASE_REPO}:${DEPS_BASE_TAG}
+
 ARG ESMF_VERSION=8.8.0
-ARG GDAL_VERSION=3.7.3
-ARG ECFLOW_VERSION=5.15.2
-ARG ECBUILD_VERSION=3.14.2
+ARG BOOST_VERSION=1.86.0
 
-# Image Labels: OCI-spec base annotations first, then the compiled library
-# versions baked into this image.
-LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
-    org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
-    org.opencontainers.image.source="${IMAGE_SOURCE}" \
-    io.ngwpc.szip.version="${SZIP_VERSION}" \
-    io.ngwpc.hdf5.version="${HDF5_VERSION}" \
-    io.ngwpc.netcdf-c.version="${NETCDF_C_VERSION}" \
-    io.ngwpc.netcdf-fortran.version="${NETCDF_FORTRAN_VERSION}" \
-    io.ngwpc.boost.version="${BOOST_VERSION}" \
-    io.ngwpc.esmf.version="${ESMF_VERSION}" \
-    io.ngwpc.gdal.version="${GDAL_VERSION}" \
-    io.ngwpc.ecflow.version="${ECFLOW_VERSION}" \
-    io.ngwpc.ecbuild.version="${ECBUILD_VERSION}"
+LABEL io.ngwpc.boost.version="${BOOST_VERSION}" \
+      io.ngwpc.esmf.version="${ESMF_VERSION}"
 
-ENV LANG="C.UTF-8"
-ENV PATH="/usr/local/bin:${PATH}"
+ENV LANG="C.UTF-8" \
+    PATH="/usr/local/bin:${PATH}"
 
 ############################################################################
 # System/FOSS dependencies
 ############################################################################
 
-RUN set -eux; \
-    dnf install -y dnf-plugins-core; \
-    dnf install -y epel-release; \
-    dnf config-manager --set-enabled powertools; \
-    dnf install -y \
-        proj proj-devel \
-        sqlite sqlite-devel \
+RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-bookworm,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,id=apt-lib-bookworm,sharing=locked \
+    set -eux && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
         autoconf \
         automake \
-        bzip2 bzip2-devel \
+        build-essential \
+        bzip2 \
+        ca-certificates \
+        ccache \
         cmake \
-        curl curl-devel \
+        curl \
         file \
         findutils \
+        gfortran \
         git \
         jq \
-        gcc-toolset-10 \
-        gcc-toolset-10-libasan-devel \
-        gcc-toolset-10-gcc-gfortran \
-        jasper-libs jasper-devel \
-        libaec libaec-devel \
-        libasan6 \
-        libffi libffi-devel \
-        libpng libpng-devel \
+        libbz2-dev \
+        libcurl4-openssl-dev \
+        libffi-dev \
+        libgdal-dev \
+        libhdf5-dev \
+        libnetcdf-dev \
+        libnetcdff-dev \
+        libopenjp2-7-dev \
+        libopenmpi-dev \
+        libpng-dev \
+        libproj-dev \
+        libsqlite3-dev \
+        libssl-dev \
+        libudunits2-dev \
+        libaec-dev \
         m4 \
-        openmpi openmpi-devel \
-        openssl openssl-devel \
-        python3.11 \
-        python3.11-devel \
-        python3.11-pip \
-        python3.11-pyyaml \
+        netcdf-bin \
+        openmpi-bin \
+        pkg-config \
+        proj-bin \
+        proj-data \
         rsync \
-        udunits2 udunits2-devel \
-        uuid uuid-devel \
-        which \
-        xz xz-devel \
-        zlib zlib-devel \
-        hdf5-devel \
-        netcdf-devel \
-        netcdf-fortran-devel \
-    ; \
-    dnf clean all; \
-    rm -rf /var/cache/dnf
+        uuid-dev \
+        wget \
+        xz-utils \
+        zlib1g-dev && \
+    rm -rf /var/lib/apt/lists/*
 
-SHELL ["/usr/bin/scl", "enable", "gcc-toolset-10"]
+SHELL ["/bin/bash", "-c"]
 
-ENV PATH="${PATH}:/usr/lib64/openmpi/bin/"
+ENV PATH="${PATH}:/usr/lib/x86_64-linux-gnu/openmpi/bin"
 
-# Create the shared Python virtual environment early so any Python packages
-# built by compiled dependencies, including ESMPy, install into the same venv
-# reused later by forcing, ngen, and cal-mgr.
+# Create the shared Python virtual environment early so Python packages built by
+# compiled dependencies, including ESMPy and mpi4py, install into the same venv
+# reused later by forcing, ngen, and downstream images.
 ENV VIRTUAL_ENV="/ngen-app/ngen-python"
 ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
-ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages:/usr/local/lib64/python3.11/site-packages"
+ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages:/usr/local/lib/python3.14/site-packages"
 
 RUN set -eux; \
     mkdir -p /ngen-app; \
-    python3.11 -m venv --system-site-packages "${VIRTUAL_ENV}"; \
-    ln -sf "${VIRTUAL_ENV}/bin/python" /usr/local/bin/python; \
-    python --version; \
+    python -m venv --system-site-packages "${VIRTUAL_ENV}"; \
     python -c "import sys; print(sys.executable)"
+
+ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib:/usr/local/lib:/usr/local/lib64"
+ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
+ENV OMPI_MCA_btl=^openib,ofi
+ENV OMPI_MCA_pml=ob1
+ENV OMPI_MCA_btl_base_warn_component_unused=0
 
 ############################################################################
 # WGRIB2
-#
-# Unlike the other compiled dependencies, WGRIB2 is not currently version-pinned.
-# It is built from NOAA's current wgrib2.tgz distribution when this image is rebuilt.
 ############################################################################
 
 RUN set -eux; \
@@ -144,8 +122,8 @@ RUN set -eux; \
         USE_IPOLATES=3 \
         USE_PNG=1 \
         USE_AEC=0 \
-        USE_JASPER=1 \
-        USE_OPENJPEG=0 \
+        USE_JASPER=0 \
+        USE_OPENJPEG=1 \
         USE_G2CLIB=0 \
         PREFIX=/usr/local; \
     make lib; \
@@ -155,14 +133,14 @@ RUN set -eux; \
 
 ENV WGRIB2=/usr/local/bin/wgrib2
 
-
 ############################################################################
-# ESMF
+# ESMF + ESMPy
 #
-# ESMF is built before the source-built SZIP/HDF5/NetCDF stack below so it uses
-# the Rocky-provided hdf5/netcdf/netcdf-fortran packages. This matches the
-# original ngen-bmi-forcing Dockerfile behavior and avoids ESMF linking against
-# the later /usr/local NetCDF install.
+# ESMF is the one large scientific library still built from source in this
+# Bookworm dependency image. Unlike the Rocky transition image, ESMF is built
+# against Bookworm's packaged HDF5/NetCDF stack, and that same stack remains
+# available at runtime. This avoids mixing distro NetCDF at build time with
+# /usr/local NetCDF at runtime.
 ############################################################################
 
 RUN set -eux; \
@@ -177,122 +155,35 @@ RUN set -eux; \
     export ESMF_COMPILER=gfortran; \
     export ESMF_COMM=openmpi; \
     export ESMF_NETCDF="nc-config"; \
-    export ESMF_F90COMPILEPATHS="-I/usr/lib64/gfortran/modules"; \
     export ESMF_BOPT=O; \
     make all; \
-    make install
+    make install; \
+    rm -rf /tmp/build-esmf
 
 ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk
 
-############################################################################
-# ESMPy install
-############################################################################
-
-RUN set -eux; \
-    cd "/tmp/build-esmf/esmf-${ESMF_VERSION}"; \
-    export ESMF_DIR="$(pwd)"; \
-    export ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.mk; \
-    cd src/addon/esmpy; \
-    python -m pip install .
-
-RUN rm -rf /tmp/build-esmf
-
-
-############################################################################
-# SZIP / HDF5 / NetCDF-C / NetCDF-Fortran
-#
-# These are source-built after ESMF for compatibility with the original ngen
-# dependency image, where ngen and several submodules expected the compiled
-# dependency stack under /usr/local.
-############################################################################
-
-############################################################################
-# SZIP
-############################################################################
-
-RUN set -eux; \
-    mkdir -p /tmp/build-szip; \
-    cd /tmp/build-szip; \
-    curl --location --output szip.tar.gz \
-        "https://docs.hdfgroup.org/archive/support/ftp/lib-external/szip/${SZIP_VERSION%%[a-z]*}/src/szip-${SZIP_VERSION}.tar.gz"; \
-    mkdir szip; \
-    tar --extract --directory szip --strip-components=1 --file szip.tar.gz; \
-    cd szip; \
-    ./configure --prefix=/usr/local/; \
-    make -j "$(nproc)"; \
-    make install; \
-    strip --strip-debug /usr/local/lib/libsz*.so.* || true; \
-    rm -rf /tmp/build-szip
-
-############################################################################
-# HDF5
-############################################################################
-
-RUN set -eux; \
-    mkdir -p /tmp/build-hdf5; \
-    cd /tmp/build-hdf5; \
-    curl --location --output hdf5.tar.gz \
-        "https://github.com/HDFGroup/hdf5/archive/refs/tags/hdf5-${HDF5_VERSION//./_}.tar.gz"; \
-    mkdir hdf5; \
-    tar --extract --directory hdf5 --strip-components=1 --file hdf5.tar.gz; \
-    cd hdf5; \
-    ./configure --prefix=/usr/local/ --with-szlib=/usr/local/; \
-    make -j "$(nproc)"; \
-    make install; \
-    strip --strip-debug /usr/local/lib/libhdf5*.so.* || true; \
-    rm -f /usr/local/lib/libhdf5*.a; \
-    rm -rf /tmp/build-hdf5
-
-############################################################################
-# NetCDF-C
-############################################################################
-
-RUN set -eux; \
-    mkdir -p /tmp/build-netcdf-c; \
-    cd /tmp/build-netcdf-c; \
-    curl --location --output netcdf-c.tar.gz \
-        "https://github.com/Unidata/netcdf-c/archive/refs/tags/v${NETCDF_C_VERSION%%[a-z]*}.tar.gz"; \
-    mkdir netcdf-c; \
-    tar --extract --directory netcdf-c --strip-components=1 --file netcdf-c.tar.gz; \
-    cd netcdf-c; \
-    cmake -B cmake_build -S . \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=ON \
-        -DENABLE_TESTS=OFF; \
-    cmake --build cmake_build --parallel "$(nproc)"; \
-    cmake --build cmake_build --target install; \
-    ldconfig; \
-    rm -rf /tmp/build-netcdf-c
-
-############################################################################
-# NetCDF-Fortran
-############################################################################
-
-RUN set -eux; \
-    mkdir -p /tmp/build-netcdf-fortran; \
-    cd /tmp/build-netcdf-fortran; \
-    curl --location --output netcdf-fortran.tar.gz \
-        "https://github.com/Unidata/netcdf-fortran/archive/refs/tags/v${NETCDF_FORTRAN_VERSION%%[a-z]*}.tar.gz"; \
-    mkdir netcdf-fortran; \
-    tar --extract --directory netcdf-fortran --strip-components=1 --file netcdf-fortran.tar.gz; \
-    cd netcdf-fortran; \
-    cmake -B cmake_build -S . \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DBUILD_SHARED_LIBS=ON \
-        -DENABLE_TESTS=OFF \
-        -DCMAKE_Fortran_COMPILER=/opt/rh/gcc-toolset-10/root/usr/bin/gfortran; \
-    cmake --build cmake_build --parallel "$(nproc)"; \
-    cmake --build cmake_build --target install; \
-    ldconfig; \
-    rm -rf /tmp/build-netcdf-fortran
+# Install ESMPy from the git tag, matching the original forcing Dockerfile.
+# The source tarball can build the same code, but ESMPy's package versioning
+# depends on git metadata and may otherwise report a beta-looking version.
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
+    set -eux; \
+    python -m pip install --upgrade pip setuptools wheel; \
+    python -m pip install numpy setuptools-git-versioning; \
+    git clone --depth 1 --branch "v${ESMF_VERSION}" https://github.com/esmf-org/esmf.git /tmp/esmf; \
+    cd /tmp/esmf/src/addon/esmpy; \
+    python -m pip install .; \
+    cd /; \
+    rm -rf /tmp/esmf
 
 
 ############################################################################
 # Boost
+#
+# Bookworm provides Boost 1.74, but LASAM requires Boost >= 1.79.
+# Build Boost from source and install a copy of the source tree under /opt/boost
+# so downstream CMake builds can use -DBOOST_ROOT=/opt/boost.
 ############################################################################
 
-# The sed call removes Boost.NumPy. ecFlow Python client does need --with-python (does need Boost.Python) but does not need Boost.Numpy, and including numpy here can be problematic.
-# Boost Python is required by the ecFlow Python client.
 RUN set -eux; \
     mkdir -p /tmp/build-boost; \
     cd /tmp/build-boost; \
@@ -302,8 +193,7 @@ RUN set -eux; \
     tar --extract --directory boost --strip-components=1 --file boost.tar.gz; \
     cd boost; \
     ./bootstrap.sh; \
-    sed -i 's/boost-install boost_python boost_numpy/boost-install boost_python/' libs/python/build/Jamfile; \
-    CPLUS_INCLUDE_PATH="/usr/include/python3.11" ./b2 install --prefix=/usr/local; \
+    ./b2 install --prefix=/usr/local --without-python; \
     rm -rf /opt/boost; \
     mkdir --parents /opt/boost; \
     cp -a /tmp/build-boost/boost/. /opt/boost/; \
@@ -312,64 +202,16 @@ RUN set -eux; \
     rm -rf /tmp/build-boost
 
 ############################################################################
-# GDAL
+# Stable Python dependencies
 ############################################################################
 
-RUN set -eux && \
-    mkdir -p /tmp/build-gdal && \
-    cd /tmp/build-gdal && \
-    curl --location --output gdal.tar.gz \
-        "https://github.com/OSGeo/gdal/releases/download/v${GDAL_VERSION}/gdal-${GDAL_VERSION}.tar.gz" && \
-    mkdir gdal && \
-    tar --extract --directory gdal --strip-components=1 --file gdal.tar.gz && \
-    cd gdal && \
-    cmake -B build -S . \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_INSTALL_PREFIX=/usr/local && \
-    cmake --build build --parallel "$(nproc)" && \
-    cmake --build build --target install && \
-    ldconfig && \
-    rm -rf /tmp/build-gdal
-
-
-############################################################################
-# ecFLow python client (requires build from source)
-############################################################################
-
-RUN mkdir -p /tmp/build-ecflow && cd /tmp/build-ecflow && \
-    python -m pip install "pybind11>=2.10.3" && \
-    git clone --depth 1 --branch "${ECFLOW_VERSION}" https://github.com/ecmwf/ecflow.git && \
-    git clone --depth 1 --branch "${ECBUILD_VERSION}" https://github.com/ecmwf/ecbuild.git && \
-    PYBIND11_CMAKE_DIR="$(python -c 'import pybind11; print(pybind11.get_cmake_dir())')" && \
-    cmake -B ecflow/build -S ecflow \
-        -DCMAKE_INSTALL_PREFIX="${VIRTUAL_ENV}" \
-        -DCMAKE_BUILD_TYPE=Release \
-        -DCMAKE_PREFIX_PATH="${PYBIND11_CMAKE_DIR}" \
-        -DENABLE_PYTHON=ON \
-        -DENABLE_SERVER=OFF \
-        -DENABLE_UI=OFF \
-        -DENABLE_TESTS=OFF \
-        -DENABLE_DOCS=OFF \
-        -DENABLE_SSL=ON \
-        -DENABLE_STATIC_BOOST_LIBS=OFF \
-        -DBOOST_ROOT=/usr/local \
-        -DBoost_NO_SYSTEM_PATHS=on \
-        -DPython3_EXECUTABLE="$(which python)" && \
-    cmake --build ecflow/build --parallel "$(( $(nproc) < 4 ? $(nproc) : 4 ))" && \
-    cmake --install ecflow/build && \
-    python -m pip uninstall -y pybind11 && \
-    python -c "import ecflow; print(f'ecflow Python client version {ecflow.__version__} installed successfully')" && \
-    rm -r /tmp/build-ecflow
-
-############################################################################
-# Runtime environment
-############################################################################
-
-ENV LD_LIBRARY_PATH="/usr/lib64/openmpi/lib:/usr/local/lib:/usr/local/lib64"
-ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
-ENV OMPI_MCA_btl=^openib,ofi
-ENV OMPI_MCA_pml=ob1
-ENV OMPI_MCA_btl_base_warn_component_unused=0
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
+    set -eux; \
+    python -m pip install --upgrade pip setuptools wheel; \
+    python -m pip install --no-binary=mpi4py mpi4py; \
+    python -m pip install netcdf4 bmipy pandas pyyml; \
+    python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
+    python -m pip cache purge
 
 WORKDIR /
 
