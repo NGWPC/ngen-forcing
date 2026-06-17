@@ -27,12 +27,12 @@ ARG EWTS_REF=development
 #
 # Build from a different published dependency image:
 #   docker build \
-#     --build-arg DEPS_IMAGE=ghcr.io/ngwpc/ngen-dependencies \
+#     --build-arg DEPS_IMAGE=ghcr.io/ngwpc/ngen-dependencies-rocky \
 #     -t ngen-bmi-forcing .
 #
 # Build from a locally built dependency image:
 #   docker build \
-#     --build-arg DEPS_IMAGE=ngen-dependencies \
+#     --build-arg DEPS_IMAGE=ngen-dependencies-rocky \
 #     -t ngen-bmi-forcing .
 ARG DEPS_IMAGE=ghcr.io/${GHCR_ORG}/ngen-dependencies-rocky8
 
