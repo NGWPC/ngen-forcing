@@ -22,8 +22,10 @@ def get_new_broadcasted_uid() -> str:
 
     rand_uint64 = MPI.COMM_WORLD.bcast(rand_uint64, root=0)
 
-    # Since based on 64-bit int, first 16 chars are 0, final 16 chars are random
-    uid_64bit_hex = uuid.UUID(int=rand_uint64).hex
+    # Convert the NumPy uint64 to a built-in Python int. Python 3.14's uuid
+    # implementation expects a native int internally, while this remains fully
+    # compatible with earlier Python versions.
+    uid_64bit_hex = uuid.UUID(int=int(rand_uint64)).hex
     assert len(uid_64bit_hex) == 32
     uid64 = uid_64bit_hex[16:]
     return uid64
