@@ -33,15 +33,15 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     # for orientation properties since there are issues
     # with geopandas for converting crs and translating
     # orientation of polygon from original dataset
-    hyfab = gpd.read_file(hyfab_gpkg, layer='divides')
-    hyfab_cart = hyfab
-    # convert hydrofabric data to spherical coordiantes
-    hyfab = hyfab.to_crs('WGS84')
+    hyfab_cart = gpd.read_file(hyfab_gpkg, layer='divides')
+    hyfab_cart = hyfab_cart.sort_values(by=["div_id"])
+    hyfab = hyfab_cart.to_crs("WGS84")
 
     # Eventually, we'll add code to slice catchment ids
     # but for now just use feature ids
     # just use the default dtype for the values instead of trying to specify in the code
-    element_ids = np.array(hyfab.div_id.values, copy=True)
+    element_ids = np.array(hyfab.div_id.values, copy=True, dtype=np.int64)
+
     # generate 32-bit false IDs that are required for ESMF meshes
     # access to the IDs should be through indexes into the return of this function,
     # so it doesn't matter what these IDs are as long as they're int32
