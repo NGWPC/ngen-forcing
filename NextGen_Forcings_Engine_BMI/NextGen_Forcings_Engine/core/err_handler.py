@@ -10,9 +10,8 @@ import numpy as np
 from mpi4py import MPI
 from scipy import spatial
 
-# Use the Error, Warning, and Trapping System Package for logging
-LOG = logging.getLogger("FORCING")
-
+# Use the Error and Warning Trapping System Package for logging
+LOG = ewts.get_logger("FORCING")
 
 def in_exception_context() -> bool:
     if sys.exc_info()[0] is not None:
