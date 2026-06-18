@@ -1,11 +1,12 @@
 ############################################################################
 # Change/Verify these values when adopting this Dockerfile into another org:
-#   GH_ORG, IMAGE_NAMESPACE,
+#   GH_ORG, GHCR_ORG, IMAGE_NAMESPACE,
 #   EWTS_ORG, EWTS_REF
 ############################################################################
 
 # Ownership / branding overrides
 ARG GH_ORG=NGWPC
+ARG GHCR_ORG=ngwpc
 ARG IMAGE_NAMESPACE=ngwpc
 
 # External repository sources (org and ref/branch overrides)
@@ -20,16 +21,26 @@ ARG EWTS_REF=development
 # Use the compiled dependencies image. This already includes the slow-moving
 # Rocky-based FOSS/compiled stack: WGRIB2, ESMF, SZIP, HDF5, NetCDF-C,
 # NetCDF-Fortran, Boost, and GDAL.
-ARG BMI_BASE_REPO=ghcr.io/ngwpc/ngen-dependencies-rocky8
-ARG BMI_BASE_TAG=latest
+#
+# Default build:
+#   docker build -t ngen-bmi-forcing .
+#
+# Build from a different published dependency image:
+#   docker build \
+#     --build-arg DEPS_IMAGE=ghcr.io/ngwpc/ngen-dependencies \
+#     -t ngen-bmi-forcing .
+#
+# Build from a locally built dependency image:
+#   docker build \
+#     --build-arg DEPS_IMAGE=ngen-dependencies \
+#     -t ngen-bmi-forcing .
+ARG DEPS_IMAGE=ghcr.io/${GHCR_ORG}/ngen-dependencies-rocky8
 
-FROM ${BMI_BASE_REPO}:${BMI_BASE_TAG}
-
-# Uncomment when building locally
-# FROM ngen-dependencies-rocky8
+FROM ${DEPS_IMAGE}
 
 # Re-expose args after FROM for the remaining build stage.
 ARG GH_ORG
+ARG GHCR_ORG
 ARG IMAGE_NAMESPACE
 ARG USE_EWTS=ON
 ARG EWTS_ORG
@@ -41,11 +52,10 @@ ARG EWTS_REF
 ARG EWTS_CACHE_BUST=0
 
 # OCI Metadata Arguments
-ARG BMI_BASE_REPO
-ARG BMI_BASE_TAG
-ARG BMI_BASE_NAME="${BMI_BASE_REPO}:${BMI_BASE_TAG}"
-ARG BMI_BASE_DIGEST="unknown"
-ARG BMI_BASE_REVISION="unknown"
+ARG DEPS_IMAGE
+ARG DEPS_IMAGE_NAME="${DEPS_IMAGE}"
+ARG DEPS_IMAGE_DIGEST="unknown"
+ARG DEPS_IMAGE_REVISION="unknown"
 ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_VENDOR="unknown"
 ARG IMAGE_VERSION="unknown"
@@ -53,15 +63,15 @@ ARG IMAGE_REVISION="unknown"
 ARG EWTS_REVISION="unknown"
 
 # Image Labels: OCI-spec annotations followed by custom source-repo metadata.
-LABEL org.opencontainers.image.base.name="${BMI_BASE_NAME}" \
-    org.opencontainers.image.base.digest="${BMI_BASE_DIGEST}" \
+LABEL org.opencontainers.image.base.name="${DEPS_IMAGE_NAME}" \
+    org.opencontainers.image.base.digest="${DEPS_IMAGE_DIGEST}" \
     org.opencontainers.image.source="${IMAGE_SOURCE}" \
     org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
     org.opencontainers.image.version="${IMAGE_VERSION}" \
     org.opencontainers.image.revision="${IMAGE_REVISION}" \
     org.opencontainers.image.title="NGEN BMI Forcing" \
     org.opencontainers.image.description="Docker image for the NGEN BMI Forcings application" \
-    io.${IMAGE_NAMESPACE}.image.base.revision="${BMI_BASE_REVISION}" \
+    io.${IMAGE_NAMESPACE}.image.base.revision="${DEPS_IMAGE_REVISION}" \
     io.${IMAGE_NAMESPACE}.ewts.org="${EWTS_ORG}" \
     io.${IMAGE_NAMESPACE}.ewts.ref="${EWTS_REF}" \
     io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
