@@ -8,9 +8,7 @@
 #   - NetCDF-C
 #   - NetCDF-Fortran
 #   - GDAL
-
-FROM ${BASE_IMAGE}
-
+#   - UDUNITS2
 #
 # Builds from source where still needed:
 #   - WGRIB2
@@ -18,15 +16,22 @@ FROM ${BASE_IMAGE}
 #   - ESMF + ESMPy
 ############################################################################
 
-ARG DEPS_BASE_REPO=python
-ARG DEPS_BASE_TAG=3.14-slim-bookworm
+ARG BASE_IMAGE=python:3.14-slim-bookworm
 
-FROM ${DEPS_BASE_REPO}:${DEPS_BASE_TAG}
+FROM ${BASE_IMAGE}
+
+ARG BASE_IMAGE
+ARG BASE_IMAGE_NAME="${BASE_IMAGE}"
+ARG BASE_IMAGE_DIGEST="unknown"
+ARG IMAGE_SOURCE="unknown"
 
 ARG ESMF_VERSION=8.8.0
 ARG BOOST_VERSION=1.86.0
 
-LABEL io.ngwpc.boost.version="${BOOST_VERSION}" \
+LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
+      org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
+      org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      io.ngwpc.boost.version="${BOOST_VERSION}" \
       io.ngwpc.esmf.version="${ESMF_VERSION}"
 
 ENV LANG="C.UTF-8" \
@@ -89,14 +94,13 @@ ENV PATH="${PATH}:/usr/lib/x86_64-linux-gnu/openmpi/bin"
 # Create the shared Python virtual environment early so Python packages built by
 # compiled dependencies, including ESMPy and mpi4py, install into the same venv
 # reused later by forcing, ngen, and downstream images.
-ENV VIRTUAL_ENV="/ngen-app/ngen-python"
-ENV PATH="${VIRTUAL_ENV}/bin:/usr/local/bin:${PATH}"
-ENV PYTHONPATH="${VIRTUAL_ENV}/lib/python3.14/site-packages:/usr/local/lib/python3.14/site-packages"
+ENV VIRTUAL_ENV="/ngen-app/ngen-python" \
+    PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 RUN set -eux; \
     mkdir -p /ngen-app; \
-    python -m venv --system-site-packages "${VIRTUAL_ENV}"; \
-    python -c "import sys; print(sys.executable)"
+    python -m venv "${VIRTUAL_ENV}";
+
 
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib:/usr/local/lib:/usr/local/lib64"
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
@@ -168,7 +172,7 @@ ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.m
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
     python -m pip install --upgrade pip setuptools wheel; \
-    python -m pip install numpy setuptools-git-versioning; \
+    python -m pip install setuptools-git-versioning; \
     git clone --depth 1 --branch "v${ESMF_VERSION}" https://github.com/esmf-org/esmf.git /tmp/esmf; \
     cd /tmp/esmf/src/addon/esmpy; \
     python -m pip install .; \
