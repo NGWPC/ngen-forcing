@@ -19,9 +19,16 @@ def create_mesh(cfg: ConfigOptions):
                 - geopackage: path to hydrofabric geopackage file
                 - geogrid: path to desired ESMF mesh output file
     """
+    grid_type = getattr(cfg, "grid_type", None)
+    if grid_type is not None and str(grid_type).lower() == "gridded":
+        return None
+
     # Set the mesh file name based on the hydrofabric file
     hyfab_name = cfg.geopackage
     mesh_out_path = Path(cfg.geogrid)
+
+    if not hyfab_name:
+        return None
 
     if mesh_out_path.is_file():
         # If the mesh netCDF file already exists,
@@ -33,11 +40,12 @@ def create_mesh(cfg: ConfigOptions):
         return np.sort(hyfab.div_id.values, copy=True, dtype=np.int64)
     return convert_hyfab_to_esmf(hyfab_gpkg=hyfab_name, esmf_mesh_output=mesh_out_path)
 
-
 def main():
     """Create ESMF mesh from hydrofabric geopackage.
 
-    Main function to parse arguments and create ESMF mesh.
+    Main function to parse arguments and create the mesh when the configuration
+    uses a hydrofabric or unstructured mesh workflow. Gridded/coastal workflows
+    already provide a geogrid and do not require hydrofabric mesh creation.
 
     :param cfg: path to dictionary of forcing engine config parameters
     """
@@ -53,7 +61,9 @@ def main():
 
     # Wrap config dict into simplenamespace to match ConfigOptions format
     cfg = SimpleNamespace(
-        geopackage=cfg_dict["Geopackage"], geogrid=cfg_dict["GeogridIn"]
+        geopackage=cfg_dict.get("Geopackage"),
+        geogrid=cfg_dict["GeogridIn"],
+        grid_type=cfg_dict.get("GRID_TYPE"),
     )
 
     # Run mesh creation

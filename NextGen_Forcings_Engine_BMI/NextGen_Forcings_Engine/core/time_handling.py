@@ -2614,7 +2614,6 @@ def find_hourly_mrms_radar_neighbors(
     current_mo = d_current.month
     current_day = d_current.day
     current_hr = d_current.hour
-    current_min = d_current.minute
 
     # Set the input file frequency to be hourly.
     supplemental_precip.input_frequency = 60.0
@@ -2631,7 +2630,7 @@ def find_hourly_mrms_radar_neighbors(
         next_mrms_date = prev_mrms_date + datetime.timedelta(seconds=3600.0)
 
     supplemental_precip.pcp_date1 = prev_mrms_date
-    # supplemental_precip.pcp_date2 = next_mrms_date
+    # Keep original behavior: use previous MRMS hour for both fields.
     supplemental_precip.pcp_date2 = prev_mrms_date
 
     # Used to populate paths below
@@ -2640,9 +2639,6 @@ def find_hourly_mrms_radar_neighbors(
     hour1 = supplemental_precip.pcp_date1.strftime("%H")
     hour2 = supplemental_precip.pcp_date2.strftime("%H")
     gz_ext = ".gz" if supplemental_precip.file_type != NETCDF else ""
-
-    # Calculate expected file paths.
-    # TODO: Update for keyValue 6 and 10
 
     if supplemental_precip.keyValue == 1:
         tmp_file1 = (
@@ -2678,7 +2674,8 @@ def find_hourly_mrms_radar_neighbors(
                 f"-{hour2}0000{supplemental_precip.file_ext}{gz_ext}"
             )
     else:
-        tmp_file1 = tmp_file2 = ""
+        tmp_file1 = ""
+        tmp_file2 = ""
 
     # Compose the RQI paths.
     if supplemental_precip.keyValue == 1 or supplemental_precip.keyValue == 2:
@@ -2709,47 +2706,37 @@ def find_hourly_mrms_radar_neighbors(
             + (".gz" if supplemental_precip.file_type != NETCDF else "")
         )
 
-        # elif supplemental_precip.keyValue == 5:
-        #   tmp_rqi_file1 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
-        #       "MRMS_EXP_RadarQualityIndex_00.00_" + \
-        #       supplemental_precip.pcp_date1.strftime('%Y%m%d') + \
-        #       "-" + supplemental_precip.pcp_date1.strftime('%H') + \
-        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.file_type != NETCDF else '')
-        #   tmp_rqi_file2 = supplemental_precip.inDir + "/RadarQualityIndex/" + \
-        #       "MRMS_EXP_RadarQualityIndex_00.00_" + \
-        #       supplemental_precip.pcp_date2.strftime('%Y%m%d') + \
-        #       "-" + supplemental_precip.pcp_date2.strftime('%H') + \
-        #       "0000" + supplemental_precip.file_ext + ('.gz' if supplemental_precip.file_type != NETCDF else '')
-
-        # Accounting for potentially missing RQI files - KSL
-        # Original code required RQI files, but according to readme, this should only be necessary if using original NWM-Hydro domain
-
+        # Accounting for potentially missing RQI files.
         if not os.path.isfile(tmp_rqi_file1) or not os.path.isfile(tmp_rqi_file2):
             if mpi_config.rank == 0:
-                config_options.statusMsg = "RQI files not found. Continuing without RQI data as it's only required for original NWM WRF-Hydro domain."
+                config_options.statusMsg = (
+                    "RQI files not found. Continuing without RQI data as it's only "
+                    "required for original NWM WRF-Hydro domain."
+                )
                 err_handler.log_warning(config_options, mpi_config)
-                tmp_rqi_file1 = ""
-                tmp_rqi_file2 = ""
+            tmp_rqi_file1 = ""
+            tmp_rqi_file2 = ""
     else:
-        tmp_rqi_file1 = tmp_rqi_file2 = ""
+        tmp_rqi_file1 = ""
+        tmp_rqi_file2 = ""
 
     if mpi_config.rank == 0:
         config_options.statusMsg = "Previous MRMS supplemental file: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+        err_handler.log_msg(config_options, mpi_config, True)
         config_options.statusMsg = "Next MRMS supplemental file: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+        err_handler.log_msg(config_options, mpi_config, True)
         if os.path.isfile(tmp_rqi_file1) and os.path.isfile(tmp_rqi_file2):
             config_options.statusMsg = (
                 "Previous MRMS RQI supplemental file: " + tmp_rqi_file1
             )
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+            err_handler.log_msg(config_options, mpi_config, True)
             config_options.statusMsg = (
                 "Next MRMS RQI supplemental file: " + tmp_rqi_file2
             )
-            err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+            err_handler.log_msg(config_options, mpi_config, True)
     err_handler.check_program_status(config_options, mpi_config)
 
-    # Check to see if files are already set. If not, then reset, grids and
+    # Check to see if files are already set. If not, then reset grids and
     # regridding objects to communicate things need to be re-established.
     if (
         supplemental_precip.file_in1 != tmp_file1
@@ -2810,32 +2797,24 @@ def find_hourly_mrms_radar_neighbors(
                     supplemental_precip.regridded_rqi2_elem
                 )
 
-            # supplemental_precip.regridded_precip1[:,:] = supplemental_precip.regridded_precip2[:,:]
-            # supplemental_precip.regridded_rqi1[:, :] = supplemental_precip.regridded_rqi2[:, :]
-        supplemental_precip.file_in1 = tmp_file1
-        supplemental_precip.file_in2 = tmp_file2
-        supplemental_precip.rqi_file_in1 = tmp_rqi_file1
-        supplemental_precip.rqi_file_in2 = tmp_rqi_file2
+        supplemental_precip.file_in1 = tmp_file1 or ""
+        supplemental_precip.file_in2 = tmp_file2 or ""
+        supplemental_precip.rqi_file_in1 = tmp_rqi_file1 or ""
+        supplemental_precip.rqi_file_in2 = tmp_rqi_file2 or ""
         supplemental_precip.regridComplete = False
 
-    # If either file does not exist, set to None. This will instruct downstream regridding steps to
-    # set the regridded states to the global NDV. That ensures no supplemental precipitation will be
-    # added to the final output grids.
+    if not supplemental_precip.file_in1:
+        supplemental_precip.file_in1 = ""
+    if not supplemental_precip.file_in2:
+        supplemental_precip.file_in2 = ""
+    if not supplemental_precip.rqi_file_in1:
+        supplemental_precip.rqi_file_in1 = ""
+    if not supplemental_precip.rqi_file_in2:
+        supplemental_precip.rqi_file_in2 = ""
 
-    # if not os.path.isfile(tmp_file1) or not os.path.isfile(tmp_file2):
-    #    if MpiConfig.rank == 0:
-    #        ConfigOptions.statusMsg = "MRMS files are missing. Will not process " \
-    #                                  "supplemental precipitation"
-    #        errMod.log_warning(ConfigOptions,MpiConfig)
-    #    supplemental_precip.file_in2 = None
-    #    supplemental_precip.file_in1 = None
-
-    # errMod.check_program_status(ConfigOptions, MpiConfig)
-
-    # Ensure we have the necessary new file
-
+    # Ensure we have the necessary new file.
     if mpi_config.rank == 0:
-        if not os.path.isfile(supplemental_precip.file_in2) and (
+        if supplemental_precip.file_in2 and not os.path.isfile(supplemental_precip.file_in2) and (
             supplemental_precip.keyValue == 5 or supplemental_precip.keyValue == 6
         ):
             config_options.statusMsg = (
@@ -2844,9 +2823,11 @@ def find_hourly_mrms_radar_neighbors(
                 )
             )
             err_handler.log_warning(config_options, mpi_config)
-            supplemental_precip.file_in2 = supplemental_precip.file_in1
-        if not os.path.isfile(supplemental_precip.file_in2):
-            if supplemental_precip.enforce == 1:
+            if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
+                supplemental_precip.file_in2 = supplemental_precip.file_in1
+
+        if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
+            if supplemental_precip.enforce == 1 and config_options.grid_type != "gridded":
                 config_options.errMsg = (
                     "Expected input MRMS file: "
                     + supplemental_precip.file_in2
@@ -2864,7 +2845,7 @@ def find_hourly_mrms_radar_neighbors(
     err_handler.check_program_status(config_options, mpi_config)
 
     # If the file is missing, set the local slab of arrays to missing.
-    if not os.path.isfile(supplemental_precip.file_in2):
+    if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
         if supplemental_precip.regridded_precip2 is not None:
             if config_options.grid_type == "gridded":
                 supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv

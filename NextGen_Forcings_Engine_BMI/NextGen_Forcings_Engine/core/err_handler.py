@@ -12,6 +12,7 @@ from scipy import spatial
 
 # Use the Error and Warning Trapping System Package for logging
 LOG = ewts.get_logger("FORCING")
+LOG = ewts.bind_logger('FORCING')
 
 def in_exception_context() -> bool:
     if sys.exc_info()[0] is not None:
@@ -175,16 +176,16 @@ def log_error(ConfigOptions, MpiConfig, msg: str = None):
             )
         ConfigOptions.errMsg = msg
 
+    msg_out = "RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg
+
     try:
-        LOG.error("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
-    except Exception:
-        err_out_screen_para(
-            (
-                "Unable to write ERROR message on RANK: "
-                + str(MpiConfig.rank)
-            ),
-            MpiConfig,
+        LOG.error(msg_out)
+    except Exception as e:
+        print(
+            "ERROR: " + msg_out + f" [logging unavailable: {e}]",
+            flush=True,
         )
+
     ConfigOptions.errFlag = 1
 
 
@@ -202,19 +203,20 @@ def log_critical(ConfigOptions, MpiConfig, msg: str = None):
             )
         ConfigOptions.errMsg = msg
 
+    msg_out = "RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg
+
     try:
-        LOG.critical("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
-    except Exception:
-        err_out_screen_para(
-            (
-                "Unable to write CRITICAL message on RANK: "
-                + str(MpiConfig.rank)
-            ),
-            MpiConfig,
+        LOG.critical(msg_out)
+    except Exception as e:
+        print(
+            "CRITICAL: " + msg_out + f" [logging unavailable: {e}]",
+            flush=True,
         )
 
-    # Add this for debugging:
-    LOG.debug(f"log_critical called on RANK {MpiConfig.rank}: {ConfigOptions.errMsg}")
+    try:
+        LOG.debug(f"log_critical called on RANK {MpiConfig.rank}: {ConfigOptions.errMsg}")
+    except Exception:
+        pass
 
     ConfigOptions.errFlag = 1
 
@@ -233,15 +235,14 @@ def log_warning(ConfigOptions, MpiConfig, msg: str = None):
             )
         ConfigOptions.statusMsg = msg
 
+    msg_out = "RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg
+
     try:
-        LOG.warning("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
-    except Exception:
-        err_out_screen_para(
-            (
-                "Unable to write WARNING message on RANK: "
-                + str(MpiConfig.rank)
-            ),
-            MpiConfig,
+        LOG.warning(msg_out)
+    except Exception as e:
+        print(
+            "WARNING: " + msg_out + f" [logging unavailable: {e}]",
+            flush=True,
         )
 
 
@@ -262,18 +263,18 @@ def log_msg(ConfigOptions, MpiConfig, debug: bool = False, msg: str = None):
             )
         ConfigOptions.statusMsg = msg
 
+    msg_out = "RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg
+
     try:
         if debug:
-            LOG.debug("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
+            LOG.debug(msg_out)
         else:
-            LOG.info("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.statusMsg)
-    except Exception:
-        err_out_screen_para(
-            (
-                "Unable to write log_msg message on RANK: "
-                + str(MpiConfig.rank)
-            ),
-            MpiConfig,
+            LOG.info(msg_out)
+    except Exception as e:
+        level = "DEBUG" if debug else "INFO"
+        print(
+            level + ": " + msg_out + f" [logging unavailable: {e}]",
+            flush=True,
         )
 
 

@@ -113,9 +113,12 @@ class MpiConfig:
         # if self.rank == 0:
         if True:
             self._cleanup()
-            err_handler.log_msg(
-                self.config_options, self, debug=True, msg="About to MPI Abort"
-            )
+            try:
+                err_handler.log_msg(
+                    self.config_options, self, debug=True, msg="About to MPI Abort"
+                )
+            except Exception as e:
+                print(f"Abort: unable to write abort log message: {e}", flush=True)
             comm.Abort(errorcode)
         comm.Barrier()  # For testing case of only rank 0 aborting.
         raise RuntimeError("At bottom of abort_with_cleanup, should not get here.")
@@ -145,7 +148,7 @@ class MpiConfig:
         against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
         rank 0 break out of a collective call if it happens to be waiting at one)."""
         # Exceptions
-        sys.exepthook = self.__excepthook
+        sys.excepthook = self.__excepthook
         # Regular exits
         atexit.register(self._cleanup)
         # Signals
@@ -184,11 +187,23 @@ class MpiConfig:
         """High-level cleanup routine called by exit handlers."""
         # if self.rank != 0:
         #     return
-        err_handler.log_msg(
-            self.config_options, self, debug=True, msg="About to clean up"
-        )
-        self._cleanup_scratch_dir()
-        self._cleanup_geogrid()
+        try:
+            err_handler.log_msg(
+                self.config_options, self, debug=True, msg="About to clean up"
+            )
+        except Exception as e:
+            print(f"Cleanup: unable to write cleanup log message: {e}", flush=True)
+
+        try:
+            self._cleanup_scratch_dir()
+        except Exception as e:
+            print(f"Cleanup: scratch dir cleanup failed: {e}", flush=True)
+
+        try:
+            self._cleanup_geogrid()
+        except Exception as e:
+            print(f"Cleanup: geogrid cleanup failed: {e}", flush=True)
+
         # TODO: Consider if this can be gated for non-wcoss only
         try:
             atexit.unregister(self._cleanup)
@@ -238,6 +253,9 @@ class MpiConfig:
         self.log_debug("Cleanup: starting geogrid cleanup")
         if self.config_options is None:
             self.log_debug("Cleanup: config_options is not set")
+            return
+        if getattr(self.config_options, "grid_type", None) == "gridded":
+            self.log_debug("Cleanup: skipping geogrid cleanup for gridded mode")
             return
         geogrid = getattr(self.config_options, "geogrid", None)
         if geogrid is not None:

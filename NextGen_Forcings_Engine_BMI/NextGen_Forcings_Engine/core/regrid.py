@@ -57,7 +57,9 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
-import logging
+
+import ewts
+
 from ..esmf_utils import (
     esmf_field_retry,
     esmf_grid_retry,
@@ -67,7 +69,7 @@ from ..esmf_utils import (
     esmf_regridobj_call_retry,
 )
 
-LOG = logging.getLogger("FORCING")
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 if "WGRIB2" not in os.environ:
@@ -178,10 +180,21 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         # If the expected file is missing, this means we are allowing missing files, simply
         # exit out of this routine as the regridded fields have already been set to NDV.
-        if not os.path.isfile(input_forcings.file_in2):
-            if mpi_config.rank == 0:
-                pt.log_debug("No AK AnA in_2 file found for this timestep.")
-            return
+        if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
+            # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
+            if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
+                supplemental_precip.file_in2 = supplemental_precip.file_in1
+            else:
+                if supplemental_precip.regridded_precip2 is not None:
+                    if config_options.grid_type == "gridded":
+                        supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
+                    elif config_options.grid_type == "unstructured":
+                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+                        if supplemental_precip.regridded_precip2_elem is not None:
+                            supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
+                    elif config_options.grid_type == "hydrofabric":
+                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+                return
 
         # Check to see if the regrid complete flag for this
         # output time step is true. This entails the necessary
@@ -1927,6 +1940,14 @@ def regrid_conus_hrrr(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                         f"Unable to perform mask test on regridded HRRR forcings: {npe}"
                     )
                 err_handler.check_program_status(config_options, mpi_config)
+
+                if mpi_config.rank == 0:
+                    out_data = input_forcings.esmf_field_out.data
+                    n_nodata = int(np.sum(out_data == config_options.globalNdv))
+                    n_total = out_data.size
+                    print(f"[DEBUG regrid out] var={input_forcings.netcdf_var_names[force_count]}, esmf_field_out shape: {out_data.shape}")
+                    print(f"[DEBUG regrid out] min/max: {out_data.min():.4f} / {out_data.max():.4f}")
+                    print(f"[DEBUG regrid out] no-data count: {n_nodata}/{n_total} ({100*n_nodata/n_total:.1f}%)")
 
                 try:
                     input_forcings.regridded_forcings2[
@@ -11276,6 +11297,21 @@ def check_regrid_status(
     """
     pt = Partials(mpi_config, config_options)
 
+    # For gridded domains, esmf_lat/esmf_lon on GriddedGeoMeta are shadowed to None by
+    # GeoMeta.__init__ (via GEOMOD["GeoMeta"]), so the @cached_property never runs and the
+    # destination ESMF Grid's coordinate arrays are never populated.  Populate them once here.
+    if config_options.grid_type == "gridded" and wrf_hydro_geo_meta.esmf_lat is None:
+        esmf_lat = wrf_hydro_geo_meta.esmf_grid.get_coords(1)
+        esmf_lat[:, :] = wrf_hydro_geo_meta.latitude_grid
+        wrf_hydro_geo_meta.esmf_lat = esmf_lat
+        esmf_lon = wrf_hydro_geo_meta.esmf_grid.get_coords(0)
+        esmf_lon[:, :] = wrf_hydro_geo_meta.longitude_grid
+        wrf_hydro_geo_meta.esmf_lon = esmf_lon
+        if mpi_config.rank == 0:
+            print(f"[DEBUG dest grid] populated ESMF destination grid coords")
+            print(f"[DEBUG dest grid] esmf_lat min/max: {esmf_lat.min():.4f} / {esmf_lat.max():.4f}")
+            print(f"[DEBUG dest grid] esmf_lon min/max: {esmf_lon.min():.4f} / {esmf_lon.max():.4f}")
+
     # If the destination ESMF field hasn't been created, create it here.
     if not input_forcings.esmf_field_out:
         if config_options.grid_type == "gridded":
@@ -11631,7 +11667,6 @@ def get_weight_file_names(
     grid_key = input_forcings.product_name
     file_key = f"{grid_key}_{config_options.geogrid}"
     hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
-    hash_key += f"_{mpi_config.uid64}"
 
     weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
 
@@ -12017,6 +12052,19 @@ def calculate_weights(
 
     err_handler.check_program_status(config_options, mpi_config)
 
+    if mpi_config.rank == 0 and lat_tmp is not None and lon_tmp is not None:
+        print(f"[DEBUG calc_weights] product={input_forcings.product_name}, lat_var='{lat_var}', lon_var='{lon_var}'")
+        print(f"[DEBUG calc_weights] raw lat_tmp shape: {lat_tmp.shape}, lon_tmp shape: {lon_tmp.shape}")
+        print(f"[DEBUG calc_weights] lat_tmp min/max: {lat_tmp.min():.4f} / {lat_tmp.max():.4f}")
+        print(f"[DEBUG calc_weights] lon_tmp min/max: {lon_tmp.min():.4f} / {lon_tmp.max():.4f}")
+        print(f"[DEBUG calc_weights] lat_tmp corners: [0,0]={lat_tmp[0,0]:.4f}, [-1,-1]={lat_tmp[-1,-1]:.4f}")
+        print(f"[DEBUG calc_weights] lon_tmp corners: [0,0]={lon_tmp[0,0]:.4f}, [-1,-1]={lon_tmp[-1,-1]:.4f}")
+        print(f"[DEBUG calc_weights] input_forcings.ny_global={input_forcings.ny_global}, nx_global={input_forcings.nx_global}")
+        # Normalize source longitudes from 0-360 to -180/+180 to match geo_em geogrid convention
+        if lon_tmp.max() > 180:
+            lon_tmp = np.where(lon_tmp > 180, lon_tmp - 360, lon_tmp)
+            print(f"[DEBUG calc_weights] lon_tmp normalized to -180/+180: min/max={lon_tmp.min():.4f} / {lon_tmp.max():.4f}")
+
     # Scatter global GFS latitude grid to processors..
     if mpi_config.rank == 0:
         var_tmp = lat_tmp
@@ -12050,6 +12098,11 @@ def calculate_weights(
 
     input_forcings.esmf_lats[:, :] = var_sub_lat_tmp
     input_forcings.esmf_lons[:, :] = var_sub_lon_tmp
+    if mpi_config.rank == 0:
+        print(f"[DEBUG ESMF src] esmf_lats (get_coords(1)) shape={input_forcings.esmf_lats.shape}")
+        print(f"[DEBUG ESMF src] esmf_lats min/max: {input_forcings.esmf_lats.min():.4f} / {input_forcings.esmf_lats.max():.4f}")
+        print(f"[DEBUG ESMF src] esmf_lons (get_coords(0)) shape={input_forcings.esmf_lons.shape}")
+        print(f"[DEBUG ESMF src] esmf_lons min/max: {input_forcings.esmf_lons.min():.4f} / {input_forcings.esmf_lons.max():.4f}")
     del var_sub_lat_tmp
     del var_sub_lon_tmp
     del lat_tmp
@@ -12137,14 +12190,30 @@ def calculate_weights(
     common_args = (mpi_config, config_options, input_forcings)
     weight_file, weight_file_elem = get_weight_file_names(*common_args)
 
+    if mpi_config.rank == 0:
+        import resource as _resource
+        _rss_mb = lambda: _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss / 1024
+        print(f"[DEBUG weights] product={input_forcings.product_name}")
+        print(f"[DEBUG weights] config_options.weightsDir = {config_options.weightsDir!r}")
+        print(f"[DEBUG weights] weight_file = {weight_file!r}")
+        print(f"[DEBUG weights] regridObj already set: {input_forcings.regridObj is not None}")
+        print(f"[DEBUG weights] RSS before weight init: {_rss_mb():.0f} MB")
+
     # If regrid object has not been initialized yet, initialize it.
     if input_forcings.regridObj is None:
         # make_regrid's call to Regrid() is an implicit MPI barrier, all ranks must call it.
         if config_options.weightsDir is not None:
             if not os.path.exists(weight_file):
+                if mpi_config.rank == 0:
+                    print(f"[DEBUG weights] weight file not cached — computing and writing to disk: {weight_file}")
                 make_regrid(
                     *common_args, weight_file=weight_file, fill=fill, element_mode=False
                 )
+                if mpi_config.rank == 0:
+                    print(f"[DEBUG weights] make_regrid done. RSS: {_rss_mb():.0f} MB")
+            else:
+                if mpi_config.rank == 0:
+                    print(f"[DEBUG weights] weight file already on disk — skipping make_regrid")
 
             if config_options.grid_type == "unstructured" and (
                 not os.path.exists(weight_file_elem)
@@ -12156,18 +12225,31 @@ def calculate_weights(
                     element_mode=True,
                 )
 
+            if mpi_config.rank == 0:
+                print(f"[DEBUG weights] loading weight file from disk...")
             load_weight_file(*common_args, weight_file, element_mode=False)
+            if mpi_config.rank == 0:
+                print(f"[DEBUG weights] load_weight_file done. RSS: {_rss_mb():.0f} MB")
             if config_options.grid_type == "unstructured":
                 load_weight_file(*common_args, weight_file, element_mode=True)
         else:
+            if mpi_config.rank == 0:
+                print(f"[DEBUG weights] WARNING: weightsDir is None — computing weights IN MEMORY (will be large for CONUS)")
+                print(f"[DEBUG weights] RSS before in-memory make_regrid: {_rss_mb():.0f} MB")
             # Make regrid object in memory without writing files
             make_regrid(*common_args, weight_file=None, fill=fill, element_mode=False)
+            if mpi_config.rank == 0:
+                print(f"[DEBUG weights] in-memory make_regrid done. RSS: {_rss_mb():.0f} MB")
             if config_options.grid_type == "unstructured":
                 make_regrid(
                     *common_args, weight_file=None, fill=fill, element_mode=True
                 )
 
+    if mpi_config.rank == 0:
+        print(f"[DEBUG weights] calling execute_regrid. RSS: {_rss_mb():.0f} MB")
     execute_regrid(*common_args, weight_file, element_mode=False)
+    if mpi_config.rank == 0:
+        print(f"[DEBUG weights] execute_regrid done. RSS: {_rss_mb():.0f} MB")
     if config_options.grid_type == "gridded":
         input_forcings.regridded_mask[:, :] = np.round(
             input_forcings.esmf_field_out.data[:, :]
@@ -12600,3 +12682,4 @@ def calculate_supp_pcp_weights(
         supplemental_precip.regridded_mask[:] = supplemental_precip.esmf_field_out.data[
             :
         ]
+

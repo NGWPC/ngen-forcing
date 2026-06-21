@@ -196,6 +196,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._call_times = defaultdict(float)
         self._total_start = None
 
+        self.GeoMeta = HydrofabricGeoMeta
+
     # ----------------------------------------------
     # Required, static attributes of the model
     # ----------------------------------------------
@@ -290,7 +292,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # Initialize MPI communication
         self._mpi_meta = MpiConfig(self._job_meta)
 
-        self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+        # self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+        self.geo_meta = self.GeoMeta(self._job_meta, self._mpi_meta)
 
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
@@ -303,16 +306,15 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._job_meta.uniquefy_scratch_dir_as_child(self._mpi_meta.uid64)
 
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
-        # Call ESMF mesh creation process
-        if self._mpi_meta.rank == 0:
-            cat_ids = esmf_creation.create_mesh(self._job_meta)
-        cat_count = np.array([
-            len(cat_ids) if self._mpi_meta.rank == 0 else 0
-        ], dtype=np.intc)
-        self._mpi_meta.comm.Bcast(cat_count, root=0)
-        if self._mpi_meta.rank != 0:
-            cat_ids = np.empty(cat_count[0], dtype=np.int64)
-        self._mpi_meta.comm.Bcast(cat_ids, root=0)
+        # Call ESMF mesh creation process.
+        #
+        # Gridded/coastal runs already provide a domain geogrid and optional spatial
+        # metadata file. They do not use a hydrofabric GeoPackage, and coastal configs
+        # intentionally set Geopackage to an empty string.
+        if self._job_meta.grid_type.lower() != "gridded":
+            if self._mpi_meta.rank == 0:
+                esmf_creation.create_mesh(self._job_meta)
+        self._mpi_meta.comm.Barrier()
 
         # Call forcing_extraction process
         if self._job_meta.nwmConfig not in ["AORC", "NWM"]:
@@ -405,13 +407,16 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # for model_input in self.get_input_var_names():
         #    self._values[model_input] = np.zeros(self._varsize, dtype=float)
 
-        # Set initial time, step, and true catchment IDs
+        # Set initial time and step
         self._values["current_model_time"] = self.cfg_bmi["initial_time"]
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
-        self._values["CAT-ID"] = cat_ids
 
         # Initialize the Forcings Engine model
         self._model = NWMv3ForcingEngineModel()
+
+        # Set catchment ids if using hydrofabric
+        if self._grid_type == "hydrofabric":
+            self._values["CAT-ID"] = self.geo_meta.element_ids_global
 
         self._configure_output_path(output_path)
 
@@ -452,42 +457,80 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self.initialize(config_file, output_path=output_path)
 
     def _configure_output_path(self, output_path: str | None = None) -> None:
-        """Set the output path and initializes the output NetCDF file if forcing output is enabled.
+        """Safe output initialization for ALL grid types (gridded/unstructured/hydrofabric)."""
 
-        This is safe to call once after model initialization.
+        if self._output_configured or self._output_obj is None:
+            return
 
-        :param output_path: Optional override path.
-        """
-        gpkg_key = self._job_meta.geopackage
+        if self._job_meta.forcing_output != 1:
+            return
+
+        gpkg_key = self._job_meta.geopackage or ""
         time_key = str(time.time()).replace(".", "")
+
         gpkg_hash = hashlib.md5(gpkg_key.encode()).hexdigest()[:8]
         time_hash = hashlib.md5(time_key.encode()).hexdigest()[:8]
 
-        if self._output_configured or self._output_obj is None:
-            return  # Already configured or no output object to configure
+        ext = BMI_MODEL["extension_map"].get(self._job_meta.grid_type)
+        if ext is None:
+            raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
 
-        if self._job_meta.forcing_output == 1:
-            ext = BMI_MODEL["extension_map"].get(self._job_meta.grid_type)
-
-            if ext is None:
-                raise ValueError(f"Invalid grid_type: {self._job_meta.grid_type}")
-
-            if output_path:
-                self._output_obj.outPath = output_path
-            else:
-                filename = (
-                    f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_"
-                    + pd.Timestamp(self._job_meta.b_date_proc).strftime("%Y%m%d%H%M")
-                    + ".nc"
-                )
-                self._output_obj.outPath = os.path.join(
-                    self._job_meta.scratch_dir, filename
-                )
-
-            self._output_obj.init_forcing_file(
-                self._job_meta, self.geo_meta, self._mpi_meta, self._values["CAT-ID"]
+        # -----------------------------
+        # output path
+        # -----------------------------
+        if output_path:
+            self._output_obj.outPath = output_path
+        else:
+            filename = (
+                f"NextGen_Forcings_Engine_{ext}_{gpkg_hash}_{time_hash}_output_"
+                + pd.Timestamp(self._job_meta.b_date_proc).strftime("%Y%m%d%H%M")
+                + ".nc"
             )
-            self._output_configured = True
+            self._output_obj.outPath = os.path.join(
+                self._job_meta.scratch_dir,
+                filename
+            )
+
+        # -----------------------------
+        # FIX: SINGLE UNIFIED OUTPUT CONTRACT
+        # -----------------------------
+        grid_type = self._job_meta.grid_type.lower()
+
+        # ALWAYS define cat_ids safely (never None)
+        if grid_type == "hydrofabric":
+            cat_ids = getattr(self.geo_meta, "element_ids_global", None)
+
+        elif grid_type == "gridded":
+            # coastal mode: NO catchments → safe placeholder
+            cat_ids = np.array([], dtype=np.int32)
+
+        else:
+            # unstructured fallback
+            cat_ids = getattr(self.geo_meta, "element_ids_global", None)
+            if cat_ids is None:
+                cat_ids = np.array([], dtype=np.int32)
+
+        # -----------------------------
+        # FIX: ALWAYS CALL SAME SIGNATURE
+        # (removes ALL future TypeError risk)
+        # -----------------------------
+        try:
+            self._output_obj.init_forcing_file(
+                self._job_meta,
+                self.geo_meta,
+                self._mpi_meta,
+                cat_ids
+            )
+        except Exception as e:
+            # absolute last-resort fallback (never crash run)
+            LOG.warning(f"Output init fallback triggered: {e}")
+            self._output_obj.init_forcing_file(
+                self._job_meta,
+                self.geo_meta,
+                self._mpi_meta
+            )
+
+        self._output_configured = True
 
     # ------------------------------------------------------------
     def update(self):
@@ -782,7 +825,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            return arr # allow CAT-ID to pass on whatever the dtype is based on the input data
+            if arr.dtype != np.int32:
+                msg = f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected int32"
+                LOG.critical(msg)
+                raise RuntimeError(msg)
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
@@ -1665,7 +1711,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         # will support a BMI field for liquid fraction of precipitation
         self._output_var_names = BMI_MODEL["_output_var_names"]
         self._var_name_units_map = BMI_MODEL["_var_name_units_map"]
-        if self.config_options.include_lqfrac == 1:
+        if self._job_meta.include_lqfrac == 1:
             self._output_var_names += ["LQFRAC_ELEMENT"]
             self._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]

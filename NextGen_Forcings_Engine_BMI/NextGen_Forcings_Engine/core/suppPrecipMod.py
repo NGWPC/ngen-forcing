@@ -322,6 +322,32 @@ class supplemental_precip:
             # 19: regrid.regrid_mrms_hourly,
             # 20: regrid.regrid_mrms_hourly,
         }
+
+        if self.file_in1 is None:
+            self.file_in1 = ""
+        if self.file_in2 is None:
+            self.file_in2 = ""
+        if self.rqi_file_in1 is None:
+            self.rqi_file_in1 = ""
+        if self.rqi_file_in2 is None:
+            self.rqi_file_in2 = ""
+
+        if self.keyValue in [1, 2, 5, 6, 10, 14]:
+            if not self.file_in2 or not regrid.os.path.isfile(self.file_in2):
+                if self.file_in1 and regrid.os.path.isfile(self.file_in1):
+                    self.file_in2 = self.file_in1
+                else:
+                    if self.regridded_precip2 is not None:
+                        if ConfigOptions.grid_type == "gridded":
+                            self.regridded_precip2[:, :] = ConfigOptions.globalNdv
+                        elif ConfigOptions.grid_type == "unstructured":
+                            self.regridded_precip2[:] = ConfigOptions.globalNdv
+                            if self.regridded_precip2_elem is not None:
+                                self.regridded_precip2_elem[:] = ConfigOptions.globalNdv
+                        elif ConfigOptions.grid_type == "hydrofabric":
+                            self.regridded_precip2[:] = ConfigOptions.globalNdv
+                    return
+
         regrid_inputs[self.keyValue](self, ConfigOptions, wrfHyroGeoMeta, MpiConfig)
         # try:
         #    regrid_inputs[self.keyValue](self,ConfigOptions,MpiConfig)

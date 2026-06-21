@@ -17,7 +17,8 @@ except ImportError:
 
 from functools import cached_property, wraps
 from typing import Any
-import logging
+
+import ewts
 import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
@@ -29,7 +30,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 
-LOG = logging.getLogger("FORCING")
+LOG = ewts.get_logger(ewts.FORCING_ID)
 
 
 def set_none(func) -> Any:
@@ -126,12 +127,33 @@ class GeoMeta:
         else:
             return True
 
+    # All config_options attributes that hold geogrid variable names.
+    # Used to select only the needed variables when opening the geogrid file.
+    _GEOGRID_VAR_ATTRS = (
+        "lat_var", "lon_var", "hgt_var", "cosalpha_var", "sinalpha_var",
+        "slope_var", "slope_azimuth_var", "slope_var_elem", "slope_azimuth_var_elem",
+        "nodecoords_var", "elemcoords_var", "elemconn_var", "numelemconn_var",
+        "element_id_var", "hgt_elem_var",
+    )
+
     @cached_property
     def geogrid_ds(self) -> xr.Dataset:
-        """Open the geogrid file and return the xarray dataset object."""
+        """Open the geogrid file and load only the variables needed by this run.
+
+        geo_em_CONUS.nc is ~8.9 GB; loading the whole file with ds.load() exhausts
+        RAM on standard instances. We open lazily, select only the variables
+        referenced by config_options, then load that subset into memory.
+        Global attributes (DX, DY, etc.) are preserved on the subset dataset.
+        """
         try:
             with xr.open_dataset(self.config_options.geogrid) as ds:
-                return ds.load()
+                needed = [
+                    getattr(self.config_options, attr)
+                    for attr in self._GEOGRID_VAR_ATTRS
+                    if getattr(self.config_options, attr, None) is not None
+                    and getattr(self.config_options, attr) in ds
+                ]
+                return ds[needed].load()
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             log_critical(self.config_options, self.mpi_config)
@@ -269,12 +291,15 @@ class GriddedGeoMeta(GeoMeta):
         if self.mpi_config.rank == 0:
             try:
                 if self.ndim_lat == 3:
-                    return self.lat_var.shape[2]
+                    nx = self.lat_var.shape[2]
                 elif self.ndim_lat == 2:
-                    return self.lat_var.shape[1]
+                    nx = self.lat_var.shape[1]
                 else:
                     # NOTE Is this correct? using lon_var
-                    return self.lon_var.shape[0]
+                    nx = self.lon_var.shape[0]
+                print(f"[DEBUG GeoMeta] geogrid={self.config_options.geogrid}")
+                print(f"[DEBUG GeoMeta] ndim_lat={self.ndim_lat}, ny_global={self.ny_global}, nx_global={nx}")
+                return nx
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract X dimension size from {self.config_options.lon_var} in: {self.config_options.geogrid}"
                 log_critical(self.config_options, self.mpi_config)
@@ -384,9 +409,9 @@ class GriddedGeoMeta(GeoMeta):
         # Scatter global XLAT_M grid to processors..
         if self.mpi_config.rank == 0:
             if self.ndim_lat == 3:
-                var_tmp = self.lat_var[0, :, :]
+                var_tmp = np.asarray(self.lat_var[0, :, :])
             elif self.ndim_lat == 2:
-                var_tmp = self.lat_var[:, :]
+                var_tmp = np.asarray(self.lat_var[:, :])
             elif self.ndim_lat == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
@@ -395,6 +420,11 @@ class GriddedGeoMeta(GeoMeta):
             # Flag to grab entire array for AWS slicing
             if self.config_options.aws:
                 self.lat_bounds = var_tmp
+            print(f"[DEBUG GeoMeta] lat_var name: {self.config_options.lat_var}")
+            print(f"[DEBUG GeoMeta] latitude_grid shape: {var_tmp.shape}")
+            print(f"[DEBUG GeoMeta] latitude_grid min/max: {var_tmp.min():.4f} / {var_tmp.max():.4f}")
+            print(f"[DEBUG GeoMeta] latitude_grid corners: [0,0]={var_tmp[0,0]:.4f}, [-1,-1]={var_tmp[-1,-1]:.4f}")
+            print(f"[DEBUG GeoMeta] latitude_grid first row mean: {var_tmp[0,:].mean():.4f}, last row mean: {var_tmp[-1,:].mean():.4f}")
         else:
             var_tmp = None
         return var_tmp, "latitude_grid", self.config_options, False
@@ -418,9 +448,9 @@ class GriddedGeoMeta(GeoMeta):
             if (
                 self.ndim_lat == 3
             ):  # NOTE The original code has lat here... should it maybe be lon instead?
-                var_tmp = self.lon_var[0, :, :]
+                var_tmp = np.asarray(self.lon_var[0, :, :])
             elif self.ndim_lon == 2:
-                var_tmp = self.lon_var[:, :]
+                var_tmp = np.asarray(self.lon_var[:, :])
             elif self.ndim_lon == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
@@ -429,6 +459,10 @@ class GriddedGeoMeta(GeoMeta):
             # Flag to grab entire array for AWS slicing
             if self.config_options.aws:
                 self.lon_bounds = var_tmp
+            print(f"[DEBUG GeoMeta] lon_var name: {self.config_options.lon_var}")
+            print(f"[DEBUG GeoMeta] longitude_grid shape: {var_tmp.shape}")
+            print(f"[DEBUG GeoMeta] longitude_grid min/max: {var_tmp.min():.4f} / {var_tmp.max():.4f}")
+            print(f"[DEBUG GeoMeta] longitude_grid corners: [0,0]={var_tmp[0,0]:.4f}, [-1,-1]={var_tmp[-1,-1]:.4f}")
         else:
             var_tmp = None
 
@@ -1340,3 +1374,4 @@ class UnstructuredGeoMeta(GeoMeta):
     def ny_local_elem(self) -> int:
         """Get the local y dimension size for this processor."""
         return len(self.esmf_grid.coords[1][1])
+
