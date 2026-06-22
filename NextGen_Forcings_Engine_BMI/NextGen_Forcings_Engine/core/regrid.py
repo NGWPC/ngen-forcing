@@ -180,21 +180,10 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         # If the expected file is missing, this means we are allowing missing files, simply
         # exit out of this routine as the regridded fields have already been set to NDV.
-        if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
-            # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
-            if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
-                supplemental_precip.file_in2 = supplemental_precip.file_in1
-            else:
-                if supplemental_precip.regridded_precip2 is not None:
-                    if config_options.grid_type == "gridded":
-                        supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
-                    elif config_options.grid_type == "unstructured":
-                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
-                        if supplemental_precip.regridded_precip2_elem is not None:
-                            supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
-                    elif config_options.grid_type == "hydrofabric":
-                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
-                return
+        if not input_forcings.file_in2 or not os.path.isfile(input_forcings.file_in2):
+            if mpi_config.rank == 0:
+                pt.log_debug("No AK AnA in_2 file found for this timestep.")
+            return
 
         # Check to see if the regrid complete flag for this
         # output time step is true. This entails the necessary
@@ -7168,11 +7157,20 @@ def regrid_mrms_hourly(
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
-    if not os.path.isfile(supplemental_precip.file_in2):
+    if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
         # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
-        if os.path.isfile(supplemental_precip.file_in1):
+        if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
             supplemental_precip.file_in2 = supplemental_precip.file_in1
         else:
+            if supplemental_precip.regridded_precip2 is not None:
+                if config_options.grid_type == "gridded":
+                    supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
+                elif config_options.grid_type == "unstructured":
+                    supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+                    if supplemental_precip.regridded_precip2_elem is not None:
+                        supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
+                elif config_options.grid_type == "hydrofabric":
+                    supplemental_precip.regridded_precip2[:] = config_options.globalNdv
             return
 
     # Check to see if the regrid complete flag for this
