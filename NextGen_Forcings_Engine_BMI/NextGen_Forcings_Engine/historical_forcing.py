@@ -435,9 +435,9 @@ class AORCConusProcessor(BaseProcessor):
                     .load()
                 )
         except Exception as e:
-            error_message = f"Error opening {self.dataset_name} data from {self.url(current_year)}. This may indicate a broken comunication with s3 or missing/corupts data from the source. | Error: {e} | Traceback: {traceback.format_exc()}"
+            error_message = f"Error opening {self.dataset_name} data from {self.url(current_year)}. This may indicate a broken comunication with s3 or missing/corupts data from the source. | Error: {e}"
             LOG.critical(error_message)
-            raise ValueError(error_message)
+            raise ValueError(error_message).with_traceback(e)
 
 
 class AORCAlaskaProcessor(BaseProcessor):
