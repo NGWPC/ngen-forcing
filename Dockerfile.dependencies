@@ -99,7 +99,7 @@ ENV VIRTUAL_ENV="/ngen-app/ngen-python" \
 
 RUN set -eux; \
     mkdir -p /ngen-app; \
-    python -m venv "${VIRTUAL_ENV}";
+    python -m venv "${VIRTUAL_ENV}"
 
 
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib:/usr/local/lib:/usr/local/lib64"
@@ -211,11 +211,11 @@ RUN set -eux; \
 
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
-    python -m pip install --upgrade pip setuptools wheel; \
+    python -m pip install --upgrade pip setuptools wheel build pyproject_hooks packaging; \
     python -m pip install --no-binary=mpi4py mpi4py; \
     python -m pip install netcdf4 bmipy pandas pyyml; \
-    python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu; \
-    python -m pip cache purge
+    python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+
 
 WORKDIR /
 
