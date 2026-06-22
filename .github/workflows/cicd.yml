@@ -132,7 +132,6 @@ jobs:
       clean_ref: ${{ steps.vars.outputs.clean_ref }}
       default_ref: ${{ steps.vars.outputs.default_ref }}
       ewts_revision: ${{ steps.vars.outputs.ewts_revision }}
-      ewts_cache_bust: ${{ steps.vars.outputs.ewts_cache_bust }}
     steps:
       - name: Compute image vars
         id: vars
@@ -188,6 +187,9 @@ jobs:
             echo "${sha:-unknown}"
           }
 
+          # EWTS_REVISION is the resolved commit SHA: it labels the image AND doubles
+          # as the EWTS_CACHE_BUST build-arg, so a new commit on the requested ref
+          # reinstalls EWTS instead of a stale cache.
           EWTS_REVISION=$(resolve_sha "https://github.com/${{ inputs.EWTS_ORG || github.repository_owner }}/nwm-ewts.git" "$(ref_or_default "${{ inputs.EWTS_REF }}")")
 
           # logic for the tags:
@@ -208,27 +210,11 @@ jobs:
             ALIAS="${TIMESTAMP}-${CLEAN_REF}"
           fi
 
-          # Resolve EWTS ref for Docker cache busting
-          EWTS_ORG="${{ inputs.EWTS_ORG || github.repository_owner }}"
-          EWTS_REF="${{ inputs.EWTS_REF || 'development' }}"
-
-          if [[ "${EWTS_REF}" =~ ^[0-9a-f]{7,40}$ ]]; then
-            EWTS_CACHE_BUST="${EWTS_REF}"
-          else
-            EWTS_CACHE_BUST="$(git ls-remote "https://github.com/${EWTS_ORG}/nwm-ewts.git" "${EWTS_REF}" | awk '{print $1}')"
-          fi
-
-          if [ -z "${EWTS_CACHE_BUST}" ]; then
-            echo "ERROR: Could not resolve EWTS_REF=${EWTS_REF}"
-            exit 1
-          fi
-
           # save outputs
           cat >> "$GITHUB_OUTPUT" <<EOF
           org=${ORG}
           bmi_image=${IMAGE_BASE}/ngen-bmi-forcing
           ewts_revision=${EWTS_REVISION}
-          ewts_cache_bust=${EWTS_CACHE_BUST}
           test_image_tag=${TEST_TAG}
           alias_tag=${ALIAS}
           commit_sha=${REAL_SHA}
@@ -390,7 +376,7 @@ jobs:
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
             EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
-            EWTS_CACHE_BUST=${{ needs.setup.outputs.ewts_cache_bust }}
+            EWTS_CACHE_BUST=${{ needs.setup.outputs.ewts_revision }}
             IMAGE_SOURCE=https://github.com/${{ github.repository }}
             IMAGE_VENDOR=${{ github.repository_owner }}
             IMAGE_VERSION=${{ needs.setup.outputs.clean_ref }}
