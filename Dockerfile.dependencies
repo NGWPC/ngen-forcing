@@ -59,13 +59,16 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-bookworm,sharing=locke
         gfortran \
         git \
         jq \
+        libaec-dev \
         libbz2-dev \
         libcurl4-openssl-dev \
         libffi-dev \
         libgdal-dev \
         libhdf5-dev \
+        liblapack-dev \
         libnetcdf-dev \
         libnetcdff-dev \
+        libopenblas-dev \
         libopenjp2-7-dev \
         libopenmpi-dev \
         libpng-dev \
@@ -73,7 +76,6 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-bookworm,sharing=locke
         libsqlite3-dev \
         libssl-dev \
         libudunits2-dev \
-        libaec-dev \
         m4 \
         netcdf-bin \
         openmpi-bin \
@@ -89,7 +91,11 @@ RUN --mount=type=cache,target=/var/cache/apt,id=apt-cache-bookworm,sharing=locke
 
 SHELL ["/bin/bash", "-c"]
 
-ENV PATH="${PATH}:/usr/lib/x86_64-linux-gnu/openmpi/bin"
+RUN update-ccache-symlinks
+
+ENV PATH="/usr/lib/ccache:${PATH}:/usr/lib/x86_64-linux-gnu/openmpi/bin" \
+    CCACHE_DIR="/root/.cache/ccache" \
+    CCACHE_MAXSIZE="10G"
 
 # Create the shared Python virtual environment early so Python packages built by
 # compiled dependencies, including ESMPy and mpi4py, install into the same venv
@@ -101,7 +107,6 @@ RUN set -eux; \
     mkdir -p /ngen-app; \
     python -m venv "${VIRTUAL_ENV}"
 
-
 ENV LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu/openmpi/lib:/usr/local/lib:/usr/local/lib64"
 ENV OMPI_MCA_btl_vader_single_copy_mechanism=none
 ENV OMPI_MCA_btl=^openib,ofi
@@ -112,7 +117,8 @@ ENV OMPI_MCA_btl_base_warn_component_unused=0
 # WGRIB2
 ############################################################################
 
-RUN set -eux; \
+RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm,sharing=locked \
+    set -eux; \
     mkdir -p /tmp/build-wgrib2; \
     cd /tmp/build-wgrib2; \
     curl --location --output wgrib2.tgz \
@@ -138,6 +144,55 @@ RUN set -eux; \
 ENV WGRIB2=/usr/local/bin/wgrib2
 
 ############################################################################
+# NumPy 1.26.4
+#
+# NumPy 1.26.4 is built from source because no compatible prebuilt wheel is
+# available for Python 3.14. The build is explicitly linked against OpenBLAS
+# for BLAS and LAPACK operations used by NumPy, SciPy, and t-route.
+#
+# NumPy is installed before other Python packages so their dependency
+# resolution uses this build instead of installing or building another NumPy
+# version. The constraints file created below pins later pip installations to
+# NumPy 1.26.4 without causing NumPy to be installed again.
+############################################################################
+
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
+    --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm,sharing=locked \
+    set -eux; \
+    python -m pip install --upgrade \
+        pip \
+        setuptools \
+        wheel \
+        build \
+        pyproject_hooks \
+        packaging; \
+    python -m pip install \
+        --no-binary=numpy \
+        -Csetup-args=-Dblas=openblas \
+        -Csetup-args=-Dlapack=openblas \
+        "numpy==1.26.4"
+
+# Prevent later pip installations from replacing the custom NumPy build with
+# another version while resolving their transitive dependencies.
+RUN printf '%s\n' \
+        'numpy==1.26.4' \
+        > /ngen-app/python-constraints.txt
+
+
+# Apply the NumPy pin automatically to subsequent pip installations in this
+# image and downstream images. A downstream installation that requires an
+# incompatible NumPy version will fail rather than replace NumPy 1.26.4.
+ENV PIP_CONSTRAINT="/ngen-app/python-constraints.txt"
+
+# Verify that NumPy is linked against OpenBLAS and that a LAPACK operation
+# executes successfully.
+RUN set -eux && \
+    SP="$(python -c 'import numpy, os; print(os.path.dirname(numpy.__file__))')" && \
+    ldd "$(find "$SP" -name '_multiarray_umath*.so' | head -1)" | grep -q openblas && \
+    ldd "$(find "$SP/linalg" -name '_umath_linalg*.so' | head -1)" | grep -q openblas && \
+    python -c "import numpy as np; np.linalg.svd(np.eye(8)); print('numpy', np.__version__, 'BLAS+LAPACK -> OpenBLAS OK')"
+
+############################################################################
 # ESMF + ESMPy
 #
 # ESMF is the one large scientific library still built from source in this
@@ -147,7 +202,8 @@ ENV WGRIB2=/usr/local/bin/wgrib2
 # /usr/local NetCDF at runtime.
 ############################################################################
 
-RUN set -eux; \
+RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm,sharing=locked \
+    set -eux; \
     mkdir -p /tmp/build-esmf; \
     cd /tmp/build-esmf; \
     curl --location --output "esmf-${ESMF_VERSION}.tar.gz" \
@@ -171,14 +227,15 @@ ENV ESMFMKFILE=/usr/local/esmf/lib/libO/Linux.gfortran.64.openmpi.default/esmf.m
 # depends on git metadata and may otherwise report a beta-looking version.
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
-    python -m pip install --upgrade pip setuptools wheel; \
-    python -m pip install setuptools-git-versioning; \
-    git clone --depth 1 --branch "v${ESMF_VERSION}" https://github.com/esmf-org/esmf.git /tmp/esmf; \
+    python -m pip install \
+        setuptools-git-versioning; \
+    git clone --depth 1 --branch "v${ESMF_VERSION}" \
+        https://github.com/esmf-org/esmf.git /tmp/esmf; \
     cd /tmp/esmf/src/addon/esmpy; \
-    python -m pip install .; \
+    python -m pip install \
+        .; \
     cd /; \
     rm -rf /tmp/esmf
-
 
 ############################################################################
 # Boost
@@ -188,7 +245,8 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
 # so downstream CMake builds can use -DBOOST_ROOT=/opt/boost.
 ############################################################################
 
-RUN set -eux; \
+RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm,sharing=locked \
+    set -eux; \
     mkdir -p /tmp/build-boost; \
     cd /tmp/build-boost; \
     curl --location --output boost.tar.gz \
@@ -211,11 +269,26 @@ RUN set -eux; \
 
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
-    python -m pip install --upgrade pip setuptools wheel build pyproject_hooks packaging; \
-    python -m pip install --no-binary=mpi4py mpi4py; \
-    python -m pip install netcdf4 bmipy pandas pyyml; \
-    python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+    python -m pip install \
+        --no-binary=mpi4py \
+        mpi4py; \
+    python -m pip install \
+        netcdf4 \
+        bmipy \
+        pandas \
+        pyyml; \
+    python -m pip install \
+        --index-url https://download.pytorch.org/whl/cpu \
+        torch \
+        torchvision
 
+# Verify that all installed Python packages have compatible dependencies and
+# that later installations did not replace NumPy 1.26.4.
+RUN set -eux; \
+    test "${PIP_CONSTRAINT}" = "/ngen-app/python-constraints.txt"; \
+    grep -qx 'numpy==1.26.4' "${PIP_CONSTRAINT}"; \
+    python -m pip check; \
+    python -c "import numpy as np; assert np.__version__ == '1.26.4', np.__version__; np.linalg.svd(np.eye(8)); print('Final NumPy version:', np.__version__)"
 
 WORKDIR /
 
