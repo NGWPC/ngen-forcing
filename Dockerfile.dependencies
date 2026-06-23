@@ -13,6 +13,7 @@
 #   - Boost
 #   - GDAL
 #   - UDUNITS2
+#   - ecFlow Python client
 ############################################################################
 
 ARG BASE_IMAGE=rockylinux:8
@@ -35,6 +36,8 @@ ARG NETCDF_FORTRAN_VERSION=4.5.4
 ARG BOOST_VERSION=1.86.0
 ARG ESMF_VERSION=8.8.0
 ARG GDAL_VERSION=3.7.3
+ARG ECFLOW_VERSION=5.15.2
+ARG ECBUILD_VERSION=3.14.2
 
 # Image Labels: OCI-spec base annotations first, then the compiled library
 # versions baked into this image.
@@ -47,7 +50,9 @@ LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
     io.ngwpc.netcdf-fortran.version="${NETCDF_FORTRAN_VERSION}" \
     io.ngwpc.boost.version="${BOOST_VERSION}" \
     io.ngwpc.esmf.version="${ESMF_VERSION}" \
-    io.ngwpc.gdal.version="${GDAL_VERSION}"
+    io.ngwpc.gdal.version="${GDAL_VERSION}" \
+    io.ngwpc.ecflow.version="${ECFLOW_VERSION}" \
+    io.ngwpc.ecbuild.version="${ECBUILD_VERSION}"
 
 ENV LANG="C.UTF-8"
 ENV PATH="/usr/local/bin:${PATH}"
@@ -286,6 +291,8 @@ RUN set -eux; \
 # Boost
 ############################################################################
 
+# The sed call removes Boost.NumPy. ecFlow Python client does need --with-python (does need Boost.Python) but does not need Boost.Numpy, and including numpy here can be problematic.
+# Boost libs added 2026-06-25 are required by ecFlow Python client build. See: https://github.com/ecmwf/ecflow/blob/master/cmake/Dependencies.cmake
 RUN set -eux; \
     mkdir -p /tmp/build-boost; \
     cd /tmp/build-boost; \
@@ -295,7 +302,8 @@ RUN set -eux; \
     tar --extract --directory boost --strip-components=1 --file boost.tar.gz; \
     cd boost; \
     ./bootstrap.sh; \
-    ./b2 install --prefix=/usr/local --without-python; \
+    sed -i 's/boost-install boost_python boost_numpy/boost-install boost_python/' libs/python/build/Jamfile; \
+    CPLUS_INCLUDE_PATH="/usr/include/python3.11" ./b2 install --prefix=/usr/local --with-python --with-system --with-filesystem --with-thread --with-regex --with-date_time --with-program_options --with-process; \
     rm -rf /opt/boost; \
     mkdir --parents /opt/boost; \
     cp -a /tmp/build-boost/boost/. /opt/boost/; \
@@ -322,6 +330,35 @@ RUN set -eux && \
     cmake --build build --target install && \
     ldconfig && \
     rm -rf /tmp/build-gdal
+
+
+############################################################################
+# ecFLow python client (requires build from source)
+############################################################################
+
+RUN mkdir -p /tmp/build-ecflow && cd /tmp/build-ecflow && \
+    python -m pip install "pybind11>=2.10.3" && \
+    git clone --depth 1 --branch "${ECFLOW_VERSION}" https://github.com/ecmwf/ecflow.git && \
+    git clone --depth 1 --branch "${ECBUILD_VERSION}" https://github.com/ecmwf/ecbuild.git && \
+    PYBIND11_CMAKE_DIR="$(python -c 'import pybind11; print(pybind11.get_cmake_dir())')" && \
+    cmake -B ecflow/build -S ecflow \
+        -DCMAKE_INSTALL_PREFIX="${VIRTUAL_ENV}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="${PYBIND11_CMAKE_DIR}" \
+        -DENABLE_PYTHON=ON \
+        -DENABLE_SERVER=OFF \
+        -DENABLE_UI=OFF \
+        -DENABLE_TESTS=OFF \
+        -DENABLE_DOCS=OFF \
+        -DENABLE_SSL=ON \
+        -DENABLE_STATIC_BOOST_LIBS=OFF \
+        -DBOOST_ROOT=/usr/local \
+        -DBoost_NO_SYSTEM_PATHS=on \
+        -DPython3_EXECUTABLE="$(which python)" && \
+    cmake --build ecflow/build --parallel "$(( $(nproc) < 4 ? $(nproc) : 4 ))" && \
+    cmake --install ecflow/build && \
+    python -c "import ecflow; print(f'ecflow Python client version {ecflow.__version__} installed successfully')" && \
+    rm -r /tmp/build-ecflow
 
 ############################################################################
 # Runtime environment
