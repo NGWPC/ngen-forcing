@@ -84,8 +84,8 @@ LABEL org.opencontainers.image.base.name="${DEPS_IMAGE}" \
 # Re-expose the shared Python virtual environment created by the dependency
 # image. Do not recreate it here; forcing, ngen, and downstream images should
 # all install into and reuse the same venv.
-ENV VIRTUAL_ENV="/ngen-app/ngen-python" \
-    PATH="${VIRTUAL_ENV}/bin:${PATH}"
+ENV VIRTUAL_ENV="/ngen-app/ngen-python"
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 ############################################################################
 # Optional EWTS Python package
