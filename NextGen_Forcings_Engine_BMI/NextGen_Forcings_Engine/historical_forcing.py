@@ -19,6 +19,7 @@ import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
 from pyproj import CRS
+import warnings
 from zarr.storage import ObjectStore
 import traceback
 
@@ -27,7 +28,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
-
+warnings.filterwarnings("ignore", module="geopandas")
 LOG = logging.getLogger("FORCING")
 
 zarr.config.set({"async.concurrency": 100})
