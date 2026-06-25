@@ -19,7 +19,6 @@ import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
 from pyproj import CRS
-import warnings
 from zarr.storage import ObjectStore
 import traceback
 
@@ -28,7 +27,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
-warnings.filterwarnings("ignore", module="geopandas")
+
 LOG = logging.getLogger("FORCING")
 
 zarr.config.set({"async.concurrency": 100})
@@ -47,17 +46,17 @@ class BaseProcessor:
         self.config_options = config_options
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
-        self.dest_crs = CRS(4326)
-        self.buffer = 0.02  # degree buffer around bounding box
+        self._temp_crs=CRS(5070)
+        self.buffer = 3000  # m buffer around bounding box
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
-        Apply buffer in known crs/units (degrees) and then convert back to src_crs.
+        Apply buffer in known crs/units (m) and then convert back to src_crs.
         """
         return (
-            self.gdf.to_crs(self.dest_crs)
+            self.gdf.to_crs(self._temp_crs)
             .buffer(self.buffer)
             .to_crs(self.src_crs)
             .total_bounds
@@ -236,8 +235,8 @@ class BaseProcessor:
             raise KeyError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
             )
-        # if self.mpi_config.rank == 0:
-        #     self.plot_precip(ds)
+        if self.mpi_config.rank == 0:
+            self.plot_precip(ds)
         # self.write_sum_tif(self.computed_ds)
         return ds
 
