@@ -53,7 +53,7 @@ class BaseProcessor:
     def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
-        Apply buffer in known crs/units (km) and then convert back to src_crs.
+        Apply buffer in known crs/units (m) and then convert back to src_crs.
         """
         return (
             self.gdf.to_crs(self._temp_crs)
