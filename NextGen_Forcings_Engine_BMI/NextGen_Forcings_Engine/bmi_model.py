@@ -99,35 +99,22 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self.init_log(config_file)
         self._config_file = config_file
         self._geogrid = geogrid
-        self._b_date= b_date
+        self._b_date = b_date
         super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
+        for attr in BMI_MODEL[self.__class__.__base__.__name__]:
+            setattr(self, attr, None)
         self._values = {}
         self._start_time = 0.0
         self._end_time = np.finfo(float).max
-        self._model = None
-        self._comm = None
         self.var_array_lengths = 1
 
         # Track output configuration status
         self._output_configured = False
 
         # Initialize attributes in __init__ to avoid PyCharm errors
-        self.cfg_bmi = None
-        self._job_meta = None
-        self._mpi_meta = None
-        self._geo_meta = None
-        self._grids = None
-        self._grid_map = None
-        self._output_var_names = None
-        self._var_name_units_map = None
-        self._input_forcing_mod = None
-        self._supp_pcp_mod = None
-        self._output_obj = None
         self._model_parameters_list = []
-
         self._call_counts = defaultdict(int)
         self._call_times = defaultdict(float)
-        self._total_start = None
         self._att_map = BMI_MODEL["att_map"]
         self._input_var_names = []
         self._model_parameters_list = []
@@ -142,7 +129,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     def init_log(self, config_file: str) -> None:
         """Initialize the logging system for the model."""
         # This is required prior to the first log message.
-        LOG.bind()
         LOG.info("-" * 30)
         LOG.info(f"BMI Forcing Engine initialized with {config_file}")
 
