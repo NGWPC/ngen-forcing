@@ -236,6 +236,9 @@ class BaseProcessor:
             raise KeyError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
             )
+        if self.dataset_name=="NWM":
+            #NOTE this is a bandaid for NWM Retrospective dataset Hawaii where rainrates appear to be slightly negative.
+            ds["RAINRATE"]=xr.where(ds["RAINRATE"]<0,0,ds["RAINRATE"])
         # if self.mpi_config.rank == 0:
         #     self.plot_precip(ds)
         # self.write_sum_tif(self.computed_ds)
