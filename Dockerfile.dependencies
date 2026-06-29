@@ -14,6 +14,7 @@
 #   - WGRIB2
 #   - Boost
 #   - ESMF + ESMPy
+#   - ecFlow Python client
 ############################################################################
 
 ARG BASE_IMAGE=python:3.12-slim-bookworm
@@ -27,12 +28,16 @@ ARG IMAGE_SOURCE="unknown"
 
 ARG ESMF_VERSION=8.8.0
 ARG BOOST_VERSION=1.86.0
+ARG ECFLOW_VERSION=5.15.2
+ARG ECBUILD_VERSION=3.14.2
 
 LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
       org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
       org.opencontainers.image.source="${IMAGE_SOURCE}" \
       io.ngwpc.boost.version="${BOOST_VERSION}" \
-      io.ngwpc.esmf.version="${ESMF_VERSION}"
+      io.ngwpc.esmf.version="${ESMF_VERSION}" \
+      io.ngwpc.ecflow.version="${ECFLOW_VERSION}" \
+      io.ngwpc.ecbuild.version="${ECBUILD_VERSION}"
 
 ENV LANG="C.UTF-8" \
     PATH="/usr/local/bin:${PATH}"
@@ -224,6 +229,10 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
 # Bookworm provides Boost 1.74, but LASAM requires Boost >= 1.79.
 # Build Boost from source and install a copy of the source tree under /opt/boost
 # so downstream CMake builds can use -DBOOST_ROOT=/opt/boost.
+#
+# The sed call removes Boost.NumPy. The ecFlow Python client needs
+# Boost.Python but does not need Boost.NumPy, which can be problematic here.
+# Boost.Python is required by the ecFlow Python client.
 ############################################################################
 
 RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm \
@@ -236,7 +245,9 @@ RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm \
     tar --extract --directory boost --strip-components=1 --file boost.tar.gz; \
     cd boost; \
     ./bootstrap.sh; \
-    ./b2 install --prefix=/usr/local --without-python; \
+    sed -i 's/boost-install boost_python boost_numpy/boost-install boost_python/' libs/python/build/Jamfile; \
+    CPLUS_INCLUDE_PATH="/usr/local/include/python3.12" \
+        ./b2 install --prefix=/usr/local; \
     rm -rf /opt/boost; \
     mkdir --parents /opt/boost; \
     cp -a /tmp/build-boost/boost/. /opt/boost/; \
@@ -251,14 +262,14 @@ RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm \
 # installation used by ESMF, ESMPy, and ngen.
 ############################################################################
 
+# pybind11 is required to build the ecFlow Python client
 RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
     python -m pip install \
         "numpy==1.26.4" \
         netcdf4 \
         bmipy \
-        pandas \
-        pyyml; \
+        pandas; \
     python -m pip install \
         --no-binary=mpi4py \
         mpi4py; \
@@ -267,8 +278,49 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
         torch \
         torchvision
 
-# Verify the configured NumPy constraint, package compatibility, and the
-# installed NumPy version after all Python dependencies have been installed.
+
+############################################################################
+# ecFlow Python client (requires build from source)
+############################################################################
+
+RUN --mount=type=cache,target=/root/.cache/ccache,id=ccache-bookworm \
+    --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
+    set -eux; \
+    mkdir -p /tmp/build-ecflow; \
+    python -m pip install "pybind11>=2.10.3"; \
+    cd /tmp/build-ecflow; \
+    git clone --depth 1 --branch "${ECFLOW_VERSION}" \
+        https://github.com/ecmwf/ecflow.git; \
+    git clone --depth 1 --branch "${ECBUILD_VERSION}" \
+        https://github.com/ecmwf/ecbuild.git; \
+    PYBIND11_CMAKE_DIR="$(python -c \
+        'import pybind11; print(pybind11.get_cmake_dir())')"; \
+    cmake -B ecflow/build -S ecflow \
+        -DCMAKE_INSTALL_PREFIX="${VIRTUAL_ENV}" \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_PREFIX_PATH="${PYBIND11_CMAKE_DIR}" \
+        -DENABLE_PYTHON=ON \
+        -DENABLE_SERVER=OFF \
+        -DENABLE_UI=OFF \
+        -DENABLE_TESTS=OFF \
+        -DENABLE_DOCS=OFF \
+        -DENABLE_SSL=ON \
+        -DENABLE_STATIC_BOOST_LIBS=OFF \
+        -DBOOST_ROOT=/usr/local \
+        -DBoost_NO_SYSTEM_PATHS=on \
+        -DPython3_EXECUTABLE="$(which python)"; \
+    cmake --build ecflow/build \
+        --parallel "$(( $(nproc) < 4 ? $(nproc) : 4 ))"; \
+    cmake --install ecflow/build; \
+    python -m pip uninstall -y pybind11; \
+    python -c "import ecflow; print(f'ecFlow Python client version {ecflow.__version__} installed successfully')"; \
+    rm -rf /tmp/build-ecflow
+
+WORKDIR /
+
+
+# Verify that all installed Python packages have compatible dependencies and
+# that later installations did not replace NumPy 1.26.4.
 RUN set -eux; \
     test "$(command -v python)" = "${VIRTUAL_ENV}/bin/python"; \
     test "${PIP_CONSTRAINT}" = "/ngen-app/python-constraints.txt"; \
