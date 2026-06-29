@@ -292,7 +292,8 @@ RUN set -eux; \
 ############################################################################
 
 # The sed call removes Boost.NumPy. ecFlow Python client does need --with-python (does need Boost.Python) but does not need Boost.Numpy, and including numpy here can be problematic.
-# Boost libs added 2026-06-25 are required by ecFlow Python client build. See: https://github.com/ecmwf/ecflow/blob/master/cmake/Dependencies.cmake
+# Boost libraries added 2026-06-25 are required by the ecFlow Python client.
+# See: https://github.com/ecmwf/ecflow/blob/5.15.2/cmake/Dependencies.cmake
 RUN set -eux; \
     mkdir -p /tmp/build-boost; \
     cd /tmp/build-boost; \
