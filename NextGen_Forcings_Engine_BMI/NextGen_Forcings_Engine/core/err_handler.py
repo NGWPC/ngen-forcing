@@ -12,7 +12,17 @@ from scipy import spatial
 
 # Use the Error and Warning Trapping System Package for logging
 LOG = ewts.get_logger("FORCING")
-LOG = ewts.bind_logger('FORCING')
+# EWTS compatibility:
+# Some EWTS versions expose bind_logger(), while newer/alternate versions expose get_logger().
+# Support both so ngen-forcing does not fail at import time.
+if hasattr(ewts, "bind_logger"):
+    LOG = ewts.bind_logger("FORCING")
+elif hasattr(ewts, "get_logger"):
+    LOG = ewts.get_logger("FORCING")
+else:
+    import logging
+    LOG = logging.getLogger("FORCING")
+
 
 def in_exception_context() -> bool:
     if sys.exc_info()[0] is not None:

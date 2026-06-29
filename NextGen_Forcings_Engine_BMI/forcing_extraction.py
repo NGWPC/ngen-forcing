@@ -20,74 +20,98 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
 
 
 def retrieve_forcing(config_options: ConfigOptions):
-    """Download forecast forcing data based on requested sources in the forcing engine configuration file.
+    """Download forecast forcing data based on requested sources in the forcing
+    engine configuration file.
 
-    :param config_options: dictionary of forcing engine config parameters
+    This version fixes supplemental precipitation/MRMS timing for AnA configs.
+    In particular, supplemental backward-looking windows are anchored to
+    refcstbdate + ForecastInputHorizons when needed, rather than being anchored
+    too early relative to refcstbdate.
     """
-    # Get parameters from the forcing engine config file
+    # Get parameters from the forcing engine config file.
     refcstbdate = config_options.b_date_proc
+
     input_forcings = config_options.input_forcings + [
         f"supp{val}" for val in config_options.supp_precip_forcings
     ]
+
     if config_options.supp_precip_dirs is not None:
         input_forcing_dirs = (
             config_options.input_force_dirs + config_options.supp_precip_dirs
         )
     else:
         input_forcing_dirs = config_options.input_force_dirs
+
     input_horizons = config_options.fcst_input_horizons
     input_horizons = input_horizons + [input_horizons[0]] * len(
         config_options.supp_precip_forcings
     )
+
     ens_number = config_options.cfsv2EnsMember
     ana_flag = config_options.ana_flag
     look_back = config_options.look_back
 
-    # Extract forcing data from appropriate sources
+    # Extract forcing data from appropriate sources.
     for i in range(len(input_forcings)):
-        # print(f"i: {i}, input_forcings[i]: {input_forcings[i]}, input_horizons[i]: {input_horizons[i]}, ")
-
-        # Format extraction path
         extract_out_path = input_forcing_dirs[i]
 
-        # Set supp forcing hours timehandling placeholder
+        # Time-handling placeholder for supplemental precipitation.
         supp_forcing_hours = None
 
-        # Set lookback hours and extraction scripts
+        # Set lookback hours and extraction scripts.
         if ana_flag == 0:
             lookback_hours = 1
-            forcing_script = FORCING_EXTRACTION["forcing_src"].get(input_forcings[i])
+            forcing_script = FORCING_EXTRACTION["forcing_src"].get(
+                input_forcings[i]
+            )
             forcing_start_time = refcstbdate + timedelta(hours=1)
+
         elif ana_flag == 1:
-            lookback_hours = int(look_back / 60 )
-            forcing_start_time = refcstbdate + timedelta(hours=(lookback_hours -1))
+            lookback_hours = int(look_back / 60)
+            forcing_start_time = refcstbdate + timedelta(
+                hours=(lookback_hours - 1)
+            )
+
             if input_forcings[i] in (
                 "supp1",
                 "supp2",
                 "supp6",
-                #"supp10",
+                # "supp10",
                 "supp11",
                 "supp12",
             ):
                 supp_forcing_hours = 1
             else:
                 supp_forcing_hours = 0
+
             forcing_script = FORCING_EXTRACTION["forcing_ana_src"].get(
                 input_forcings[i]
             )
 
-        # Set path to extraction script
+        else:
+            raise ValueError(f"Unsupported AnAFlag value: {ana_flag}")
+
+        if forcing_script is None:
+            raise ValueError(
+                f"No forcing extraction script found for input forcing "
+                f"{input_forcings[i]!r} with AnAFlag={ana_flag}"
+            )
+
+        # Set path to extraction script.
         extract_script_path = (
             Path(FORCING_EXTRACTION["extraction_script_path"]) / forcing_script
         )
 
-        # Dynamically import extraction module
+        # Dynamically import extraction module.
         mod_name = f"forcing_{Path(extract_script_path).stem}"
         spec = importlib.util.spec_from_file_location(mod_name, extract_script_path)
+        if spec is None or spec.loader is None:
+            raise ImportError(f"Unable to load forcing extraction script: {extract_script_path}")
+
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
 
-        # Retrieve correct ForecastDownloader subclass from extraction script
+        # Retrieve correct ForecastDownloader subclass from extraction script.
         base_classes = (ForecastDownloader, FixedFileDownloader, ScrapedFileDownloader)
         downloader_class = next(
             obj
@@ -97,16 +121,43 @@ def retrieve_forcing(config_options: ConfigOptions):
             and obj not in base_classes
         )
 
+        # Original AnA handling:
+        # Move from the initial lookback anchor to the first valid forcing time.
         if ana_flag == 1:
             forcing_start_time = forcing_start_time + timedelta(hours=1)
 
+        # Supplemental precipitation/MRMS timing fix:
+        #
+        # Old behavior:
+        #   forcing_start_time += timedelta(hours=supp_forcing_hours)
+        #
+        # That anchored the MRMS backward-looking window too early for longer
+        # AnA horizons, causing missing supplemental files.
+        #
+        # New behavior:
+        #   If this is a supplemental backward-looking source and the forecast
+        #   horizon is positive, anchor the end of the supplemental window to:
+        #
+        #       refcstbdate + ForecastInputHorizons
+        #
+        #   This ensures the downloaded MRMS files cover all output timesteps.
+        #
+        # Also accumulate supp_forcing_hours into lookback_hours so the window
+        # is long enough.
         if supp_forcing_hours is not None:
-            forcing_start_time += timedelta(hours=supp_forcing_hours)
+            if supp_forcing_hours > 0 and input_horizons[i] > 0:
+                forcing_start_time = refcstbdate + timedelta(
+                    minutes=input_horizons[i]
+                )
+            else:
+                forcing_start_time += timedelta(hours=supp_forcing_hours)
+
+            lookback_hours += supp_forcing_hours
 
         if ana_flag == 1:
             lookback_hours = lookback_hours + 1
 
-        # Format forcing extraction command
+        # Format forcing extraction command.
         downloader = downloader_class(
             out_dir=extract_out_path,
             start_time=forcing_start_time,
@@ -117,9 +168,8 @@ def retrieve_forcing(config_options: ConfigOptions):
             input_horizon=input_horizons[i] if input_horizons[i] > 0 else None,
         )
 
-        # Run the download
+        # Run the download.
         downloader.run()
-
 
 def main():
     """Extract forcing data."""

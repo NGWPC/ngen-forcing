@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import math
 from pathlib import Path
 
@@ -46,6 +47,22 @@ def set_none(func) -> Any:
 
     return wrapper
 
+def _rss_mb() -> int:
+    """Return current process resident memory in MB, best effort."""
+    try:
+        with open("/proc/self/status", "r") as fp:
+            for line in fp:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except Exception:
+        pass
+    return -1
+
+
+def _mem_log(label: str) -> None:
+    """Log memory only when explicitly enabled."""
+    if os.environ.get("FORCING_MEM_DEBUG", "0") == "1":
+        print(f"[MEM] {label}: RSS={_rss_mb()} MB", flush=True)
 
 def broadcast(prop) -> Any:
     """Broadcast the output of a cached_property to all processors."""
@@ -146,14 +163,46 @@ class GeoMeta:
         Global attributes (DX, DY, etc.) are preserved on the subset dataset.
         """
         try:
-            with xr.open_dataset(self.config_options.geogrid) as ds:
-                needed = [
-                    getattr(self.config_options, attr)
-                    for attr in self._GEOGRID_VAR_ATTRS
-                    if getattr(self.config_options, attr, None) is not None
-                    and getattr(self.config_options, attr) in ds
-                ]
-                return ds[needed].load()
+            if self.mpi_config.rank == 0:
+                _mem_log("GeoMeta.geogrid_ds: before open_dataset")
+
+            with xr.open_dataset(
+                self.config_options.geogrid,
+                decode_cf=False,
+                mask_and_scale=False,
+            ) as ds:
+                if self.mpi_config.rank == 0:
+                    _mem_log("GeoMeta.geogrid_ds: after open_dataset")
+
+                if os.environ.get("FORCING_GEOGRID_LATLON_ONLY", "0") == "1":
+                    wanted_attrs = ("lat_var", "lon_var")
+                else:
+                    wanted_attrs = self._GEOGRID_VAR_ATTRS
+
+                needed = []
+                for attr in wanted_attrs:
+                    var_name = getattr(self.config_options, attr, None)
+                    if var_name is not None and var_name in ds:
+                        needed.append(var_name)
+
+                # Remove duplicates while preserving order.
+                needed = list(dict.fromkeys(needed))
+
+                if self.mpi_config.rank == 0:
+                    print(
+                        "[DEBUG GeoMeta] geogrid variables selected: "
+                        + ", ".join(needed),
+                        flush=True,
+                    )
+                    _mem_log("GeoMeta.geogrid_ds: before subset/load")
+
+                geogrid_ds = ds[needed].load()
+                geogrid_ds.attrs.update(ds.attrs)
+
+                if self.mpi_config.rank == 0:
+                    _mem_log("GeoMeta.geogrid_ds: after subset/load")
+
+                return geogrid_ds
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             log_critical(self.config_options, self.mpi_config)
@@ -164,8 +213,22 @@ class GeoMeta:
     def esmf_ds(self) -> xr.Dataset:
         """Open the geospatial metadata file and return the xarray dataset object."""
         try:
-            with xr.open_dataset(self.config_options.spatial_meta) as ds:
+            if self.mpi_config.rank == 0:
+                _mem_log("GeoMeta.esmf_ds: before open_dataset")
+
+            with xr.open_dataset(
+                self.config_options.spatial_meta,
+                decode_cf=False,
+                mask_and_scale=False,
+            ) as ds:
+                if self.mpi_config.rank == 0:
+                    _mem_log("GeoMeta.esmf_ds: after open_dataset")
+
                 esmf_ds = ds.load()
+                esmf_ds.attrs.update(ds.attrs)
+
+                if self.mpi_config.rank == 0:
+                    _mem_log("GeoMeta.esmf_ds: after load")
         except Exception as e:
             self.config_options.errMsg = (
                 f"Unable to open esmf file: {self.config_options.spatial_meta}"
@@ -378,11 +441,19 @@ class GriddedGeoMeta(GeoMeta):
     def esmf_grid(self) -> ESMF.Grid:
         """Create the ESMF grid object for the gridded domain."""
         try:
-            return ESMF.Grid(
+            if self.mpi_config.rank == 0:
+                _mem_log("GriddedGeoMeta.esmf_grid: before ESMF.Grid")
+
+            grid = ESMF.Grid(
                 np.array([self.ny_global, self.nx_global]),
                 staggerloc=ESMF.StaggerLoc.CENTER,
                 coord_sys=ESMF.CoordSys.SPH_DEG,
             )
+
+            if self.mpi_config.rank == 0:
+                _mem_log("GriddedGeoMeta.esmf_grid: after ESMF.Grid")
+
+            return grid
         except Exception as e:
             self.config_options.errMsg = f"Unable to create ESMF grid for WRF-Hydro geogrid: {self.config_options.geogrid}"
             log_critical(self.config_options, self.mpi_config)
@@ -391,15 +462,37 @@ class GriddedGeoMeta(GeoMeta):
     @cached_property
     def esmf_lat(self) -> np.ndarray:
         """Get the ESMF latitude grid."""
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lat: before get_coords")
+
         esmf_lat = self.esmf_grid.get_coords(1)
+
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lat: before populate coords")
+
         esmf_lat[:, :] = self.latitude_grid
+
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lat: after populate coords")
+
         return esmf_lat
 
     @cached_property
     def esmf_lon(self) -> np.ndarray:
         """Get the ESMF longitude grid."""
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lon: before get_coords")
+
         esmf_lon = self.esmf_grid.get_coords(0)
+
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lon: before populate coords")
+
         esmf_lon[:, :] = self.longitude_grid
+
+        if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.esmf_lon: after populate coords")
+
         return esmf_lon
 
     @scatter
@@ -408,6 +501,8 @@ class GriddedGeoMeta(GeoMeta):
         """Get the latitude grid for the gridded domain."""
         # Scatter global XLAT_M grid to processors..
         if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.latitude_grid: before extract")
+
             if self.ndim_lat == 3:
                 var_tmp = np.asarray(self.lat_var[0, :, :])
             elif self.ndim_lat == 2:
@@ -417,6 +512,8 @@ class GriddedGeoMeta(GeoMeta):
                 lon = self.lon_var[:]
                 var_tmp = np.meshgrid(lon, lat)[1]
 
+            var_tmp = np.asarray(var_tmp, dtype=np.float64)
+
             # Flag to grab entire array for AWS slicing
             if self.config_options.aws:
                 self.lat_bounds = var_tmp
@@ -425,6 +522,8 @@ class GriddedGeoMeta(GeoMeta):
             print(f"[DEBUG GeoMeta] latitude_grid min/max: {var_tmp.min():.4f} / {var_tmp.max():.4f}")
             print(f"[DEBUG GeoMeta] latitude_grid corners: [0,0]={var_tmp[0,0]:.4f}, [-1,-1]={var_tmp[-1,-1]:.4f}")
             print(f"[DEBUG GeoMeta] latitude_grid first row mean: {var_tmp[0,:].mean():.4f}, last row mean: {var_tmp[-1,:].mean():.4f}")
+
+            _mem_log("GriddedGeoMeta.latitude_grid: after extract")
         else:
             var_tmp = None
         return var_tmp, "latitude_grid", self.config_options, False
@@ -445,6 +544,8 @@ class GriddedGeoMeta(GeoMeta):
         """Get the longitude grid for the gridded domain."""
         # Scatter global XLONG_M grid to processors..
         if self.mpi_config.rank == 0:
+            _mem_log("GriddedGeoMeta.longitude_grid: before extract")
+
             if (
                 self.ndim_lat == 3
             ):  # NOTE The original code has lat here... should it maybe be lon instead?
@@ -456,6 +557,11 @@ class GriddedGeoMeta(GeoMeta):
                 lon = self.lon_var[:]
                 var_tmp = np.meshgrid(lon, lat)[0]
 
+            var_tmp = np.asarray(var_tmp, dtype=np.float64)
+
+            if np.nanmax(var_tmp) > 180.0:
+                var_tmp = np.where(var_tmp > 180.0, var_tmp - 360.0, var_tmp)
+
             # Flag to grab entire array for AWS slicing
             if self.config_options.aws:
                 self.lon_bounds = var_tmp
@@ -463,6 +569,8 @@ class GriddedGeoMeta(GeoMeta):
             print(f"[DEBUG GeoMeta] longitude_grid shape: {var_tmp.shape}")
             print(f"[DEBUG GeoMeta] longitude_grid min/max: {var_tmp.min():.4f} / {var_tmp.max():.4f}")
             print(f"[DEBUG GeoMeta] longitude_grid corners: [0,0]={var_tmp[0,0]:.4f}, [-1,-1]={var_tmp[-1,-1]:.4f}")
+
+            _mem_log("GriddedGeoMeta.longitude_grid: after extract")
         else:
             var_tmp = None
 

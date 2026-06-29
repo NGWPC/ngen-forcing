@@ -124,6 +124,24 @@ def timing_block(step_str: str):
     LOG.debug(f"  Execution time for {step_str}: {round(end - start, 2)} seconds")
 
 
+def _rss_mb() -> int:
+    """Return current process resident memory in MB, best effort."""
+    try:
+        with open("/proc/self/status", "r") as fp:
+            for line in fp:
+                if line.startswith("VmRSS:"):
+                    return int(line.split()[1]) // 1024
+    except Exception:
+        pass
+    return -1
+
+
+def _mem_log(label: str) -> None:
+    """Log memory only when explicitly enabled."""
+    if os.environ.get("FORCING_MEM_DEBUG", "0") == "1":
+        print(f"[MEM] {label}: RSS={_rss_mb()} MB", flush=True)
+
+
 def mkfilename():
     """Create a unique filename suffix."""
     global next_file_number
@@ -180,21 +198,10 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
     try:
         # If the expected file is missing, this means we are allowing missing files, simply
         # exit out of this routine as the regridded fields have already been set to NDV.
-        if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
-            # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
-            if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
-                supplemental_precip.file_in2 = supplemental_precip.file_in1
-            else:
-                if supplemental_precip.regridded_precip2 is not None:
-                    if config_options.grid_type == "gridded":
-                        supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
-                    elif config_options.grid_type == "unstructured":
-                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
-                        if supplemental_precip.regridded_precip2_elem is not None:
-                            supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
-                    elif config_options.grid_type == "hydrofabric":
-                        supplemental_precip.regridded_precip2[:] = config_options.globalNdv
-                return
+        if not input_forcings.file_in2 or not os.path.isfile(input_forcings.file_in2):
+            if mpi_config.rank == 0:
+                pt.log_debug("No AK AnA in_2 file found for this timestep.")
+            return
 
         # Check to see if the regrid complete flag for this
         # output time step is true. This entails the necessary
@@ -7160,6 +7167,26 @@ def regrid_mrms_hourly(
     """
     pt = Partials(mpi_config, config_options)
 
+    ## TEMP CHANGE!
+    if os.environ.get("FORCING_SKIP_MRMS", "0") == "1":
+        if mpi_config.rank == 0:
+            pt.log_warn(
+                "Skipping MRMS supplemental precipitation regrid because "
+                "FORCING_SKIP_MRMS=1"
+            )
+
+        if supplemental_precip.regridded_precip2 is not None:
+            if config_options.grid_type == "gridded":
+                supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
+            elif config_options.grid_type == "unstructured":
+                supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+                if supplemental_precip.regridded_precip2_elem is not None:
+                    supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
+            elif config_options.grid_type == "hydrofabric":
+                supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+
+        return
+
     # Do we want to use MRMS data at this timestep? If not, log and continue
     if not config_options.use_data_at_current_time:
         if mpi_config.rank == 0:
@@ -7168,11 +7195,22 @@ def regrid_mrms_hourly(
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
-    if not os.path.isfile(supplemental_precip.file_in2):
+    # If the expected file is missing, this means we are allowing missing files, simply
+    # exit out of this routine as the regridded fields have already been set to NDV.
+    if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
         # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
-        if os.path.isfile(supplemental_precip.file_in1):
+        if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
             supplemental_precip.file_in2 = supplemental_precip.file_in1
         else:
+            if supplemental_precip.regridded_precip2 is not None:
+                if config_options.grid_type == "gridded":
+                    supplemental_precip.regridded_precip2[:, :] = config_options.globalNdv
+                elif config_options.grid_type == "unstructured":
+                    supplemental_precip.regridded_precip2[:] = config_options.globalNdv
+                    if supplemental_precip.regridded_precip2_elem is not None:
+                        supplemental_precip.regridded_precip2_elem[:] = config_options.globalNdv
+                elif config_options.grid_type == "hydrofabric":
+                    supplemental_precip.regridded_precip2[:] = config_options.globalNdv
             return
 
     # Check to see if the regrid complete flag for this
@@ -12191,65 +12229,158 @@ def calculate_weights(
     weight_file, weight_file_elem = get_weight_file_names(*common_args)
 
     if mpi_config.rank == 0:
-        import resource as _resource
-        _rss_mb = lambda: _resource.getrusage(_resource.RUSAGE_SELF).ru_maxrss / 1024
-        print(f"[DEBUG weights] product={input_forcings.product_name}")
-        print(f"[DEBUG weights] config_options.weightsDir = {config_options.weightsDir!r}")
-        print(f"[DEBUG weights] weight_file = {weight_file!r}")
-        print(f"[DEBUG weights] regridObj already set: {input_forcings.regridObj is not None}")
-        print(f"[DEBUG weights] RSS before weight init: {_rss_mb():.0f} MB")
+        print(f"[DEBUG weights] product={input_forcings.product_name}", flush=True)
+        print(
+            f"[DEBUG weights] config_options.weightsDir = {config_options.weightsDir!r}",
+            flush=True,
+        )
+        print(f"[DEBUG weights] weight_file = {weight_file!r}", flush=True)
+        print(
+            f"[DEBUG weights] regridObj already set: {input_forcings.regridObj is not None}",
+            flush=True,
+        )
+        _mem_log(f"{input_forcings.product_name}: before weight status check")
+        print(f"[DEBUG weights] RSS before weight init: {_rss_mb()} MB", flush=True)
+        _mem_log(f"{input_forcings.product_name}: after weight status check")
 
-    # If regrid object has not been initialized yet, initialize it.
-    if input_forcings.regridObj is None:
-        # make_regrid's call to Regrid() is an implicit MPI barrier, all ranks must call it.
-        if config_options.weightsDir is not None:
-            if not os.path.exists(weight_file):
-                if mpi_config.rank == 0:
-                    print(f"[DEBUG weights] weight file not cached — computing and writing to disk: {weight_file}")
-                make_regrid(
-                    *common_args, weight_file=weight_file, fill=fill, element_mode=False
+    if config_options.weightsDir is not None:
+        if not os.path.exists(weight_file):
+            if mpi_config.rank == 0:
+                print(
+                    f"[DEBUG weights] weight file not cached — computing and writing to disk: {weight_file}",
+                    flush=True,
                 )
-                if mpi_config.rank == 0:
-                    print(f"[DEBUG weights] make_regrid done. RSS: {_rss_mb():.0f} MB")
-            else:
-                if mpi_config.rank == 0:
-                    print(f"[DEBUG weights] weight file already on disk — skipping make_regrid")
+                _mem_log(f"{input_forcings.product_name}: before make_regrid")
 
-            if config_options.grid_type == "unstructured" and (
-                not os.path.exists(weight_file_elem)
-            ):
-                make_regrid(
-                    *common_args,
-                    weight_file=weight_file_elem,
-                    fill=fill,
-                    element_mode=True,
+            if os.environ.get("FORCING_STOP_BEFORE_MAKE_REGRID", "0") == "1":
+                raise RuntimeError(
+                    "Stopping before ESMF make_regrid because "
+                    "FORCING_STOP_BEFORE_MAKE_REGRID=1. "
+                    f"product={input_forcings.product_name}, "
+                    f"weight_file={weight_file}"
                 )
 
+            make_regrid(
+                *common_args,
+                weight_file=weight_file,
+                fill=fill,
+                element_mode=False,
+            )
+
             if mpi_config.rank == 0:
-                print(f"[DEBUG weights] loading weight file from disk...")
-            load_weight_file(*common_args, weight_file, element_mode=False)
-            if mpi_config.rank == 0:
-                print(f"[DEBUG weights] load_weight_file done. RSS: {_rss_mb():.0f} MB")
-            if config_options.grid_type == "unstructured":
-                load_weight_file(*common_args, weight_file, element_mode=True)
+                print(
+                    f"[DEBUG weights] make_regrid done. RSS: {_rss_mb()} MB",
+                    flush=True,
+                )
+                _mem_log(f"{input_forcings.product_name}: after make_regrid")
+
+                if os.path.exists(weight_file):
+                    print(
+                        f"[DEBUG weights] generated weight file: {weight_file}",
+                        flush=True,
+                    )
+                    print(
+                        f"[DEBUG weights] generated weight file size bytes: {os.path.getsize(weight_file)}",
+                        flush=True,
+                    )
+
+            if os.environ.get("FORCING_GENERATE_WEIGHTS_ONLY", "0") == "1":
+                raise SystemExit(
+                    "Generated requested ESMF weight file and exiting because "
+                    "FORCING_GENERATE_WEIGHTS_ONLY=1. "
+                    f"product={input_forcings.product_name}, "
+                    f"weight_file={weight_file}"
+                )
+
         else:
             if mpi_config.rank == 0:
-                print(f"[DEBUG weights] WARNING: weightsDir is None — computing weights IN MEMORY (will be large for CONUS)")
-                print(f"[DEBUG weights] RSS before in-memory make_regrid: {_rss_mb():.0f} MB")
-            # Make regrid object in memory without writing files
-            make_regrid(*common_args, weight_file=None, fill=fill, element_mode=False)
-            if mpi_config.rank == 0:
-                print(f"[DEBUG weights] in-memory make_regrid done. RSS: {_rss_mb():.0f} MB")
-            if config_options.grid_type == "unstructured":
-                make_regrid(
-                    *common_args, weight_file=None, fill=fill, element_mode=True
+                print(
+                    "[DEBUG weights] weight file already on disk — skipping make_regrid",
+                    flush=True,
                 )
+
+        if config_options.grid_type == "unstructured" and (
+            not os.path.exists(weight_file_elem)
+        ):
+            if mpi_config.rank == 0:
+                _mem_log(f"{input_forcings.product_name}: before make_regrid elem")
+
+            make_regrid(
+                *common_args,
+                weight_file=weight_file_elem,
+                fill=fill,
+                element_mode=True,
+            )
+
+            if mpi_config.rank == 0:
+                _mem_log(f"{input_forcings.product_name}: after make_regrid elem")
+
+            if os.environ.get("FORCING_GENERATE_WEIGHTS_ONLY", "0") == "1":
+                raise SystemExit(
+                    "Generated requested ESMF element weight file and exiting because "
+                    "FORCING_GENERATE_WEIGHTS_ONLY=1. "
+                    f"product={input_forcings.product_name}, "
+                    f"weight_file_elem={weight_file_elem}"
+                )
+
+        if mpi_config.rank == 0:
+            print("[DEBUG weights] loading weight file from disk...", flush=True)
+            _mem_log(f"{input_forcings.product_name}: before load_weight_file")
+
+        load_weight_file(*common_args, weight_file, element_mode=False)
+
+        if mpi_config.rank == 0:
+            print(
+                f"[DEBUG weights] load_weight_file done. RSS: {_rss_mb()} MB",
+                flush=True,
+            )
+            _mem_log(f"{input_forcings.product_name}: after load_weight_file")
+
+        if config_options.grid_type == "unstructured":
+            load_weight_file(*common_args, weight_file_elem, element_mode=True)
+
+    else:
+        if mpi_config.rank == 0:
+            print(
+                "[DEBUG weights] WARNING: weightsDir is None — computing weights IN MEMORY "
+                "(will be large for CONUS)",
+                flush=True,
+            )
+            print(
+                f"[DEBUG weights] RSS before in-memory make_regrid: {_rss_mb()} MB",
+                flush=True,
+            )
+            _mem_log(f"{input_forcings.product_name}: before make_regrid")
+
+        make_regrid(
+            *common_args,
+            weight_file=None,
+            fill=fill,
+            element_mode=False,
+        )
+
+        if mpi_config.rank == 0:
+            print(
+                f"[DEBUG weights] in-memory make_regrid done. RSS: {_rss_mb()} MB",
+                flush=True,
+            )
+            _mem_log(f"{input_forcings.product_name}: after make_regrid")
+
+        if config_options.grid_type == "unstructured":
+            make_regrid(
+                *common_args,
+                weight_file=None,
+                fill=fill,
+                element_mode=True,
+            )
 
     if mpi_config.rank == 0:
         print(f"[DEBUG weights] calling execute_regrid. RSS: {_rss_mb():.0f} MB")
+        _mem_log(f"{input_forcings.product_name}: before execute_regrid")
     execute_regrid(*common_args, weight_file, element_mode=False)
     if mpi_config.rank == 0:
         print(f"[DEBUG weights] execute_regrid done. RSS: {_rss_mb():.0f} MB")
+        _mem_log(f"{input_forcings.product_name}: after execute_regrid")
     if config_options.grid_type == "gridded":
         input_forcings.regridded_mask[:, :] = np.round(
             input_forcings.esmf_field_out.data[:, :]
