@@ -292,8 +292,7 @@ RUN set -eux; \
 ############################################################################
 
 # The sed call removes Boost.NumPy. ecFlow Python client does need --with-python (does need Boost.Python) but does not need Boost.Numpy, and including numpy here can be problematic.
-# Boost libraries added 2026-06-25 are required by the ecFlow Python client.
-# See: https://github.com/ecmwf/ecflow/blob/5.15.2/cmake/Dependencies.cmake
+# Boost Python is required by the ecFlow Python client.
 RUN set -eux; \
     mkdir -p /tmp/build-boost; \
     cd /tmp/build-boost; \
@@ -304,7 +303,7 @@ RUN set -eux; \
     cd boost; \
     ./bootstrap.sh; \
     sed -i 's/boost-install boost_python boost_numpy/boost-install boost_python/' libs/python/build/Jamfile; \
-    CPLUS_INCLUDE_PATH="/usr/include/python3.11" ./b2 install --prefix=/usr/local --with-python --with-system --with-filesystem --with-thread --with-regex --with-date_time --with-program_options --with-process; \
+    CPLUS_INCLUDE_PATH="/usr/include/python3.11" ./b2 install --prefix=/usr/local; \
     rm -rf /opt/boost; \
     mkdir --parents /opt/boost; \
     cp -a /tmp/build-boost/boost/. /opt/boost/; \
@@ -358,6 +357,7 @@ RUN mkdir -p /tmp/build-ecflow && cd /tmp/build-ecflow && \
         -DPython3_EXECUTABLE="$(which python)" && \
     cmake --build ecflow/build --parallel "$(( $(nproc) < 4 ? $(nproc) : 4 ))" && \
     cmake --install ecflow/build && \
+    python -m pip uninstall -y pybind11 && \
     python -c "import ecflow; print(f'ecflow Python client version {ecflow.__version__} installed successfully')" && \
     rm -r /tmp/build-ecflow
 
