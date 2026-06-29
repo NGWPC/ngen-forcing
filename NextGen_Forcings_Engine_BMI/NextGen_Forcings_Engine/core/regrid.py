@@ -7195,8 +7195,6 @@ def regrid_mrms_hourly(
 
     # If the expected file is missing, this means we are allowing missing files, simply
     # exit out of this routine as the regridded fields have already been set to NDV.
-    # If the expected file is missing, this means we are allowing missing files, simply
-    # exit out of this routine as the regridded fields have already been set to NDV.
     if not supplemental_precip.file_in2 or not os.path.isfile(supplemental_precip.file_in2):
         # does file_in1 exist? (Pass1 vs Pass2 for MRMS, for example)
         if supplemental_precip.file_in1 and os.path.isfile(supplemental_precip.file_in1):
