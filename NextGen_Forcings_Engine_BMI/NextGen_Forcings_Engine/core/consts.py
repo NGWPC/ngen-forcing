@@ -9,6 +9,22 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.timeInterpMod impo
 )
 
 BMI_MODEL = {
+    "NWMv3_Forcing_Engine_BMI_model_Base": [
+        "_model",
+        "_comm",
+        "cfg_bmi",
+        "_job_meta",
+        "_mpi_meta",
+        "_geo_meta",
+        "_grids",
+        "_grid_map",
+        "_output_var_names",
+        "_var_name_units_map",
+        "_input_forcing_mod",
+        "_supp_pcp_mod",
+        "_output_obj",
+        "_total_start",
+    ],
     "att_map": {
         "model_name": "NWMv3.0 Forcings Engine BMI Python",
         "version": "1.0",
