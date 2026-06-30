@@ -109,6 +109,14 @@ on:
         description: 'Deps image: GDAL version (blank = Dockerfile default; forces a deps rebuild)'
         required: false
         type: string
+      ECFLOW_VERSION:
+        description: 'Deps image: ecFlow version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
+      ECBUILD_VERSION:
+        description: 'Deps image: ecbuild version (blank = Dockerfile default; forces a deps rebuild)'
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -248,7 +256,7 @@ jobs:
         run: |
           # if any dependency version input was provided, force a deps rebuild so
           # the override actually takes effect
-          if [ -n "${{ inputs.SZIP_VERSION }}${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}" ]; then
+          if [ -n "${{ inputs.SZIP_VERSION }}${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}${{ inputs.ECFLOW_VERSION }}${{ inputs.ECBUILD_VERSION }}" ]; then
             echo "set=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -272,6 +280,8 @@ jobs:
       boost_version: ${{ inputs.BOOST_VERSION }}
       esmf_version: ${{ inputs.ESMF_VERSION }}
       gdal_version: ${{ inputs.GDAL_VERSION }}
+      ecflow_version: ${{ inputs.ECFLOW_VERSION }}
+      ecbuild_version: ${{ inputs.ECBUILD_VERSION }}
 
   # CodeQL scan
   codeql-scan:
