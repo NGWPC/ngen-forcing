@@ -1,25 +1,39 @@
-1) To start the download processes, at the prompt,
+# Overview
+This directory contains Python scripts to download USGS streamflow observations in realtime. The script runs as a daemon process when it is started. It will continously check the USGS server for any locations that have updated streamflow data since it was last checked, and then download only the updated streamflows.
 
-./run_usgs.sh
+# Prerequisite
+It requires an USGS API Key. USGS API Keys can be obtained from https://api.waterdata.usgs.gov/signup.
 
-or put this script in a cron job. It will clear the log file every day at 5:28. 
+A DBNROOT directory for storing log files.
 
-Output is saved in the directory pointed to by the $OUTDIR variable. You can change the output directory by redefining the $OUTDIR variable in run_usgs.sh
+A DCOMROOT directory for storing the raw data files.
 
-The log file is saved to the file defined by the $log variable. You can change the log file by modifying the $log variable in the run_usgs.sh.
+# Script description
+usgs_current.py: The main driver and the realtime download script using USGS OGC APIs
 
-The log file is reset daily at 5:28. To change the time, redefine the $RESETLOGAT variable.
+# Script Usage
 
-The empty file, 'fetch_data_last_success', in the output directory is touched at every successful download. It can be used to monitor the program.
+## Setup environmental variables
+Set the USGS_API_KEY, DBNROOT and DCOMROOT environmental variables
+For example,
 
-- To kill run_usgs.sh
-ps -ef|grep parallel_download_master.py
+```
+export USGS_API_KEY=[API KEY]
+export DCOMROOT=/path/to/dcomroot
+export DBNROOT=/path/to/dbnroot
+mkdir $DBNROOT/log
+```
+## Start the daemon script
+```
+python ./usgs_current.py
+```
+Output is saved in the directory pointed to by the $DCOMROOT variable.
+
+The log file is saved to the file defined by the $DBNROOT variable. 
+
+# To kill the daemon program
+
+```
+ps -ef|grep usgs_current.py
 kill -9 `pgrep -f parallel_download_master.py`
-
-- Here is the URL to download usgs stream flow data
-SITE_NO=05018000
-
-#site URL = https://waterservices.usgs.gov/nwis/iv/?sites=05018000&format=waterml,2.0&parameterCd=00060&period=PT6H
-site URL = https://waterservices.usgs.gov/nwis/iv/?sites=05018000&format=json&parameterCd=00060&period=PT6H
-
-2024-04-30 17:29:55.757442 --- Successfully downloaded stream flow data for  station:  05018000
+```

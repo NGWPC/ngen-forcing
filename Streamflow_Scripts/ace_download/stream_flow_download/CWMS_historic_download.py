@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from datetime import datetime
 import csv
 
@@ -124,7 +125,7 @@ def get_flows_and_times(downloader, office, name, start):
             else:
                 print(part1)
     except:
-        print("Error no data from office="+office+" name="+name)
+        print("FATAL ERROR: No data from office="+office+" name="+name)
 
     # print(times)
     # print(flows)

@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 import ssl
 import urllib.request
@@ -10,7 +11,8 @@ import datetime
 class CWMSDownloader:
     #def __init__(self, url="http://cwms-data.usace.army.mil/cwms-data/timeseries?"):
     #def __init__(self, url="https://water.usace.army.mil/cwms-data/timeseries?"):
-    def __init__(self, url="http://water.usace.army.mil/cwms-data/timeseries?"):
+    #def __init__(self, url="http://water.usace.army.mil/cwms-data/timeseries?"):
+    def __init__(self, url="http://cwms.sec.usace.army.mil/cwms-data/timeseries?"):
         """Constructor for CWMS Downloader class"""
         self.service_url = url
 
