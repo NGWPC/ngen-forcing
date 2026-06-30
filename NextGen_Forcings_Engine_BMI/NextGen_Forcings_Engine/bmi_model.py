@@ -2,14 +2,15 @@
 # This is needed for get_var_bytes
 import gc
 import hashlib
+import logging
 import os
 
 # time debugging
 import time
 from collections import defaultdict
-from pathlib import Path
 from datetime import datetime, timezone
-import logging
+from pathlib import Path
+
 import netCDF4 as nc
 
 # import data_tools
@@ -68,15 +69,14 @@ LOG = logging.getLogger("FORCING")
 try:
     from ewts.helper import getenv_any
     from ewts.logger import configure_existing_logger
+
     FORCING_USE_EWTS = True
 except ImportError:
     FORCING_USE_EWTS = False
 
-class StdoutStyleFormatter(logging.Formatter):
 
-    INFO_FORMAT = (
-        "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
-    )
+class StdoutStyleFormatter(logging.Formatter):
+    INFO_FORMAT = "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
 
     DETAILED_FORMAT = (
         "%(asctime)s %(name)-8s %(levelname)-7s "
@@ -91,7 +91,7 @@ class StdoutStyleFormatter(logging.Formatter):
             self._style._fmt = self.DETAILED_FORMAT
 
         return super().format(record)
-    
+
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
         return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -107,6 +107,7 @@ def _configure_stdout_logging():
         LOG.addHandler(handler)
 
     LOG.propagate = False
+
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
@@ -158,7 +159,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 configure_existing_logger(LOG)
             else:
                 _configure_stdout_logging()
-                LOG.warning("ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging.")
+                LOG.warning(
+                    "ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging."
+                )
         else:
             _configure_stdout_logging()
 
@@ -267,16 +270,16 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             self._job_meta = ConfigOptions(self.cfg_bmi)
 
         # Parse the configuration options
-        try:
-            self._job_meta.validate_config(self.cfg_bmi)
-        except KeyboardInterrupt as e:
-            err_handler.err_out_screen("User keyboard interrupt", e)
-        except ImportError as e:
-            err_handler.err_out_screen("Missing Python packages", e)
-        except InterruptedError as e:
-            err_handler.err_out_screen("External kill signal detected", e)
-        except Exception as e:
-            err_handler.err_out_screen("Unhandled exception", e)
+        # try:
+        #     self._job_meta.validate_config(self.cfg_bmi)
+        # except KeyboardInterrupt as e:
+        #     err_handler.err_out_screen("User keyboard interrupt", e)
+        # except ImportError as e:
+        #     err_handler.err_out_screen("Missing Python packages", e)
+        # except InterruptedError as e:
+        #     err_handler.err_out_screen("External kill signal detected", e)
+        # except Exception as e:
+        #     err_handler.err_out_screen("Unhandled exception", e)
 
         # Set NWM version and config, if provided in the config
         if self.cfg_bmi.get("NWM_VERSION") is not None:
@@ -306,9 +309,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
             cat_ids = esmf_creation.create_mesh(self._job_meta)
-        cat_count = np.array([
-            len(cat_ids) if self._mpi_meta.rank == 0 else 0
-        ], dtype=np.intc)
+        cat_count = np.array(
+            [len(cat_ids) if self._mpi_meta.rank == 0 else 0], dtype=np.intc
+        )
         self._mpi_meta.comm.Bcast(cat_count, root=0)
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
@@ -445,8 +448,21 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         :param output_path: The output path for model results. If omitted, a default path will be generated.
         :raises ValueError: If an invalid grid type is specified, an exception is raised.
         """
+        bmi_cfg_file = Path(config_file).resolve()
+        if not bmi_cfg_file.is_file():
+            LOG.critical(f"Config file {bmi_cfg_file} not found, nothing to do...")
+            raise RuntimeError(
+                f"Config file {bmi_cfg_file} not found, nothing to do..."
+            )
+
+        LOG.info(f"Reading config file: {bmi_cfg_file}")
+        with bmi_cfg_file.open("r") as fp:
+            cfg = yaml.safe_load(fp)
+
+        self.cfg_bmi = parse_config(cfg)
         # Set the job metadata parameters (b_date, geogrid) using config_options
-        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid_arg=geogrid)
+        self.cfg_bmi = parse_config(cfg)
+        self._job_meta = ConfigOptions(self.cfg_bmi, b_date=b_date, geogrid=geogrid)
 
         # Now that _job_meta is set, call initialize() to set up the core model
         self.initialize(config_file, output_path=output_path)
@@ -782,7 +798,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            return arr # allow CAT-ID to pass on whatever the dtype is based on the input data
+            return arr  # allow CAT-ID to pass on whatever the dtype is based on the input data
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."
