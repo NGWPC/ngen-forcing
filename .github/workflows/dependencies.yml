@@ -71,6 +71,16 @@ on:
         required: false
         type: string
         default: ''
+      ecflow_version:
+        description: 'ecFlow version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
+      ecbuild_version:
+        description: 'ecbuild version (blank = Dockerfile.dependencies default)'
+        required: false
+        type: string
+        default: ''
     outputs:
       image:
         description: 'Published deps image repo (no tag)'
@@ -190,6 +200,8 @@ jobs:
           add BOOST_VERSION "${{ inputs.boost_version }}"
           add ESMF_VERSION "${{ inputs.esmf_version }}"
           add GDAL_VERSION "${{ inputs.gdal_version }}"
+          add ECFLOW_VERSION "${{ inputs.ecflow_version }}"
+          add ECBUILD_VERSION "${{ inputs.ecbuild_version }}"
 
           # Publish step outputs. $GITHUB_OUTPUT is a FILE the runner provides;
           # every line appended to it becomes `steps.vars.outputs.<name>`,
