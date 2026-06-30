@@ -19,28 +19,28 @@ on:
       - release-candidate
   workflow_dispatch:
     inputs:
-      rebuild_deps:
+      REBUILD_DEPS:
         description: 'Force a rebuild of the dependencies image before building forcing'
         required: false
         default: false
         type: boolean
-      deps_base_repo:
-        description: 'Base image to compile the dependencies from (default rockylinux)'
+      DEPS_BASE_REPO:
+        description: 'Base image to compile the dependencies from (default python)'
         required: false
         type: string
-      deps_base_tag:
-        description: 'Dependencies base image tag (default 8)'
+      DEPS_BASE_TAG:
+        description: 'Dependencies base image tag (default 3.12-slim-bookworm)'
         required: false
         type: string
-      deps_base_suffix:
-        description: 'Override the published deps name suffix (default derived, e.g. rocky8)'
+      DEPS_BASE_SUFFIX:
+        description: 'Override the published deps name suffix (default derived, e.g. bookworm)'
         required: false
         type: string
-      BMI_BASE_REPO:
-        description: 'Deps image repo to build forcing FROM when not rebuilding deps (default ghcr.io/<org>/ngen-dependencies-rocky8)'
+      DEPS_IMAGE_REPO:
+        description: 'Deps image repo to build forcing FROM when not rebuilding deps (default ghcr.io/<org>/ngen-dependencies-bookworm)'
         required: false
         type: string
-      BMI_BASE_TAG:
+      DEPS_IMAGE_TAG:
         description: 'Deps image tag to build forcing FROM when not rebuilding deps (default latest)'
         required: false
         type: string
@@ -81,32 +81,12 @@ on:
         description: 'MSW_MGR_REF'
         required: false
         type: string
-      SZIP_VERSION:
-        description: 'Deps image: SZIP version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      HDF5_VERSION:
-        description: 'Deps image: HDF5 version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      NETCDF_C_VERSION:
-        description: 'Deps image: NetCDF-C version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      NETCDF_FORTRAN_VERSION:
-        description: 'Deps image: NetCDF-Fortran version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
       BOOST_VERSION:
         description: 'Deps image: Boost version (blank = Dockerfile default; forces a deps rebuild)'
         required: false
         type: string
       ESMF_VERSION:
         description: 'Deps image: ESMF version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      GDAL_VERSION:
-        description: 'Deps image: GDAL version (blank = Dockerfile default; forces a deps rebuild)'
         required: false
         type: string
 
@@ -248,7 +228,7 @@ jobs:
         run: |
           # if any dependency version input was provided, force a deps rebuild so
           # the override actually takes effect
-          if [ -n "${{ inputs.SZIP_VERSION }}${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}" ]; then
+          if [ -n "${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}" ]; then
             echo "set=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -258,20 +238,15 @@ jobs:
   dependencies:
     name: dependencies
     needs: changes
-    if: ${{ needs.changes.outputs.deps == 'true' || inputs.rebuild_deps || needs.changes.outputs.versions == 'true' }}
+    if: ${{ needs.changes.outputs.deps == 'true' || inputs.REBUILD_DEPS || needs.changes.outputs.versions == 'true' }}
     uses: ./.github/workflows/dependencies.yml
     with:
-      deps_base_repo: ${{ inputs.deps_base_repo }}
-      deps_base_tag: ${{ inputs.deps_base_tag }}
-      deps_base_suffix: ${{ inputs.deps_base_suffix }}
-      ghcr_org: ${{ inputs.GHCR_ORG }}
-      szip_version: ${{ inputs.SZIP_VERSION }}
-      hdf5_version: ${{ inputs.HDF5_VERSION }}
-      netcdf_c_version: ${{ inputs.NETCDF_C_VERSION }}
-      netcdf_fortran_version: ${{ inputs.NETCDF_FORTRAN_VERSION }}
-      boost_version: ${{ inputs.BOOST_VERSION }}
-      esmf_version: ${{ inputs.ESMF_VERSION }}
-      gdal_version: ${{ inputs.GDAL_VERSION }}
+      DEPS_BASE_REPO: ${{ inputs.DEPS_BASE_REPO || 'python' }}
+      DEPS_BASE_TAG: ${{ inputs.DEPS_BASE_TAG || '3.12-slim-bookworm' }}
+      DEPS_BASE_SUFFIX: ${{ inputs.DEPS_BASE_SUFFIX || 'bookworm' }}
+      GHCR_ORG: ${{ inputs.GHCR_ORG }}
+      BOOST_VERSION: ${{ inputs.BOOST_VERSION }}
+      ESMF_VERSION: ${{ inputs.ESMF_VERSION }}
 
   # CodeQL scan
   codeql-scan:
@@ -336,9 +311,9 @@ jobs:
           # that; otherwise use the override inputs, else this org's deps :latest
           REPO="${{ needs.dependencies.outputs.image }}"
           TAG="${{ needs.dependencies.outputs.tag }}"
-          [ -n "$REPO" ] || REPO="${{ inputs.BMI_BASE_REPO }}"
-          [ -n "$REPO" ] || REPO="${REGISTRY}/${{ needs.setup.outputs.org }}/ngen-dependencies-rocky8"
-          [ -n "$TAG" ] || TAG="${{ inputs.BMI_BASE_TAG }}"
+          [ -n "$REPO" ] || REPO="${{ inputs.DEPS_IMAGE_REPO }}"
+          [ -n "$REPO" ] || REPO="${REGISTRY}/${{ needs.setup.outputs.org }}/ngen-dependencies-bookworm"
+          [ -n "$TAG" ] || TAG="${{ inputs.DEPS_IMAGE_TAG }}"
           [ -n "$TAG" ] || TAG="latest"
 
           # inspect the base for the OCI base.* labels on the forcing image
@@ -369,10 +344,9 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            BMI_BASE_REPO=${{ steps.base.outputs.repo }}
-            BMI_BASE_TAG=${{ steps.base.outputs.tag }}
-            BMI_BASE_DIGEST=${{ steps.base.outputs.digest }}
-            BMI_BASE_REVISION=${{ steps.base.outputs.revision }}
+            DEPS_IMAGE=${{ steps.base.outputs.repo }}:${{ steps.base.outputs.tag }}
+            DEPS_IMAGE_DIGEST=${{ steps.base.outputs.digest }}
+            DEPS_IMAGE_REVISION=${{ steps.base.outputs.revision }}
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
             EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
@@ -402,7 +376,7 @@ jobs:
       - name: Unit Test BMI
         run: |
           docker run --rm ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }} \
-          echo "Running BMI Forcing Unit Tests..."
+          -c 'echo "Running BMI Forcing Unit Tests..."'
       - name: Install Trivy
         uses: aquasecurity/setup-trivy@v0.2.6
         with:

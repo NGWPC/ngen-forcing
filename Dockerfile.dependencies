@@ -24,6 +24,7 @@ ARG BASE_IMAGE
 ARG BASE_IMAGE_NAME="${BASE_IMAGE}"
 ARG BASE_IMAGE_DIGEST="unknown"
 ARG IMAGE_SOURCE="unknown"
+ARG IMAGE_REVISION="unknown"
 
 ARG ESMF_VERSION=8.8.0
 ARG BOOST_VERSION=1.86.0
@@ -31,6 +32,7 @@ ARG BOOST_VERSION=1.86.0
 LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
       org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
       org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      org.opencontainers.image.revision="${IMAGE_REVISION}" \
       io.ngwpc.boost.version="${BOOST_VERSION}" \
       io.ngwpc.esmf.version="${ESMF_VERSION}"
 
