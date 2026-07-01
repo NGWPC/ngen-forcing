@@ -19,22 +19,22 @@ ARG EWTS_REF=development
 ############################################################################
 
 # Use the compiled dependencies image. This already includes the slow-moving
-# Rocky-based FOSS/compiled stack: WGRIB2, ESMF, SZIP, HDF5, NetCDF-C,
-# NetCDF-Fortran, Boost, and GDAL.
+# Bookworm-based FOSS/compiled stack: WGRIB2, ESMF, ESMPy, HDF5, NetCDF-C,
+# NetCDF-Fortran, Boost, GDAL, UDUNITS2, and stable Python dependencies.
 #
 # Default build:
 #   docker build -t ngen-bmi-forcing .
 #
 # Build from a different published dependency image:
 #   docker build \
-#     --build-arg DEPS_IMAGE=ghcr.io/ngwpc/ngen-dependencies-rocky \
+#     --build-arg DEPS_IMAGE=ghcr.io/ngwpc/ngen-dependencies-bookworm \
 #     -t ngen-bmi-forcing .
 #
 # Build from a locally built dependency image:
 #   docker build \
-#     --build-arg DEPS_IMAGE=ngen-dependencies-rocky \
+#     --build-arg DEPS_IMAGE=ngen-dependencies-bookworm \
 #     -t ngen-bmi-forcing .
-ARG DEPS_IMAGE=ghcr.io/${GHCR_ORG}/ngen-dependencies-rocky8
+ARG DEPS_IMAGE=ghcr.io/${GHCR_ORG}/ngen-dependencies-bookworm
 
 FROM ${DEPS_IMAGE}
 
@@ -45,6 +45,7 @@ ARG IMAGE_NAMESPACE
 ARG USE_EWTS=ON
 ARG EWTS_ORG
 ARG EWTS_REF
+ARG DEPS_IMAGE
 
 # Optional cache-bust args.
 # Leave this at 0 for normal builds. Override only when you intentionally want
@@ -52,10 +53,10 @@ ARG EWTS_REF
 ARG EWTS_CACHE_BUST=0
 
 # OCI Metadata Arguments
-ARG DEPS_IMAGE
-ARG DEPS_IMAGE_NAME="${DEPS_IMAGE}"
-ARG DEPS_IMAGE_DIGEST="unknown"
-ARG DEPS_IMAGE_REVISION="unknown"
+#
+# BASE_IMAGE_* refers to the dependency image this image is built FROM.
+ARG BASE_IMAGE_DIGEST="unknown"
+ARG BASE_IMAGE_REVISION="unknown"
 ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_VENDOR="unknown"
 ARG IMAGE_VERSION="unknown"
@@ -63,18 +64,18 @@ ARG IMAGE_REVISION="unknown"
 ARG EWTS_REVISION="unknown"
 
 # Image Labels: OCI-spec annotations followed by custom source-repo metadata.
-LABEL org.opencontainers.image.base.name="${DEPS_IMAGE_NAME}" \
-    org.opencontainers.image.base.digest="${DEPS_IMAGE_DIGEST}" \
-    org.opencontainers.image.source="${IMAGE_SOURCE}" \
-    org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
-    org.opencontainers.image.version="${IMAGE_VERSION}" \
-    org.opencontainers.image.revision="${IMAGE_REVISION}" \
-    org.opencontainers.image.title="NGEN BMI Forcing" \
-    org.opencontainers.image.description="Docker image for the NGEN BMI Forcings application" \
-    io.${IMAGE_NAMESPACE}.image.base.revision="${DEPS_IMAGE_REVISION}" \
-    io.${IMAGE_NAMESPACE}.ewts.org="${EWTS_ORG}" \
-    io.${IMAGE_NAMESPACE}.ewts.ref="${EWTS_REF}" \
-    io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
+LABEL org.opencontainers.image.base.name="${DEPS_IMAGE}" \
+      org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
+      org.opencontainers.image.source="${IMAGE_SOURCE}" \
+      org.opencontainers.image.vendor="${IMAGE_VENDOR}" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      org.opencontainers.image.revision="${IMAGE_REVISION}" \
+      org.opencontainers.image.title="NGEN BMI Forcing" \
+      org.opencontainers.image.description="Docker image for the NGEN BMI Forcings application" \
+      io.${IMAGE_NAMESPACE}.image.base.revision="${BASE_IMAGE_REVISION}" \
+      io.${IMAGE_NAMESPACE}.ewts.org="${EWTS_ORG}" \
+      io.${IMAGE_NAMESPACE}.ewts.ref="${EWTS_REF}" \
+      io.${IMAGE_NAMESPACE}.ewts.revision="${EWTS_REVISION}"
 
 ############################################################################
 # Python environment inherited from dependencies image
@@ -84,9 +85,7 @@ LABEL org.opencontainers.image.base.name="${DEPS_IMAGE_NAME}" \
 # image. Do not recreate it here; forcing, ngen, and downstream images should
 # all install into and reuse the same venv.
 ENV VIRTUAL_ENV="/ngen-app/ngen-python"
-ENV PATH="${VIRTUAL_ENV}/bin:${PATH}" \
-    PYTHONPATH="${VIRTUAL_ENV}/lib/python3.11/site-packages:/usr/local/lib64/python3.11/site-packages:${PYTHONPATH}"
-
+ENV PATH="${VIRTUAL_ENV}/bin:${PATH}"
 
 ############################################################################
 # Optional EWTS Python package
@@ -103,7 +102,7 @@ SHELL ["/bin/bash", "-c"]
 #   ON, YES, TRUE, 1
 #
 # Everything else is treated as OFF.
-RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux && \
     USE_EWTS="${USE_EWTS:-ON}" && \
     echo "USE_EWTS=${USE_EWTS}; EWTS org: ${EWTS_ORG}; ref: ${EWTS_REF}; cache bust: ${EWTS_CACHE_BUST}" && \
@@ -145,7 +144,7 @@ RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
 COPY . /ngen-app/ngen-forcing/
 
 WORKDIR /ngen-app/ngen-forcing
-RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-rocky \
+RUN --mount=type=cache,target=/root/.cache/pip,id=pip-cache-bookworm \
     set -eux; \
     python -m pip install .
 
