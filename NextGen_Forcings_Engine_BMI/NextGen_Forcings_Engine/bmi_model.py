@@ -9,6 +9,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
+from functools import cached_property
 from pathlib import Path
 
 import netCDF4 as nc
@@ -134,7 +135,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
     def __init__(
         self,
-        config_file: str,
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
@@ -143,14 +143,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        self.init_log(config_file)
-
-        self._config_file = config_file
+        self.output_path = output_path
         self._geogrid = geogrid
         self._b_date = b_date
-        super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
-        for attr in BMI_MODEL[self.__class__.__base__.__name__]:
-            setattr(self, attr, None)
+
         self._values = {}
         self._start_time = 0.0
         self._end_time = np.finfo(float).max
@@ -167,14 +163,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._input_var_names = []
         self._model_parameters_list = []
 
-        self.get_grid_edge_count
+        super(NWMv3_Forcing_Engine_BMI_model_Base, self).__init__()
 
-        # Now that _job_meta is set, call initialize() to set up the core model
-        self.initialize(config_file)
-
-        self._model = NWMv3ForcingEngineModel()
-
-    def init_log(self, config_file: str) -> None:
+    def init_log(self) -> None:
         """Initialize the logging system for the model."""
         # This is required prior to the first log message.
         if FORCING_USE_EWTS:
@@ -187,9 +178,11 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         else:
             _configure_stdout_logging()
         LOG.info("-" * 30)
-        LOG.info(f"BMI Forcing Engine initialized with {config_file}")
+        LOG.info(
+            f"BMI Forcing Engine initialized with {self._config_file}{Pld(St.INITTING, modnm=MODNM)}"
+        )
 
-    @property
+    @cached_property
     def bmi_cfg_file(self) -> Path:
         """Validate and return the BMI configuration file path."""
         if not isinstance(self._config_file, str) or len(self._config_file) == 0:
@@ -213,7 +206,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         LOG.info(f"Reading config file: {self.bmi_cfg_file}")
         with self.bmi_cfg_file.open("r") as fp:
             cfg = yaml.safe_load(fp)
-        return parse_config(cfg)
+        self._cfg_bmi = parse_config(cfg)
+        return self._cfg_bmi
 
     @cfg_bmi.setter
     def cfg_bmi(self, value: dict) -> None:
@@ -438,6 +432,11 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         :param config_file: The path to the configuration file for model initialization.
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
+        self._config_file = config_file
+        for attr in BMI_MODEL[self.__class__.__base__.__name__]:
+            setattr(self, attr, None)
+        self._model = NWMv3ForcingEngineModel()
+        self.init_log()
         self.init_mpi()
         self.init_scratch_dir()
         self.create_esmf_mesh()
@@ -1631,7 +1630,6 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
 
     def __init__(
         self,
-        config_file: str,
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
@@ -1640,7 +1638,7 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(config_file, b_date, geogrid, output_path)
+        super().__init__(b_date, geogrid, output_path)
         self.GeoMeta = HydrofabricGeoMeta
 
     def grid_ranks(self) -> list[int]:
