@@ -1122,6 +1122,8 @@ class ConfigOptions:
             or 2 in self.t2dDownscaleOpt
         ):
             return True
+        else:
+            return False
 
     @property
     def t2BiasCorrectOpt(self) -> list:

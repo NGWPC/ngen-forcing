@@ -3986,7 +3986,7 @@ def regrid_nwm(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
             )
 
         input_forcings.height = None
-        if mpi_config.rank == 0:
+        if mpi_config.rank == 0 and config_options.perform_downscaling:
             pt.log_debug(
                 f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
             )
@@ -4283,7 +4283,7 @@ def regrid_nwm_aws(input_forcings, config_options, wrf_hydro_geo_meta, mpi_confi
             )
 
         input_forcings.height = None
-        if mpi_config.rank == 0:
+        if mpi_config.rank == 0 and config_options.perform_downscaling:
             pt.log_info(
                 f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
             )
@@ -4850,7 +4850,7 @@ def regrid_custom_hourly_netcdf(
 
                 else:
                     input_forcings.height = None
-                    if mpi_config.rank == 0:
+                    if mpi_config.rank == 0 and config_options.perform_downscaling:
                         pt.log_info(
                             f"Unable to locate HGT_surface in: {input_forcings.file_in2}. Downscaling will not be available."
                         )
