@@ -9,6 +9,7 @@ import os
 import time
 from collections import defaultdict
 from datetime import datetime, timezone
+from functools import cached_property
 from pathlib import Path
 
 import netCDF4 as nc
@@ -41,7 +42,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
     UnstructuredGeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from functools import cached_property
+
 from .core import (
     err_handler,
     forcingInputMod,
@@ -427,7 +428,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._config_file = config_file
         for attr in BMI_MODEL[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
-        self._model = NWMv3ForcingEngineModel()
+        self._model = NWMv3ForcingEngineModel(self)
         self.init_log()
         self.init_mpi()
         self.init_scratch_dir()
@@ -507,16 +508,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             == future_time
             == self.cfg_bmi["initial_time"]
         ):
-            self._model.run(
-                self._values,
-                future_time,
-                self._job_meta,
-                self.geo_meta,
-                self._input_forcing_mod,
-                self._supp_pcp_mod,
-                self._mpi_meta,
-                self._output_obj,
-            )
+            self._model.run(future_time)
         else:
             # Start a while loop to iterate the model time step by step until the
             # current model time reaches or exceeds the future_time.
@@ -524,18 +516,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 # Advance the model time by the defined time step size.
                 self._values["current_model_time"] += self._values["time_step_size"]
                 # Run the model for the new current time and update the state.
-                self._model.run(
-                    self._values,
-                    self._values["current_model_time"],
-                    self._job_meta,
-                    self.geo_meta,
-                    self._input_forcing_mod,
-                    self._supp_pcp_mod,
-                    self._mpi_meta,
-                    self._output_obj,
-                )
+                self._model.run(self._values["current_model_time"])
 
-    def finalize(self) -> None:
+    # ------------------------------------------------------------
+    def finalize(self):
         """Finalize the model, performing necessary cleanup tasks.
 
         This method cleans up any temporary files created during the model run,
