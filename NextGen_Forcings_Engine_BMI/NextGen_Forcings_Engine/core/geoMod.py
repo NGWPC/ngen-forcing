@@ -357,7 +357,7 @@ class GriddedGeoMeta(GeoMeta):
     @cached_property
     def esmf_grid(self) -> ESMF.Grid:
         """Create the ESMF grid object for the gridded domain."""
-        esmf_grid_retry(
+        return esmf_grid_retry(
             self.mpi_config,
             self.config_options,
             err_handler,
