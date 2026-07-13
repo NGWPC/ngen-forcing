@@ -2,13 +2,16 @@
 
 import datetime
 import gc
+import logging
 import os
+import traceback
 import typing
+import warnings
 from contextlib import contextmanager
 from datetime import timedelta
 from functools import cached_property
 from time import perf_counter, sleep
-import logging
+
 import geopandas as gpd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -19,15 +22,14 @@ import xarray as xr
 import zarr
 from dotenv import find_dotenv, load_dotenv
 from pyproj import CRS
-import warnings
 from zarr.storage import ObjectStore
-import traceback
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
+
 warnings.filterwarnings("ignore", module="geopandas")
 LOG = logging.getLogger("FORCING")
 
@@ -236,9 +238,9 @@ class BaseProcessor:
             raise KeyError(
                 f"The time provided ({self.current_time}) is not in the dataset. Please check that you have provided a time span that is valid for the given domain/dataset."
             )
-        if self.dataset_name=="NWM":
-            #NOTE this is a bandaid for NWM Retrospective dataset Hawaii where rainrates appear to be slightly negative.
-            ds["RAINRATE"]=xr.where(ds["RAINRATE"]<0,0,ds["RAINRATE"])
+        if self.dataset_name == "NWM":
+            # NOTE this is a bandaid for NWM Retrospective dataset Hawaii where rainrates appear to be slightly negative.
+            ds["RAINRATE"] = xr.where(ds["RAINRATE"] < 0, 0, ds["RAINRATE"])
         # if self.mpi_config.rank == 0:
         #     self.plot_precip(ds)
         # self.write_sum_tif(self.computed_ds)
@@ -455,7 +457,9 @@ class AORCAlaskaProcessor(BaseProcessor):
         wrf_hydro_geo_meta: dict,
     ):
         """Initialize AORC Alaska processor."""
-        raise NotImplementedError("AORC Alaska processor is not yet implemented.")
+        raise NotImplementedError(
+            "AORC Alaska processor is not yet implemented. Note: The source s3 path needs to be updated in config.py when the location is updated/provided on s3."
+        )
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
         self.dataset_name = "AORC"
         self.precip_variable = "APCP_surface"
