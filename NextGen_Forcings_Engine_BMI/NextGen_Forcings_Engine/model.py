@@ -275,14 +275,18 @@ class NWMv3ForcingEngineModel:
                 self._bmi._job_meta.current_output_step += 1
 
             # Optional sub-output timestamp
-            if self._bmi._job_meta.sub_output_hour is not None:
-                raise NotImplementedError(
-                    f"sub_output_hour (config SubOutputHour) is {repr(self._bmi._job_meta.sub_output_hour)} (not None) but is not used."
-                )
-                # TODO This is not used
-                subOutDate = self._bmi._job_meta.first_fcst_cycle + datetime.timedelta(
-                    hours=self._bmi._job_meta.sub_output_hour
-                )
+            # if self._bmi._job_meta.sub_output_hour is not None:
+            #     raise NotImplementedError(
+            #         f"sub_output_hour (config SubOutputHour) is {repr(self._bmi._job_meta.sub_output_hour)} (not None) but is not used."
+            #     )
+            # # TODO This is not used. The raise not implemented error causes a fail on medium range blen due to the sub_output_hour being
+            # specified in the config file. Testing was performed and not specifying sub_output_hour produces the same results for medium range blend
+            # as of 7/13/2026. Not sure what this was intended to do but it is not used/effective at this time. Commenting it out to ensure medium range blend completes
+            # and it is retained in case the intent is realized and it should be resurrected.
+
+            # subOutDate = self._bmi._job_meta.first_fcst_cycle + datetime.timedelta(
+            #     hours=self._bmi._job_meta.sub_output_hour
+            # )
 
             # Compute the output timestamp for this step
             if self._bmi._job_meta.ana_flag:
