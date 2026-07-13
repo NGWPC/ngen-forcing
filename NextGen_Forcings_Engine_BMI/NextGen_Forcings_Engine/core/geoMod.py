@@ -15,9 +15,10 @@ try:
 except ImportError:
     import ESMF
 
+import logging
 from functools import cached_property, wraps
 from typing import Any
-import logging
+
 import xarray as xr
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
