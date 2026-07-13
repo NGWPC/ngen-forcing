@@ -250,8 +250,9 @@ class BaseProcessor:
         if self.mpi_config.rank == 0:
             with self.timing_block("computing dataset", LOG.info):
                 ds = self.sliced_ds.rio.write_crs(self.src_crs)
-        self.mpi_config.comm.barrier()
-        ds = self.mpi_config.comm.bcast(ds, root=0)
+        if self.mpi_config.size > 1:
+            self.mpi_config.comm.barrier()
+            ds = self.mpi_config.comm.bcast(ds, root=0)
         if self.mpi_config.rank == 0:
             if not os.path.exists(self.nc_path):
                 tmp_file = (
