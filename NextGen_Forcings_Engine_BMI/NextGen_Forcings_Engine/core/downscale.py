@@ -264,12 +264,10 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                     break
 
                 # Compose the path to the lapse rate grid file.
-                lapsePath = input_forcings.paramDir + "/lapse_param.nc"
+                lapsePath = f"{input_forcings.paramDir}/lapse_param.nc"
                 if not os.path.isfile(lapsePath):
                     ConfigOptions.errMsg = (
-                        "Expected lapse rate parameter file: "
-                        + lapsePath
-                        + " does not exist."
+                        f"Expected lapse rate parameter file: {lapsePath} does not exist."
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -279,13 +277,12 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                 try:
                     idTmp = Dataset(lapsePath, "r")
                 except:
-                    ConfigOptions.errMsg = "Unable to open parameter file: " + lapsePath
+                    ConfigOptions.errMsg = f"Unable to open parameter file: {lapsePath}"
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if not "lapse" in idTmp.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'lapse' variable not located in parameter "
-                        "file: " + lapsePath
+                        f"Expected 'lapse' variable not located in parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -293,8 +290,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                     lapseTmp = idTmp.variables["lapse"][:, :]
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to extracte 'lapse' variable from parameter: "
-                        "file: " + lapsePath
+                        f"Unable to extracte 'lapse' variable from parameter: file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -302,15 +298,13 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                 # Check dimensions to ensure they match up to the output grid.
                 if lapseTmp.shape[1] != GeoMetaWrfHydro.nx_global:
                     ConfigOptions.errMsg = (
-                        "X-Dimension size mismatch between output grid and lapse "
-                        "rate from parameter file: " + lapsePath
+                        f"X-Dimension size mismatch between output grid and lapse rate from parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if lapseTmp.shape[0] != GeoMetaWrfHydro.ny_global:
                     ConfigOptions.errMsg = (
-                        "Y-Dimension size mismatch between output grid and lapse "
-                        "rate from parameter file: " + lapsePath
+                        f"Y-Dimension size mismatch between output grid and lapse rate from parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -319,16 +313,14 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                 indTmp = np.where(lapseTmp < -10.0)
                 if len(indTmp[0]) > 0:
                     ConfigOptions.errMsg = (
-                        "Found anomolous negative values in the lapse rate grid from "
-                        "parameter file: " + lapsePath
+                        f"Found anomolous negative values in the lapse rate grid from parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 indTmp = np.where(lapseTmp > 100.0)
                 if len(indTmp[0]) > 0:
                     ConfigOptions.errMsg = (
-                        "Found excessively high values in the lapse rate grid from "
-                        "parameter file: " + lapsePath
+                        f"Found excessively high values in the lapse rate grid from parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -338,7 +330,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
                     idTmp.close()
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to close parameter file: " + lapsePath
+                        f"Unable to close parameter file: {lapsePath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -360,9 +352,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
         indNdv = np.where(input_forcings.final_forcings == ConfigOptions.globalNdv)
     except:
         ConfigOptions.errMsg = (
-            "Unable to perform NDV search on input "
-            + input_forcings.product_name
-            + " regridded forcings."
+            f"Unable to perform NDV search on input {input_forcings.product_name} regridded forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)
         return
@@ -370,9 +360,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
         indValid = np.where(temperature_grid_tmp != ConfigOptions.globalNdv)
     except:
         ConfigOptions.errMsg = (
-            "Unable to perform search for valid values on input "
-            + input_forcings.product_name
-            + " regridded temperature forcings."
+            f"Unable to perform search for valid values on input {input_forcings.product_name} regridded temperature forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)
         return
@@ -382,9 +370,7 @@ def param_lapse(input_forcings, ConfigOptions, GeoMetaWrfHydro, MpiConfig):
         )
     except:
         ConfigOptions.errMsg = (
-            "Unable to apply spatial lapse rate values to input "
-            + input_forcings.product_name
-            + " regridded temperature forcings."
+            f"Unable to apply spatial lapse rate values to input {input_forcings.product_name} regridded temperature forcings."
         )
         err_handler.log_critical(ConfigOptions, MpiConfig)
         return
@@ -699,52 +685,32 @@ def nwm_monthly_PRISM_downscale(
             if mmVersion == 1:
                 # Compose paths to the expected files.
                 numeratorPath = (
-                    input_forcings.paramDir
-                    + "/PRISM_Precip_Clim_"
-                    + ConfigOptions.current_output_date.strftime("%b")
-                    + "_NWM_Grid.nc"
+                    f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
                 )
                 denominatorPath = (
-                    input_forcings.paramDir
-                    + "/PRISM_Precip_Clim_"
-                    + ConfigOptions.current_output_date.strftime("%b")
-                    + "_NWM_to_"
-                    + str(keyValueStr)
-                    + "_Grid.nc"
+                    f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_to_{keyValueStr!s}_Grid.nc"
                 )
 
             elif mmVersion == 2:
                 # Compose paths to the expected files.
                 numeratorPath = (
-                    input_forcings.paramDir
-                    + "/PRISM_Precip_Clim_"
-                    + ConfigOptions.current_output_date.strftime("%b")
-                    + "_NWM_Grid.nc"
+                    f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
                 )
                 denominatorPath = (
-                    input_forcings.paramDir
-                    + "/PRISM_Precip_Clim_"
-                    + ConfigOptions.current_output_date.strftime("%b")
-                    + "_"
-                    + str(keyValueStr)
-                    + "_to_NWM_Grid.nc"
+                    f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_{keyValueStr!s}_to_NWM_Grid.nc"
                 )
 
             # Make sure files exist.
             if not os.path.isfile(numeratorPath):
                 ConfigOptions.errMsg = (
-                    "Expected parameter file: "
-                    + numeratorPath
-                    + " for mountain mapper downscaling of precipitation not found."
+                    f"Expected parameter file: {numeratorPath} for mountain mapper downscaling of precipitation not found."
                 )
                 err_handler.log_critical(ConfigOptions, MpiConfig)
                 break
 
             if not os.path.isfile(denominatorPath):
                 ConfigOptions.errMsg = (
-                    "Expected parameter file: "
-                    + denominatorPath
-                    + " for mountain mapper downscaling of precipitation not found."
+                    f"Expected parameter file: {denominatorPath} for mountain mapper downscaling of precipitation not found."
                 )
                 err_handler.log_critical(ConfigOptions, MpiConfig)
                 break
@@ -756,7 +722,7 @@ def nwm_monthly_PRISM_downscale(
                     idNum = Dataset(numeratorPath, "r")
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to open parameter file: " + numeratorPath
+                        f"Unable to open parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -764,7 +730,7 @@ def nwm_monthly_PRISM_downscale(
                     idDenom = Dataset(denominatorPath, "r")
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to open parameter file: " + denominatorPath
+                        f"Unable to open parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -772,79 +738,65 @@ def nwm_monthly_PRISM_downscale(
                 # Check to make sure expected names, dimension sizes are present.
                 if "x" not in idNum.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'x' variable not found in parameter file: "
-                        + numeratorPath
+                        f"Expected 'x' variable not found in parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if "x" not in idDenom.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'x' variable not found in parameter file: "
-                        + denominatorPath
+                        f"Expected 'x' variable not found in parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
 
                 if "y" not in idNum.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'y' variable not found in parameter file: "
-                        + numeratorPath
+                        f"Expected 'y' variable not found in parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if "y" not in idDenom.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'y' variable not found in parameter file: "
-                        + denominatorPath
+                        f"Expected 'y' variable not found in parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
 
                 if "Data" not in idNum.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'Data' variable not found in parameter file: "
-                        + numeratorPath
+                        f"Expected 'Data' variable not found in parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if "Data" not in idDenom.variables.keys():
                     ConfigOptions.errMsg = (
-                        "Expected 'Data' variable not found in parameter file: "
-                        + denominatorPath
+                        f"Expected 'Data' variable not found in parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
 
                 if idNum.variables["Data"].shape[0] != GeoMetaWrfHydro.ny_global:
                     ConfigOptions.errMsg = (
-                        "Input Y dimension for: "
-                        + numeratorPath
-                        + " does not match the output WRF-Hydro Y dimension size."
+                        f"Input Y dimension for: {numeratorPath} does not match the output WRF-Hydro Y dimension size."
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if idDenom.variables["Data"].shape[0] != GeoMetaWrfHydro.ny_global:
                     ConfigOptions.errMsg = (
-                        "Input Y dimension for: "
-                        + denominatorPath
-                        + " does not match the output WRF-Hydro Y dimension size."
+                        f"Input Y dimension for: {denominatorPath} does not match the output WRF-Hydro Y dimension size."
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
 
                 if idNum.variables["Data"].shape[1] != GeoMetaWrfHydro.nx_global:
                     ConfigOptions.errMsg = (
-                        "Input X dimension for: "
-                        + numeratorPath
-                        + " does not match the output WRF-Hydro X dimension size."
+                        f"Input X dimension for: {numeratorPath} does not match the output WRF-Hydro X dimension size."
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
                 if idDenom.variables["Data"].shape[1] != GeoMetaWrfHydro.nx_global:
                     ConfigOptions.errMsg = (
-                        "Input X dimension for: "
-                        + denominatorPath
-                        + " does not match the output WRF-Hydro X dimension size."
+                        f"Input X dimension for: {denominatorPath} does not match the output WRF-Hydro X dimension size."
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -854,7 +806,7 @@ def nwm_monthly_PRISM_downscale(
                     numDataTmp = idNum.variables["Data"][:, :]
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to extract 'Data' from parameter file: " + numeratorPath
+                        f"Unable to extract 'Data' from parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -862,8 +814,7 @@ def nwm_monthly_PRISM_downscale(
                     denDataTmp = idDenom.variables["Data"][:, :]
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to extract 'Data' from parameter file: "
-                        + denominatorPath
+                        f"Unable to extract 'Data' from parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -873,7 +824,7 @@ def nwm_monthly_PRISM_downscale(
                     idNum.close()
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to close parameter file: " + numeratorPath
+                        f"Unable to close parameter file: {numeratorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
@@ -881,7 +832,7 @@ def nwm_monthly_PRISM_downscale(
                     idDenom.close()
                 except:
                     ConfigOptions.errMsg = (
-                        "Unable to close parameter file: " + denominatorPath
+                        f"Unable to close parameter file: {denominatorPath}"
                     )
                     err_handler.log_critical(ConfigOptions, MpiConfig)
                     break
