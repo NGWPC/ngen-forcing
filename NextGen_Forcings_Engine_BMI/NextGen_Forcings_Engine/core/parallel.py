@@ -304,7 +304,7 @@ class MpiConfig:
     def scatter_array(self, geo_meta: GriddedGeoMeta, src_array: np.ndarray, config_options: ConfigOptions):
         """Scatter an array based on the input dataset type.
 
-        Generic function for calling scatter functons based on
+        Generic function for calling scatter functions based on
         the input dataset type.
         :param geo_meta:
         :param array_broadcast:
@@ -330,12 +330,12 @@ class MpiConfig:
 
         try:
             self.comm.Bcast(data_type_buffer, root=0)
-        except Exception:
+        except Exception as e:
             config_options.errMsg = (
-                "Unable to broadcast numpy datatype value from rank 0"
+                f"Unable to broadcast numpy datatype value from rank 0: {e.__class__.__name__} -- {e}"
             )
-            err_handler.err_out(config_options)
-            return None
+            err_handler.log_critical(config_options, self)
+            raise
 
         data_type_flag = data_type_buffer[0]
 
@@ -352,12 +352,10 @@ class MpiConfig:
 
         try:
             self.comm.Allgather([bounds, MPI.INTEGER], [global_bounds, MPI.INTEGER])
-        except Exception:
-            config_options.errMsg = "Failed all gathering global bounds at rank" + str(
-                self.rank
-            )
-            err_handler.err_out(config_options)
-            return None
+        except Exception as e:
+            config_options.errMsg = f"Failed all gathering global bounds at rank {self.rank}: {e.__class__.__name__} -- {e}"
+            err_handler.log_critical(config_options, self)
+            raise
 
         # create slices for x and y bounds arrays
         x_lower = global_bounds[0 : (self.size * 4) + 0 : 4]
@@ -404,10 +402,10 @@ class MpiConfig:
         # scatter the data
         try:
             self.comm.Scatterv([sendbuf, counts, offsets, data_type], recvbuf, root=0)
-        except Exception:
-            config_options.errMsg = "Failed Scatterv from rank 0"
-            err_handler.err_out(config_options)
-            return None
+        except Exception as e:
+            config_options.errMsg = f"Failed Scatterv from rank 0: {e.__class__.__name__} -- {e}"
+            err_handler.log_critical(config_options, self)
+            raise
 
         subarray = np.reshape(
             recvbuf,
