@@ -1,8 +1,6 @@
 from __future__ import annotations
 from functools import partial
 import os
-import signal
-import sys
 import typing
 import mpi4py
 import numpy as np
@@ -11,7 +9,6 @@ mpi4py.rc.threads = False
 
 from mpi4py import MPI  # noqa: E402
 
-from .config import ConfigOptions
 from . import err_handler
 from . import mpi_utils
 
@@ -22,39 +19,52 @@ if MPI.Is_initialized():
     mpi4py.rc.finalize = False
 
 if typing.TYPE_CHECKING:
-    from typing import Any, Type, TypeVar
+    from typing import TypeVar
     from .geoMod import GriddedGeoMeta
+    from .config import ConfigOptions
+
     T = TypeVar("T")
+
 
 class MpiConfig:
     """MPI config class.
 
-    Abstract class for defining the MPI parameters,
+    Class for defining the MPI parameters,
     along with initialization of the MPI communication
     handle from mpi4py.
     """
 
+    comm: MPI.Intercomm
+    rank: int
+    """MPI rank of the process of this instance."""
+    size: int
+    """The number of MPI processes on this run."""
+    uid64: str
+    """Random 16 chars based on random uint64 shared between all processes in a run."""
+    config_options: ConfigOptions
+    """Forcing Engine configurations options. Messaging will use the instance of ConfigOptions passed to it in the constructor."""
+
     def __init__(self, config_options: ConfigOptions):
         """Initialize the MPI abstract class that will contain basic information and communication handles.
-        NOTE: this class overrides the system excepthook so that
-        cleanup steps and MPI abort can be triggered on unhandled exceptions.
+
+        NOTE: Temporary files that are created during a normal forcing run should be cleaned up using the `cleanup` method.
         """
-        self.comm: MPI.Intracomm = None
+        self.comm = None
         self.rank = None
         self.size = None
-        self.uid64: str | None = (
-            None  # broadcasted random 16 chars based on random uint64
-        )
+        self.uid64 = None
         self.config_options = config_options
         self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
         self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
         self.log_warning = partial(err_handler.log_warning, self.config_options, self)
 
-    def initialize_comm(self, comm=None):
-        """Initialize MPI communication.
+    def initialize_comm(self, comm: MPI.Intercomm | None = None) -> None:
+        """Initialize MPI communication, including getting MPI rank and size.
+        Also generates the UID for the run.
 
-        Initial function to initialize MPI.
-        :return:
+        Usage note: if an exception is thrown, an error messsage is added to the
+        `config_options` object with the expectation the caller will handle
+        logging the error message generated. The error will be reraised.
         """
         try:
             self.comm = comm if comm is not None else MPI.COMM_WORLD
@@ -87,38 +97,15 @@ class MpiConfig:
         if wait_for_debug.lower() in ("true", "1"):
             self.wait_for_debugpy_client()
 
-        # self._test_exit()
-
-    # ------------------------------------------------------
-    # Exit handling, exception handling, cleanup, and abort.
-    # ------------------------------------------------------
-
-    def _test_exit(self) -> None:
-        """Various methods for testing potential exit conditions"""
-        self.__test_exit("exception", 0)
-        # self.__test_exit("exception", 1)
-        # self.__test_exit("signal", 0)
-        ### Signal on rank 1 causes a deadlock iff abort_with_cleanup only allows rank 0 to abort, so all ranks need to be able to abort.
-        # self.__test_exit("signal", 1)
-        # self.__test_exit("sysexit1", 0)
-        # self.__test_exit("sysexit1", 1)
-        # self.__test_exit("check_program_status", 0)
-        # self.__test_exit("check_program_status", 1)
-        # self.__test_exit("err_out_screen", 0)
-        # self.__test_exit("err_out_screen", 1)
-        # self.__test_exit("err_out_screen_para", 0)
-        # self.__test_exit("err_out_screen_para", 1)
-
     def abort_with_cleanup(self, errorcode: int) -> None:
         """Call cleanup methods, before calling MPI Abort.
         Do not make direct calls to MPI Abort without this method.
         Use this method for all MPI abort needs."""
-        comm: MPI.Comm = getattr(self, "comm", None)
-        if comm is None:
+        if self.comm is None:
             raise RuntimeError("comm is not initialized")
         self.cleanup()
         self.log_debug("About to MPI Abort")
-        comm.Abort(errorcode)
+        self.comm.Abort(errorcode)
 
     def cleanup(self) -> None:
         """High-level cleanup routine called during BMI finalization."""
@@ -175,21 +162,18 @@ class MpiConfig:
             self.try_delete_file_no_reraise(geogrid)
         else:
             self.log_debug("Cleanup: config_options.geogrid is not set")
-            return
 
     def try_list_dir_no_reraise(self, dir_path: str) -> list[str]:
         """Try to list the directory and return a list of its contents.
         Do not reraise an exception if it fails due to FileNotFoundError or NotADirectoryError"""
         self.log_debug(f"Trying to list directory: {dir_path}")
         try:
-            contents = os.listdir(dir_path)
+            return os.listdir(dir_path)
         except (FileNotFoundError, NotADirectoryError) as e:
             self.log_debug(
                 f"Could not list (it may have already been deleted): {dir_path}: {e}"
             )
             return []
-        else:
-            return contents
 
     def try_delete_file_no_reraise(self, file_path: str) -> None:
         """Try to delete the file, do not reraise an exception if it fails due to OSError"""
@@ -214,64 +198,6 @@ class MpiConfig:
             )
         else:
             self.log_info(f"Removed directory: {dir_path}")
-
-    def __test_exit(self, mode: str, rank: int) -> None:
-        """Intentionally exit in a particular way, for testing exit/cleanup behavior.
-        `mode` : str. Mode of exit. See match/case block below for accepted values.
-        `rank` : int. Rank to perform the mode of exit. Can be 0 or 1. They have different"""
-        self.log_debug(f"__test_exit(): provided: mode={repr(mode)}, rank={repr(rank)}")
-        if rank not in (0, 1):
-            raise ValueError(f"__test_exit(): unsupported value for rank: {repr(rank)}")
-
-        if self.rank == rank:
-            match mode:
-                case "exception":
-                    msg = "__test_exit(): raising intentional RuntimeError"
-                    self.log_debug(msg)
-                    self.config_options.errMsg = "TEST"
-                    raise RuntimeError(msg)
-
-                case "signal":
-                    # msg = f"__test_exit(): sending signal.SIGHUP ({signal.SIGHUP})"
-                    msg = f"__test_exit(): sending signal.SIGTERM ({signal.SIGTERM})"
-                    self.log_debug(msg)
-                    # os.kill(os.getpid(), signal.SIGHUP)
-                    os.kill(os.getpid(), signal.SIGTERM)
-
-                case "sysexit1":
-                    msg = "__test_exit(): calling sys.exit(1)"
-                    self.log_debug(msg)
-                    sys.exit(1)
-
-                case "check_program_status":
-                    msg = "__test_exit(): setting critical msg before calling check_program_status()"
-                    self.log_debug(msg)
-                    err_handler.log_critical(
-                        self.config_options, self, msg="TESTING EXIT HANDLING"
-                    )
-
-                case "err_out_screen":
-                    msg = "__test_exit(): calling err_out_screen()"
-                    self.log_debug(msg)
-                    err_handler.err_out_screen(msg)
-
-                case "err_out_screen_para":
-                    msg = "__test_exit(): calling err_out_screen_para()"
-                    self.log_debug(msg)
-                    err_handler.err_out_screen_para(msg, self)
-
-                case _:
-                    raise ValueError(f"Unsupported mode={repr(mode)} for __test_exit()")
-
-        self.log_debug("__test_exit(): reaching check_program_status()")
-        err_handler.check_program_status(self.config_options, self)
-
-        self.log_debug("__test_exit(): reaching MPI Barrier")
-        self.comm.Barrier()
-
-        msg = "__test_exit(): got past MPI Barrier (should not get here)"
-        self.log_debug(msg)
-        raise RuntimeError(msg)
 
     def wait_for_debugpy_client(self):
         """Block until the debugpy clients have attached to cppdbg/gdb.
@@ -301,15 +227,21 @@ class MpiConfig:
             err_handler.log_critical(self.config_options, self)
             raise
 
-    def scatter_array(self, geo_meta: GriddedGeoMeta, src_array: np.ndarray, config_options: ConfigOptions):
-        """Scatter an array based on the input dataset type.
+    def scatter_array(
+        self,
+        geo_meta: GriddedGeoMeta,
+        src_array: np.ndarray,
+        config_options: ConfigOptions,
+    ):
+        """Scatter an array based on the input dataset type from rank 0 to all other ranks.
 
         Generic function for calling scatter functions based on
         the input dataset type.
-        :param geo_meta:
-        :param array_broadcast:
+
+        :param geo_meta: GriddedGeoMeta instance used to determine the extent of the data received.
+        :param src_array: Data to be shared with other MPI ranks.
         :param config_options:
-        :return:
+        :return: The results of the scattered data filtered to the extent of `geo_meta`
         """
         # Determine which type of input array we have based on the
         # type of numpy array.
@@ -331,9 +263,7 @@ class MpiConfig:
         try:
             self.comm.Bcast(data_type_buffer, root=0)
         except Exception as e:
-            config_options.errMsg = (
-                f"Unable to broadcast numpy datatype value from rank 0: {e.__class__.__name__} -- {e}"
-            )
+            config_options.errMsg = f"Unable to broadcast numpy datatype value from rank 0: {e.__class__.__name__} -- {e}"
             err_handler.log_critical(config_options, self)
             raise
 
@@ -403,7 +333,9 @@ class MpiConfig:
         try:
             self.comm.Scatterv([sendbuf, counts, offsets, data_type], recvbuf, root=0)
         except Exception as e:
-            config_options.errMsg = f"Failed Scatterv from rank 0: {e.__class__.__name__} -- {e}"
+            config_options.errMsg = (
+                f"Failed Scatterv from rank 0: {e.__class__.__name__} -- {e}"
+            )
             err_handler.log_critical(config_options, self)
             raise
 
@@ -416,11 +348,18 @@ class MpiConfig:
         ).copy()
         return subarray
 
-    def merge_slabs_gatherv(self, local_slab: np.ndarray, options: ConfigOptions, allgather: bool = False):
-        """If allgather is True, then Allgatherv will be used instead of Gatherv, which causes all ranks to be distributed to all other ranks.
+    def merge_slabs_gatherv(
+        self, local_slab: np.ndarray, options: ConfigOptions, allgather: bool = False
+    ) -> np.ndarray:
+        """Gather arrays from all processes. The returned array will have the gathered data if `self.rank == 0` or `allgather` is `True`.
 
-        This is necessary for the hydrofabric case, to handle how ngen's hydrologic
+        The use of `allgather` is necessary for the hydrofabric case, to handle how ngen's hydrologic
         catchment partitionining differs from ESMF's arbitrary partitioning.
+
+        :param local_slab: Data that will be gathered from all processes.
+        :param options:
+        :param allgather: Boolean on whether the gathered array should be broadcasted to all processes instead of just rank 0.
+        :return: Numpy array of the data gathered from all processes.
         """
         # Filter based on dimensionality of array
         if len(local_slab.shape) == 2:
