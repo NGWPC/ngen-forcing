@@ -349,7 +349,7 @@ class MpiConfig:
         return subarray
 
     def merge_slabs_gatherv(
-        self, local_slab: np.ndarray, options: ConfigOptions, allgather: bool = False
+        self, local_slab: np.ndarray, allgather: bool = False
     ) -> np.ndarray:
         """Gather arrays from all processes. The returned array will have the gathered data if `self.rank == 0` or `allgather` is `True`.
 
@@ -357,7 +357,6 @@ class MpiConfig:
         catchment partitionining differs from ESMF's arbitrary partitioning.
 
         :param local_slab: Data that will be gathered from all processes.
-        :param options:
         :param allgather: Boolean on whether the gathered array should be broadcasted to all processes instead of just rank 0.
         :return: Numpy array of the data gathered from all processes.
         """
@@ -376,8 +375,8 @@ class MpiConfig:
         try:
             self.comm.Allgather([shapes, MPI.INTEGER], [global_shapes, MPI.INTEGER])
         except Exception:
-            options.errMsg = "Failed all gathering slab shapes at rank" + str(self.rank)
-            err_handler.log_critical(options, self)
+            self.config_options.errMsg = "Failed all gathering slab shapes at rank" + str(self.rank)
+            err_handler.log_critical(self.config_options, self)
             return None
 
         if len(local_slab.shape) == 2:
@@ -387,11 +386,11 @@ class MpiConfig:
             for i in range(0, self.size):
                 total_rows += global_shapes[2 * i]
                 if global_shapes[(2 * i) + 1] != width:
-                    options.errMsg = (
+                    self.config_options.errMsg = (
                         "Error: slabs with differing widths detected on slab for rank"
                         + str(i)
                     )
-                    err_handler.log_critical(options, self)
+                    err_handler.log_critical(self.config_options, self)
                     return None
 
             # generate counts
@@ -447,8 +446,8 @@ class MpiConfig:
                     root=0,
                 )
         except Exception:
-            options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
-            err_handler.log_critical(options, self)
+            self.config_options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
+            err_handler.log_critical(self.config_options, self)
             return None
 
         return recvbuf
