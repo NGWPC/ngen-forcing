@@ -4,11 +4,6 @@ import os
 import signal
 import sys
 import typing
-if typing.TYPE_CHECKING:
-    from typing import Any, Type, TypeVar
-    from .geoMod import GriddedGeoMeta
-    T = TypeVar("T")
-
 import mpi4py
 import numpy as np
 
@@ -26,6 +21,10 @@ if MPI.Is_initialized():
     mpi4py.rc.initialize = False
     mpi4py.rc.finalize = False
 
+if typing.TYPE_CHECKING:
+    from typing import Any, Type, TypeVar
+    from .geoMod import GriddedGeoMeta
+    T = TypeVar("T")
 
 class MpiConfig:
     """MPI config class.
@@ -40,7 +39,7 @@ class MpiConfig:
         NOTE: this class overrides the system excepthook so that
         cleanup steps and MPI abort can be triggered on unhandled exceptions.
         """
-        self.comm = None
+        self.comm: MPI.Intracomm = None
         self.rank = None
         self.size = None
         self.uid64: str | None = (
@@ -285,7 +284,7 @@ class MpiConfig:
         debugpy.listen(("localhost", 5678 + self.rank))
         debugpy.wait_for_client()
 
-    def broadcast_parameter(self, value_broadcast: Any, config_options: ConfigOptions, param_type: Type[T]) -> T:
+    def broadcast_parameter(self, value_broadcast: T) -> T:
         """Broadcast a single parameter value to all processors.
 
         Generic function for sending a parameter value out to the processors.
@@ -293,20 +292,14 @@ class MpiConfig:
         :param config_options:
         :return:
         """
-        dtype = np.dtype(param_type)
-
-        if self.rank == 0:
-            param = np.asarray(value_broadcast, dtype=dtype)
-        else:
-            param = np.empty(dtype=dtype, shape=())
-
+        if self.size == 1:
+            return value_broadcast
         try:
-            self.comm.Bcast(param, root=0)
-        except MPI.Exception:
-            config_options.errMsg = "Unable to broadcast single value from rank 0."
-            err_handler.log_critical(config_options, self)
-            return None
-        return param.item(0)
+            return self.comm.bcast(value_broadcast, root=0)
+        except Exception as e:
+            self.config_options.errMsg = f"Unable to broadcst single value {value_broadcast} from rank 0: {e.__class__.__name__} -- {e}"
+            err_handler.log_critical(self.config_options, self)
+            raise
 
     def scatter_array(self, geo_meta: GriddedGeoMeta, src_array: np.ndarray, config_options: ConfigOptions):
         """Scatter an array based on the input dataset type.
