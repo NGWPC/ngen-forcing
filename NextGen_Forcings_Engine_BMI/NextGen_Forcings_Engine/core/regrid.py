@@ -213,11 +213,11 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 input_forcings.nx_global = ds.dimensions["x"].size
 
             input_forcings.ny_global = mpi_config.broadcast_parameter(
-                input_forcings.ny_global, config_options, param_type=int
+                input_forcings.ny_global
             )
             err_handler.check_program_status(config_options, mpi_config)
             input_forcings.nx_global = mpi_config.broadcast_parameter(
-                input_forcings.nx_global, config_options, param_type=int
+                input_forcings.nx_global
             )
             err_handler.check_program_status(config_options, mpi_config)
 
@@ -10499,7 +10499,7 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                 )
 
             # look to see if current time is in file:
-            skip_file = np.ubyte(0)
+            skip_file = False
             if mpi_config.rank == 0:
                 times = [datetime.utcfromtimestamp(t) for t in id_tmp["time"][:]]
                 if ndfd_var != "qpf":
@@ -10523,16 +10523,14 @@ def regrid_ndfd(input_forcings, config_options, wrf_hydro_geo_meta, mpi_config):
                     # TODO: qpf special handling
                     if forecast_time > times[-1] - timedelta(hours=6):
                         pt.log_debug("Forecast time beyond NDFD precip range, skipping")
-                        skip_file = 1
+                        skip_file = True
                     else:
                         time_index = int(hour // 6)
                         pt.log_debug(
                             f"Forecast hour {forecast_time} will use precip from {times[time_index] - timedelta(hours=6)} to {times[time_index]}"
                         )
 
-            skip_file = mpi_config.broadcast_parameter(
-                skip_file, config_options, param_type=np.ubyte
-            )
+            skip_file = mpi_config.broadcast_parameter(skip_file)
             err_handler.check_program_status(config_options, mpi_config)
 
             if skip_file:
@@ -11399,9 +11397,7 @@ def check_regrid_status(
     # mpi_config.comm.barrier()
 
     # Broadcast the flag to the other processors.
-    calc_regrid_flag = mpi_config.broadcast_parameter(
-        calc_regrid_flag, config_options, param_type=bool
-    )
+    calc_regrid_flag = mpi_config.broadcast_parameter(calc_regrid_flag)
     err_handler.check_program_status(config_options, mpi_config)
 
     return calc_regrid_flag
@@ -11611,9 +11607,7 @@ def check_supp_pcp_regrid_status(
     # mpi_config.comm.barrier()
 
     # Broadcast the flag to the other processors.
-    calc_regrid_flag = mpi_config.broadcast_parameter(
-        calc_regrid_flag, config_options, param_type=bool
-    )
+    calc_regrid_flag = mpi_config.broadcast_parameter(calc_regrid_flag)
 
     mpi_config.comm.barrier()
     return calc_regrid_flag
@@ -11862,11 +11856,11 @@ def calculate_weights(
 
     # Broadcast the forcing nx/ny values
     input_forcings.ny_global = mpi_config.broadcast_parameter(
-        input_forcings.ny_global, config_options, param_type=int
+        input_forcings.ny_global
     )
     err_handler.check_program_status(config_options, mpi_config)
     input_forcings.nx_global = mpi_config.broadcast_parameter(
-        input_forcings.nx_global, config_options, param_type=int
+        input_forcings.nx_global
     )
     err_handler.check_program_status(config_options, mpi_config)
 
@@ -12245,10 +12239,10 @@ def calculate_supp_pcp_weights(
 
     # Broadcast the forcing nx/ny values
     supplemental_precip.ny_global = mpi_config.broadcast_parameter(
-        supplemental_precip.ny_global, config_options, param_type=int
+        supplemental_precip.ny_global
     )
     supplemental_precip.nx_global = mpi_config.broadcast_parameter(
-        supplemental_precip.nx_global, config_options, param_type=int
+        supplemental_precip.nx_global
     )
     # mpi_config.comm.barrier()
 
