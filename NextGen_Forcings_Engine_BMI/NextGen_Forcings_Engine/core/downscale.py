@@ -291,7 +291,7 @@ def param_lapse(
         if mpi_config.rank == 0:
             while True:
                 # First ensure we have a parameter directory
-                if input_forcings.paramDir == "NONE":
+                if input_forcings.dScaleParamDirs == "NONE":
                     config_options.errMsg = (
                         "User has specified spatial temperature lapse rate "
                         "downscaling while no downscaling parameter directory "
@@ -301,7 +301,7 @@ def param_lapse(
                     break
 
                 # Compose the path to the lapse rate grid file.
-                lapsePath = f"{input_forcings.paramDir}/lapse_param.nc"
+                lapsePath = f"{input_forcings.dScaleParamDirs}/lapse_param.nc"
                 if not os.path.isfile(lapsePath):
                     ConfigOptions.errMsg = f"Expected lapse rate parameter file: {lapsePath} does not exist."
                     err_handler.log_critical(config_options, mpi_config)
@@ -717,13 +717,13 @@ def nwm_monthly_PRISM_downscale(
 
             if mmVersion == 1:
                 # Compose paths to the expected files.
-                numeratorPath = f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
-                denominatorPath = f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_to_{keyValueStr!s}_Grid.nc"
+                numeratorPath = f"{input_forcings.dScaleParamDirs}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
+                denominatorPath = f"{input_forcings.dScaleParamDirs}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_to_{keyValueStr!s}_Grid.nc"
 
             elif mmVersion == 2:
                 # Compose paths to the expected files.
-                numeratorPath = f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
-                denominatorPath = f"{input_forcings.paramDir}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_{keyValueStr!s}_to_NWM_Grid.nc"
+                numeratorPath = f"{input_forcings.dScaleParamDirs}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_NWM_Grid.nc"
+                denominatorPath = f"{input_forcings.dScaleParamDirs}/PRISM_Precip_Clim_{ConfigOptions.current_output_date.strftime('%b')}_{keyValueStr!s}_to_NWM_Grid.nc"
 
             # Make sure files exist.
             if not os.path.isfile(numeratorPath):

@@ -89,10 +89,13 @@ def scatter(prop) -> Any:
         """
         try:
             var, name, config_options, post_slice = prop.func(self)
+            if isinstance(var, (xr.core.variable.Variable, xr.Dataset)):
+                var = var.values
+
             assert isinstance(post_slice, bool)
             assert isinstance(name, str)
             assert isinstance(config_options, ConfigOptions)
-            assert isinstance(var, np.ndarray)
+            assert isinstance(var, (np.ndarray, type(None)))
 
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
@@ -136,7 +139,7 @@ class GeoMeta:
         """Open the geogrid file and return the xarray dataset object."""
         try:
             with xr.open_dataset(self.config_options.geogrid) as ds:
-                return ds.load()
+                return ds
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             log_critical(self.config_options, self.mpi_config)
@@ -148,7 +151,7 @@ class GeoMeta:
         """Open the geospatial metadata file and return the xarray dataset object."""
         try:
             with xr.open_dataset(self.config_options.spatial_meta) as ds:
-                esmf_ds = ds.load()
+                esmf_ds = ds
         except Exception as e:
             self.config_options.errMsg = (
                 f"Unable to open esmf file: {self.config_options.spatial_meta}"
@@ -967,7 +970,7 @@ class UnstructuredGeoMeta(GeoMeta):
     """Class for handling information about the hydrofabric domain forcing."""
 
     def __init__(self, config_options: ConfigOptions, mpi_config: MpiConfig) -> None:
-        """Initialize HydrofabricGeoMeta class variables.
+        """Initialize Unstructured GeoMeta class variables.
 
         Initialization function to initialize ESMF through ESMPy,
         calculate the global parameters of the unstructured mesh

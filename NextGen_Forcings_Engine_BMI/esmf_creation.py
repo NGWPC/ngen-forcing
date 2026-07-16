@@ -1,9 +1,9 @@
 import argparse
 from pathlib import Path
 from types import SimpleNamespace
-import numpy as np
-import geopandas as gpd
 
+import geopandas as gpd
+import numpy as np
 import yaml
 from NextGen_Forcings_Engine.core.config import ConfigOptions
 
@@ -29,8 +29,8 @@ def create_mesh(cfg: ConfigOptions):
         # The generation will sort the IDs,
         # so return the sorted IDs from the geopackage
         # to maintain the true->false ID indexing
-        hyfab = gpd.read_file(hyfab_name, layer='divides')
-        return np.sort(hyfab.div_id.values, copy=True, dtype=np.int64)
+        hyfab = gpd.read_file(hyfab_name, layer="divides")
+        return np.array(np.sort(hyfab.div_id.values), copy=True,dtype=np.int64)
     return convert_hyfab_to_esmf(hyfab_gpkg=hyfab_name, esmf_mesh_output=mesh_out_path)
 
 

@@ -9,7 +9,6 @@ import yaml
 
 # This is the NextGen Forcings Engine BMI instance to execute
 from NextGen_Forcings_Engine.bmi_model import (
-    BMIMODEL,
     NWMv3_Forcing_Engine_BMI_model,
     parse_config,
 )
@@ -343,7 +342,7 @@ def run_bmi(
         config = parse_config(yaml.safe_load(fp))
 
     print("Creating an instance of the BMI model object")
-    model = BMIMODEL[config.get("GRID_TYPE")]()
+    model = NWMv3_Forcing_Engine_BMI_model(config.get("GRID_TYPE"))
 
     # IMPORTANT: We are not calling initialize() directly here.
     # Instead, we call initialize_with_params(), which handles
