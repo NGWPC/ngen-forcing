@@ -8,6 +8,7 @@ on:
       - master
       - nwm-master
       - development
+      - development-pw
       - release-candidate
   pull_request:
     branches:
@@ -16,32 +17,33 @@ on:
       - main
       - nwm-master
       - development
+      - development-pw
       - release-candidate
   workflow_dispatch:
     inputs:
-      rebuild_deps:
+      REBUILD_DEPS:
         description: 'Force a rebuild of the dependencies image before building forcing'
         required: false
         default: false
         type: boolean
-      deps_base_repo:
+      DEPS_BASE_REPO:
         description: 'Base image to compile the dependencies from (default rockylinux)'
         required: false
         type: string
-      deps_base_tag:
+      DEPS_BASE_TAG:
         description: 'Dependencies base image tag (default 8)'
         required: false
         type: string
-      deps_base_suffix:
+      DEPS_BASE_SUFFIX:
         description: 'Override the published deps name suffix (default derived, e.g. rocky8)'
         required: false
         type: string
-      BMI_BASE_REPO:
+      DEPS_IMAGE_REPO:
         description: 'Deps image repo to build forcing FROM when not rebuilding deps (default ghcr.io/<org>/ngen-dependencies-rocky8)'
         required: false
         type: string
-      BMI_BASE_TAG:
-        description: 'Deps image tag to build forcing FROM when not rebuilding deps (default latest)'
+      DEPS_IMAGE_TAG:
+        description: 'Deps image tag to build forcing FROM when not rebuilding deps (default latest-pw)'
         required: false
         type: string
       GHCR_ORG:
@@ -172,10 +174,11 @@ jobs:
           SHORT_SHA="${REAL_SHA:0:7}"
 
           # default source-repo ref: follow the release-line branch we're building from
-          # (development / ngwpc-candidate / ngwpc-release); tags and other branches fall
-          # back to development. Override per source repo via the *_REF dispatch inputs.
+          # (development / development-pw / ngwpc-candidate / ngwpc-release); tags and
+          # other branches fall back to development. Override per source repo via the
+          # *_REF dispatch inputs.
           case "${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}" in
-            branch:development|branch:ngwpc-candidate|branch:ngwpc-release)
+            branch:development|branch:development-pw|branch:ngwpc-candidate|branch:ngwpc-release)
               DEFAULT_REF="$GITHUB_REF_NAME" ;;
             *)
               DEFAULT_REF="development" ;;
@@ -266,22 +269,22 @@ jobs:
   dependencies:
     name: dependencies
     needs: changes
-    if: ${{ needs.changes.outputs.deps == 'true' || inputs.rebuild_deps || needs.changes.outputs.versions == 'true' }}
+    if: ${{ needs.changes.outputs.deps == 'true' || inputs.REBUILD_DEPS || needs.changes.outputs.versions == 'true' }}
     uses: ./.github/workflows/dependencies.yml
     with:
-      deps_base_repo: ${{ inputs.deps_base_repo }}
-      deps_base_tag: ${{ inputs.deps_base_tag }}
-      deps_base_suffix: ${{ inputs.deps_base_suffix }}
-      ghcr_org: ${{ inputs.GHCR_ORG }}
-      szip_version: ${{ inputs.SZIP_VERSION }}
-      hdf5_version: ${{ inputs.HDF5_VERSION }}
-      netcdf_c_version: ${{ inputs.NETCDF_C_VERSION }}
-      netcdf_fortran_version: ${{ inputs.NETCDF_FORTRAN_VERSION }}
-      boost_version: ${{ inputs.BOOST_VERSION }}
-      esmf_version: ${{ inputs.ESMF_VERSION }}
-      gdal_version: ${{ inputs.GDAL_VERSION }}
-      ecflow_version: ${{ inputs.ECFLOW_VERSION }}
-      ecbuild_version: ${{ inputs.ECBUILD_VERSION }}
+      DEPS_BASE_REPO: ${{ inputs.DEPS_BASE_REPO || 'rockylinux' }}
+      DEPS_BASE_TAG: ${{ inputs.DEPS_BASE_TAG || '8' }}
+      DEPS_BASE_SUFFIX: ${{ inputs.DEPS_BASE_SUFFIX || 'rocky8' }}
+      GHCR_ORG: ${{ inputs.GHCR_ORG }}
+      SZIP_VERSION: ${{ inputs.SZIP_VERSION }}
+      HDF5_VERSION: ${{ inputs.HDF5_VERSION }}
+      NETCDF_C_VERSION: ${{ inputs.NETCDF_C_VERSION }}
+      NETCDF_FORTRAN_VERSION: ${{ inputs.NETCDF_FORTRAN_VERSION }}
+      BOOST_VERSION: ${{ inputs.BOOST_VERSION }}
+      ESMF_VERSION: ${{ inputs.ESMF_VERSION }}
+      GDAL_VERSION: ${{ inputs.GDAL_VERSION }}
+      ECFLOW_VERSION: ${{ inputs.ECFLOW_VERSION }}
+      ECBUILD_VERSION: ${{ inputs.ECBUILD_VERSION }}
 
   # CodeQL scan
   codeql-scan:
@@ -343,13 +346,14 @@ jobs:
           set -euo pipefail
 
           # if the dependencies job rebuilt the image this run, build FROM exactly
-          # that; otherwise use the override inputs, else this org's deps :latest
+          # that; otherwise use the override inputs, else this org's deps :latest-pw
+          # (rocky8 deps promote only latest-pw; plain latest is the bookworm lane)
           REPO="${{ needs.dependencies.outputs.image }}"
           TAG="${{ needs.dependencies.outputs.tag }}"
-          [ -n "$REPO" ] || REPO="${{ inputs.BMI_BASE_REPO }}"
+          [ -n "$REPO" ] || REPO="${{ inputs.DEPS_IMAGE_REPO }}"
           [ -n "$REPO" ] || REPO="${REGISTRY}/${{ needs.setup.outputs.org }}/ngen-dependencies-rocky8"
-          [ -n "$TAG" ] || TAG="${{ inputs.BMI_BASE_TAG }}"
-          [ -n "$TAG" ] || TAG="latest"
+          [ -n "$TAG" ] || TAG="${{ inputs.DEPS_IMAGE_TAG }}"
+          [ -n "$TAG" ] || TAG="latest-pw"
 
           # inspect the base for the OCI base.* labels on the forcing image
           if ! command -v skopeo >/dev/null 2>&1; then
@@ -379,10 +383,9 @@ jobs:
           push: true
           tags: ${{ needs.setup.outputs.bmi_image }}:${{ needs.setup.outputs.test_image_tag }}
           build-args: |
-            BMI_BASE_REPO=${{ steps.base.outputs.repo }}
-            BMI_BASE_TAG=${{ steps.base.outputs.tag }}
-            BMI_BASE_DIGEST=${{ steps.base.outputs.digest }}
-            BMI_BASE_REVISION=${{ steps.base.outputs.revision }}
+            DEPS_IMAGE=${{ steps.base.outputs.repo }}:${{ steps.base.outputs.tag }}
+            DEPS_IMAGE_DIGEST=${{ steps.base.outputs.digest }}
+            DEPS_IMAGE_REVISION=${{ steps.base.outputs.revision }}
             EWTS_ORG=${{ inputs.EWTS_ORG || github.repository_owner }}
             EWTS_REF=${{ inputs.EWTS_REF || needs.setup.outputs.default_ref }}
             EWTS_REVISION=${{ needs.setup.outputs.ewts_revision }}
@@ -456,13 +459,23 @@ jobs:
             --all \
             "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
 
-          # tag with 'latest' if on development branch
+          # Branch-keyed promotion: development promotes 'latest' (bookworm/AWS
+          # lane); development-pw promotes 'latest-pw' (rocky/PW lane). Do not
+          # manually dispatch a cross-lane build from either branch: promotion
+          # keys off the branch name, so the tested image would promote under
+          # the wrong alias.
           if [ "$GITHUB_REF_NAME" = "development" ]; then
             skopeo copy \
               --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
+          elif [ "$GITHUB_REF_NAME" = "development-pw" ]; then
+            skopeo copy \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --all \
+              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest-pw"
           fi
 
   # trigger downstream repo ngen
@@ -476,6 +489,7 @@ jobs:
           github.event_name == 'push' &&
           (
             github.ref_name == 'development' ||
+            github.ref_name == 'development-pw' ||
             github.ref_name == 'ngwpc-candidate' ||
             github.ref_name == 'ngwpc-release'
           )

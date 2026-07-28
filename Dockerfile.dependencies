@@ -22,12 +22,13 @@ FROM ${BASE_IMAGE}
 
 # Re-expose the base args after FROM (an ARG declared before FROM is only in
 # scope for the FROM line) so they can populate the OCI base.* image labels.
-# DEPS_BASE_NAME is composed here; DEPS_BASE_DIGEST defaults to "unknown" and is
+# BASE_IMAGE_NAME is composed here; BASE_IMAGE_DIGEST defaults to "unknown" and is
 # overridden by the build-arg dependencies.yml resolves with skopeo at build time.
 ARG BASE_IMAGE
 ARG BASE_IMAGE_NAME="${BASE_IMAGE}"
 ARG BASE_IMAGE_DIGEST="unknown"
 ARG IMAGE_SOURCE="unknown"
+ARG IMAGE_REVISION="unknown"
 
 ARG SZIP_VERSION=2.1.1
 ARG HDF5_VERSION=1.10.11
@@ -44,6 +45,7 @@ ARG ECBUILD_VERSION=3.14.2
 LABEL org.opencontainers.image.base.name="${BASE_IMAGE_NAME}" \
     org.opencontainers.image.base.digest="${BASE_IMAGE_DIGEST}" \
     org.opencontainers.image.source="${IMAGE_SOURCE}" \
+    org.opencontainers.image.revision="${IMAGE_REVISION}" \
     io.ngwpc.szip.version="${SZIP_VERSION}" \
     io.ngwpc.hdf5.version="${HDF5_VERSION}" \
     io.ngwpc.netcdf-c.version="${NETCDF_C_VERSION}" \
