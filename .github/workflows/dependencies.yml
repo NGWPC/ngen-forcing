@@ -273,11 +273,21 @@ jobs:
             --all \
             "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
 
-          # consumers pull :latest by default; promote it on development
+          # Branch-keyed promotion: development promotes 'latest' (bookworm/AWS
+          # lane); development-pw promotes 'latest-pw' (rocky8/PW lane). Do not
+          # manually dispatch a cross-lane build from either branch: promotion
+          # keys off the branch name, so the built image would promote under
+          # the wrong alias.
           if [ "$GITHUB_REF_NAME" = "development" ]; then
             skopeo copy \
               --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
+          elif [ "$GITHUB_REF_NAME" = "development-pw" ]; then
+            skopeo copy \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --all \
+              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest-pw"
           fi
