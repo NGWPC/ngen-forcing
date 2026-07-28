@@ -8,6 +8,7 @@ on:
       - master
       - nwm-master
       - development
+      - development-pw
       - release-candidate
   pull_request:
     branches:
@@ -16,6 +17,7 @@ on:
       - main
       - nwm-master
       - development
+      - development-pw
       - release-candidate
   workflow_dispatch:
     inputs:
@@ -144,10 +146,11 @@ jobs:
           SHORT_SHA="${REAL_SHA:0:7}"
 
           # default source-repo ref: follow the release-line branch we're building from
-          # (development / ngwpc-candidate / ngwpc-release); tags and other branches fall
-          # back to development. Override per source repo via the *_REF dispatch inputs.
+          # (development / development-pw / ngwpc-candidate / ngwpc-release); tags and
+          # other branches fall back to development. Override per source repo via the
+          # *_REF dispatch inputs.
           case "${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}" in
-            branch:development|branch:ngwpc-candidate|branch:ngwpc-release)
+            branch:development|branch:development-pw|branch:ngwpc-candidate|branch:ngwpc-release)
               DEFAULT_REF="$GITHUB_REF_NAME" ;;
             *)
               DEFAULT_REF="development" ;;
@@ -420,13 +423,23 @@ jobs:
             --all \
             "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
 
-          # tag with 'latest' if on development branch
+          # Branch-keyed promotion: development promotes 'latest' (bookworm/AWS
+          # lane); development-pw promotes 'latest-pw' (rocky/PW lane). Do not
+          # manually dispatch a cross-lane build from either branch: promotion
+          # keys off the branch name, so the tested image would promote under
+          # the wrong alias.
           if [ "$GITHUB_REF_NAME" = "development" ]; then
             skopeo copy \
               --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
+          elif [ "$GITHUB_REF_NAME" = "development-pw" ]; then
+            skopeo copy \
+              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
+              --all \
+              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest-pw"
           fi
 
   # trigger downstream repo ngen
@@ -440,6 +453,7 @@ jobs:
           github.event_name == 'push' &&
           (
             github.ref_name == 'development' ||
+            github.ref_name == 'development-pw' ||
             github.ref_name == 'ngwpc-candidate' ||
             github.ref_name == 'ngwpc-release'
           )
