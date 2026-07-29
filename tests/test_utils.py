@@ -156,7 +156,7 @@ class ClassAttrFetcher:
             the desired child attribute, e.g. "geo_meta"
 
         child_attr_name:
-            The name of the child attribute to be collected, e.g. "element_ids".
+            The name of the child attribute or dict key to be collected, e.g. "element_ids".
 
     """
 
@@ -187,7 +187,10 @@ class ClassAttrFetcher:
 
         """
         parent = getattr(fixture_instance, self.fixture_attr_name)
-        child = getattr(parent, self.child_attr_name)
+        if isinstance(parent, dict):
+            child = parent[self.child_attr_name]
+        else:
+            child = getattr(parent, self.child_attr_name)
         if serialize_and_deserialize:
             child = json.loads(serialize_to_json(child))
         return child
@@ -202,6 +205,7 @@ class BMIForcingFixture:
     def __init__(self, bmi_model: NWMv3_Forcing_Engine_BMI_model_Base) -> None:
         """Initialize BMIForcingFixture."""
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = bmi_model
+        self.bmi_model_values = self.bmi_model._values
         self.mpi_config: MpiConfig = bmi_model._mpi_meta
         self.config_options: ConfigOptions = bmi_model._job_meta
         self.geo_meta: GeoMeta = bmi_model.geo_meta
