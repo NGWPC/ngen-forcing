@@ -211,6 +211,31 @@ class BMIForcingFixture:
         self.geo_meta: GeoMeta = bmi_model.geo_meta
         self.input_forcing_mod: dict = self.bmi_model._input_forcing_mod
 
+    @staticmethod
+    def _trim_arrays_to_input_map_output(data_dict: dict) -> None:
+        """Trim arrays in data_dict to match input_map_output length.
+        
+        Removes unused forcing indices (e.g., LQFRAC at index 8 when include_lqfrac=0).
+        Scans all list values in data_dict and trims those that are longer than input_map_output.
+        Modifies data_dict in place.
+        
+        Args:
+            data_dict: Dictionary containing 'input_map_output' and array keys to trim.
+        """
+        input_map_output = data_dict.get("input_map_output", [])
+        if not input_map_output:
+            return  # No trimming if we don't have the mapping
+        
+        for key, value in data_dict.items():
+            if key == "input_map_output" or value is None:
+                continue
+            # Only trim list values (which were 2D arrays serialized as list of lists)
+            if isinstance(value, list) and len(value) > len(input_map_output):
+                logging.debug(
+                    f"Trimming {key} from {len(value)} to {len(input_map_output)} rows"
+                )
+                data_dict[key] = value[:len(input_map_output)]
+
 
 class BMIForcingFixture_Class(BMIForcingFixture):
     """Test fixture for Class-based tests."""
@@ -259,6 +284,9 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
             deserial_actual[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
+        
+        self._trim_arrays_to_input_map_output(deserial_actual)
+        
         if write_to_file:
             self.write_json(
                 deserial_actual,
@@ -289,6 +317,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 deserial_expected = self.map_old_to_new_variable_names(
                     deserial_expected
                 )
+            self._trim_arrays_to_input_map_output(deserial_expected)
             return deserial_expected
         else:
             try:
@@ -298,6 +327,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                     deserial_expected = self.map_old_to_new_variable_names(
                         deserial_expected
                     )
+                self._trim_arrays_to_input_map_output(deserial_expected)
                 # order and reverse so private attributes are last
                 return OrderedDict(reversed(list(deserial_expected.items())))
             except FileNotFoundError as e:
@@ -788,11 +818,12 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
                     f"Expected type list[list], got {type(attr)} for key {key}"
                 )
                 continue
-            attr = attr[: len(input_map_output)]
-            input_forcings_deserial[key] = attr
 
         if errors:
             raise RuntimeError(f"input_forcings had invalid state. Errors: {errors}")
+
+        ### After validation, trim the arrays to the appropriate length.
+        self._trim_arrays_to_input_map_output(input_forcings_deserial)
 
         return input_forcings_deserial
 
@@ -867,6 +898,9 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             raise FileNotFoundError(
                 f"Could not find {self.regrid_results_file_name_expect}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
             ) from e
+
+        # This handles ignoring extra elements that shouldn't be checked which might contain random values, e.g. when include_lqfrac=0.
+        self._trim_arrays_to_input_map_output(regrid_results_expect)
 
         # keys_to_check = ("nx_local", "ny_local", "nx_global", "ny_global")
         # regrid_results_expect = {
