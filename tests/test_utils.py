@@ -220,6 +220,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         keys_to_check: tuple[str] = (),
         keys_to_exclude: tuple[str] = (),
+        extra_attrs: tuple = (),
         map_old_to_new_var_names: bool = True,
     ) -> None:
         """Initialize BMIForcingFixture_Class.
@@ -229,12 +230,14 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             bmi_model: The BMI model to be used in the test fixture
             keys_to_check: The keys to check
             keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
+            extra_attrs: Extra attributes to be added to the test results JSON, to supplement the primary class attributes.
             map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
         """
         super().__init__(bmi_model=bmi_model)
 
         self.keys_to_check = keys_to_check
         self.keys_to_exclude = keys_to_exclude
+        self.extra_attrs: tuple[ClassAttrFetcher] = extra_attrs
         self.map_old_to_new_var_names = map_old_to_new_var_names
 
         self.expected_sub_dir = "test_data/expected_results"
@@ -244,7 +247,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
     def deserial_actual(
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
     ) -> dict:
-        """Get the actual metadata results as a deserialized dictionary."""
+        """Get the actual metadata results as a deserialized dictionary, including any extra_attrs."""
         deserial_actual = json.loads(
             serialize_to_json(
                 copy_and_stringify_functions(self.test_class_as_dict), sort_keys=True
@@ -253,6 +256,9 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
         deserial_actual = convert_long_lists(deserial_actual, 10)
+        # Add any extra attributes to the results
+        for ea in self.extra_attrs:
+            deserial_actual[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
         if write_to_file:
             self.write_json(
                 deserial_actual,
@@ -377,6 +383,7 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
         bmi_model: NWMv3_Forcing_Engine_BMI_model_Base,
         keys_to_check: tuple = (),
         keys_to_exclude: tuple = (),
+        extra_attrs: tuple = (),
     ) -> None:
         """Initialize BMIForcingFixture_GeoMod.
 
@@ -385,12 +392,14 @@ class BMIForcingFixture_GeoMod(BMIForcingFixture_Class):
             bmi_model: the BMI model to be used in the test fixture
             keys_to_chek: The keys to check
             keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
+            extra_attrs: Extra attributes to be added to the test results JSON, to supplement the primary GeoMeta attributes.
 
         """
         super().__init__(
             bmi_model=bmi_model,
             keys_to_check=keys_to_check,
             keys_to_exclude=keys_to_exclude,
+            extra_attrs=extra_attrs,
         )
         self.test_class = self.geo_meta
 
