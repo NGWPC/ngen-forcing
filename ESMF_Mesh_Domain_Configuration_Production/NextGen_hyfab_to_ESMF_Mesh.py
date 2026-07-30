@@ -34,7 +34,7 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
     # with geopandas for converting crs and translating
     # orientation of polygon from original dataset
     hyfab_cart = gpd.read_file(hyfab_gpkg, layer='divides')
-    hyfab_cart = hyfab_cart.sort_values(by=["div_id"])
+    hyfab_cart = hyfab_cart.sort_values(by=["div_id"]).reset_index(drop=True)
     hyfab = hyfab_cart.to_crs("WGS84")
 
     # Eventually, we'll add code to slice catchment ids
