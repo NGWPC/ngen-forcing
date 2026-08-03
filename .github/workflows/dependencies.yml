@@ -36,11 +36,6 @@ on:
         required: false
         type: string
         default: ''
-      SZIP_VERSION:
-        description: 'SZIP version (blank = Dockerfile.dependencies default)'
-        required: false
-        type: string
-        default: ''
       HDF5_VERSION:
         description: 'HDF5 version (blank = Dockerfile.dependencies default)'
         required: false
@@ -68,16 +63,6 @@ on:
         default: ''
       GDAL_VERSION:
         description: 'GDAL version (blank = Dockerfile.dependencies default)'
-        required: false
-        type: string
-        default: ''
-      ECFLOW_VERSION:
-        description: 'ecFlow version (blank = Dockerfile.dependencies default)'
-        required: false
-        type: string
-        default: ''
-      ECBUILD_VERSION:
-        description: 'ecbuild version (blank = Dockerfile.dependencies default)'
         required: false
         type: string
         default: ''
@@ -193,15 +178,12 @@ jobs:
           # add NAME VALUE -> appends "NAME=VALUE" to ARGS when VALUE is non-empty
           # (the "|| true" keeps the skipped case from tripping "set -e").
           add() { [ -n "$2" ] && ARGS+=("$1=$2") || true; }
-          add SZIP_VERSION "${{ inputs.SZIP_VERSION }}"
           add HDF5_VERSION "${{ inputs.HDF5_VERSION }}"
           add NETCDF_C_VERSION "${{ inputs.NETCDF_C_VERSION }}"
           add NETCDF_FORTRAN_VERSION "${{ inputs.NETCDF_FORTRAN_VERSION }}"
           add BOOST_VERSION "${{ inputs.BOOST_VERSION }}"
           add ESMF_VERSION "${{ inputs.ESMF_VERSION }}"
           add GDAL_VERSION "${{ inputs.GDAL_VERSION }}"
-          add ECFLOW_VERSION "${{ inputs.ECFLOW_VERSION }}"
-          add ECBUILD_VERSION "${{ inputs.ECBUILD_VERSION }}"
 
           # Publish step outputs. $GITHUB_OUTPUT is a FILE the runner provides;
           # every line appended to it becomes `steps.vars.outputs.<name>`,
