@@ -2,6 +2,7 @@ from __future__ import annotations
 from functools import partial
 import os
 import typing
+from typing import TypeVar
 import mpi4py
 import numpy as np
 
@@ -19,11 +20,10 @@ if MPI.Is_initialized():
     mpi4py.rc.finalize = False
 
 if typing.TYPE_CHECKING:
-    from typing import TypeVar
     from .geoMod import GriddedGeoMeta
     from .config import ConfigOptions
 
-    T = TypeVar("T")
+_T = TypeVar("_T")
 
 
 class MpiConfig:
@@ -34,7 +34,7 @@ class MpiConfig:
     handle from mpi4py.
     """
 
-    comm: MPI.Intercomm
+    comm: MPI.Intracomm
     rank: int
     """MPI rank of the process of this instance."""
     size: int
@@ -58,7 +58,7 @@ class MpiConfig:
         self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
         self.log_warning = partial(err_handler.log_warning, self.config_options, self)
 
-    def initialize_comm(self, comm: MPI.Intercomm | None = None) -> None:
+    def initialize_comm(self, comm: MPI.Intracomm | None = None) -> None:
         """Initialize MPI communication, including getting MPI rank and size.
         Also generates the UID for the run.
 
@@ -210,7 +210,7 @@ class MpiConfig:
         debugpy.listen(("localhost", 5678 + self.rank))
         debugpy.wait_for_client()
 
-    def broadcast_parameter(self, value_broadcast: T) -> T:
+    def broadcast_parameter(self, value_broadcast: _T) -> _T:
         """Broadcast a single parameter value to all processors.
 
         Generic function for sending a parameter value out to the processors.
