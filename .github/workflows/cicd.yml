@@ -99,10 +99,6 @@ on:
         description: 'MSW_MGR_REF'
         required: false
         type: string
-      SZIP_VERSION:
-        description: 'Deps image: SZIP version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
       HDF5_VERSION:
         description: 'Deps image: HDF5 version (blank = Dockerfile default; forces a deps rebuild)'
         required: false
@@ -125,14 +121,6 @@ on:
         type: string
       GDAL_VERSION:
         description: 'Deps image: GDAL version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      ECFLOW_VERSION:
-        description: 'Deps image: ecFlow version (blank = Dockerfile default; forces a deps rebuild)'
-        required: false
-        type: string
-      ECBUILD_VERSION:
-        description: 'Deps image: ecbuild version (blank = Dockerfile default; forces a deps rebuild)'
         required: false
         type: string
 
@@ -275,7 +263,7 @@ jobs:
         run: |
           # if any dependency version input was provided, force a deps rebuild so
           # the override actually takes effect
-          if [ -n "${{ inputs.SZIP_VERSION }}${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}${{ inputs.ECFLOW_VERSION }}${{ inputs.ECBUILD_VERSION }}" ]; then
+          if [ -n "${{ inputs.HDF5_VERSION }}${{ inputs.NETCDF_C_VERSION }}${{ inputs.NETCDF_FORTRAN_VERSION }}${{ inputs.BOOST_VERSION }}${{ inputs.ESMF_VERSION }}${{ inputs.GDAL_VERSION }}" ]; then
             echo "set=true" >> "$GITHUB_OUTPUT"
           fi
 
@@ -292,15 +280,12 @@ jobs:
       DEPS_BASE_TAG: ${{ inputs.DEPS_BASE_TAG || '8' }}
       DEPS_BASE_SUFFIX: ${{ inputs.DEPS_BASE_SUFFIX || 'rocky8' }}
       GHCR_ORG: ${{ inputs.GHCR_ORG }}
-      SZIP_VERSION: ${{ inputs.SZIP_VERSION }}
       HDF5_VERSION: ${{ inputs.HDF5_VERSION }}
       NETCDF_C_VERSION: ${{ inputs.NETCDF_C_VERSION }}
       NETCDF_FORTRAN_VERSION: ${{ inputs.NETCDF_FORTRAN_VERSION }}
       BOOST_VERSION: ${{ inputs.BOOST_VERSION }}
       ESMF_VERSION: ${{ inputs.ESMF_VERSION }}
       GDAL_VERSION: ${{ inputs.GDAL_VERSION }}
-      ECFLOW_VERSION: ${{ inputs.ECFLOW_VERSION }}
-      ECBUILD_VERSION: ${{ inputs.ECBUILD_VERSION }}
 
   # CodeQL scan
   codeql-scan:

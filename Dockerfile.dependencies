@@ -30,6 +30,12 @@ ARG BASE_IMAGE_DIGEST="unknown"
 ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_REVISION="unknown"
 
+# Version pins for the source-built stack. All are overridable at build time via
+# --build-arg. Most are also exposed as CI workflow_dispatch inputs, but
+# SZIP_VERSION, ECFLOW_VERSION, and ECBUILD_VERSION are deliberately NOT wired
+# into CI: GitHub caps workflow_dispatch at 25 inputs, and these three change
+# rarely, so their inputs were dropped to free slots. To change one of them,
+# edit its default here.
 ARG SZIP_VERSION=2.1.1
 ARG HDF5_VERSION=1.10.11
 ARG NETCDF_C_VERSION=4.7.4
