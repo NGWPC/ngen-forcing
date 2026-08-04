@@ -50,7 +50,6 @@ class BaseProcessor:
         self.config_options = config_options
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
-        self._temp_crs = CRS(5070)
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
@@ -427,6 +426,7 @@ class AORCConusProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
         self.buffer = 3000  # m buffer around bounding box
+        self._temp_crs = CRS(5070)
 
     @cached_property
     def src_crs(self) -> CRS:
@@ -498,6 +498,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.y_label = "latitude"
         self.time_label = "time"
         self.buffer = 3000  # m buffer around bounding box
+        self._temp_crs = CRS(3338)
 
     @cached_property
     def src_crs(self):
@@ -598,6 +599,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
     ):
         """Initialize NWM CONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(5070)
 
     def url(self, var: str) -> str:
         """Generate NWM S3 zarr URL for current variable.
@@ -718,8 +720,8 @@ class NWMV3OConusProcessor(NWMV3Processor):
         return xr.open_zarr(ObjectStore(object_store))
 
 
-class NWMV3AlaskaProcessor(NWMV3Processor):
-    """Processor for NWM OCONUS data."""
+class NWMV3PuertoRicoProcessor(NWMV3OConusProcessor):
+    """Processor for NWM Puerto Rico data."""
 
     def __init__(
         self,
@@ -727,8 +729,37 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         mpi_config: MpiConfig,
         wrf_hydro_geo_meta: dict,
     ):
-        """Initialize NWM OCONUS processor."""
+        """Initialize NWM Puerto Rico processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(32161)
+
+
+class NWMV3HawaiiProcessor(NWMV3OConusProcessor):
+    """Processor for NWM Hawaii data."""
+
+    def __init__(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+        wrf_hydro_geo_meta: dict,
+    ):
+        """Initialize NWM Hawaii processor."""
+        super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(6628)
+
+
+class NWMV3AlaskaProcessor(NWMV3Processor):
+    """Processor for NWM Alaska data."""
+
+    def __init__(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+        wrf_hydro_geo_meta: dict,
+    ):
+        """Initialize NWM Alaska processor."""
+        super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(3338)
 
     @cached_property
     def url(self) -> str:
