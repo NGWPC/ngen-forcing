@@ -49,7 +49,6 @@ class BaseProcessor:
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
         self._temp_crs = CRS(5070)
-        self.buffer = 3000  # m buffer around bounding box
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
@@ -395,6 +394,7 @@ class AORCConusProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
+        self.buffer = 3000  # m buffer around bounding box
 
     @cached_property
     def src_crs(self) -> CRS:
@@ -465,6 +465,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
+        self.buffer = 3000  # m buffer around bounding box
 
     @cached_property
     def src_crs(self):
@@ -535,6 +536,7 @@ class NWMV3Processor(BaseProcessor):
         self.x_label = "x"
         self.y_label = "y"
         self.time_label = "time"
+        self.buffer = 6000  # m buffer around bounding box
 
     @property
     def vars(
