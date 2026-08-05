@@ -1,23 +1,39 @@
-# This is a datetime module for handling datetime
-# calculations in the forcing engine.
+"""Datetime module for handling datetime calculations in the forcing engine."""
+
+from __future__ import annotations
+
 import datetime
 import glob
 import math
 import os
-
-import ewts
+from typing import TYPE_CHECKING
+import logging
 import numpy as np
 import pandas as pd
 
-from . import err_handler
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import err_handler
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+        InputForcings,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+        MpiConfig,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
+        supplemental_precip as SupplementalPrecip,
+    )
+
+LOG = logging.getLogger("FORCING")
 
 
 NETCDF = "NETCDF"
 
 
-def calculate_lookback_window(config_options):
+def calculate_lookback_window(config_options: ConfigOptions):
     """Calculate the beginning, ending datetime variables for a look-back period.
 
     Also calculate the processing
@@ -72,7 +88,12 @@ def calculate_lookback_window(config_options):
         )
 
 
-def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_nldas_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find NLDAS neighbor files.
 
     Function to calculate the previous and after hourly NLDAS files for use in processing.
@@ -240,7 +261,12 @@ def find_nldas_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_aorc_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find AORC neighbor files.
 
     Function to calculate the previous and after hourly AORC files for use in processing.
@@ -401,7 +427,12 @@ def find_aorc_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_era5_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find ERA5 neighbor files.
 
     Function to calculate the previous and after hourly ERA5 timestamp for use in processing.
@@ -523,7 +554,12 @@ def find_era5_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_nwm_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find NWM neighbor files.
 
     Function to calculate the previous and after hourly AORC files for use in processing.
@@ -674,103 +710,122 @@ def find_nwm_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_config):
-    """Find Alaska Extended Ana neighbor files.
-
-    Function to calculate the previous and after Alaska Extended Ana cycles based on the current timestep.
-    ExtAna inputs are outputs from a prior FE run.
+def find_ak_hrrr_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
+    """Find AK HRRR neighbor files.
+ 
+    Function to calculate the previous and after HRRR Alaska cycles based on the current timestep.
+    This data differs from the HRRR conus because there is a forecast cycle every 3 hrs instead of
+    every hour.
     :param input_forcings:
     :param config_options:
     :param d_current:
     :param mpi_config:
     :return:
     """
+    # skip processing if flag set
+    if input_forcings.skip is True:
+        return
+ 
     if mpi_config.rank == 0:
         config_options.statusMsg = (
-            "Processing Alaska ExtAnA Data. Calculating neighboring "
+            "Processing Conus HRRR AK Data. Calculating neighboring "
             "files for this output timestep"
         )
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
-    # First find the current ExtAnA forecast cycle that we are using.
-    ana_offset = 1 if config_options.ana_flag else 0
-    current_ext_ana_cycle = config_options.current_fcst_cycle - datetime.timedelta(
+ 
+    default_horizon = 18  # 18-hour forecasts.
+    six_hr_horizon = 48  # 48-hour forecasts every six hours.
+ 
+    # First find the current HRRR forecast cycle that we are using.
+    #ana_offset = 1 if config_options.ana_flag else 0
+    ana_offset = 0
+    current_hrrr_cycle = config_options.current_fcst_cycle - datetime.timedelta(
         seconds=(ana_offset + input_forcings.fcst_input_offsets) * 60.0
     )
+    # Snap to nearest 3-hour boundary for AK's 3-hourly cycle cadence
+    shift = current_hrrr_cycle.hour % 3
+    current_hrrr_cycle = current_hrrr_cycle.replace(minute=0, second=0, microsecond=0) - datetime.timedelta(hours=shift)
 
-    ext_ana_horizon = 32
+    if current_hrrr_cycle.hour % 6 == 0:
+        hrrr_horizon = six_hr_horizon
+    else:
+        hrrr_horizon = default_horizon
 
-    # If the user has specified a forcing horizon that is greater than what is available
-    # for this time period, throw an error.
-    if (
-        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
-    ) / 60.0 > ext_ana_horizon:
-        config_options.errMsg = (
-            "User has specified a ExtAnA conus forecast horizon "
-            + "that is greater than the maximum allowed hours of: "
-            + str(ext_ana_horizon)
-        )
-        err_handler.log_critical(config_options, mpi_config)
-    err_handler.check_program_status(config_options, mpi_config)
-
-    # Calculate the current forecast hour within this ExtAnA cycle.
-    dt_tmp = d_current - current_ext_ana_cycle
-    current_ext_ana_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
+    # Calculate the current forecast hour within this HRRR cycle.
+    dt_tmp = d_current - current_hrrr_cycle
+    current_hrrr_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
 
     # Calculate the previous file to process.
-    min_since_last_output = (current_ext_ana_hour * 60) % 60
+    min_since_last_output = (current_hrrr_hour * 60) % 60
     if min_since_last_output == 0:
         min_since_last_output = 60
-    prev_ext_ana_date = d_current - datetime.timedelta(
-        seconds=min_since_last_output * 60
-    )
-    input_forcings.fcst_date1 = prev_ext_ana_date
+    prev_hrrr_date = d_current - datetime.timedelta(seconds=min_since_last_output * 60)
+    input_forcings.fcst_date1 = prev_hrrr_date
     if min_since_last_output == 60:
         min_until_next_output = 0
     else:
         min_until_next_output = 60 - min_since_last_output
-    next_ext_ana_date = d_current + datetime.timedelta(
-        seconds=min_until_next_output * 60
-    )
-    input_forcings.fcst_date2 = next_ext_ana_date
+    next_hrrr_date = d_current + datetime.timedelta(seconds=min_until_next_output * 60)
+    input_forcings.fcst_date2 = next_hrrr_date
 
     # Calculate the output forecast hours needed based on the prev/next dates.
-    dt_tmp = next_ext_ana_date - current_ext_ana_cycle
-    next_ext_ana_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    input_forcings.fcst_hour2 = next_ext_ana_forecast_hour
-    dt_tmp = prev_ext_ana_date - current_ext_ana_cycle
-    prev_ext_ana_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    input_forcings.fcst_hour1 = prev_ext_ana_forecast_hour
+    dt_tmp = next_hrrr_date - current_hrrr_cycle
+    next_hrrr_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    input_forcings.fcst_hour2 = next_hrrr_forecast_hour
+    dt_tmp = prev_hrrr_date - current_hrrr_cycle
+    prev_hrrr_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    input_forcings.fcst_hour1 = prev_hrrr_forecast_hour
     err_handler.check_program_status(config_options, mpi_config)
 
-    # If we are on the first ExtAnA forecast hour (1), and we have calculated the previous forecast
-    # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
-    # no interpolation is required.
-    if prev_ext_ana_forecast_hour == 0:
-        prev_ext_ana_forecast_hour = 1
+    # If we are on the first HRRR forecast hour (1), and we have calculated the previous
+    # forecast hour to be 0, simply set both hours to be 1. Hour 0 will not produce the
+    # fields we need, and no interpolation is required.
+    if prev_hrrr_forecast_hour == 0:
+        prev_hrrr_forecast_hour = 1
 
+    # Exit early if we're out of input data
+    if not config_options.ana_flag and next_hrrr_forecast_hour > hrrr_horizon:
+        input_forcings.skip = True
+        return
+ 
     # Calculate expected file paths.
     tmp_file1 = (
         input_forcings.input_force_dirs
-        + "/"
-        + prev_ext_ana_date.strftime("%Y%m%d%H")
-        + "/"
-        + prev_ext_ana_date.strftime("%Y%m%d%H")
-        + "00"
-        + ".LDASIN_DOMAIN1"
+        + "/hrrr."
+        + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/alaska/hrrr.t"
+        + current_hrrr_cycle.strftime("%H")
+        + "z.wrfsfcf"
+        + str(prev_hrrr_forecast_hour).zfill(2)
+        + ".ak"
+        + input_forcings.file_ext
     )
     if mpi_config.rank == 0:
-        config_options.statusMsg = "Previous ExtAnA file being used: " + tmp_file1
+        config_options.statusMsg = "Previous HRRR file being used: " + tmp_file1
         err_handler.log_msg(config_options, mpi_config)
 
-    tmp_file2 = tmp_file1
+    tmp_file2 = (
+        input_forcings.input_force_dirs
+        + "/hrrr."
+        + current_hrrr_cycle.strftime("%Y%m%d")
+        + "/alaska/hrrr.t"
+        + current_hrrr_cycle.strftime("%H")
+        + "z.wrfsfcf"
+        + str(next_hrrr_forecast_hour).zfill(2)
+        + ".ak"
+        + input_forcings.file_ext
+    )
     if mpi_config.rank == 0:
-        if mpi_config.rank == 0:
-            config_options.statusMsg = "Next ExtAnA file being used: " + tmp_file2
-            err_handler.log_msg(config_options, mpi_config)
+        config_options.statusMsg = "Next HRRR file being used: " + tmp_file2
+        err_handler.log_msg(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
-
-    # Check to see if files are already set. If not, then reset, grids and
+ 
+    # Check to see if files are already set. If not, then reset grids and
     # regridding objects to communicate things need to be re-established.
     if input_forcings.file_in1 != tmp_file1 or input_forcings.file_in2 != tmp_file2:
         if config_options.current_output_step == 1:
@@ -787,10 +842,9 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
             input_forcings.file_in2 = tmp_file2
         else:
             # Check to see if we are restarting from a previously failed instance. In this case,
-            # We are not on the first timestep, but no previous forcings have been processed.
+            # we are not on the first timestep, but no previous forcings have been processed.
             # We need to process the previous input timestep for temporal interpolation purposes.
             if input_forcings.regridded_forcings1 is None:
-                # if not np.any(input_forcings.regridded_forcings1):
                 if mpi_config.rank == 0:
                     config_options.statusMsg = (
                         "Restarting forecast cycle. Will regrid previous: "
@@ -807,14 +861,12 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
                     input_forcings.regridded_forcings2_elem = (
                         input_forcings.regridded_forcings2_elem
                     )
-
                 input_forcings.file_in2 = tmp_file1
                 input_forcings.file_in1 = tmp_file1
                 input_forcings.fcst_date2 = input_forcings.fcst_date1
                 input_forcings.fcst_hour2 = input_forcings.fcst_hour1
             else:
-                # The ExtAnA window has shifted. Reset fields 2 to
-                # be fields 1.
+                # The HRRR window has shifted. Reset fields 2 to be fields 1.
                 if config_options.grid_type == "gridded":
                     input_forcings.regridded_forcings1[:, :, :] = (
                         input_forcings.regridded_forcings2[:, :, :]
@@ -834,7 +886,209 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
                 input_forcings.file_in2 = tmp_file2
         input_forcings.regridComplete = False
     err_handler.check_program_status(config_options, mpi_config)
+ 
+    # Ensure we have the necessary new file
+    if mpi_config.rank == 0:
+        if not os.path.exists(input_forcings.file_in2):
+            if input_forcings.input_force_mandatory == 1:
+                config_options.errMsg = (
+                    "Expected input HRRR file: "
+                    + input_forcings.file_in2
+                    + " not found."
+                )
+                err_handler.log_critical(config_options, mpi_config)
+            else:
+                config_options.statusMsg = (
+                    "Expected input HRRR file: "
+                    + input_forcings.file_in2
+                    + " not found. Will not use in final layering."
+                )
+                err_handler.log_warning(config_options, mpi_config)
+    err_handler.check_program_status(config_options, mpi_config)
+ 
+    # If the file is missing, set the local slab of arrays to missing.
+    if not os.path.exists(input_forcings.file_in2):
+        if input_forcings.regridded_forcings2 is not None:
+            if config_options.grid_type == "gridded":
+                input_forcings.regridded_forcings2[:, :, :] = config_options.globalNdv
+            elif config_options.grid_type == "unstructured":
+                input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
+                input_forcings.regridded_forcings2_elem[:, :] = config_options.globalNdv
+            elif config_options.grid_type == "hydrofabric":
+                input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
+
+def find_ak_ext_ana_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
+    """Find Alaska Extended Ana neighbor files.
+ 
+    Function to calculate the previous and after Alaska Extended Ana cycles based on the current
+    timestep. ExtAna inputs are HRRR AK files selected via a b_date_proc-anchored cycle.
+    :param input_forcings:
+    :param config_options:
+    :param d_current:
+    :param mpi_config:
+    :return:
+    """
+    if mpi_config.rank == 0:
+        config_options.statusMsg = (
+            "Processing Alaska ExtAnA Data. Calculating neighboring "
+            "files for this output timestep"
+        )
+        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
+ 
+    # Anchor the cycle directly to b_date_proc.
+    current_ext_ana_cycle = config_options.b_date_proc
+ 
+    ext_ana_horizon = 32
+ 
+    # If the user has specified a forcing horizon that is greater than what is available
+    # for this time period, throw an error.
+    if (
+        input_forcings.fcst_input_horizons + input_forcings.fcst_input_offsets
+    ) / 60.0 > ext_ana_horizon:
+        config_options.errMsg = (
+            "User has specified a ExtAnA AK forecast horizon "
+            + "that is greater than the maximum allowed hours of: "
+            + str(ext_ana_horizon)
+        )
+        err_handler.log_critical(config_options, mpi_config)
+    err_handler.check_program_status(config_options, mpi_config)
+ 
+    # Calculate the current forecast hour within this ExtAnA cycle.
+    dt_tmp = d_current - current_ext_ana_cycle
+    current_ext_ana_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
+ 
+    # Calculate the previous file to process.
+    min_since_last_output = (current_ext_ana_hour * 60) % 60
+    if min_since_last_output == 0:
+        min_since_last_output = 60
+    prev_ext_ana_date = d_current - datetime.timedelta(
+        seconds=min_since_last_output * 60
+    )
+    input_forcings.fcst_date1 = prev_ext_ana_date
+    if min_since_last_output == 60:
+        min_until_next_output = 0
+    else:
+        min_until_next_output = 60 - min_since_last_output
+    next_ext_ana_date = d_current + datetime.timedelta(
+        seconds=min_until_next_output * 60
+    )
+    input_forcings.fcst_date2 = next_ext_ana_date
+ 
+    # Calculate the output forecast hours needed based on the prev/next dates.
+    dt_tmp = next_ext_ana_date - current_ext_ana_cycle
+    next_ext_ana_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    input_forcings.fcst_hour2 = next_ext_ana_forecast_hour
+    dt_tmp = prev_ext_ana_date - current_ext_ana_cycle
+    prev_ext_ana_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
+    input_forcings.fcst_hour1 = prev_ext_ana_forecast_hour
+    err_handler.check_program_status(config_options, mpi_config)
+ 
+    # If we are on the first ExtAnA forecast hour (1), and we have calculated the previous
+    # forecast hour to be 0, simply set both hours to be 1. Hour 0 will not produce the
+    # fields we need, and no interpolation is required.
+    if prev_ext_ana_forecast_hour == 0:
+        prev_ext_ana_forecast_hour = 1
+ 
+    # Calculate expected file paths.
+    tmp_file1 = (
+        input_forcings.input_force_dirs
+        + "/hrrr."
+        + current_ext_ana_cycle.strftime("%Y%m%d")
+        + "/alaska/hrrr.t"
+        + current_ext_ana_cycle.strftime("%H")
+        + "z.wrfsfcf"
+        + str(prev_ext_ana_forecast_hour).zfill(2)
+        + ".ak"
+        + input_forcings.file_ext
+    )
+    if mpi_config.rank == 0:
+        config_options.statusMsg = "Previous ExtAnA file being used: " + tmp_file1
+        err_handler.log_msg(config_options, mpi_config)
+ 
+    tmp_file2 = (
+        input_forcings.input_force_dirs
+        + "/hrrr."
+        + current_ext_ana_cycle.strftime("%Y%m%d")
+        + "/alaska/hrrr.t"
+        + current_ext_ana_cycle.strftime("%H")
+        + "z.wrfsfcf"
+        + str(next_ext_ana_forecast_hour).zfill(2)
+        + ".ak"
+        + input_forcings.file_ext
+    )
+    if mpi_config.rank == 0:
+        config_options.statusMsg = "Next ExtAnA file being used: " + tmp_file2
+        err_handler.log_msg(config_options, mpi_config)
+    err_handler.check_program_status(config_options, mpi_config)
+ 
+    # Check to see if files are already set. If not, then reset grids and
+    # regridding objects to communicate things need to be re-established.
+    if input_forcings.file_in1 != tmp_file1 or input_forcings.file_in2 != tmp_file2:
+        if config_options.current_output_step == 1:
+            input_forcings.regridded_forcings1 = input_forcings.regridded_forcings1
+            input_forcings.regridded_forcings2 = input_forcings.regridded_forcings2
+            if config_options.grid_type == "unstructured":
+                input_forcings.regridded_forcings1_elem = (
+                    input_forcings.regridded_forcings1_elem
+                )
+                input_forcings.regridded_forcings2_elem = (
+                    input_forcings.regridded_forcings2_elem
+                )
+            input_forcings.file_in1 = tmp_file1
+            input_forcings.file_in2 = tmp_file2
+        else:
+            # Check to see if we are restarting from a previously failed instance. In this case,
+            # we are not on the first timestep, but no previous forcings have been processed.
+            # We need to process the previous input timestep for temporal interpolation purposes.
+            if input_forcings.regridded_forcings1 is None:
+                if mpi_config.rank == 0:
+                    config_options.statusMsg = (
+                        "Restarting forecast cycle. Will regrid previous: "
+                        + input_forcings.product_name
+                    )
+                    err_handler.log_msg(config_options, mpi_config)
+                input_forcings.rstFlag = 1
+                input_forcings.regridded_forcings1 = input_forcings.regridded_forcings1
+                input_forcings.regridded_forcings2 = input_forcings.regridded_forcings2
+                if config_options.grid_type == "unstructured":
+                    input_forcings.regridded_forcings1_elem = (
+                        input_forcings.regridded_forcings1_elem
+                    )
+                    input_forcings.regridded_forcings2_elem = (
+                        input_forcings.regridded_forcings2_elem
+                    )
+                input_forcings.file_in2 = tmp_file1
+                input_forcings.file_in1 = tmp_file1
+                input_forcings.fcst_date2 = input_forcings.fcst_date1
+                input_forcings.fcst_hour2 = input_forcings.fcst_hour1
+            else:
+                # The ExtAnA window has shifted. Reset fields 2 to be fields 1.
+                if config_options.grid_type == "gridded":
+                    input_forcings.regridded_forcings1[:, :, :] = (
+                        input_forcings.regridded_forcings2[:, :, :]
+                    )
+                elif config_options.grid_type == "unstructured":
+                    input_forcings.regridded_forcings1[:, :] = (
+                        input_forcings.regridded_forcings2[:, :]
+                    )
+                    input_forcings.regridded_forcings1_elem[:, :] = (
+                        input_forcings.regridded_forcings2_elem[:, :]
+                    )
+                elif config_options.grid_type == "hydrofabric":
+                    input_forcings.regridded_forcings1[:, :] = (
+                        input_forcings.regridded_forcings2[:, :]
+                    )
+                input_forcings.file_in1 = tmp_file1
+                input_forcings.file_in2 = tmp_file2
+        input_forcings.regridComplete = False
+    err_handler.check_program_status(config_options, mpi_config)
+ 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.exists(input_forcings.file_in2):
@@ -849,13 +1103,11 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
                 config_options.statusMsg = (
                     "Expected input ExtAnA file: "
                     + input_forcings.file_in2
-                    + " not found. "
-                    "Will not use in "
-                    "final layering."
+                    + " not found. Will not use in final layering."
                 )
                 err_handler.log_warning(config_options, mpi_config)
     err_handler.check_program_status(config_options, mpi_config)
-
+ 
     # If the file is missing, set the local slab of arrays to missing.
     if not os.path.exists(input_forcings.file_in2):
         if input_forcings.regridded_forcings2 is not None:
@@ -868,7 +1120,12 @@ def find_ak_ext_ana_neighbors(input_forcings, config_options, d_current, mpi_con
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_conus_hrrr_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find CONUS HRRR neighbor files.
 
     Function to calculate the previous and after HRRR conus cycles based on the current timestep.
@@ -1111,384 +1368,12 @@ def find_conus_hrrr_neighbors(input_forcings, config_options, d_current, mpi_con
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_ak_hrrr_neighbors(input_forcings, config_options, d_current, mpi_config):
-    """Find AK HRRR neighbor files.
-
-    Function to calculate the previous and after HRRR Alaska cycles based on the current timestep.
-    This data differs from the HRRR conus because there is a forecast cycle every 3 hrs instead of
-    every hour.
-    :param input_forcings:
-    :param config_options:
-    :param d_current:
-    :param mpi_config:
-    :return:
-    """
-    # skip processing if flag set
-    if input_forcings.skip is True:
-        return
-
-    if mpi_config.rank == 0:
-        config_options.statusMsg = (
-            "Processing Conus HRRR AK Data. Calculating neighboring "
-            "files for this output timestep"
-        )
-        err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-
-    default_horizon = 18  # 18-hour forecasts.
-    six_hr_horizon = 48  # 48-hour forecasts every six hours.
-
-    # First find the current HRRR AK forecast cycle that we are using.
-
-    if config_options.ana_flag:
-        # Alaska normal AnA lookback BMI setup
-        if config_options.input_forcings[0] == 20:
-            current_hrrr_cycle = config_options.b_date_proc
-            if current_hrrr_cycle.hour in [0, 1, 2]:
-                prev_day = current_hrrr_cycle - datetime.timedelta(days=1)
-                current_hrrr_cycle = datetime.datetime(
-                    prev_day.year, prev_day.month, prev_day.day, 18
-                )
-            elif current_hrrr_cycle.hour in [3, 4, 5]:
-                prev_day = current_hrrr_cycle - datetime.timedelta(days=1)
-                current_hrrr_cycle = datetime.datetime(
-                    prev_day.year, prev_day.month, prev_day.day, 21
-                )
-            elif current_hrrr_cycle.hour in [6, 7, 8]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    0,
-                )
-            elif current_hrrr_cycle.hour in [9, 10, 11]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    3,
-                )
-            elif current_hrrr_cycle.hour in [12, 13, 14]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    6,
-                )
-            elif current_hrrr_cycle.hour in [15, 16, 17]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    9,
-                )
-            elif current_hrrr_cycle.hour in [18, 19, 20]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    12,
-                )
-            elif current_hrrr_cycle.hour in [21, 22, 23]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    15,
-                )
-
-            shift = current_hrrr_cycle.hour % 3
-            if shift == 0:
-                current_hrrr_hour = int(4 + (config_options.future_time / 3600) - 1)
-            elif shift == 1:
-                current_hrrr_hour = int(5 + (config_options.future_time / 3600) - 1)
-            else:
-                current_hrrr_hour = int(6 + (config_options.future_time / 3600) - 1)
-
-        # Alaska extended AnA lookback BMI setup
-        elif config_options.input_forcings[0] == 22:
-            current_hrrr_cycle = (
-                config_options.b_date_proc
-                + pd.TimedeltaIndex(
-                    np.array([config_options.future_time - 7200], dtype=float), "s"
-                )[0]
-            )
-            if current_hrrr_cycle.hour in [0, 1, 2]:
-                prev_day = current_hrrr_cycle - datetime.timedelta(days=1)
-                current_hrrr_cycle = datetime.datetime(
-                    prev_day.year, prev_day.month, prev_day.day, 18
-                )
-            elif current_hrrr_cycle.hour in [3, 4, 5]:
-                prev_day = current_hrrr_cycle - datetime.timedelta(days=1)
-                current_hrrr_cycle = datetime.datetime(
-                    prev_day.year, prev_day.month, prev_day.day, 21
-                )
-            elif current_hrrr_cycle.hour in [6, 7, 8]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    0,
-                )
-            elif current_hrrr_cycle.hour in [9, 10, 11]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    3,
-                )
-            elif current_hrrr_cycle.hour in [12, 13, 14]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    6,
-                )
-            elif current_hrrr_cycle.hour in [15, 16, 17]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    9,
-                )
-            elif current_hrrr_cycle.hour in [18, 19, 20]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    12,
-                )
-            elif current_hrrr_cycle.hour in [21, 22, 23]:
-                current_hrrr_cycle = datetime.datetime(
-                    current_hrrr_cycle.year,
-                    current_hrrr_cycle.month,
-                    current_hrrr_cycle.day,
-                    15,
-                )
-
-            if current_hrrr_cycle.hour in [0, 3, 6, 9, 12, 15, 18, 21]:
-                current_hrrr_hour = int(6)
-            elif current_hrrr_cycle.hour in [1, 4, 7, 10, 13, 16, 19, 22]:
-                current_hrrr_hour = int(7)
-            elif current_hrrr_cycle.hour in [2, 5, 8, 11, 14, 17, 20, 23]:
-                current_hrrr_hour = int(8)
-
-        # if shift == 0:
-        #    current_hrrr_cycle -= datetime.timedelta(hours=6)
-        # else:
-        #    current_hrrr_cycle -= datetime.timedelta(hours=3)
-
-        # Calculate the current forecast hour within this HRRR cycle.
-        # dt_tmp = d_current - current_hrrr_cycle
-        # current_hrrr_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600
-
-        # Calculate the previous file to process
-        input_forcings.fcst_date1 = current_hrrr_cycle
-        input_forcings.fcst_date2 = current_hrrr_cycle
-
-        # Calculate the output forecast hours needed based on the prev/next dates
-        next_hrrr_forecast_hour = current_hrrr_hour  # for analysis vs forecast
-        input_forcings.fcst_hour2 = next_hrrr_forecast_hour
-        prev_hrrr_forecast_hour = current_hrrr_hour - 1  # for analysis vs forecast
-        input_forcings.fcst_hour1 = prev_hrrr_forecast_hour
-        err_handler.check_program_status(config_options, mpi_config)
-
-    else:
-        current_hrrr_cycle = (
-            config_options.current_fcst_cycle
-        )  # - datetime.timedelta(seconds=input_forcings.fcst_input_offsets * 60.0)
-
-        # Map the native forecast hour to the shifted HRRR cycles
-        hrrr_cycle = (current_hrrr_cycle.hour // 3 * 3) - 3
-        if hrrr_cycle < 0:
-            hrrr_cycle += 24
-
-        # throw out the first 3 hours of the cycle
-        current_hrrr_hour = (current_hrrr_cycle.hour % 3) + 3
-
-        # current_hrrr_cycle -= datetime.timedelta(hours=current_hrrr_hour)
-
-        if current_hrrr_cycle.hour % 6 == 0:
-            hrrr_horizon = 48
-        else:
-            hrrr_horizon = 18
-
-        # adjust horizon for this cycle
-        # max_hours = hrrr_horizon - current_hrrr_hour
-        # config_options.actual_output_steps = max_hours
-
-        # Calculate the previous file to process.
-        min_since_last_output = (current_hrrr_hour * 60) % 60
-        if min_since_last_output == 0:
-            min_since_last_output = 60
-        prev_hrrr_date = d_current - datetime.timedelta(
-            seconds=min_since_last_output * 60
-        )
-        input_forcings.fcst_date1 = prev_hrrr_date
-        if min_since_last_output == 60:
-            min_until_next_output = 0
-        else:
-            min_until_next_output = 60 - min_since_last_output
-        next_hrrr_date = d_current + datetime.timedelta(
-            seconds=min_until_next_output * 60
-        )
-        input_forcings.fcst_date2 = next_hrrr_date
-
-        # Calculate the output forecast hours needed based on the prev/next dates.
-        dt_tmp = next_hrrr_date - current_hrrr_cycle
-        next_hrrr_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-        if config_options.ana_flag:
-            next_hrrr_forecast_hour -= 1  # for analysis vs forecast
-        input_forcings.fcst_hour2 = next_hrrr_forecast_hour
-        dt_tmp = prev_hrrr_date - current_hrrr_cycle
-        prev_hrrr_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-        if config_options.ana_flag:
-            prev_hrrr_forecast_hour -= 1  # for analysis vs forecast
-        input_forcings.fcst_hour1 = prev_hrrr_forecast_hour
-        err_handler.check_program_status(config_options, mpi_config)
-
-        # If we are on the first HRRR forecast hour (1), and we have calculated the previous forecast
-        # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
-        # no interpolation is required.
-        if prev_hrrr_forecast_hour == 0:
-            prev_hrrr_forecast_hour = 1
-
-        # Exit early if we're out of input data
-        if next_hrrr_forecast_hour > hrrr_horizon:
-            input_forcings.skip = True
-            return
-
-    # Calculate expected file paths.
-    tmp_file1 = (
-        input_forcings.input_force_dirs
-        + "/hrrr."
-        + current_hrrr_cycle.strftime("%Y%m%d")
-        + "/alaska/hrrr.t"
-        + current_hrrr_cycle.strftime("%H")
-        + "z.wrfsfcf"
-        + str(prev_hrrr_forecast_hour).zfill(2)
-        + ".ak"
-        + input_forcings.file_ext
-    )
-    if mpi_config.rank == 0:
-        config_options.statusMsg = "Previous HRRR file being used: " + tmp_file1
-        err_handler.log_msg(config_options, mpi_config)
-
-    tmp_file2 = (
-        input_forcings.input_force_dirs
-        + "/hrrr."
-        + current_hrrr_cycle.strftime("%Y%m%d")
-        + "/alaska/hrrr.t"
-        + current_hrrr_cycle.strftime("%H")
-        + "z.wrfsfcf"
-        + str(next_hrrr_forecast_hour).zfill(2)
-        + ".ak"
-        + input_forcings.file_ext
-    )
-    if mpi_config.rank == 0:
-        config_options.statusMsg = "Next HRRR file being used: " + tmp_file2
-        err_handler.log_msg(config_options, mpi_config)
-    err_handler.check_program_status(config_options, mpi_config)
-
-    # Check to see if files are already set. If not, then reset, grids and
-    # regridding objects to communicate things need to be re-established.
-    if input_forcings.file_in1 != tmp_file1 or input_forcings.file_in2 != tmp_file2:
-        if config_options.current_output_step == 1:
-            input_forcings.regridded_forcings1 = input_forcings.regridded_forcings1
-            input_forcings.regridded_forcings2 = input_forcings.regridded_forcings2
-            if config_options.grid_type == "unstructured":
-                input_forcings.regridded_forcings1_elem = (
-                    input_forcings.regridded_forcings1_elem
-                )
-                input_forcings.regridded_forcings2_elem = (
-                    input_forcings.regridded_forcings2_elem
-                )
-            input_forcings.file_in1 = tmp_file1
-            input_forcings.file_in2 = tmp_file2
-        else:
-            # Check to see if we are restarting from a previously failed instance. In this case,
-            # We are not on the first timestep, but no previous forcings have been processed.
-            # We need to process the previous input timestep for temporal interpolation purposes.
-            if input_forcings.regridded_forcings1 is None:
-                # if not np.any(input_forcings.regridded_forcings1):
-                if mpi_config.rank == 0:
-                    config_options.statusMsg = (
-                        "Restarting forecast cycle. Will regrid previous: "
-                        + input_forcings.product_name
-                    )
-                    err_handler.log_msg(config_options, mpi_config)
-                input_forcings.rstFlag = 1
-                input_forcings.regridded_forcings1 = input_forcings.regridded_forcings1
-                input_forcings.regridded_forcings2 = input_forcings.regridded_forcings2
-                if config_options.grid_type == "unstructured":
-                    input_forcings.regridded_forcings1_elem = (
-                        input_forcings.regridded_forcings1_elem
-                    )
-                    input_forcings.regridded_forcings2_elem = (
-                        input_forcings.regridded_forcings2_elem
-                    )
-
-                input_forcings.file_in2 = tmp_file1
-                input_forcings.file_in1 = tmp_file1
-                input_forcings.fcst_date2 = input_forcings.fcst_date1
-                input_forcings.fcst_hour2 = input_forcings.fcst_hour1
-            else:
-                # The HRRR window has shifted. Reset fields 2 to
-                # be fields 1.
-                if config_options.grid_type == "gridded":
-                    input_forcings.regridded_forcings1[:, :, :] = (
-                        input_forcings.regridded_forcings2[:, :, :]
-                    )
-                if config_options.grid_type == "unstructured":
-                    input_forcings.regridded_forcings1[:, :] = (
-                        input_forcings.regridded_forcings2[:, :]
-                    )
-                    input_forcings.regridded_forcings1_elem[:, :] = (
-                        input_forcings.regridded_forcings2_elem[:, :]
-                    )
-                if config_options.grid_type == "hydrofabric":
-                    input_forcings.regridded_forcings1[:, :] = (
-                        input_forcings.regridded_forcings2[:, :]
-                    )
-
-                input_forcings.file_in1 = tmp_file1
-                input_forcings.file_in2 = tmp_file2
-        input_forcings.regridComplete = False
-    err_handler.check_program_status(config_options, mpi_config)
-
-    # Ensure we have the necessary new file
-    if mpi_config.rank == 0:
-        if not os.path.exists(input_forcings.file_in2):
-            if input_forcings.input_force_mandatory == 1:
-                config_options.errMsg = (
-                    "Expected input HRRR file: "
-                    + input_forcings.file_in2
-                    + " not found."
-                )
-                err_handler.log_critical(config_options, mpi_config)
-            else:
-                config_options.statusMsg = (
-                    "Expected input HRRR file: "
-                    + input_forcings.file_in2
-                    + " not found. "
-                    "Will not use in "
-                    "final layering."
-                )
-                err_handler.log_warning(config_options, mpi_config)
-    err_handler.check_program_status(config_options, mpi_config)
-
-    # If the file is missing, set the local slab of arrays to missing.
-    if not os.path.exists(input_forcings.file_in2):
-        if input_forcings.regridded_forcings2 is not None:
-            if config_options.grid_type == "gridded":
-                input_forcings.regridded_forcings2[:, :, :] = config_options.globalNdv
-            elif config_options.grid_type == "unstructured":
-                input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
-                input_forcings.regridded_forcings2_elem[:, :] = config_options.globalNdv
-            elif config_options.grid_type == "hydrofabric":
-                input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
-
-
-def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_conus_rap_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find CONUS RAP neighbor files.
 
     Function to calculate the previous and after RAP conus 13km cycles based on the current timestep.
@@ -1741,7 +1626,12 @@ def find_conus_rap_neighbors(input_forcings, config_options, d_current, mpi_conf
     err_handler.check_program_status(config_options, mpi_config)
 
 
-def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_gfs_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find GFS neighbor files.
 
     Function to calculate the previous and after GFS cycles based on the current timestep.
@@ -2052,7 +1942,12 @@ def find_gfs_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_nam_nest_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find NAM Nest neighbor files.
 
     Function to calculate the previous and after NAM Nest cycles based on the current timestep.
@@ -2294,7 +2189,12 @@ def find_nam_nest_neighbors(input_forcings, config_options, d_current, mpi_confi
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_cfsv2_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find CFSv2 neighbor files.
 
     Function that will calculate the neighboring CFSv2 global GRIB2 files for a given
@@ -2514,7 +2414,12 @@ def find_cfsv2_neighbors(input_forcings, config_options, d_current, mpi_config):
                 input_forcings.regridded_forcings2[:, :] = config_options.globalNdv
 
 
-def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_custom_hourly_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find hourly custom neighbor files.
 
     Function to calculate the previous and after hourly custom NetCDF files for use in processing.
@@ -2688,7 +2593,10 @@ def find_custom_hourly_neighbors(input_forcings, config_options, d_current, mpi_
 
 
 def find_hourly_mrms_radar_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find hourly MRMS radar neighbor files.
 
@@ -2968,7 +2876,10 @@ def find_hourly_mrms_radar_neighbors(
 
 
 def find_hourly_wrf_arw_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find hourly WRF-ARW neighbor files.
 
@@ -3226,7 +3137,12 @@ def find_hourly_wrf_arw_neighbors(
     # supplemental_precip.file_in2 = supplemental_precip.file_in1
 
 
-def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_sbcv2_lwf_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find SBCV2_LWF neighbor files.
 
     Function to calculate the previous and after hourly MRMS SBCV2_LWF files for use in processing.
@@ -3374,7 +3290,10 @@ def find_sbcv2_lwf_neighbors(input_forcings, config_options, d_current, mpi_conf
 
 
 def _find_ak_ext_ana_precip_stage4(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next Stage IV files we will be using.
@@ -3547,7 +3466,10 @@ def _find_ak_ext_ana_precip_stage4(
 
 
 def _find_conus_ext_ana_precip_stage4(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next Stage IV files we will be using.
@@ -3710,7 +3632,10 @@ def _find_conus_ext_ana_precip_stage4(
 
 
 def _find_ak_ext_ana_precip_mrms(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
@@ -3885,7 +3810,10 @@ def _find_ak_ext_ana_precip_mrms(
 
 
 def _find_conus_ext_ana_precip_mrms(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     # First we need to find the nearest previous and next hour, which is
     # the previous/next MRMS files we will be using.
@@ -4060,7 +3988,10 @@ def _find_conus_ext_ana_precip_mrms(
 
 
 def find_ak_ext_ana_precip_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find Alaska Extended Ana neighbor files.
 
@@ -4079,7 +4010,10 @@ def find_ak_ext_ana_precip_neighbors(
 
 
 def find_conus_ext_ana_precip_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find CONUS Extended Ana neighbor files.
 
@@ -4106,8 +4040,33 @@ def find_conus_ext_ana_precip_neighbors(
         )
 
 
+def construct_nbm_path(
+    current_nbm_cycle: datetime, adjacent_hour, supplemental_precip: SupplementalPrecip
+):
+    """Construct the expected NBM file path for a given date/time and forecast hour."""
+    date = current_nbm_cycle.strftime("%Y%m%d")
+    hour = current_nbm_cycle.strftime("%H")
+    adjacent_hour = str(adjacent_hour).zfill(3)
+    domain = {8: "co", 12: "co", 9: "ak", 15: "pr", 16: "hi"}.get(
+        supplemental_precip.keyValue
+    )
+    if domain is None:
+        return ""
+    else:
+        return os.path.join(
+            supplemental_precip.inDir,
+            f"blend.{date}",
+            hour,
+            "core",
+            f"blend.t{hour}z.core.f{adjacent_hour}.{domain}{supplemental_precip.file_ext}",
+        )
+
+
 def find_hourly_nbm_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find hourly NBM neighbor files.
 
@@ -4119,16 +4078,6 @@ def find_hourly_nbm_neighbors(
     :param mpi_config:
     :return:
     """
-    nbm_out_freq = {36: 60, 240: 360}
-
-    # First we need to find the nearest previous and next hour, which is
-    # the previous/next NBM files we will be using.
-    current_yr = d_current.year
-    current_mo = d_current.month
-    current_day = d_current.day
-    current_hr = d_current.hour
-    current_min = d_current.minute
-
     # First find the current NBM forecast cycle that we are using.
     ana_offset = 1 if config_options.ana_flag else 0
     current_nbm_cycle = config_options.current_fcst_cycle - datetime.timedelta(
@@ -4155,171 +4104,76 @@ def find_hourly_nbm_neighbors(
     ) % supplemental_precip.input_frequency
     if min_since_last_output == 0:
         min_since_last_output = supplemental_precip.input_frequency
-    prev_nbm_date = d_current - datetime.timedelta(seconds=min_since_last_output * 60)
-    supplemental_precip.fcst_date1 = prev_nbm_date
+    supplemental_precip.fcst_date1 = d_current - datetime.timedelta(
+        seconds=min_since_last_output * 60
+    )
+
+    # Calculate the next file to process.
     if min_since_last_output == supplemental_precip.input_frequency:
         min_until_next_output = 0
     else:
         min_until_next_output = (
             supplemental_precip.input_frequency - min_since_last_output
         )
-    next_nbm_date = d_current + datetime.timedelta(seconds=min_until_next_output * 60)
-    supplemental_precip.fcst_date2 = next_nbm_date
+    supplemental_precip.fcst_date2 = d_current + datetime.timedelta(
+        seconds=min_until_next_output * 60
+    )
 
     # Calculate the output forecast hours needed based on the prev/next dates.
-    dt_tmp = next_nbm_date - current_nbm_cycle
-    next_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    supplemental_precip.fcst_hour2 = next_nbm_forecast_hour
-    dt_tmp = prev_nbm_date - current_nbm_cycle
-    prev_nbm_forecast_hour = int(dt_tmp.days * 24.0) + int(dt_tmp.seconds / 3600.0)
-    supplemental_precip.fcst_hour1 = prev_nbm_forecast_hour
+    dt_tmp = supplemental_precip.fcst_date2 - current_nbm_cycle
+    supplemental_precip.fcst_hour2 = int(dt_tmp.days * 24.0) + int(
+        dt_tmp.seconds / 3600.0
+    )
+
+    dt_tmp = supplemental_precip.fcst_date1 - current_nbm_cycle
+    supplemental_precip.fcst_hour1 = int(dt_tmp.days * 24.0) + int(
+        dt_tmp.seconds / 3600.0
+    )
+
     # If we are on the first NBM forecast hour (1), and we have calculated the previous forecast
     # hour to be 0, simply set both hours to be 1. Hour 0 will not produce the fields we need, and
     # no interpolation is required.
-    if prev_nbm_forecast_hour == 0:
+    if supplemental_precip.fcst_hour1 == 0:
         prev_nbm_forecast_hour = 1
-
-    # Calculate expected file paths.
-    if supplemental_precip.keyValue == 8 or supplemental_precip.keyValue == 21:  # CONUS
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".co"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".co"
-            + supplemental_precip.file_ext
-        )
-    elif supplemental_precip.keyValue == 9:  # ALASKA
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".ak"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".ak"
-            + supplemental_precip.file_ext
-        )
-    elif supplemental_precip.keyValue == 15:  # PR
-        tmp_file1 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(next_nbm_forecast_hour).zfill(3)
-            + ".pr"
-            + supplemental_precip.file_ext
-        )
-        tmp_file2 = (
-            supplemental_precip.inDir
-            + "/blend."
-            + current_nbm_cycle.strftime("%Y%m%d")
-            + "/"
-            + current_nbm_cycle.strftime("%H")
-            + "/core/blend.t"
-            + current_nbm_cycle.strftime("%H")
-            + "z.core.f"
-            + str(prev_nbm_forecast_hour).zfill(3)
-            + ".pr"
-            + supplemental_precip.file_ext
-        )
     else:
-        tmp_file1 = tmp_file2 = ""
+        prev_nbm_forecast_hour = supplemental_precip.fcst_hour1
+
+    supplemental_precip.file_in1 = construct_nbm_path(
+        current_nbm_cycle, supplemental_precip.fcst_hour2, supplemental_precip
+    )
+    supplemental_precip.file_in2 = construct_nbm_path(
+        current_nbm_cycle, prev_nbm_forecast_hour, supplemental_precip
+    )
 
     if mpi_config.rank == 0:
         # config_options.statusMsg = "Prev NBM supplemental file: " + tmp_file2
-        # err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
-        config_options.statusMsg = "Next NBM supplemental file: " + tmp_file1
+        # err_handler.log_msg(co, mpi_config, True)  # log at debug level
+        config_options.statusMsg = (
+            f"Next NBM supplemental file: {supplemental_precip.file_in1}"
+        )
         err_handler.log_msg(config_options, mpi_config, True)  # log at debug level
     err_handler.check_program_status(config_options, mpi_config)
 
     # Check to see if files are already set. If not, then reset, grids and
     # regridding objects to communicate things need to be re-established.
-    if (
-        supplemental_precip.file_in1 != tmp_file1
-        or supplemental_precip.file_in2 != tmp_file2
-    ):
-        supplemental_precip.regridded_precip1 = supplemental_precip.regridded_precip1
-        supplemental_precip.regridded_precip2 = supplemental_precip.regridded_precip2
-        if config_options.grid_type == "unstructured":
-            supplemental_precip.regridded_precip1_elem = (
-                supplemental_precip.regridded_precip1_elem
-            )
-            supplemental_precip.regridded_precip2_elem = (
-                supplemental_precip.regridded_precip2_elem
-            )
-
-        supplemental_precip.file_in1 = tmp_file1
-        supplemental_precip.file_in2 = tmp_file2
-        LOG.debug(f"tmp_file1: {tmp_file1}")
-        LOG.debug(f"tmp_file2: {tmp_file2}")
-        supplemental_precip.regridComplete = False
+    LOG.debug(f"next_file: {supplemental_precip.file_in1}")
+    LOG.debug(f"previous_file: {supplemental_precip.file_in2}")
+    supplemental_precip.regridComplete = False
 
     # Ensure we have the necessary new file
     if mpi_config.rank == 0:
         if not os.path.isfile(supplemental_precip.file_in2) and (
             (supplemental_precip.keyValue == 8) or (supplemental_precip.keyValue == 9)
         ):
-            config_options.statusMsg = (
-                "NBM file {} not found, will attempt to use {} instead.".format(
-                    supplemental_precip.file_in2, supplemental_precip.file_in1
-                )
-            )
+            config_options.statusMsg = f"NBM file {supplemental_precip.file_in2} not found, will attempt to use {supplemental_precip.file_in1} instead."
             err_handler.log_warning(config_options, mpi_config)
             supplemental_precip.file_in2 = supplemental_precip.file_in1
         if not os.path.isfile(supplemental_precip.file_in2):
             if supplemental_precip.enforce == 1:
-                config_options.errMsg = (
-                    "Expected input NBM file: "
-                    + supplemental_precip.file_in2
-                    + " not found."
-                )
+                config_options.errMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found."
                 err_handler.log_critical(config_options, mpi_config)
             else:
-                config_options.statusMsg = (
-                    "Expected input NBM file: "
-                    + supplemental_precip.file_in2
-                    + " not found. "
-                    + "Will not use in final layering."
-                )
+                config_options.statusMsg = f"Expected input NBM file: {supplemental_precip.file_in2} not found. Will not use in final layering."
                 err_handler.log_warning(config_options, mpi_config)
                 config_options.statusMsg = "You can use Util/pull_s3_grib_vars.py to Download NBM data from AWS-S3 archive."
                 err_handler.log_warning(config_options, mpi_config)
@@ -4356,7 +4210,12 @@ def find_hourly_nbm_neighbors(
                 supplemental_precip.regridded_precip1[:] = config_options.globalNdv
 
 
-def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_ndfd_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find NDFD neighbor files."""
     current_cycle = config_options.current_fcst_cycle
     current_fcst = d_current - current_cycle
@@ -4475,7 +4334,10 @@ def find_ndfd_neighbors(input_forcings, config_options, d_current, mpi_config):
 
 
 def find_hourly_mrms_precip_flag(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find hourly MRMS neighbor files.
 
@@ -4614,7 +4476,12 @@ def find_hourly_mrms_precip_flag(
                 supplemental_precip.regridded_precip2[:] = config_options.globalNdv
 
 
-def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
+def find_input_neighbors(
+    input_forcings: InputForcings,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
+):
     """Find input neighbor files.
 
     Function to calculate the previous and after custom freq input cycles based on the current timestep.
@@ -4884,7 +4751,10 @@ def find_input_neighbors(input_forcings, config_options, d_current, mpi_config):
 
 
 def find_custom_freq_neighbors(
-    supplemental_precip, config_options, d_current, mpi_config
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
+    d_current: datetime,
+    mpi_config: MpiConfig,
 ):
     """Find custom frequency supplemental precipitation neighbor files.
 

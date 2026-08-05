@@ -56,5 +56,8 @@ include = ["NextGen_Forcings_Engine*",
     "ESMF_Mesh_Domain_Configuration_Production*"]
 namespaces = false
 
+[tool.setuptools.package-data]
+"NextGen_Forcings_Engine_BMI" = ["BMI_NextGen_Configs/**/*"]
+
 [tool.setuptools.dynamic]
 version = { attr = "NextGen_Forcings_Engine.__version__" }

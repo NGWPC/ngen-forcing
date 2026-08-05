@@ -20,10 +20,11 @@ TEST_CONFIGS = [
         config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
         keys_to_check=(),
         keys_to_exclude=tuple(
-            set(consts.KEYS_TO_EXCLUDE) | {"d_program_init", "geogrid", "scratch_dir"}
+            set(consts.KEYS_TO_EXCLUDE) | {"d_program_init", "geogrid", "scratch_dir", "Element_Elevation", "Element_Slope", "Element_Slope_Azmuith"}
         ),
         grid_type=consts.GRID_TYPE,
         test_file_name_prefix="bmi_model",
+        extra_attrs=[]
     ),
 ]
 

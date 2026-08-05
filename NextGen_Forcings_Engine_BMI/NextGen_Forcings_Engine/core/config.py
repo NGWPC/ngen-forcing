@@ -1,10 +1,12 @@
 import configparser
 import json
+import logging
 import os
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
-import ewts
+# Use the Error, Warning, and Trapping System Package for logging
 import numpy as np
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
@@ -16,7 +18,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.time_handling impo
 
 from . import mpi_utils
 
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
 FORCE_COUNT = 27
 
 
@@ -351,10 +353,11 @@ class ConfigOptions:
                     "NETCDF4",
                     "NWM",
                     "ZARR",
+                    "GRIB2_CFS",
                 ]:
                     err_out_screen(
                         f'Invalid forcing file type "{file_type}" specified. '
-                        "Only GRIB1, GRIB2, NETCDF, NWM, and ZARR are supported"
+                        "Only GRIB1, GRIB2, NETCDF, NWM, ZARR, and GRIB2_CFS are supported"
                     )
 
             # Read in the input directories for each forcing option.
@@ -1751,9 +1754,9 @@ class ConfigOptions:
             # Check to make sure supplemental precip options make sense. Also read in the RQI threshold
             # if any radar products where chosen.
             for suppOpt in self.supp_precip_forcings:
-                if suppOpt < 0 or suppOpt > 15:
+                if suppOpt < 0 or suppOpt > 16:
                     err_out_screen(
-                        "Please specify SuppForcing values between 1 and 15."
+                        "Please specify SuppForcing values between 1 and 16."
                     )
                 # Read in RQI threshold to apply to radar products.
                 if suppOpt in (1, 2, 7, 10, 11, 12):

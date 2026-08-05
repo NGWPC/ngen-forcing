@@ -2,7 +2,6 @@ import importlib.util
 import os
 
 import pytest
-
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.regrid import (
     regrid_aorc_aws,
     regrid_conus_hrrr,
@@ -19,6 +18,7 @@ spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
+ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 TEST_FILE_NAME_PREFIX = ""
 
@@ -57,9 +57,10 @@ REGRID_KEYS_TO_CHECK: tuple[str] = REGRID_ARRAYS_TO_TRIM_EXTRA_ELEMENTS + (
 ### While the InputForcings class instance is the primary source of test results data,
 ### this is used to add supplemental attributes to the results data,
 ### for example "element_ids" (for hydrofabric discretization, these are catchment IDs).
-EXTRA_ATTRS = [
-    test_utils.ClassAttrFetcher("geo_meta", "element_ids"),
-]
+EXTRA_ATTRS: tuple[ClassAttrFetcher] = (
+    ClassAttrFetcher("geo_meta", "element_ids"),
+    ClassAttrFetcher("bmi_model_values", "CAT-ID"),
+)
 
 COMPOSITE_KEYS_TO_CHECK__REGRID: tuple[str] = REGRID_KEYS_TO_CHECK + tuple(
     _.results_key_name for _ in EXTRA_ATTRS

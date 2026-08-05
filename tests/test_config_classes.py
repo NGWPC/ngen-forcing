@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import typing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 if typing.TYPE_CHECKING:
     from test_utils import ClassAttrFetcher
@@ -27,11 +27,16 @@ class TestConfig_Base:
     keys_to_exclude: tuple[str]
     grid_type: str
     map_old_to_new_var_names: bool = True
+    extra_attrs: list[ClassAttrFetcher] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)
 class TestConfig_GeoMod(TestConfig_Base):
-    """Configuration class for GeoMod Tests"""
+    """Configuration class for GeoMod Tests
+
+    Args:
+        extra_attrs: These are extra attributes to be added to the test results JSON, to supplement the primary InputForcings attributes.
+    """
 
 
 @dataclass(kw_only=True)
@@ -74,7 +79,6 @@ class TestConfig_Regrid(TestConfig_Base):
 
     force_key: int
     regrid_func: typing.Callable
-    extra_attrs: list[ClassAttrFetcher]
     regrid_arrays_to_trim_extra_elements: tuple[str]
 
 

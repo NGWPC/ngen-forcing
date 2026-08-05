@@ -164,7 +164,7 @@ class ClassAttrFetcher:
             the desired child attribute, e.g. "geo_meta"
 
         child_attr_name:
-            The name of the child attribute to be collected, e.g. "element_ids".
+            The name of the child attribute or dict key to be collected, e.g. "element_ids".
 
     """
 
@@ -195,7 +195,10 @@ class ClassAttrFetcher:
 
         """
         parent = getattr(fixture_instance, self.fixture_attr_name)
-        child = getattr(parent, self.child_attr_name)
+        if isinstance(parent, dict):
+            child = parent[self.child_attr_name]
+        else:
+            child = getattr(parent, self.child_attr_name)
         if serialize_and_deserialize:
             child = json.loads(serialize_to_json(child))
         return child
@@ -212,6 +215,7 @@ class BMIForcingFixture:
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = BMIMODEL[cfg.grid_type]()
         self.bmi_model.initialize_with_params(config_file=cfg.config_file)
 
+        self.bmi_model_values = self.bmi_model._values
         self.mpi_config: MpiConfig = self.bmi_model._mpi_meta
         self.config_options: ConfigOptions = self.bmi_model._job_meta
         self.geo_meta: GeoMeta = self.bmi_model.geo_meta
@@ -222,6 +226,31 @@ class BMIForcingFixture:
         self.keys_to_exclude = cfg.keys_to_exclude
         self.map_old_to_new_var_names = cfg.map_old_to_new_var_names
         self.test_file_name_prefix = cfg.test_file_name_prefix
+
+    @staticmethod
+    def _trim_arrays_to_input_map_output(data_dict: dict) -> None:
+        """Trim arrays in data_dict to match input_map_output length.
+        
+        Removes unused forcing indices (e.g., LQFRAC at index 8 when include_lqfrac=0).
+        Scans all list values in data_dict and trims those that are longer than input_map_output.
+        Modifies data_dict in place.
+        
+        Args:
+            data_dict: Dictionary containing 'input_map_output' and array keys to trim.
+        """
+        input_map_output = data_dict.get("input_map_output", [])
+        if not input_map_output:
+            return  # No trimming if we don't have the mapping
+        
+        for key, value in data_dict.items():
+            if key == "input_map_output" or value is None:
+                continue
+            # Only trim list values (which were 2D arrays serialized as list of lists)
+            if isinstance(value, list) and len(value) > len(input_map_output):
+                logging.debug(
+                    f"Trimming {key} from {len(value)} to {len(input_map_output)} rows"
+                )
+                data_dict[key] = value[:len(input_map_output)]
 
 
 class BMIForcingFixture_Class(BMIForcingFixture):
@@ -239,11 +268,12 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self.expected_sub_dir = "test_data/expected_results"
         self.actual_sub_dir = "test_data/actual_results"
         self.test_dir = os.path.dirname(os.path.abspath(__file__))
+        self.extra_attrs: tuple[ClassAttrFetcher] = cfg.extra_attrs
 
     def deserial_actual(
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
     ) -> dict:
-        """Get the actual metadata results as a deserialized dictionary."""
+        """Get the actual metadata results as a deserialized dictionary, including any extra_attrs."""
         deserial_actual = json.loads(
             serialize_to_json(
                 copy_and_stringify_functions(self.test_class_as_dict), sort_keys=True
@@ -252,6 +282,12 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
         deserial_actual = convert_long_lists(deserial_actual, 10)
+        # Add any extra attributes to the results
+        for ea in self.extra_attrs:
+            deserial_actual[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
+        
+        self._trim_arrays_to_input_map_output(deserial_actual)
+        
         if write_to_file:
             self.write_json(
                 deserial_actual,
@@ -282,6 +318,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 deserial_expected = self.map_old_to_new_variable_names(
                     deserial_expected
                 )
+            self._trim_arrays_to_input_map_output(deserial_expected)
             return deserial_expected
         else:
             try:
@@ -291,6 +328,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                     deserial_expected = self.map_old_to_new_variable_names(
                         deserial_expected
                     )
+                self._trim_arrays_to_input_map_output(deserial_expected)
                 # order and reverse so private attributes are last
                 return OrderedDict(reversed(list(deserial_expected.items())))
             except FileNotFoundError as e:
@@ -749,11 +787,12 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
                     f"Expected type list[list], got {type(attr)} for key {key}"
                 )
                 continue
-            attr = attr[: len(input_map_output)]
-            input_forcings_deserial[key] = attr
 
         if errors:
             raise RuntimeError(f"input_forcings had invalid state. Errors: {errors}")
+
+        ### After validation, trim the arrays to the appropriate length.
+        self._trim_arrays_to_input_map_output(input_forcings_deserial)
 
         return input_forcings_deserial
 
@@ -828,6 +867,9 @@ class BMIForcingFixture_Regrid(BMIForcingFixture):
             raise FileNotFoundError(
                 f"Could not find {self.regrid_results_file_name_expect}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
             ) from e
+
+        # This handles ignoring extra elements that shouldn't be checked which might contain random values, e.g. when include_lqfrac=0.
+        self._trim_arrays_to_input_map_output(regrid_results_expect)
 
         # keys_to_check = ("nx_local", "ny_local", "nx_global", "ny_global")
         # regrid_results_expect = {
