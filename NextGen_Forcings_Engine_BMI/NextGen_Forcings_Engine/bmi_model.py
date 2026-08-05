@@ -303,19 +303,18 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     def create_esmf_mesh(self) -> None:
         """Create the ESMF mesh for the model and set ``self._cat_ids`` (later used as BMI variable "CAT-ID")."""
         if self._mpi_meta.rank == 0:
-          cat_ids = esmf_creation.create_mesh(self._job_meta)
-          if self._job_meta.grid_type == "gridded":
-            # Gridded output regrids directly onto the target grid and has no
-            # catchments/hydrofabric divides -- ESMF mesh creation (which
-            # requires a hydrofabric geopackage) does not apply here. See
-            # consts.py's COASTAL_CONFIG_OVERRIDES in nwm-rte, which
-            # deliberately leaves "Geopackage" empty for gridded runs.
-            cat_ids = np.array([], dtype=np.int64)
-          else:
-            cat_ids = esmf_creation.create_mesh(self._job_meta)
-        cat_count = np.array(
-            [len(cat_ids) if self._mpi_meta.rank == 0 else 0], dtype=np.intc
-        )
+            if self._job_meta.grid_type == "gridded":
+                # Gridded output regrids directly onto the target grid and has no
+                # catchments/hydrofabric divides -- ESMF mesh creation (which
+                # requires a hydrofabric geopackage) does not apply here. See
+                # consts.py's COASTAL_CONFIG_OVERRIDES in nwm-rte, which
+                # deliberately leaves "Geopackage" empty for gridded runs.
+                cat_ids = np.array([], dtype=np.int64)
+            else:
+                cat_ids = esmf_creation.create_mesh(self._job_meta)
+        cat_count = np.array([
+            len(cat_ids) if self._mpi_meta.rank == 0 else 0
+        ], dtype=np.intc)
         self._mpi_meta.comm.Bcast(cat_count, root=0)
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
