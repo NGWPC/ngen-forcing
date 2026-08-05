@@ -306,6 +306,15 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
+          cat_ids = esmf_creation.create_mesh(self._job_meta)
+          if self._job_meta.grid_type == "gridded":
+            # Gridded output regrids directly onto the target grid and has no
+            # catchments/hydrofabric divides -- ESMF mesh creation (which
+            # requires a hydrofabric geopackage) does not apply here. See
+            # consts.py's COASTAL_CONFIG_OVERRIDES in nwm-rte, which
+            # deliberately leaves "Geopackage" empty for gridded runs.
+            cat_ids = np.array([], dtype=np.int64)
+          else:
             cat_ids = esmf_creation.create_mesh(self._job_meta)
         cat_count = np.array([
             len(cat_ids) if self._mpi_meta.rank == 0 else 0
