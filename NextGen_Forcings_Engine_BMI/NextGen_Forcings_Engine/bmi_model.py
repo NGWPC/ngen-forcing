@@ -584,9 +584,6 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # process exits
         gc.collect()  # make sure objects are deleted from memory
         LOG.info(Pld(St.COMPLETE, msg="Finishing BMI finalize()", modnm=MODNM))
-        mpi_meta: MpiConfig = getattr(self, "_mpi_meta", None)
-        if mpi_meta is not None:
-            mpi_meta.cleanup()
 
     # -------------------------------------------------------------------
     # -------------------------------------------------------------------

@@ -1,6 +1,9 @@
 from __future__ import annotations
+import atexit
 from functools import partial
 import os
+import signal
+import sys
 import typing
 from typing import TypeVar
 import mpi4py
@@ -57,6 +60,7 @@ class MpiConfig:
         self.log_debug = partial(err_handler.log_msg, self.config_options, self, True)
         self.log_info = partial(err_handler.log_msg, self.config_options, self, False)
         self.log_warning = partial(err_handler.log_warning, self.config_options, self)
+        self.__register_exit_handlers()
 
     def initialize_comm(self, comm: MPI.Intracomm | None = None) -> None:
         """Initialize MPI communication, including getting MPI rank and size.
@@ -451,3 +455,63 @@ class MpiConfig:
             return None
 
         return recvbuf
+
+    def __register_exit_handlers(self) -> None:
+        """Register exit handlers for unhandled exceptions, signals, and regular exits.
+        TODO: consider WCOSS gating.
+        TODO: note that when non-0 ranks call Abort directly, the rank 0 exit handler is still invoked, at least in some cases,
+        so there may be opportunities to streamline this further to have only rank 0 perform the cleanup. Would need to test
+        against potential deadlock conditions to be sure (would need to confirm that a non-0 rank initiating an abort would cause
+        rank 0 break out of a collective call if it happens to be waiting at one)."""
+        # Exceptions
+        sys.excepthook = self.__excepthook
+        # Regular exits
+        atexit.register(self.cleanup)
+        # Signals
+        for sig in self.__signals_handled():
+            signal.signal(sig, self.__signal_handler)
+
+    def __excepthook(self, ex_type, value, tb) -> None:
+        """Custom excepthook which follows these steps:
+        1. Call Python's built-in excepthook.
+        2. Log .errMsg as CRITICAL (unless it is None).
+        3. Cleanup.
+        4. MPI Abort.
+
+        To apply, set `sys.excepthook` to this method."""
+        sys.__excepthook__(ex_type, value, tb)
+        if self.config_options.errMsg is not None:
+            err_handler.log_critical(
+                self.config_options,
+                self,
+                msg=f"In excepthook, found errMsg = {repr(self.config_options.errMsg)}",
+            )
+        self.abort_with_cleanup(1)
+
+    def __signal_handler(self, signum, frame) -> None:
+        """Handle termination signals by cleaning up before exit."""
+        ### Unregister the signal handler
+        for s in self.__signals_handled():
+            signal.signal(s, signal.SIG_DFL)
+        ### Cleanup and re-send the original signal to itself
+        # self._cleanup()
+        # os.kill(os.getpid(), signum)
+        ### Cleanup and abort directly
+        self.abort_with_cleanup(signum)
+
+    def __signals_handled(self) -> tuple[int]:
+        """Return a tuple of signals to be handled by cleanup routine."""
+        ### signal.valid_signals() contains many that are unrelated to stoppage / interruption / error.
+        # sigs = [s for s in signal.valid_signals() if s not in (signal.SIGKILL, signal.SIGSTOP)]
+        sigs = (
+            signal.SIGINT,
+            signal.SIGTERM,
+            signal.SIGHUP,
+            signal.SIGQUIT,
+            signal.SIGSEGV,
+            signal.SIGABRT,
+            signal.SIGFPE,
+            signal.SIGBUS,
+            signal.SIGILL,
+        )
+        return sigs
