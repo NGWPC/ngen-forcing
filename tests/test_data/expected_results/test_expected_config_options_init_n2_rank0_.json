@@ -127,7 +127,7 @@
   "slope_var": null,
   "slope_var_elem": null,
   "spatial_meta": null,
-  "statusMsg": null,
+  "statusMsg": "func esmf_mesh_retry finished after 1 attempts.",
   "sub_output_freq": null,
   "sub_output_hour": null,
   "suppTemporalInterp": null,
