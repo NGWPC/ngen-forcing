@@ -74,7 +74,7 @@ def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = []) -> d
         val = getattr(class_to_convert, key)
         if not callable(val) and not key.startswith("_"):
             if isinstance(val, (MpiConfig, ConfigOptions, InputForcings, GeoMeta)):
-                data[key] = remove_key(class_to_dict(val), keys_to_exclude)
+                data[key] = remove_key(class_to_dict(val, keys_to_exclude), keys_to_exclude)
             elif isinstance(val, dict):
                 data[key] = remove_key(val, keys_to_exclude)
             elif isinstance(val, datetime):
@@ -269,6 +269,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self.actual_sub_dir = "test_data/actual_results"
         self.test_dir = os.path.dirname(os.path.abspath(__file__))
         self.extra_attrs: tuple[ClassAttrFetcher] = cfg.extra_attrs
+        self.keys_no_hash: tuple[str] = cfg.keys_no_hash
 
     def deserial_actual(
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
@@ -281,7 +282,10 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         )
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
+        # Save raw values for keys that should not be hashed
+        raw_vals = {k: deserial_actual[k] for k in self.keys_no_hash if k in deserial_actual}
         deserial_actual = convert_long_lists(deserial_actual, 10)
+        deserial_actual.update(raw_vals)
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
             deserial_actual[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
@@ -314,6 +318,8 @@ class BMIForcingFixture_Class(BMIForcingFixture):
             )
             with open(file_path, "w") as f:
                 f.write(serialize_to_json(deserial_expected, sort_keys=True))
+            # Remove keys that should be excluded from comparison (match read-exclusion)
+            deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
             if self.map_old_to_new_var_names:
                 deserial_expected = self.map_old_to_new_variable_names(
                     deserial_expected
@@ -329,6 +335,8 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                         deserial_expected
                     )
                 self._trim_arrays_to_input_map_output(deserial_expected)
+                # Remove keys that should be excluded from comparison (match write-exclusion)
+                deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
                 # order and reverse so private attributes are last
                 return OrderedDict(reversed(list(deserial_expected.items())))
             except FileNotFoundError as e:

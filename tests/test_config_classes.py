@@ -19,6 +19,7 @@ class TestConfig_Base:
         grid_type: e.g. "hydrofabric"
         map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
             Note: this is overridden by a CLI arg. See `pytest_addoption` in `conftest.py` for details.
+        keys_no_hash: keys whose list values should NOT be hashed, even if long
     """
 
     test_file_name_prefix: str
@@ -28,6 +29,7 @@ class TestConfig_Base:
     grid_type: str
     map_old_to_new_var_names: bool = True
     extra_attrs: list[ClassAttrFetcher] = field(default_factory=list)
+    keys_no_hash: tuple[str] = field(default_factory=tuple)
 
 
 @dataclass(kw_only=True)

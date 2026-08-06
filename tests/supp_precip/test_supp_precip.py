@@ -23,12 +23,15 @@ TEST_CONFIGS = [
     configs.TestConfig_SuppPrecip(
         config_file=consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_PR,
         keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
+        # supplemental_precip uses old attribute names, so exclude those old names here
         keys_to_exclude=tuple(
-            set(consts.KEYS_TO_EXCLUDE) | {"config_options", "geo_meta", "mpi_config"}
+            set(consts.KEYS_TO_EXCLUDE) | {"config_options", "geo_meta", "mpi_config", "userCycleOffset", "timeInterpOpt", "inDir", "file_type", "enforce", "regridOpt"}
         ),
         grid_type=consts.GRID_TYPE,
         force_key=15,
         test_file_name_prefix=TEST_FILE_NAME_PREFIX,
+        map_old_to_new_var_names=False,
+        keys_no_hash=("final_supp_precip",),
     ),
 ]
 
