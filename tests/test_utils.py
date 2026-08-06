@@ -124,9 +124,9 @@ def convert_long_lists(data: typing.Any, max_length: int = 10) -> typing.Any:
             if isinstance(data[0], list):
                 for i, val in enumerate(data):
                     if len(val) > max_length:
-                        data[i] = f"hash_{hash(tuple(val))}"
+                        data[i] = f"hash_{hash(tuple(val))}_len_{len(val)}"
             else:
-                return f"hash_{hash(tuple(data))}"
+                return f"hash_{hash(tuple(data))}_len_{len(data)}"
         else:
             return [convert_long_lists(item, max_length) for item in data]
     else:
