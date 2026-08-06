@@ -1,5 +1,4 @@
 {
-  "enforce": 1,
   "esmf_field_in": {
     "_data": null,
     "_finalized": false,
@@ -105,13 +104,7 @@
     "_xd": 0
   },
   "esmf_field_out": {
-    "_data": [
-      0.2540000081062317,
-      0.2540000081062317,
-      0.2540000081062317,
-      0.2540000081062317,
-      0.2540000081062317
-    ],
+    "_data": "hash_-1091130685801796361_len_16",
     "_finalized": false,
     "_grid": {
       "_area": [
@@ -121,24 +114,12 @@
       "_coord_sys": null,
       "_coords": [
         [
-          "hash_-8764384264248681935",
-          "hash_-8047490021897303354"
+          "hash_1093277129357070775_len_6254",
+          "hash_5611044582734626437_len_6254"
         ],
         [
-          [
-            -66.60592401826192,
-            -66.56229876343377,
-            -66.58445759390953,
-            -66.59020754572474,
-            -66.58040387800175
-          ],
-          [
-            18.28181486086812,
-            18.270309542806565,
-            18.3195853360751,
-            18.300628771128547,
-            18.271599906172842
-          ]
+          "hash_4226375359650640485_len_16",
+          "hash_-6961022270863201799_len_16"
         ]
       ],
       "_finalized": false,
@@ -150,12 +131,12 @@
       "_parametric_dim": 2,
       "_rank": 1,
       "_size": [
-        2594,
-        5
+        6254,
+        16
       ],
       "_size_owned": [
-        2594,
-        5
+        6254,
+        16
       ],
       "_spatial_dim": null,
       "_struct": {}
@@ -171,7 +152,7 @@
     "_struct": {},
     "_type": 6,
     "_upper_bounds": [
-      5
+      16
     ],
     "_xd": 0
   },
@@ -270,8 +251,18 @@
   "file_ext": ".grib2",
   "file_in1": "/ngen-app/data/raw_input/NBM_PR/blend.20250710/00/core/blend.t00z.core.f003.pr.grib2",
   "file_in2": "/ngen-app/data/raw_input/NBM_PR/blend.20250710/00/core/blend.t00z.core.f002.pr.grib2",
-  "file_type": "GRIB2",
   "final_supp_precip": [
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    5.267246160656214e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
+    7.055555761326104e-05,
     7.055555761326104e-05,
     7.055555761326104e-05,
     7.055555761326104e-05,
@@ -288,7 +279,6 @@
   ],
   "grib_vars": null,
   "has_cache": false,
-  "inDir": "/ngen-app/data/raw_input/NBM_PR",
   "input_frequency": 60.0,
   "keyValue": 15,
   "netcdf_var_names": [
@@ -305,55 +295,22 @@
   "pcp_hour2": null,
   "product_name": "NBM_CORE_PR_APCP",
   "regridComplete": false,
-  "regridOpt": 1,
-  "regridded_mask": [
-    1.0,
-    1.0,
-    1.0,
-    1.0,
-    1.0
-  ],
+  "regridded_mask": "hash_-655538369282833494_len_16",
   "regridded_mask_elem": null,
-  "regridded_precip1": [
-    4.035648998979013e-06,
-    3.576557355700061e-05,
-    0.0001411111152265221,
-    7.516235928051174e-05,
-    0.0
-  ],
+  "regridded_precip1": "hash_4373573635414851039_len_16",
   "regridded_precip1_elem": null,
-  "regridded_precip2": [
-    7.055555761326104e-05,
-    7.055555761326104e-05,
-    7.055555761326104e-05,
-    7.055555761326104e-05,
-    7.055555761326104e-05
-  ],
+  "regridded_precip2": "hash_-1453764107038221725_len_16",
   "regridded_precip2_elem": null,
-  "regridded_rqi1": [
-    -9999.0,
-    -9999.0,
-    -9999.0,
-    -9999.0,
-    -9999.0
-  ],
+  "regridded_rqi1": "hash_4384578209715848368_len_16",
   "regridded_rqi1_elem": null,
-  "regridded_rqi2": [
-    -9999.0,
-    -9999.0,
-    -9999.0,
-    -9999.0,
-    -9999.0
-  ],
+  "regridded_rqi2": "hash_4384578209715848368_len_16",
   "regridded_rqi2_elem": null,
   "rqiMethod": 0,
   "rqiThresh": 1.0,
   "rqi_file_in1": null,
   "rqi_file_in2": null,
   "rqi_netcdf_var_names": null,
-  "timeInterpOpt": 0,
   "tmpFile": null,
-  "userCycleOffset": 0,
   "x_lower_bound": 0,
   "x_upper_bound": 339,
   "y_lower_bound": 0,
