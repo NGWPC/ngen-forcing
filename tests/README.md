@@ -11,15 +11,6 @@ The initial test data was generated using `nwm-rte` to create a calibration real
 for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
 using `nwm-rte's` run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
 
-More specifically the initial expected test data was developed with these specific configurations in `config.bashrc`.
-```
-REPO_TAG_FCST_MGR="856fc0e1201076df909e56c7cd384f58e82965a2"
-REPO_TAG_MSW_MGR="693c206a22b5e9ffcca3103166c0ca59e2b11b25"
-REPO_TAG_CAL_MGR="7e56bf01477ea77e72dfb25a166ac26ff6090ecb"
-REPO_TAG_NGEN_FORCING="LOCAL"
-NGEN_SOURCE_MODE="ghcr"
-NGEN_BASE__REMOTE_GHCR_TAG="844c5f6"
-```
 
 And these two commands in `nwm-rte's` `run_suite.sh`:
 ```bash
@@ -53,6 +44,7 @@ The test suite is organized into the following modules:
 Single processor: (cd src/ngen-forcing && pytest )
 Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest )
 ```
+
 ### Run Specific Test Modules From the Dev Container
 
 Run tests for a specific module:
@@ -89,6 +81,10 @@ Multiple processors: ( cd src/ngen-forcing && mpirun -n 2 pytest tests/config_op
 
 Create new test output data (creates expected outputs for subsequent tests)
 ```bash
+# All
+Single processor: (cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest )
+Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest )
+
 # ESMF regridding tests
 Single processor: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true pytest tests/esmf_regrid)
 Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true mpirun -n 2 pytest tests/esmf_regrid)
