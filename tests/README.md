@@ -127,12 +127,7 @@ Multiple processors: ( cd src/ngen-forcing && FORCING_PYTEST_WRITE_TEST_EXPECTED
 ```
 ## Test Configuration
 
-The test suite is configured via `pytest.ini` at the repository root:
-
-- **Python path**: Set to repository root (`.`)
-- **Logging**: Enabled with INFO level (DEBUG available by uncommenting)
-- **Verbosity**: Full trace with verbose output (`-vv`)
-- **Test paths**: Pre-configured to discover tests in `esmf_regrid`, `geomod`, `input_forcing`, and `bmi_model`
+The test suite is configured via `pytest.ini` at the repository root.
 
 ## Test Data
 
