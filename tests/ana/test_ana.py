@@ -24,13 +24,15 @@ TEST_CONFIGS = [
         keys_to_exclude=consts.KEYS_TO_EXCLUDE,
         grid_type=consts.GRID_TYPE,
         test_file_name_prefix="ana_standard_conus",
-        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID"),]
+        extra_attrs=[
+            ClassAttrFetcher("bmi_model_values", "CAT-ID"),
+        ],
     ),
 ]
 
 
 @pytest.mark.parametrize("bmi_forcing_fixture_ana", TEST_CONFIGS, indirect=True)
-def test_input_forcing(
+def test_ana(
     bmi_forcing_fixture_ana: test_utils.BMIForcingFixture_AnA,  # pyright: ignore
 ) -> None:
     """Pytest function for testing Analysis and Assimilation."""
