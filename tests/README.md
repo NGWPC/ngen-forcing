@@ -138,3 +138,13 @@ Test data is stored in the `test_data/` directory. Tests may reference files fro
 When adding new tests, use the OS env var `FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA`
 to have your new test automatically write new "expected" data to `tests/test_data/expected_results/`,
 then commit those files to the repository.  See above for example calls.
+
+## Key Exclusion in Test Configs
+
+`keys_to_exclude` and `keys_to_exclude_at_init` both support dot notation to target nested keys.
+A plain key like `"config_options"` is removed at every nesting level.
+A dotted key like `"esmf_field_out._data"` removes only `_data` when it appears
+directly under `esmf_field_out`, leaving all other occurrences of `_data` intact.
+
+This means that the exclusion logic does not support the notion of a key that contains a literal dot in its name,
+since a dot always causes a hierarchical search.
