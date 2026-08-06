@@ -13,6 +13,7 @@ spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
+ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 TEST_FILE_NAME_PREFIX = "supp_precip"
 
@@ -46,6 +47,7 @@ TEST_CONFIGS = [
         map_old_to_new_var_names=False,
         keys_no_hash=("final_supp_precip",),
         keys_to_exclude_at_init=("regridded_mask",),
+        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID")],
     ),
 ]
 

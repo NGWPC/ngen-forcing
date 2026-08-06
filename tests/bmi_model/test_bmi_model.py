@@ -13,6 +13,7 @@ spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
+ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 
 TEST_CONFIGS = [
@@ -24,7 +25,7 @@ TEST_CONFIGS = [
         ),
         grid_type=consts.GRID_TYPE,
         test_file_name_prefix="bmi_model",
-        extra_attrs=[]
+        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID")]
     ),
 ]
 

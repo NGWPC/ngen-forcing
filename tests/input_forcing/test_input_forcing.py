@@ -13,6 +13,7 @@ spec.loader.exec_module(test_utils)
 
 consts = test_utils.test_consts
 configs = test_utils.test_config_classes
+ClassAttrFetcher = test_utils.ClassAttrFetcher
 
 TEST_FILE_NAME_PREFIX = "input_forcing"
 
@@ -27,6 +28,7 @@ TEST_CONFIGS = [
         grid_type=consts.GRID_TYPE,
         force_key=12,
         test_file_name_prefix=TEST_FILE_NAME_PREFIX,
+        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID")],
     ),
 ]
 
