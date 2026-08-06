@@ -48,14 +48,35 @@ OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
 
 def remove_key(input_data: dict, keys_to_exclude: tuple = ()) -> dict:
-    """Recursively remove keys from a nested dictionary."""
+    """Recursively remove keys from nested dicts.
+
+    Plain keys remove at all levels. Dot-separated keys (e.g. "esmf_field_out._data")
+    remove only at the specified path."""
+    # Collect keys that apply globally (no dots)
+    flat_keys = tuple(k for k in keys_to_exclude if isinstance(k, str) and "." not in k)
+
     output_data = {}
     for key, val in input_data.items():
-        if key not in keys_to_exclude:
-            if isinstance(val, dict):
-                output_data[key] = remove_key(val, keys_to_exclude)
-            else:
-                output_data[key] = val
+        # Skip if this key is in the global exclusion list
+        if key in flat_keys:
+            continue
+
+        # Example: key="esmf_field_out", keys_to_exclude=("uid64", "esmf_field_out._data", "esmf_field_out.grid")
+        # then child_exclude becomes ("_data", "grid") after stripping the "esmf_field_out." prefix
+        child_exclude = ()
+        if isinstance(key, str):
+            child_exclude = tuple(
+                path[len(key) + 1 :]  # Strip "key." prefix from the path
+                for path in keys_to_exclude
+                if isinstance(path, str) and path.startswith(key + ".")
+            )
+
+        # Recurse into nested dicts with combined exclusion rules
+        if isinstance(val, dict):
+            output_data[key] = remove_key(val, flat_keys + child_exclude)
+        else:
+            output_data[key] = val
+
     return output_data
 
 
@@ -291,6 +312,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         }
         deserial_actual = convert_long_lists(deserial_actual, 10)
         deserial_actual.update(raw_vals)
+        deserial_actual = remove_key(dict(deserial_actual), self.keys_to_exclude)
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
             deserial_actual[ea.results_key_name] = ea.get(

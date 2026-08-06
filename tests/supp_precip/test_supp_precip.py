@@ -24,7 +24,6 @@ TEST_CONFIGS = [
         config_file=consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_PR,
         keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
         # supplemental_precip uses old attribute names, so exclude those old names here
-        # esmf_field_out/_data is non-deterministic. final_supp_precip covers the meaningful output.
         keys_to_exclude=tuple(
             set(consts.KEYS_TO_EXCLUDE)
             | {
@@ -37,7 +36,8 @@ TEST_CONFIGS = [
                 "file_type",
                 "enforce",
                 "regridOpt",
-                "esmf_field_out",
+                # non-deterministic
+                "esmf_field_out._data",
             }
         ),
         grid_type=consts.GRID_TYPE,

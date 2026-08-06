@@ -15,12 +15,12 @@ class TestConfig_Base:
         test_file_name_prefix: Affects the test data results file names (expected and actual)
         config_file: Forcing configuration file, e.g. "ngen-forcing/tests/test_data/configs/standard_ana_config.yml"
         keys_to_check: The keys to check
-        keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test.
+        keys_to_exclude: The keys to exclude from the test results json and from equality checks, for example because they contain non-deterministic values or values that are not relevant to the test. Dots in key names are treated as hierarchy separators, so ``"parent.child"`` excludes only ``child`` nested under ``parent`` rather than all keys named ``child``.
         grid_type: e.g. "hydrofabric"
         map_old_to_new_var_names: Whether to map old variable names to new variable names in the expected results data, which is needed when updating the test expected outputs dataset but should be false for regular test runs.
             Note: this is overridden by a CLI arg. See `pytest_addoption` in `conftest.py` for details.
         keys_no_hash: keys whose list values should NOT be hashed, even if long
-        keys_to_exclude_at_init: extra keys to exclude only during the init check
+        keys_to_exclude_at_init: extra keys to exclude only during the init check; supports dot notation like ``keys_to_exclude``
     """
 
     test_file_name_prefix: str
