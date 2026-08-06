@@ -74,7 +74,9 @@ def class_to_dict(class_to_convert: typing.Any, keys_to_exclude: list = []) -> d
         val = getattr(class_to_convert, key)
         if not callable(val) and not key.startswith("_"):
             if isinstance(val, (MpiConfig, ConfigOptions, InputForcings, GeoMeta)):
-                data[key] = remove_key(class_to_dict(val, keys_to_exclude), keys_to_exclude)
+                data[key] = remove_key(
+                    class_to_dict(val, keys_to_exclude), keys_to_exclude
+                )
             elif isinstance(val, dict):
                 data[key] = remove_key(val, keys_to_exclude)
             elif isinstance(val, datetime):
@@ -230,18 +232,18 @@ class BMIForcingFixture:
     @staticmethod
     def _trim_arrays_to_input_map_output(data_dict: dict) -> None:
         """Trim arrays in data_dict to match input_map_output length.
-        
+
         Removes unused forcing indices (e.g., LQFRAC at index 8 when include_lqfrac=0).
         Scans all list values in data_dict and trims those that are longer than input_map_output.
         Modifies data_dict in place.
-        
+
         Args:
             data_dict: Dictionary containing 'input_map_output' and array keys to trim.
         """
         input_map_output = data_dict.get("input_map_output", [])
         if not input_map_output:
             return  # No trimming if we don't have the mapping
-        
+
         for key, value in data_dict.items():
             if key == "input_map_output" or value is None:
                 continue
@@ -250,7 +252,7 @@ class BMIForcingFixture:
                 logging.debug(
                     f"Trimming {key} from {len(value)} to {len(input_map_output)} rows"
                 )
-                data_dict[key] = value[:len(input_map_output)]
+                data_dict[key] = value[: len(input_map_output)]
 
 
 class BMIForcingFixture_Class(BMIForcingFixture):
@@ -270,6 +272,7 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self.test_dir = os.path.dirname(os.path.abspath(__file__))
         self.extra_attrs: tuple[ClassAttrFetcher] = cfg.extra_attrs
         self.keys_no_hash: tuple[str] = cfg.keys_no_hash
+        self.keys_to_exclude_at_init: tuple[str] = cfg.keys_to_exclude_at_init
 
     def deserial_actual(
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
@@ -283,15 +286,19 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         # order and reverse so private attributes are last
         deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
         # Save raw values for keys that should not be hashed
-        raw_vals = {k: deserial_actual[k] for k in self.keys_no_hash if k in deserial_actual}
+        raw_vals = {
+            k: deserial_actual[k] for k in self.keys_no_hash if k in deserial_actual
+        }
         deserial_actual = convert_long_lists(deserial_actual, 10)
         deserial_actual.update(raw_vals)
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
-            deserial_actual[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
-        
+            deserial_actual[ea.results_key_name] = ea.get(
+                self, serialize_and_deserialize=True
+            )
+
         self._trim_arrays_to_input_map_output(deserial_actual)
-        
+
         if write_to_file:
             self.write_json(
                 deserial_actual,
@@ -360,7 +367,12 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         This is useful for checking the state of the model immediately after initialization, before any updates have occurred.
         """
         logging.info("Starting after_intitialization_check()...")
-        self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
+        orig = self.keys_to_exclude
+        self.keys_to_exclude = orig + self.keys_to_exclude_at_init
+        try:
+            self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
+        finally:
+            self.keys_to_exclude = orig
 
     def compare(self, actual: dict, expected: dict) -> None:
         """Compare actual vs expected results."""

@@ -24,14 +24,28 @@ TEST_CONFIGS = [
         config_file=consts.FORECAST_FORCING_CONFIG_FILE__SHORT_RANGE_PR,
         keys_to_check=consts.COMPOSITE_KEYS_TO_CHECK,
         # supplemental_precip uses old attribute names, so exclude those old names here
+        # esmf_field_out/_data is non-deterministic. final_supp_precip covers the meaningful output.
         keys_to_exclude=tuple(
-            set(consts.KEYS_TO_EXCLUDE) | {"config_options", "geo_meta", "mpi_config", "userCycleOffset", "timeInterpOpt", "inDir", "file_type", "enforce", "regridOpt"}
+            set(consts.KEYS_TO_EXCLUDE)
+            | {
+                "config_options",
+                "geo_meta",
+                "mpi_config",
+                "userCycleOffset",
+                "timeInterpOpt",
+                "inDir",
+                "file_type",
+                "enforce",
+                "regridOpt",
+                "esmf_field_out",
+            }
         ),
         grid_type=consts.GRID_TYPE,
         force_key=15,
         test_file_name_prefix=TEST_FILE_NAME_PREFIX,
         map_old_to_new_var_names=False,
         keys_no_hash=("final_supp_precip",),
+        keys_to_exclude_at_init=("regridded_mask",),
     ),
 ]
 
