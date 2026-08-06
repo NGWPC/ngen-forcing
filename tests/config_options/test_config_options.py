@@ -32,8 +32,8 @@ TEST_CONFIGS = [
 @pytest.mark.parametrize(
     "bmi_forcing_fixture_configoptions", TEST_CONFIGS, indirect=True
 )
-def test_geomod(
-    bmi_forcing_fixture_configoptions: test_utils.BMIForcingFixture_GeoMod,  # pyright: ignore
+def test_config_options(
+    bmi_forcing_fixture_configoptions: test_utils.BMIForcingFixture_ConfigOptions,  # pyright: ignore
 ) -> None:
     """Pytest function for testing ConfigOptions functionality."""
     ### Total number of timesteps needs to be at least 3, since the 1st and 2nd behaves differently than the others,
