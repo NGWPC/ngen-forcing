@@ -494,7 +494,7 @@ class MpiConfig:
         for s in self.__signals_handled():
             signal.signal(s, signal.SIG_DFL)
         ### Cleanup and re-send the original signal to itself
-        # self._cleanup()
+        # self.cleanup()
         # os.kill(os.getpid(), signum)
         ### Cleanup and abort directly
         self.abort_with_cleanup(signum)
