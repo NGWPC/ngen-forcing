@@ -30,7 +30,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
+    crs_assert_projected_horizontal_meters,
+    rand_str,
+)
 
 LOG = logging.getLogger("FORCING")
 
@@ -57,6 +60,10 @@ class BaseProcessor:
 
         Apply buffer in known crs/units (m) and then convert back to src_crs.
         """
+        LOG.debug(
+            f"Temporary CRS for creating a mask (will buffer AOI by {self.buffer} in this CRS): {self._temp_crs}"
+        )
+        crs_assert_projected_horizontal_meters(self._temp_crs)
         return (
             self.gdf.to_crs(self._temp_crs)
             .buffer(self.buffer)
@@ -425,7 +432,7 @@ class AORCConusProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
-        self.buffer = 3000  # m buffer around bounding box
+        self.buffer = 6000  # m buffer around bounding box. Use 6km buffer in case someone applies this to legacy 4km AORC data instead of the newer 1km AORC data.
         self._temp_crs = CRS(5070)
 
     @cached_property
@@ -497,7 +504,7 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
-        self.buffer = 3000  # m buffer around bounding box
+        self.buffer = 6000  # m buffer around bounding box. Use 6km buffer in case someone applies this to legacy 4km AORC data instead of the newer 1km AORC data.
         self._temp_crs = CRS(3338)
 
     @cached_property
@@ -745,7 +752,15 @@ class NWMV3HawaiiProcessor(NWMV3OConusProcessor):
     ):
         """Initialize NWM Hawaii processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
-        self._temp_crs = CRS(6628)
+        lon, lat = wrf_hydro_geo_meta.approx_centroid_global_xy
+        if not -180 < lon < 180:
+            raise ValueError(f"Unexpected (lon, lat) = ({lon}, {lat})")
+        utm_zone_number = int((lon + 180) / 6) + 1
+        if utm_zone_number not in (1, 2, 3, 4, 5):
+            raise ValueError(
+                f"Unexpected UTM zone {utm_zone_number} for Hawaii. Expected zone 1 through 5. (lon, lat) = ({lon}, {lat})"
+            )
+        self._temp_crs = CRS(f"EPSG:3260{utm_zone_number}")
 
 
 class NWMV3AlaskaProcessor(NWMV3Processor):
