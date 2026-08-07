@@ -8,5 +8,5 @@ scipy
 mpi4py
 dask
 zarr
-s3fs
+s3fs==2026.4.0
 xarray
