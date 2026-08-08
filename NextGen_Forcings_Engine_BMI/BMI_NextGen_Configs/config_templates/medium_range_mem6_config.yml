@@ -18,7 +18,7 @@ LookBack : -9999
 RefcstBDateProc: "202412020000"
 ForecastFrequency: 60
 ForecastShift: 0
-ForecastInputHorizons: [12270]
+ForecastInputHorizons: [14040]
 ForecastInputOffsets: [0]
 Geopackage: "{root_dir}/gpkg/conus/{gage}.gpkg"
 GeogridIn: "{root_dir}/esmf_mesh/{gage}_ESMF_Mesh.nc"

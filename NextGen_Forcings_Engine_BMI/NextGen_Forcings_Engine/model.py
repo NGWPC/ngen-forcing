@@ -2,9 +2,12 @@ import datetime
 import os
 from contextlib import contextmanager
 from time import time
-
+import logging
 import numpy as np
 import pandas as pd
+from ewts import Payload as Pld
+from ewts import Status as St
+from ewts.modules import ModuleKey
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import (
     bias_correction,
@@ -17,7 +20,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-    GeoMetaWrfHydro,
+    GeoMeta,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import OutputObj
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
@@ -29,9 +32,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.historical_forcing impo
     NWMV3OConusProcessor,
 )
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
-LOG = ewts.get_logger(ewts.FORCING_ID)
+LOG = logging.getLogger("FORCING")
+
+MODNM = ModuleKey.FORCING.value
 
 
 @contextmanager
@@ -80,7 +83,7 @@ class NWMv3ForcingEngineModel:
         model: dict,
         future_time: float,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -124,6 +127,9 @@ class NWMv3ForcingEngineModel:
 
         :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
         """
+        LOG.debug(
+            f"{Pld(St.INPROG, msg=f'Starting timestep with future_time={future_time}', modnm=MODNM)}",
+        )
         (
             future_time,
             config_options,
@@ -221,34 +227,36 @@ class NWMv3ForcingEngineModel:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
-            if config_options.input_forcings[0] in [20, 22]:
-                config_options.current_fcst_cycle = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.current_time = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 7200.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.future_time = future_time
-            else:
-                # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
-                config_options.current_fcst_cycle = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
-                )
-                config_options.current_time = (
-                    config_options.b_date_proc
-                    + pd.TimedeltaIndex(
-                        np.array([future_time - 3600.0], dtype=float), "s"
-                    )[0]
-                )
+            
+            #if config_options.input_forcings[0] in [20, 22]:
+            #     config_options.current_fcst_cycle = (
+            #         config_options.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     config_options.current_time = (
+            #         config_options.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     config_options.future_time = future_time
+            # else:
+             
+            # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
+            config_options.current_fcst_cycle = (
+                config_options.b_date_proc
+                + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), "s"
+                )[0]
+            )
+            config_options.current_time = (
+                config_options.b_date_proc
+                + pd.TimedeltaIndex(
+                    np.array([future_time - 3600.0], dtype=float), "s"
+                )[0]
+            )
         else:
             # Forecast-only mode — use BMI timestamp as-is
             config_options.current_fcst_cycle = config_options.b_date_proc
@@ -324,7 +332,7 @@ class NWMv3ForcingEngineModel:
         self,
         future_time: float,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         input_forcing_mod: dict,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
@@ -641,7 +649,7 @@ class NWMv3ForcingEngineModel:
     def process_suplemental_precip(
         self,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         supp_pcp_mod: dict,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
@@ -713,7 +721,7 @@ class NWMv3ForcingEngineModel:
     def write_output(
         self,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         mpi_config: MpiConfig,
         output_obj: OutputObj,
     ):
@@ -741,7 +749,7 @@ class NWMv3ForcingEngineModel:
         self,
         model: dict,
         config_options: ConfigOptions,
-        wrf_hydro_geo_meta: GeoMetaWrfHydro,
+        wrf_hydro_geo_meta: GeoMeta,
         output_obj: OutputObj,
     ):
         """Flatten the Forcings Engine output object and update the BMI dictionary."""
@@ -797,7 +805,6 @@ class NWMv3ForcingEngineModel:
                 model[variable + "_ELEMENT"] = output_obj.output_global[
                     count, :
                 ].flatten()
-                model["CAT-ID"] = wrf_hydro_geo_meta.element_ids_global
 
         return (
             model,

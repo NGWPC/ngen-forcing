@@ -1,15 +1,22 @@
+import inspect
 import logging
 import os
 import sys
 import traceback
 
+# Use the Error, Warning, and Trapping System Package for logging
+import ewts
 import numpy as np
 from mpi4py import MPI
 from scipy import spatial
 
-# Use the Error, Warning, and Trapping System Package for logging
-import ewts
-LOG = ewts.get_logger(ewts.FORCING_ID)
+# Use the Error and Warning Trapping System Package for logging
+LOG = ewts.get_logger("FORCING")
+
+def in_exception_context() -> bool:
+    if sys.exc_info()[0] is not None:
+        return True
+    return False
 
 
 def err_out_screen(err_msg: str, exc: BaseException | None = None):
@@ -27,8 +34,20 @@ def err_out_screen(err_msg: str, exc: BaseException | None = None):
     if exc is not None:
         err_msg += f" - {exc}"
     err_msg_out = "ERROR: " + err_msg
+
     print(err_msg_out, flush=True)
-    traceback.print_exc()  # Only prints if an exception is currently being handled
+    LOG.critical(err_msg_out)
+
+    if in_exception_context():
+        tb = traceback.format_exc()
+        tb_msg = f"TRACEBACK: {tb}"
+        print(tb_msg, flush=True, file=sys.stderr)
+        LOG.critical(tb_msg)
+
+    final_msg = f"Calling sys.exit(1) from object {repr(inspect.currentframe().f_code.co_name)}"
+    print(final_msg, flush=True, file=sys.stderr)
+    LOG.critical(final_msg)
+
     sys.exit(1)
 
 
@@ -154,7 +173,7 @@ def log_error(ConfigOptions, MpiConfig, msg: str = None):
             raise TypeError(
                 f"Expected type str or NoneType for msg, got type: {type(msg)}"
             )
-        ConfigOptions.statusMsg = msg
+        ConfigOptions.errMsg = msg
 
     try:
         LOG.error("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
@@ -181,7 +200,7 @@ def log_critical(ConfigOptions, MpiConfig, msg: str = None):
             raise TypeError(
                 f"Expected type str or NoneType for msg, got type: {type(msg)}"
             )
-        ConfigOptions.statusMsg = msg
+        ConfigOptions.errMsg = msg
 
     try:
         LOG.critical("RANK: " + str(MpiConfig.rank) + " - " + ConfigOptions.errMsg)
