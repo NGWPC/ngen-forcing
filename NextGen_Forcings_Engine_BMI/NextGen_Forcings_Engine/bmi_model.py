@@ -391,7 +391,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # If we have specified supplemental precipitation products, initialize
         # the supp class.
         if self._job_meta.number_supp_pcp > 0:
-            self._supp_pcp_mod = suppPrecipMod.initDict(self._job_meta, self.geo_meta)
+            self._supp_pcp_mod = suppPrecipMod.init_dict(self._job_meta, self.geo_meta)
         else:
             self._supp_pcp_mod = None
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
