@@ -1010,8 +1010,7 @@ FORCINGINPUTMOD = {
 }
 
 SUPPPRECIPMOD = {
-    "suppPrecipMod": {
-        "keyValue",
+    "SupplementalPrecip": {
         "supp_precip_dirs",
         "supp_precip_mandatory",
         "product_name",
@@ -1070,6 +1069,13 @@ SUPPPRECIPMOD = {
         "global_x_upper",
         "global_y_upper",
     },
+    # Subclass init loops iterate these; empty because the base set above covers all needed attrs.
+    # To add subclass-specific attrs, add their names here and they will be set to None on init.
+    # NOTE: keyValue is intentionally excluded — it is set from a constructor parameter, not
+    # from config_options, so including it here would reset it to None after initialization.
+    "SupplementalPrecipGridded": set(),
+    "SupplementalPrecipHydrofabric": set(),
+    "SupplementalPrecipUnstructured": set(),
     "PRODUCT_NAMES": {
         1: "MRMS_1HR_Radar_Only",
         2: "MRMS_1HR_Gage_Corrected",
@@ -1243,7 +1249,7 @@ TEST_UTILS = {
             "enforce": "input_force_mandatory",
             "file_type": "input_force_types",
         },
-        "suppPrecipMod": {
+        "SupplementalPrecip": {
             "regridOpt": "regrid_opt_supp_pcp",
             "enforce": "supp_precip_mandatory",
             "timeInterpOpt": "suppTemporalInterp",
