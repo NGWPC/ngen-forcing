@@ -3,11 +3,9 @@
 from __future__ import annotations
 
 import logging
-from functools import cached_property
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
-from nextgen_forcings_ewts import MODULE_NAME
 
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
     SUPPPRECIPMOD,
@@ -24,13 +22,23 @@ if TYPE_CHECKING:
         MpiConfig,
     )
 
-LOG = logging.getLogger(MODULE_NAME)
+LOG = logging.getLogger("FORCING")
 
 
 class SupplementalPrecip:
     """Supplemental precipitation class.
 
     This class defines all the parameters of a single supplemental precipitation product.
+
+    Three-tier attr initialization:
+    1. Attrs set during init (keyValue, geo_meta, etc.) come from constructor params — must NOT be in SUPPPRECIPMOD.
+    2. Attrs in SUPPPRECIPMOD[base class name] are then set to None as an "unset" sentinel.
+    3. _initialize_config_options then sets list-valued attrs from config_options;
+       remaining attrs lazy-initialize via property getters on first access.
+
+    NOTE: Lists are treated specially in config_options. When an attribute value in config_options
+    is a list, the idx of this instance is used to extract the corresponding element from that list.
+    This allows each SupplementalPrecip instance to reference its own value within a shared list structure.
     """
 
     def __init__(self, idx: int, config_options: ConfigOptions, geo_meta: GeoMeta):
@@ -40,10 +48,8 @@ class SupplementalPrecip:
         self._keyValue = config_options.supp_precip_forcings[idx]
         self.idx = idx
         self.config_options = config_options
-        self.geo_mdeta = geo_meta
+        self.geo_meta = geo_meta
 
-        # set list of attibutes from consts.py to None.
-        # These are indexed from the consts dictionary using the class name
         for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
 
@@ -59,48 +65,68 @@ class SupplementalPrecip:
     @keyValue.setter
     def keyValue(self, val: int) -> int:
         """Set the forcing key value."""
-        if self._keyValue is not None:
-            raise RuntimeError(f"keyValue has already been set (to {self._keyValue}).")
         self._keyValue = val
 
     def _initialize_config_options(self) -> None:
         """Initialize configuration options from the config_options attribute.
 
-        Map attibutes from config_options to attibutes of this class if
-        they are a list with a length greater than 0.
-
-        Check if the attibute allready exists before setting.
+        For each attribute in SUPPPRECIPMOD["SupplementalPrecip"], check if the
+        same-named attribute exists in config_options as a list and set it on self.
         """
-        for key, val in list(vars(self.config_options).items()):
-            if (
-                isinstance(val, list)
-                and len(val) > 0
-                and key not in ["rqiMethod", "rqiThresh"]
-            ):
-                if self.hasattr(self, key):
-                    raise ValueError(f"Attribute {key} has already been set.")
-                setattr(self, key, val[self.idx])
+        for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
+            if hasattr(self.config_options, attr):
+                val = getattr(self.config_options, attr)
+                if isinstance(val, list) and len(val) > 0:
+                    setattr(self, attr, val[self.idx])
 
     @property
     def rqiMethod(self) -> int | float:
         """Get the RQI method for this supplemental precipitation product."""
-        if self.config_options.rqiMethod is not None:
-            return self.config_options.rqiMethod[self.idx]
-        else:
-            return 0
+        if self._rqiMethod is None:
+            # config_options stores each product's values as a list (one entry per supp precip product).
+            # A non-list value means RQI is not configured (default rqiMethod to 0).
+            val = self.config_options.rqiMethod
+            if isinstance(val, list):
+                self._rqiMethod = val[self.idx]
+            elif val is None:
+                self._rqiMethod = 0
+            else:
+                raise TypeError(f"Unexpected type for config_options.rqiMethod: {type(val)}")
+        return self._rqiMethod
+
+    @rqiMethod.setter
+    def rqiMethod(self, val: int | float) -> None:
+        """Setter for grib_vars."""
+        self._rqiMethod = val
 
     @property
     def rqiThresh(self) -> int | float:
         """Get the RQI threshold for this supplemental precipitation product."""
-        if self.config_options.rqiMethod is not None:
-            return self.config_options.rqiThresh[self.idx]
-        else:
-            return 1.0
+        if self._rqiThresh is None:
+            # config_options stores each product's values as a list (one entry per supp precip product).
+            # A non-list value means RQI is not configured (default rqiMethod to 1.0).
+            val = self.config_options.rqiThresh
+            if isinstance(val, list):
+                self._rqiThresh = val[self.idx]
+            elif val is None or isinstance(val, (int, float)):
+                # config.py initializes rqiThresh=1.0 as the no-RQI default.
+                # When RQI is configured, a scalar gets expanded to a list before reaching here.
+                self._rqiThresh = float(val) if val is not None else 1.0
+            else:
+                raise TypeError(f"Unexpected type for config_options.rqiThresh: {type(val)}")
+        return self._rqiThresh
+
+    @rqiThresh.setter
+    def rqiThresh(self, val: int | float) -> None:
+        """Setter for rqiThresh."""
+        self._rqiThresh = val
 
     @property
     def product_name(self) -> str:
         """Get the product name for this supplemental precipitation product."""
-        return SUPPPRECIPMOD["PRODUCT_NAMES"][self.keyValue]
+        if self._product_name is None:
+            self._product_name = SUPPPRECIPMOD["PRODUCT_NAMES"][self.keyValue]
+        return self._product_name
 
         ## DEFINED IN CONFIG
         # product_types = {
@@ -112,30 +138,96 @@ class SupplementalPrecip:
         # }
         # self.file_type = product_types[self.keyValue]
 
+    @product_name.setter
+    def product_name(self, val: str) -> None:
+        """Setter for product_name."""
+        self._product_name = val
+
+    @property
+    def file_type(self) -> str:
+        """Get the file type; aliases supp_precip_file_types set by _initialize_config_options."""
+        return self.supp_precip_file_types
+
+    @file_type.setter
+    def file_type(self, val: str) -> None:
+        """Setter for file_type; writes through to supp_precip_file_types."""
+        self.supp_precip_file_types = val
+
+    # TODO: remove these aliases once time_handling.py and regrid.py are refactored to use new attribute names
+    @property
+    def inDir(self):
+        return self.supp_precip_dirs
+
+    @property
+    def regridOpt(self):
+        return self.regrid_opt_supp_pcp
+
+    @property
+    def enforce(self):
+        return self.supp_precip_mandatory
+
+    @property
+    def timeInterpOpt(self):
+        return self.suppTemporalInterp
+
+    @property
+    def userCycleOffset(self):
+        return self.supp_input_offsets
+
     @property
     def file_ext(self) -> str:
         """Get the file extension for this supplemental precipitation product."""
         return SUPPPRECIPMOD["FILE_EXT"][self.file_type]
 
     @property
-    def grib_vars(self) -> None:
+    def grib_vars(self) -> list[str]:
         """Get the GRIB variable names for this supplemental precipitation product."""
-        return SUPPPRECIPMOD["GRIB_VARS"][self.keyValue]
+        if self._grib_vars is None:
+            self._grib_vars = SUPPPRECIPMOD["GRIB_VARS"][self.keyValue]
+        return self._grib_vars
+
+    @grib_vars.setter
+    def grib_vars(self, val: list[str]) -> None:
+        """Setter for grib_vars."""
+        self._grib_vars = val
 
     @property
     def grib_levels(self) -> list[str]:
         """Get the GRIB levels for this supplemental precipitation product."""
-        return SUPPPRECIPMOD["GRIB_LEVELS"][self.keyValue]
+        if self._grib_levels is None:
+            self._grib_levels = SUPPPRECIPMOD["GRIB_LEVELS"][self.keyValue]
+        return self._grib_levels
+
+    @grib_levels.setter
+    def grib_levels(self, val: list[str]) -> None:
+        """Setter for grib_levels."""
+        self._grib_levels = val
 
     @property
     def netcdf_var_names(self) -> list[str]:
         """Get the NetCDF variable names for this supplemental precipitation product."""
-        return SUPPPRECIPMOD["NET_CDF_VARS_NAMES"][self.keyValue]
+        if self._netcdf_var_names is None:
+            self._netcdf_var_names = SUPPPRECIPMOD["NET_CDF_VARS_NAMES"][self.keyValue]
+        return self._netcdf_var_names
+
+    @netcdf_var_names.setter
+    def netcdf_var_names(self, val: list[str]) -> None:
+        """Setter for netcdf_var_names."""
+        self._netcdf_var_names = val
 
     @property
     def rqi_netcdf_var_names(self) -> list[str] | None:
         """Get the RQI NetCDF variable names for this supplemental precipitation product."""
-        return SUPPPRECIPMOD["RQI_NETCDF_VAR_NAMES"][self.keyValue]
+        if self._rqi_netcdf_var_names is None:
+            self._rqi_netcdf_var_names = SUPPPRECIPMOD["RQI_NETCDF_VAR_NAMES"][
+                self.keyValue
+            ]
+        return self._rqi_netcdf_var_names
+
+    @rqi_netcdf_var_names.setter
+    def rqi_netcdf_var_names(self, val: list[str] | None) -> None:
+        """Setter for rqi_netcdf_var_names."""
+        self._rqi_netcdf_var_names = val
 
     @property
     def output_var_idx(self) -> int:
@@ -159,7 +251,7 @@ class SupplementalPrecip:
         :param dCurrent:
         :return:
         """
-        self.find_neighbor_files_map[self.keyValue](
+        self.find_neighbor_files[self.keyValue](
             self, config_options, dcurrent, mpi_config
         )
 
@@ -204,7 +296,7 @@ class SupplementalPrecip:
         :param MpiConfig:
         :return:
         """
-        self.temporal_interpolate_inputs_map[self.keyValue][self.timeInterpOpt](
+        self.temporal_interpolate_inputs_map[self.timeInterpOpt](
             self, config_options, mpi_config
         )
 
@@ -218,12 +310,12 @@ class SupplementalPrecipGridded(SupplementalPrecip):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
     ) -> None:
-        """Initialize SupplementalPrecipGridded with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize SupplementalPrecipGridded.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
         for attr in SUPPPRECIPMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is None:
@@ -239,7 +331,7 @@ class SupplementalPrecipGridded(SupplementalPrecip):
         """Setter for final_supp_precip."""
         self._final_supp_precip = value
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is None:
@@ -263,12 +355,12 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
     ) -> None:
-        """Initialize SupplementalPrecipHydrofabric with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize SupplementalPrecipHydrofabric.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
         for attr in SUPPPRECIPMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is None:
@@ -282,7 +374,7 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
         """Setter for final_supp_precip."""
         self._final_supp_precip = value
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is None:
@@ -306,12 +398,12 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
         config_options: ConfigOptions = None,
         geo_meta: GeoMeta = None,
     ) -> None:
-        """Initialize InputForcingsUnstructured with configuration options, geospatial metadata, and MPI configuration."""
+        """Initialize SupplementalPrecipUnstructured.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
         for attr in SUPPPRECIPMOD[self.__class__.__name__]:
             setattr(self, attr, None)
 
-    @cached_property
+    @property
     def final_supp_precip(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation."""
         if self._final_supp_precip is None:
@@ -325,7 +417,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
         """Setter for final_supp_precip."""
         self._final_supp_precip = value
 
-    @cached_property
+    @property
     def regridded_mask(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids."""
         if self._regridded_mask is None:
@@ -339,7 +431,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
         """Setter for regridded_mask."""
         self._regridded_mask = value
 
-    @cached_property
+    @property
     def final_supp_precip_elem(self) -> np.ndarray | Any:
         """Get the final supplemental precipitation grid after regridding and temporal interpolation for unstructured grids."""
         if self._final_supp_precip_elem is None:
@@ -353,7 +445,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
         """Setter for final_supp_precip_elem."""
         self._final_supp_precip_elem = value
 
-    @cached_property
+    @property
     def regridded_mask_elem(self) -> np.ndarray | Any:
         """Get the regridded mask after regridding input forcings to the supplemental precipitation grids for unstructured grids."""
         if self._regridded_mask_elem is None:
