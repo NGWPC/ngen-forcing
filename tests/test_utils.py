@@ -47,7 +47,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
 
-_HASH_STRING_RE = re.compile(r"^hash_\d+_len_(\d+)$")
+_HASH_STRING_RE = re.compile(r"^hash_-?\d+_len_(\d+)$")
 
 
 def _normalize_hash_str(s: str) -> str:
