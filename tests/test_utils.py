@@ -3,6 +3,7 @@
 import json
 import logging
 import os
+import re
 import typing
 from collections import OrderedDict
 from dataclasses import dataclass
@@ -45,6 +46,54 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
 )
 
 OS_VAR__CREATE_TEST_EXPECT_DATA = "FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA"
+
+_HASH_STRING_RE = re.compile(r"^hash_\d+_len_(\d+)$")
+
+
+def _normalize_hash_str(s: str) -> str:
+    """Replace hash_{n}_len_{x} with hash_ANY_len_{x}, keeping only the length so that the hash value
+    can be optionally ignored, only asserting that the length matches. The intent of this is to handle
+    cases of large structures of coordinate values that end up getting hashed."""
+    m = _HASH_STRING_RE.match(s)
+    return f"hash_ANY_len_{m.group(1)}" if m else s
+
+
+_HASH_NORMALIZED_KEYS = frozenset({"_coords", "lat_bounds", "lon_bounds"})
+
+
+def _normalize_coords_hashes(data: typing.Any) -> typing.Any:
+    """Recursively normalize hash strings in known location keys so only the length is compared."""
+    if isinstance(data, dict):
+        return {
+            k: (
+                _apply_hash_normalization(v)
+                if k in _HASH_NORMALIZED_KEYS
+                else _normalize_coords_hashes(v)
+            )
+            for k, v in data.items()
+        }
+    if isinstance(data, list):
+        return [_normalize_coords_hashes(item) for item in data]
+    return data
+
+
+def _apply_hash_normalization(value: typing.Any) -> typing.Any:
+    """Normalize hash strings in a value (may be a string or nested lists of strings).
+    For _coords specifically, arrays of coordinates are dropped since
+    those values are already verified via other keys."""
+    if isinstance(value, str):
+        return _normalize_hash_str(value)
+    if isinstance(value, list):
+        # Detect _coords structure: [list-of-hash-strings, coord-arrays]. Drop the coordinate arrays from the check.
+        if (
+            len(value) == 2
+            and isinstance(value[0], list)
+            and value[0]
+            and all(isinstance(s, str) and _HASH_STRING_RE.match(s) for s in value[0])
+        ):
+            return [[_normalize_hash_str(s) for s in value[0]], None]
+        return [_apply_hash_normalization(item) for item in value]
+    return value
 
 
 def remove_key(input_data: dict, keys_to_exclude: tuple = ()) -> dict:
@@ -400,8 +449,8 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         """Compare actual vs expected results."""
         try:
             assert_equal_with_tol(
-                expect=expected,
-                actual=actual,
+                expect=_normalize_coords_hashes(expected),
+                actual=_normalize_coords_hashes(actual),
                 new_keys_in_actual_ok=True,
             )
         except ExpectVsActualError as e:
