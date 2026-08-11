@@ -92,7 +92,12 @@ def scatter(prop) -> Any:
             assert isinstance(post_slice, bool)
             assert isinstance(name, str)
             assert isinstance(config_options, ConfigOptions)
-            assert isinstance(var, np.ndarray)
+            # var is only populated on rank 0 -- every other rank gets its
+            # share via scatter_array() below, which is None-safe on
+            # non-zero ranks (confirmed in parallel.py). Asserting here
+            # unconditionally rejected every rank but 0.
+            if self.mpi_config.rank == 0:
+                assert isinstance(var, np.ndarray)
 
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
