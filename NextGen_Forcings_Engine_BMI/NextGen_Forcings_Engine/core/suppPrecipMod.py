@@ -91,7 +91,9 @@ class SupplementalPrecip:
             elif val is None:
                 self._rqiMethod = 0
             else:
-                raise TypeError(f"Unexpected type for config_options.rqiMethod: {type(val)}")
+                raise TypeError(
+                    f"Unexpected type for config_options.rqiMethod: {type(val)}"
+                )
         return self._rqiMethod
 
     @rqiMethod.setter
@@ -113,7 +115,9 @@ class SupplementalPrecip:
                 # When RQI is configured, a scalar gets expanded to a list before reaching here.
                 self._rqiThresh = float(val) if val is not None else 1.0
             else:
-                raise TypeError(f"Unexpected type for config_options.rqiThresh: {type(val)}")
+                raise TypeError(
+                    f"Unexpected type for config_options.rqiThresh: {type(val)}"
+                )
         return self._rqiThresh
 
     @rqiThresh.setter
