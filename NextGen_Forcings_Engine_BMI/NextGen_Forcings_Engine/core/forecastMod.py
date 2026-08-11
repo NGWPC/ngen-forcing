@@ -1,3 +1,6 @@
+
+raise NotImplementedError(f"This file, {__file__}, is deprecated.")
+
 from __future__ import annotations
 
 import datetime
@@ -78,6 +81,7 @@ def process_forecasts(
     # 'WrfHydroForcing.COMPLETE' flag in the directory. This will be
     # checked upon the beginning of this program to see if we
     # need to process any files.
+    raise NotImplementedError(f"This file, {__file__}, is deprecated.")
 
     disaggregate_fun = disaggregate_factory(config_options)
 
