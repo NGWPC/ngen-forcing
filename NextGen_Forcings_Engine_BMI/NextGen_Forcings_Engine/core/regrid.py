@@ -12412,13 +12412,32 @@ def calculate_supp_pcp_weights(
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
-            supplemental_precip.esmf_field_in,
-            supplemental_precip.esmf_field_out,
-            src_mask_values=np.array([0]),
-            regrid_method=ESMF.RegridMethod.BILINEAR,
-            unmapped_action=ESMF.UnmappedAction.IGNORE,
-        )
+        # Reuse a cached weight file if one exists (see get_weight_file_names /
+        # load_weight_file, also used by calculate_weights() for InputForcings) --
+        # this code path previously always recomputed weights in memory, with no
+        # on-disk caching, unlike the InputForcings path.
+        weight_file, _ = get_weight_file_names(mpi_config, config_options, supplemental_precip)
+        if config_options.weightsDir is not None:
+            if not os.path.exists(weight_file):
+                supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
+                    supplemental_precip.esmf_field_in,
+                    supplemental_precip.esmf_field_out,
+                    src_mask_values=np.array([0]),
+                    regrid_method=ESMF.RegridMethod.BILINEAR,
+                    unmapped_action=ESMF.UnmappedAction.IGNORE,
+                    filename=weight_file,
+                )
+            load_weight_file(
+                mpi_config, config_options, supplemental_precip, weight_file, element_mode=False
+            )
+        else:
+            supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
+                supplemental_precip.esmf_field_in,
+                supplemental_precip.esmf_field_out,
+                src_mask_values=np.array([0]),
+                regrid_method=ESMF.RegridMethod.BILINEAR,
+                unmapped_action=ESMF.UnmappedAction.IGNORE,
+            )
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.
