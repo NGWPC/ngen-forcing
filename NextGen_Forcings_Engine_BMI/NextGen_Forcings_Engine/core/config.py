@@ -158,11 +158,6 @@ class ConfigOptions:
         return 15
 
     @property
-    def number_supp_pcp(self) -> int:
-        """Calculate the number of supplemental precip forcings specified by the user in the configuration file."""
-        return len(self.supp_precip_forcings)
-
-    @property
     def precip_only_flag(self) -> bool:
         """Flag to indicate whether the user has chosen to run the supplemental precip forcings module only, which will trigger some different processing pathways and error checking for certain configuration options."""
         precip_only = False
