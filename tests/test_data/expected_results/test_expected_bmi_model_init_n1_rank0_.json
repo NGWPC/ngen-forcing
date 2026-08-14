@@ -118,6 +118,10 @@
     "time_step_seconds": 3600
   },
   "geo_meta": {
+    "approx_centroid_global_xy": [
+      -72.05503025291092,
+      41.7594933573475
+    ],
     "centerCoords": null,
     "config_options": {
       "ExactExtract": null,
@@ -340,7 +344,7 @@
       "_coords": [
         [
           "hash_2904886930620536845_len_582",
-          "hash_2117205719057770460_len_582"
+          "hash_902249663378761532_len_582"
         ],
         [
           [
@@ -495,7 +499,7 @@
     "height_elem": null,
     "heights_global": null,
     "inds": null,
-    "lat_bounds": "hash_2117205719057770460_len_582",
+    "lat_bounds": "hash_902249663378761532_len_582",
     "latitude_grid": [
       41.67904491423198,
       41.73961258049449,
