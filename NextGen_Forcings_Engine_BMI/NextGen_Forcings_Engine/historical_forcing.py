@@ -28,9 +28,11 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import rand_str
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.general_utils import (
+    crs_assert_projected_horizontal_meters,
+    rand_str,
+)
 
-warnings.filterwarnings("ignore", module="geopandas")
 LOG = logging.getLogger("FORCING")
 
 zarr.config.set({"async.concurrency": 100})
@@ -49,17 +51,19 @@ class BaseProcessor:
         self.config_options = config_options
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
-        self.dest_crs = CRS(4326)
-        self.buffer = 0.02  # degree buffer around bounding box
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
         """Get bounding box from geospatial dataframe.
 
-        Apply buffer in known crs/units (degrees) and then convert back to src_crs.
+        Apply buffer in known crs/units (m) and then convert back to src_crs.
         """
+        LOG.debug(
+            f"Temporary CRS for creating a mask (will buffer AOI by {self.buffer} in this CRS): {self._temp_crs}"
+        )
+        crs_assert_projected_horizontal_meters(self._temp_crs)
         return (
-            self.gdf.to_crs(self.dest_crs)
+            self.gdf.to_crs(self._temp_crs)
             .buffer(self.buffer)
             .to_crs(self.src_crs)
             .total_bounds
@@ -396,6 +400,8 @@ class AORCConusProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
+        self.buffer = 6000  # m buffer around bounding box. Use 6km buffer in case someone applies this to legacy 4km AORC data instead of the newer 1km AORC data.
+        self._temp_crs = CRS(5070)
 
     @cached_property
     def src_crs(self) -> CRS:
@@ -466,6 +472,8 @@ class AORCAlaskaProcessor(BaseProcessor):
         self.x_label = "longitude"
         self.y_label = "latitude"
         self.time_label = "time"
+        self.buffer = 6000  # m buffer around bounding box. Use 6km buffer in case someone applies this to legacy 4km AORC data instead of the newer 1km AORC data.
+        self._temp_crs = CRS(3338)
 
     @cached_property
     def src_crs(self):
@@ -536,6 +544,7 @@ class NWMV3Processor(BaseProcessor):
         self.x_label = "x"
         self.y_label = "y"
         self.time_label = "time"
+        self.buffer = 6000  # m buffer around bounding box
 
     @property
     def vars(
@@ -565,6 +574,7 @@ class NWMV3ConusProcessor(NWMV3Processor):
     ):
         """Initialize NWM CONUS processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(5070)
 
     def url(self, var: str) -> str:
         """Generate NWM S3 zarr URL for current variable.
@@ -685,8 +695,8 @@ class NWMV3OConusProcessor(NWMV3Processor):
         return xr.open_zarr(ObjectStore(object_store))
 
 
-class NWMV3AlaskaProcessor(NWMV3Processor):
-    """Processor for NWM OCONUS data."""
+class NWMV3PuertoRicoProcessor(NWMV3OConusProcessor):
+    """Processor for NWM Puerto Rico data."""
 
     def __init__(
         self,
@@ -694,8 +704,45 @@ class NWMV3AlaskaProcessor(NWMV3Processor):
         mpi_config: MpiConfig,
         wrf_hydro_geo_meta: dict,
     ):
-        """Initialize NWM OCONUS processor."""
+        """Initialize NWM Puerto Rico processor."""
         super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(32161)
+
+
+class NWMV3HawaiiProcessor(NWMV3OConusProcessor):
+    """Processor for NWM Hawaii data."""
+
+    def __init__(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+        wrf_hydro_geo_meta: dict,
+    ):
+        """Initialize NWM Hawaii processor."""
+        super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        lon, lat = wrf_hydro_geo_meta.approx_centroid_global_xy
+        if not -180 < lon < 180:
+            raise ValueError(f"Unexpected (lon, lat) = ({lon}, {lat})")
+        utm_zone_number = int((lon + 180) / 6) + 1
+        if utm_zone_number not in (1, 2, 3, 4, 5):
+            raise ValueError(
+                f"Unexpected UTM zone {utm_zone_number} for Hawaii. Expected zone 1 through 5. (lon, lat) = ({lon}, {lat})"
+            )
+        self._temp_crs = CRS(f"EPSG:3260{utm_zone_number}")
+
+
+class NWMV3AlaskaProcessor(NWMV3Processor):
+    """Processor for NWM Alaska data."""
+
+    def __init__(
+        self,
+        config_options: ConfigOptions,
+        mpi_config: MpiConfig,
+        wrf_hydro_geo_meta: dict,
+    ):
+        """Initialize NWM Alaska processor."""
+        super().__init__(config_options, mpi_config, wrf_hydro_geo_meta)
+        self._temp_crs = CRS(3338)
 
     @cached_property
     def url(self) -> str:
