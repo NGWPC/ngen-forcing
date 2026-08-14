@@ -118,6 +118,10 @@
     "time_step_seconds": 3600
   },
   "geo_meta": {
+    "approx_centroid_global_xy": [
+      -72.05503025291092,
+      41.7594933573475
+    ],
     "centerCoords": null,
     "config_options": {
       "ExactExtract": null,
@@ -166,7 +170,7 @@
               "long_name": "longitude",
               "units": "degrees_east"
             },
-            "data": "hash_-7248319024934117860_len_14",
+            "data": "hash_-5399622063019475031_len_28",
             "dims": [
               "x"
             ]
@@ -176,7 +180,7 @@
               "long_name": "latitude",
               "units": "degrees_north"
             },
-            "data": "hash_5170267599511687273_len_29",
+            "data": "hash_-1457289664996315734_len_37",
             "dims": [
               "y"
             ]
@@ -313,8 +317,8 @@
           }
         },
         "dims": {
-          "x": 14,
-          "y": 29
+          "x": 28,
+          "y": 37
         }
       },
       "aws_time": null,
@@ -742,7 +746,7 @@
                 "long_name": "longitude",
                 "units": "degrees_east"
               },
-              "data": "hash_-7248319024934117860_len_14",
+              "data": "hash_-5399622063019475031_len_28",
               "dims": [
                 "x"
               ]
@@ -752,7 +756,7 @@
                 "long_name": "latitude",
                 "units": "degrees_north"
               },
-              "data": "hash_5170267599511687273_len_29",
+              "data": "hash_-1457289664996315734_len_37",
               "dims": [
                 "y"
               ]
@@ -889,8 +893,8 @@
             }
           },
           "dims": {
-            "x": 14,
-            "y": 29
+            "x": 28,
+            "y": 37
           }
         },
         "aws_time": null,
