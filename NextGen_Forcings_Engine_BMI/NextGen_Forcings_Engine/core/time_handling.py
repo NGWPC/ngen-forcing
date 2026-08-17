@@ -4084,15 +4084,11 @@ def find_hourly_nbm_neighbors(
         seconds=(ana_offset + supplemental_precip.userCycleOffset) * 60.0
     )
 
-    # if Alaska SR, shift to previous cycle and add 3 hours to forecast ('f') if using all NBM precip
-    if config_options.fcst_freq == 180 and supplemental_precip.keyValue == 9:
-        current_nbm_cycle -= datetime.timedelta(hours=3)
-
     # Calculate the current forecast hour within this NBM cycle.
     dt_tmp = d_current - current_nbm_cycle
     current_nbm_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
 
-    # Set the input file frequency to be hourly for f001-f036 and 6-hourly beyond f036.
+    # Set the input file frequency to be hourly for f001-f036, 6-hourly beyond.
     if current_nbm_hour <= 36:
         supplemental_precip.input_frequency = 60.0
     else:
