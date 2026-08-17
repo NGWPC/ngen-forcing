@@ -26,14 +26,16 @@ class NBMAlaskaDownloader(ForecastDownloader):
             # Short range extended Alaska: cycles at 03/09/15/21Z, hourly f001-f048
             if d_start.hour not in (3, 9, 15, 21):
                 return []
-            return list(range(1, 49))
+            hourly = range(1, 37)  # 1 through 36
+            every_3h = range(39, 49, 3)  # 39 through 49, step of 3
+            return list(hourly) + list(every_3h)
 
         elif self.input_horizon == 240:
             # Medium Range Alaska: cycles at 00/06/12/18Z, tiered hourly/3h/6h to f264
             if d_start.hour not in (0, 6, 12, 18):
                 return []
             hourly = range(1, 37)  # 1 through 36
-            every_3h = range(36, 193, 3)  # 123 through 240, step of 3
+            every_3h = range(39, 193, 3)  # 123 through 240, step of 3
             every_6h = range(198, 265, 6)  # 198 through 264, step of 6
             return list(hourly) + list(every_3h) + list(every_6h)
 

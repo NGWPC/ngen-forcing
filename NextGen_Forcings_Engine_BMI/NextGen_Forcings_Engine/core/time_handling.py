@@ -4088,9 +4088,11 @@ def find_hourly_nbm_neighbors(
     dt_tmp = d_current - current_nbm_cycle
     current_nbm_hour = int(dt_tmp.days * 24) + int(dt_tmp.seconds / 3600.0)
 
-    # Set the input file frequency to be hourly for f001-f036 and 6-hourly beyond f036.
+    # Set the input file frequency to be hourly for f001-f036, 3-hourly for f-039-f192, and 6-hourly beyond f192.
     if current_nbm_hour <= 36:
         supplemental_precip.input_frequency = 60.0
+    elif current_nbm_hour <= 192:
+        supplemental_precip.input_frequency = 180.0
     else:
         supplemental_precip.input_frequency = 360.0
 
