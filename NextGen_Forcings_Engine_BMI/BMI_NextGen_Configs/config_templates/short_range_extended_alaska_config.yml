@@ -19,7 +19,7 @@ RefcstBDateProc: "202311191900"
 ForecastFrequency: 60
 ForecastShift: 0
 ForecastInputHorizons: [2700]
-ForecastInputOffsets: [0]
+ForecastInputOffsets: [180]
 Geopackage: "{root_dir}/gpkg/alaska/{gage}.gpkg"
 GeogridIn: "{root_dir}/esmf_mesh/{gage}_ESMF_Mesh.nc"
 SpatialMetaIn: ""
