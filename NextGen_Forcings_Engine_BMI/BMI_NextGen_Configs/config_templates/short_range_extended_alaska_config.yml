@@ -54,7 +54,7 @@ SuppPcpDirectories: ["{root_dir}/raw_input/NBM_AK"]
 SuppPcpParamDir: '{root_dir}'
 RegridOptSuppPcp: [1]
 SuppPcpTemporalInterpolation: [0]
-SuppPcpInputOffsets: [0]
+SuppPcpInputOffsets: [180]
 SuppPcpMandatory: [1]
 RqiMethod: 0
 RqiThreshold: 0.9

@@ -16,24 +16,20 @@ class NBMAlaskaDownloader(ForecastDownloader):
         return "https://noaa-nbm-grib2-pds.s3.amazonaws.com"
 
     def get_download_targets(self, d_start):
+        if d_start.hour not in (0, 6, 12, 18):
+            return []
         if self.input_horizon == 15:
-            # Short range Alaska: cycles at 00/06/12/18Z, hourly f001-f018
-            if d_start.hour not in (0, 6, 12, 18):
-                return []
+            # Short range Alaska: hourly f001-f018
             return list(range(1, 19))
 
         elif self.input_horizon == 45:
-            # Short range extended Alaska: cycles at 03/09/15/21Z, hourly f001-f048
-            if d_start.hour not in (3, 9, 15, 21):
-                return []
+            # Short range extended Alaska: hourly f001-f036, then 6 hourly
             hourly = range(1, 37)  # 1 through 36
-            every_3h = range(39, 49, 3)  # 39 through 49, step of 3
-            return list(hourly) + list(every_3h)
+            every_6h = [42, 48]  # 39 through 49, step of 6
+            return list(hourly) + every_6h
 
         elif self.input_horizon == 240:
-            # Medium Range Alaska: cycles at 00/06/12/18Z, tiered hourly/3h/6h to f264
-            if d_start.hour not in (0, 6, 12, 18):
-                return []
+            # Medium Range Alaska: tiered hourly/3h/6h to f264
             hourly = range(1, 37)  # 1 through 36
             every_3h = range(39, 193, 3)  # 123 through 240, step of 3
             every_6h = range(198, 265, 6)  # 198 through 264, step of 6
