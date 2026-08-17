@@ -39,8 +39,12 @@ def retrieve_forcing(config_options: ConfigOptions):
     input_horizons = input_horizons + [input_horizons[0]] * len(
         config_options.supp_precip_forcings
     )
-    fcst_offsets = config_options.fcst_input_offsets
-    supp_offsets = config_options.supp_input_offsets
+    fcst_offsets = getattr(config_options, "fcst_input_offsets", None)
+    if fcst_offsets is None:
+        fcst_offsets = [0] * len(config_options.input_forcings)
+    supp_offsets = getattr(config_options, "supp_input_offsets", None)
+    if supp_offsets is None:
+        supp_offsets = [0] * len(config_options.supp_precip_forcings)
     input_offsets = list(fcst_offsets) + list(supp_offsets)
     ens_number = config_options.cfsv2EnsMember
     ana_flag = config_options.ana_flag
