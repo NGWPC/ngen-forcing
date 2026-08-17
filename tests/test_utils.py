@@ -386,40 +386,35 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         """Get the expected metadata results as a deserialized dictionary."""
         file_path = self.expected_results_file_path(suffix, current_output_step)
 
-        if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
-            # Dump current results to disk, to save it as "expected" results for later test runs.
-            # Should only be used when committing new test results to the repository.
-            logging.warning(f"Writing test data: {file_path}")
-            deserial_expected = self.deserial_actual(
-                suffix, current_output_step, write_to_file=False
-            )
-            with open(file_path, "w") as f:
-                f.write(serialize_to_json(deserial_expected, sort_keys=True))
-            # Remove keys that should be excluded from comparison (match read-exclusion)
-            deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
+        try:
+            with open(file_path) as f:
+                deserial_expected = json.load(f)
             if self.map_old_to_new_var_names:
                 deserial_expected = self.map_old_to_new_variable_names(
                     deserial_expected
                 )
             self._trim_arrays_to_input_map_output(deserial_expected)
-            return deserial_expected
-        else:
-            try:
-                with open(file_path) as f:
-                    deserial_expected = json.load(f)
-                if self.map_old_to_new_var_names:
-                    deserial_expected = self.map_old_to_new_variable_names(
-                        deserial_expected
-                    )
-                self._trim_arrays_to_input_map_output(deserial_expected)
-                # Remove keys that should be excluded from comparison (match write-exclusion)
-                deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
-                # order and reverse so private attributes are last
-                return OrderedDict(reversed(list(deserial_expected.items())))
-            except FileNotFoundError as e:
-                raise FileNotFoundError(
-                    f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
-                ) from e
+            # Remove keys that should be excluded from comparison
+            deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
+            # order and reverse so private attributes are last
+            return OrderedDict(reversed(list(deserial_expected.items())))
+        except FileNotFoundError as e:
+            raise FileNotFoundError(
+                f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
+            ) from e
+
+    def _write_expected_file(self, actual_data: dict, suffix: str, current_output_step: str = "") -> None:
+        """Write actual data to expected results file for test data generation.
+        
+        This is a separate explicit step in the workflow to avoid confusion between
+        expected and actual data. Should only be called when FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true.
+        """
+        file_path = self.expected_results_file_path(suffix, current_output_step)
+        # Remove excluded keys before writing
+        data_to_write = remove_key(dict(actual_data), self.keys_to_exclude)
+        logging.warning(f"Writing test data: {file_path}")
+        with open(file_path, "w") as f:
+            f.write(serialize_to_json(data_to_write, sort_keys=True))
 
     def map_old_to_new_variable_names(self, data: dict) -> dict:
         """Map old variable names to new variable names in the expected results data."""
@@ -440,7 +435,11 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         orig = self.keys_to_exclude
         self.keys_to_exclude = orig + self.keys_to_exclude_at_init
         try:
-            self.compare(self.deserial_actual("init"), self.deserial_expected("init"))
+            actual = self.deserial_actual("init")
+            if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
+                self._write_expected_file(actual, "init")
+            expected = self.deserial_expected("init")
+            self.compare(actual, expected)
         finally:
             self.keys_to_exclude = orig
 
@@ -474,17 +473,20 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
         """
         logging.info("Starting after_bmi_model_update()...")
-        self.compare(
-            self.deserial_actual("after_update", f"_step_{current_output_step}"),
-            self.deserial_expected("after_update", f"_step_{current_output_step}"),
-        )
+        actual = self.deserial_actual("after_update", f"_step_{current_output_step}")
+        if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
+            self._write_expected_file(actual, "after_update", f"_step_{current_output_step}")
+        expected = self.deserial_expected("after_update", f"_step_{current_output_step}")
+        self.compare(actual, expected)
 
     def after_finalize(self) -> None:
         """Run checks after bmi_model.finalize() has been called."""
         logging.info("Starting after_finalize()...")
-        self.compare(
-            self.deserial_actual("finalize"), self.deserial_expected("finalize")
-        )
+        actual = self.deserial_actual("finalize")
+        if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
+            self._write_expected_file(actual, "finalize")
+        expected = self.deserial_expected("finalize")
+        self.compare(actual, expected)
 
     def actual_results_file_path(
         self, suffix: str, current_output_step: str = ""
