@@ -711,7 +711,7 @@ class NWMv3ForcingEngineModel:
                 self._bmi._values[f"{variable}_ELEMENT"] = (
                     self._bmi._output_obj.output_global[count, :].flatten()
                 )
-                self._bmi._values["CAT-ID"] = self._bmi.geo_meta.element_ids_global
+            self._bmi._values["CAT-ID"] = self._bmi._cat_ids
         else:
             raise ValueError(
                 f"Unexpected grid_type: {repr(self._bmi._job_meta.grid_type)}"

@@ -223,11 +223,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     def _job_meta(self, value: ConfigOptions) -> None:
         """Set the job metadata object."""
         if value is None:
-            value = ConfigOptions(
-                self.cfg_bmi, b_date=self._b_date, geogrid_arg=self._geogrid
-            )
             try:
-                value.validate_config(self.cfg_bmi)
+                value = ConfigOptions(
+                    self.cfg_bmi, b_date=self._b_date, geogrid=self._geogrid
+                )
             except KeyboardInterrupt as e:
                 err_handler.err_out_screen("User keyboard interrupt", e)
             except ImportError as e:
@@ -281,7 +280,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._job_meta.uniquefy_scratch_dir_as_child(self._mpi_meta.uid64)
 
     def create_esmf_mesh(self) -> None:
-        """Create the ESMF mesh for the model."""
+        """Create the ESMF mesh for the model and set ``self._cat_ids`` (later used as BMI variable "CAT-ID")."""
         if self._mpi_meta.rank == 0:
             cat_ids = esmf_creation.create_mesh(self._job_meta)
         cat_count = np.array([
@@ -291,6 +290,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
         self._mpi_meta.comm.Bcast(cat_ids, root=0)
+        self._cat_ids = cat_ids
 
     def fetch_raw_forcing_data(self) -> None:
         """Fetch raw forcing data for the model.
@@ -411,12 +411,11 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         """Set the initial time and time step size for the model."""
         self._values["current_model_time"] = self.cfg_bmi["initial_time"]
         self._values["time_step_size"] = self.cfg_bmi["time_step_seconds"]
-        self._values["CAT-ID"] = cat_ids
 
     def set_catchment_ids(self) -> None:
         """Set catchment ids if using hydrofabric."""
         if self._grid_type == "hydrofabric":
-            self._values["CAT-ID"] = self.geo_meta.element_ids_global
+            self._values["CAT-ID"] = self._cat_ids
 
     def initialize(self, config_file: str) -> None:
         """Initialize the model using a configuration file.
@@ -435,7 +434,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._config_file = config_file
         for attr in BMI_MODEL[self.__class__.__base__.__name__]:
             setattr(self, attr, None)
-        self._model = NWMv3ForcingEngineModel()
+        self._model = NWMv3ForcingEngineModel(self)
         self.init_log()
         self.init_mpi()
         self.init_scratch_dir()
@@ -1540,7 +1539,6 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
 
     def __init__(
         self,
-        config_file: str,
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
@@ -1549,7 +1547,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(config_file, b_date, geogrid, output_path)
+        super().__init__(b_date, geogrid, output_path)
         self.GeoMeta = GriddedGeoMeta
 
     def grid_ranks(self) -> list[int]:
@@ -1679,7 +1677,6 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
 
     def __init__(
         self,
-        config_file: str,
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
@@ -1688,7 +1685,7 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(config_file, b_date, geogrid, output_path)
+        super().__init__(b_date, geogrid, output_path)
         self.GeoMeta = UnstructuredGeoMeta
 
     def grid_ranks(self) -> list[int]:
