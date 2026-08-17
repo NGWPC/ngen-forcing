@@ -284,7 +284,7 @@ class BMIForcingFixture:
     def __init__(self, cfg: TestConfig_Base) -> None:
         """Initialize BMIForcingFixture."""
         self.bmi_model: NWMv3_Forcing_Engine_BMI_model_Base = BMIMODEL[cfg.grid_type]()
-        self.bmi_model.initialize_with_params(config_file=cfg.config_file)
+        self.bmi_model.initialize(cfg.config_file)
 
         self.bmi_model_values = self.bmi_model._values
         self.mpi_config: MpiConfig = self.bmi_model._mpi_meta
