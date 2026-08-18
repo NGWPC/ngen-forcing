@@ -417,7 +417,6 @@ class NWMv3ForcingEngineModel:
                     self._bmi._output_obj,
                     input_forcings,
                     self._bmi._job_meta,
-                    self._bmi._mpi_meta,
                 )
                 self.check_program_status()
 
