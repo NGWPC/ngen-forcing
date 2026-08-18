@@ -139,9 +139,8 @@ def convert_hyfab_to_esmf(hyfab_gpkg: pathlib.Path, esmf_mesh_output: pathlib.Pa
 
         element_elevation[i] = hyfab.elevation_mean[i]
         element_slope[i] = hyfab.slope1km_mean[i]
-        element_slope_azmuith[i] = hyfab.aspect_circmean[
-            i
-        ]  # NHF aspect is currently in radians, may need to be converted to degrees
+        # NHF aspect is currently in radians, may need to be converted to degrees
+        element_slope_azmuith[i] = hyfab.aspect_circmean[i]
 
         if ccw:
             node_x_coord[node_start : node_start + num_nodes] = np.array(

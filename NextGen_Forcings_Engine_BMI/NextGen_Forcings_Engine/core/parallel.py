@@ -20,6 +20,9 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
         ConfigOptions,
     )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+        GriddedGeoMeta,
+    )
 
 # If MPI was initialized outside of python,
 # disable initialization/finalization behavior
@@ -27,9 +30,6 @@ if MPI.Is_initialized():
     mpi4py.rc.initialize = False
     mpi4py.rc.finalize = False
 
-if TYPE_CHECKING:
-    from .config import ConfigOptions
-    from .geoMod import GriddedGeoMeta
 
 _T = TypeVar("_T")
 
