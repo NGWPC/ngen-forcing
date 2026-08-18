@@ -324,12 +324,18 @@ class BMIForcingFixture:
                 )
                 data_dict[key] = value[: len(input_map_output)]
 
-    def _apply_transformations(self, data: dict, keys_to_exclude: tuple, keys_no_hash: tuple = (), apply_map: bool = True) -> dict:
+    def _apply_transformations(
+        self,
+        data: dict,
+        keys_to_exclude: tuple,
+        keys_no_hash: tuple = (),
+        apply_map: bool = True,
+    ) -> dict:
         """Apply transformations to live BMI data to produce its final JSON representation.
-        
+
         Used only by deserial_actual() to transform raw BMI state. Expected result files are already
         in their final form (transformed + extra_attrs added), so they are read directly without re-transformation.
-        
+
         The processing order is:
         1. Re-order the keys
         2. Save raw values for keys_no_hash before hashing
@@ -337,22 +343,20 @@ class BMIForcingFixture:
         4. Restore raw values for keys_no_hash
         5. Remove excluded keys
         6. Map old variable names to new (if apply_map=True and self.map_old_to_new_var_names)
-        
+
         Args:
             data: The deserialized data dictionary
             keys_to_exclude: Tuple of keys to exclude from result
             keys_no_hash: Tuple of keys that should NOT be hashed (preserved as raw values)
             apply_map: Whether to apply variable name mapping (converting earlier pre-refactor namespace to later namespace)
-            
+
         Returns:
             Transformed dictionary
         """
         # Order and reverse so private attributes are last
         result = OrderedDict(reversed(list(data.items())))
         # Save raw values for keys that should not be hashed
-        raw_vals_no_hash = {
-            k: result[k] for k in keys_no_hash if k in result
-        }
+        raw_vals_no_hash = {k: result[k] for k in keys_no_hash if k in result}
         # Convert long lists to hash strings (this may hash keys_no_hash too)
         result = convert_long_lists(result, 10)
         # Restore raw (unhashed) values for keys_no_hash
@@ -392,12 +396,12 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 copy_and_stringify_functions(self.test_class_as_dict), sort_keys=True
             )
         )
-        data = self._apply_transformations(data, self.keys_to_exclude, keys_no_hash=self.keys_no_hash, apply_map=True)
+        data = self._apply_transformations(
+            data, self.keys_to_exclude, keys_no_hash=self.keys_no_hash, apply_map=True
+        )
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
-            data[ea.results_key_name] = ea.get(
-                self, serialize_and_deserialize=True
-            )
+            data[ea.results_key_name] = ea.get(self, serialize_and_deserialize=True)
 
         self._trim_arrays_to_input_map_output(data)
 
@@ -427,9 +431,11 @@ class BMIForcingFixture_Class(BMIForcingFixture):
                 f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
             ) from e
 
-    def _write_expected_file(self, actual_data: dict, suffix: str, current_output_step: str = "") -> None:
+    def _write_expected_file(
+        self, actual_data: dict, suffix: str, current_output_step: str = ""
+    ) -> None:
         """Write actual data to expected results file for test data generation.
-        
+
         This is a separate explicit step in the workflow to avoid confusion between
         expected and actual data. Should only be called when FORCING_PYTEST_WRITE_TEST_EXPECTED_DATA=true.
         """
@@ -499,8 +505,12 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         logging.info("Starting after_bmi_model_update()...")
         actual = self.deserial_actual("after_update", f"_step_{current_output_step}")
         if os.environ.get(OS_VAR__CREATE_TEST_EXPECT_DATA, "").lower() == "true":
-            self._write_expected_file(actual, "after_update", f"_step_{current_output_step}")
-        expected = self.deserial_expected("after_update", f"_step_{current_output_step}")
+            self._write_expected_file(
+                actual, "after_update", f"_step_{current_output_step}"
+            )
+        expected = self.deserial_expected(
+            "after_update", f"_step_{current_output_step}"
+        )
         self.compare(actual, expected)
 
     def after_finalize(self) -> None:

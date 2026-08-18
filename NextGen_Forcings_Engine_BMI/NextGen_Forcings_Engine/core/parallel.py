@@ -384,7 +384,9 @@ class MpiConfig:
         try:
             self.comm.Allgather([shapes, MPI.INTEGER], [global_shapes, MPI.INTEGER])
         except Exception:
-            self.config_options.errMsg = "Failed all gathering slab shapes at rank" + str(self.rank)
+            self.config_options.errMsg = (
+                "Failed all gathering slab shapes at rank" + str(self.rank)
+            )
             err_handler.log_critical(self.config_options, self)
             return None
 
@@ -455,7 +457,9 @@ class MpiConfig:
                     root=0,
                 )
         except Exception:
-            self.config_options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
+            self.config_options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(
+                self.rank
+            )
             err_handler.log_critical(self.config_options, self)
             return None
 

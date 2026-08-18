@@ -71,7 +71,7 @@ class ConfigOptions:
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
 
         self._scratch_dir_has_been_uniquefied = False
-        
+
         # These must exist (as None) before the properties are accessed
         self._supp_precip_forcings = None
         self._b_date_proc = None
@@ -89,7 +89,7 @@ class ConfigOptions:
         self._geopackage = None
         self._geogrid = None
         self._grid_type = None
-        
+
         # set list of attributes from consts.py to None early on in the init process.
         # These are indexed from the consts dictionary.
         # This must happen before accessing properties like precip_only_flag
@@ -144,12 +144,14 @@ class ConfigOptions:
             # Initialize downscaling attributes to None even if downscaling is not performed
             self.set_attrs(CONFIGOPTIONS["downscaling_attrs_map"], set_none=True)
             if self.grid_type == "unstructured":
-                self.set_attrs(CONFIGOPTIONS["downscaling_unstructred_attrs_map"], set_none=True)
+                self.set_attrs(
+                    CONFIGOPTIONS["downscaling_unstructred_attrs_map"], set_none=True
+                )
 
         for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
             "extract_input_variable_set_default_attrs_map"
         ].items():
-            if config_options_attr in ["supp_pcp_max_hours","weightsDir"]:
+            if config_options_attr in ["supp_pcp_max_hours", "weightsDir"]:
                 default = None
             else:
                 default = 0
@@ -700,7 +702,9 @@ class ConfigOptions:
     @number_custom_inputs.setter
     def number_custom_inputs(self, value: int) -> None:
         """This is a read-only computed property based on input_forcings."""
-        raise AttributeError(f"number_custom_inputs is read-only (tried to set to: {value})")
+        raise AttributeError(
+            f"number_custom_inputs is read-only (tried to set to: {value})"
+        )
 
     @property
     def nwm_geogrid(self) -> str:
@@ -710,7 +714,11 @@ class ConfigOptions:
     @nwm_geogrid.setter
     def nwm_geogrid(self, value: str) -> None:
         """Set the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
-        if not self.precip_only_flag and self.input_forcings is not None and 27 in self.input_forcings:
+        if (
+            not self.precip_only_flag
+            and self.input_forcings is not None
+            and 27 in self.input_forcings
+        ):
             self._nwm_geogrid = value
         else:
             self._nwm_geogrid = None
