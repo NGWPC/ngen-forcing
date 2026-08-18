@@ -1,12 +1,169 @@
-"""Layering module for implementing various layering schemes in the WRF-Hydro forcing engine.
+"""Layering module for implementing various layering schemes.
 
-Future functionality may include blenidng, etc.
+Key Concepts
+------------
+force_idx : int
+    Index into the forcing product array.  See function ``layer_final_forcings`` for additional information.
+
+attr_suffix : str
+    Suffix appended to attribute names to access different array variants.
+    Empty string for standard arrays; '_elem' for element-based arrays in unstructured grids.
+
+Future functionality may include blending, etc.
 """
+
+from abc import ABC, abstractmethod
+from typing import Any
 
 import numpy as np
 
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+    ConfigOptions,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+    InputForcings,
+)
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import (
+    OutputObj,
+)
 
-def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
+
+class _LayeringMod(ABC):
+    """Abstract Class for layering of forcing grids"""
+
+    def __init__(
+        self,
+        output_obj,
+        input_forcings: InputForcings,
+        config_options: ConfigOptions,
+    ):
+        self.output_obj = output_obj
+        self.input_forcings = input_forcings
+        self.config_options = config_options
+
+    @abstractmethod
+    def get_slice(self, obj: Any, force_idx: int) -> Any:
+        """Abstract method: Using bracket syntax, return a slice of an object based on its forcing index."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+        """Abstract method: Using bracket syntax, set the value of a slice of an object based on its forcing index."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_layering(self, force_idx: int) -> None:
+        """Abstract method: Apply the layering logic (this is the primary function of this class)."""
+        raise NotImplementedError
+
+    def layerIn(self, force_idx: int, attr_suffix: str = "") -> Any:
+        """Return an input dataset used for layering."""
+        return self.get_slice(
+            getattr(self.input_forcings, f"final_forcings{attr_suffix}"), force_idx
+        )
+
+    def indSet(self, force_idx: int, attr_suffix: str = "") -> Any:
+        """Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask)."""
+        return np.where(
+            self.layerIn(force_idx, attr_suffix) != self.config_options.globalNdv
+        )
+
+    def update_output_local(self, force_idx: int, attr_suffix: str = "") -> None:
+        """Apply layering logic to update the output grid with input forcing data.
+
+        This is the primary business logic of the layering module. It retrieves input forcing data,
+        applies validity checks (using globalNdv as the no-data value), and updates the output grid
+        with valid data. Special handling is provided for ERA5 data.
+
+        Parameters
+        ----------
+        force_idx : int
+            Index of the forcing product to layer.
+        attr_suffix : str, optional
+            Suffix to append to attribute names (e.g., '_elem' for element arrays).
+            Default is empty string, which accesses standard arrays.
+            This is leveraged by the Unstructured discretization type.
+
+        Notes
+        -----
+        - Uses `get_slice()` and `set_slice()` to support different grid discretizations (gridded, unstructured, hydrofabric).
+        - For ERA5 with forcing keys [12, 21], uses `regridded_mask_AORC` (or `regridded_mask_elem_AORC` for elem variants) to determine valid cells.
+        - For other cases, uses global no-data value (`globalNdv`) to identify valid data.
+        """
+        output_tmp = self.get_slice(
+            getattr(self.output_obj, f"output_local{attr_suffix}"), force_idx
+        )
+        layerIn = self.layerIn(force_idx, attr_suffix)
+
+        if (
+            self.input_forcings.product_name == "ERA5"
+            and [12, 21] in self.config_options.input_forcings
+        ):
+            mask = getattr(self.input_forcings, f"regridded_mask{attr_suffix}_AORC")
+            output_tmp[np.where(mask == 0)] = layerIn[np.where(mask == 0)]
+        else:
+            indSet = self.indSet(force_idx, attr_suffix)
+            output_tmp[indSet] = layerIn[indSet]
+
+        self.set_slice(
+            getattr(self.output_obj, f"output_local{attr_suffix}"),
+            force_idx,
+            output_tmp,
+        )
+
+
+class _LayeringMod_Gridded(_LayeringMod):
+    """Implementation of abstract class _LayeringMod for Gridded discretization"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, force_idx: int) -> Any:
+        return obj[force_idx, :, :]
+
+    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+        obj[force_idx, :, :] = value
+
+    def apply_layering(self, force_idx: int) -> None:
+        self.update_output_local(force_idx)
+
+
+class _LayeringMod_Unstructured(_LayeringMod):
+    """Implementation of abstract class _LayeringMod for Unstructured discretization"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, force_idx: int) -> Any:
+        return obj[force_idx, :]
+
+    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+        obj[force_idx, :] = value
+
+    def apply_layering(self, force_idx: int) -> None:
+        self.update_output_local(force_idx)
+        self.update_output_local(force_idx, "_elem")
+
+
+class _LayeringMod_Hydrofabric(_LayeringMod):
+    """Implementation of abstract class _LayeringMod for Hydrofabric discretization"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, force_idx: int) -> Any:
+        return obj[force_idx, :]
+
+    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+        obj[force_idx, :] = value
+
+    def apply_layering(self, force_idx: int) -> None:
+        self.update_output_local(force_idx)
+
+
+def layer_final_forcings(
+    output_obj: OutputObj, input_forcings: InputForcings, config_options: ConfigOptions
+):
     """Layer input forcings onto the output grid.
 
     Function to perform basic layering of input forcings as they are processed. The logic
@@ -15,10 +172,9 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
         for this timestep, forcings are placed onto the output grid by shear brute
         replacement. However, this only occurs where valid data exists.
         Supplemental precipitation will be layered in separately.
-    :param OutputObj:
+    :param output_obj:
     :param input_forcings:
-    :param ConfigOptions:
-    :param MpiConfig:
+    :param config_options:
     :return:
     """
     # Loop through the 8(or 9) forcing products to layer in:
@@ -32,82 +188,21 @@ def layer_final_forcings(OutputObj, input_forcings, ConfigOptions, MpiConfig):
     # 7.) Surface incoming shortwave radiation flux (W/m^2)
     # 8.) Liquid fraction of precipitation ([0..1])
 
-    force_count = 9 if ConfigOptions.include_lqfrac else 8
+    if config_options.grid_type == "gridded":
+        factory = _LayeringMod_Gridded
+    elif config_options.grid_type == "unstructured":
+        factory = _LayeringMod_Unstructured
+    elif config_options.grid_type == "hydrofabric":
+        factory = _LayeringMod_Hydrofabric
+    else:
+        raise ValueError(
+            f"Unexpected discretization type / grid type: {config_options.grid_type}"
+        )
+    layering_mod = factory(output_obj, input_forcings, config_options)
+    force_count = 9 if config_options.include_lqfrac else 8
     for force_idx in range(0, force_count):
         if force_idx in input_forcings.input_map_output:
-            if ConfigOptions.grid_type == "gridded":
-                outLayerCurrent = OutputObj.output_local[force_idx, :, :]
-                layerIn = input_forcings.final_forcings[force_idx, :, :]
-                if (
-                    input_forcings.product_name == "ERA5"
-                    and [12, 21] in ConfigOptions.input_forcings
-                ):
-                    outLayerCurrent[
-                        np.where(input_forcings.regridded_mask_AORC == 0)
-                    ] = layerIn[np.where(input_forcings.regridded_mask_AORC == 0)]
-                    OutputObj.output_local[force_idx, :, :] = outLayerCurrent
-                else:
-                    indSet = np.where(layerIn != ConfigOptions.globalNdv)
-                    outLayerCurrent[indSet] = layerIn[indSet]
-                    OutputObj.output_local[force_idx, :, :] = outLayerCurrent
-
-                # Reset for next iteration and memory efficiency.
-                indSet = None
-            elif ConfigOptions.grid_type == "unstructured":
-                outLayerCurrent = OutputObj.output_local[force_idx, :]
-                layerIn = input_forcings.final_forcings[force_idx, :]
-                if (
-                    input_forcings.product_name == "ERA5"
-                    and [12, 21] in ConfigOptions.input_forcings
-                ):
-                    outLayerCurrent[
-                        np.where(input_forcings.regridded_mask_AORC == 0)
-                    ] = layerIn[np.where(input_forcings.regridded_mask_AORC == 0)]
-                    OutputObj.output_local[force_idx, :] = outLayerCurrent
-                else:
-                    indSet = np.where(layerIn != ConfigOptions.globalNdv)
-                    outLayerCurrent[indSet] = layerIn[indSet]
-                    OutputObj.output_local[force_idx, :] = outLayerCurrent
-
-                outLayerCurrent_elem = OutputObj.output_local_elem[force_idx, :]
-                layerIn_elem = input_forcings.final_forcings_elem[force_idx, :]
-                if (
-                    input_forcings.product_name == "ERA5"
-                    and [12, 21] in ConfigOptions.input_forcings
-                ):
-                    outLayerCurrent_elem[
-                        np.where(input_forcings.regridded_mask_elem_AORC == 0)
-                    ] = layerIn_elem[
-                        np.where(input_forcings.regridded_mask_elem_AORC == 0)
-                    ]
-                    OutputObj.output_local_elem[force_idx, :] = outLayerCurrent_elem
-                else:
-                    indSet_elem = np.where(layerIn_elem != ConfigOptions.globalNdv)
-                    outLayerCurrent_elem[indSet_elem] = layerIn_elem[indSet_elem]
-                    OutputObj.output_local_elem[force_idx, :] = outLayerCurrent_elem
-
-                # Reset for next iteration and memory efficiency.
-                indSet = None
-                indSet_elem = None
-            elif ConfigOptions.grid_type == "hydrofabric":
-                outLayerCurrent = OutputObj.output_local[force_idx, :]
-                layerIn = input_forcings.final_forcings[force_idx, :]
-                if (
-                    input_forcings.product_name == "ERA5"
-                    and [12, 21] in ConfigOptions.input_forcings
-                ):
-                    outLayerCurrent[
-                        np.where(input_forcings.regridded_mask_AORC == 0)
-                    ] = layerIn[np.where(input_forcings.regridded_mask_AORC == 0)]
-                    OutputObj.output_local[force_idx, :] = outLayerCurrent
-                else:
-                    indSet = np.where(layerIn != ConfigOptions.globalNdv)
-                    outLayerCurrent[indSet] = layerIn[indSet]
-                    OutputObj.output_local[force_idx, :] = outLayerCurrent
-                # Reset for next iteration and memory efficiency.
-                indSet = None
-
-    # MpiConfig.comm.barrier()
+            layering_mod.apply_layering(force_idx)
 
 
 def layer_supplemental_forcing(
