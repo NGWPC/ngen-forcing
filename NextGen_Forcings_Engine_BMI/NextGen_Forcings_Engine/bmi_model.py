@@ -423,8 +423,8 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         """Initialize the model using a configuration file.
 
         This function is part of the BMI (Basic Model Interface) specification and is automatically
-        invoked by the BMI system. When running standalone, call `initialize_with_params()` instead,
-        which sets additional parameters such as `b_date`, `geogrid`, and `output_path`.
+        invoked by the BMI system. To override parameters like `b_date`, `geogrid`, and `output_path`
+        (normally read from the config file), pass them to the constructor.
 
         This function is responsible for:
         - Setting up core model attributes, grids, and MPI communication.
