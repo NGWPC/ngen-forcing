@@ -236,6 +236,11 @@ jobs:
         id: filter
         if: github.event_name != 'workflow_dispatch'
         with:
+          # on push the filter's default base is the repo default branch, which
+          # makes every development-pw push diff against development and report
+          # the deps files as changed (they differ across the two branches by
+          # design). compare against the pushed branch itself instead.
+          base: ${{ github.ref_name }}
           filters: |
             deps:
               - 'Dockerfile.dependencies'
