@@ -46,6 +46,14 @@ class ConfigOptions:
         else:
             self.user_provided_geogrid_flag = False
 
+        # If b_date not provided, try to read from config file
+        if b_date is None:
+            b_date = cfg_bmi.get("RefcstBDateProc", None)
+        if b_date is None:
+            err_out_screen(
+                "RefcstBDateProc is either missing or None in configuration file."
+            )
+
         self.b_date_proc = b_date
         self.cfg_bmi = cfg_bmi
         self.geogrid = geogrid
@@ -63,18 +71,43 @@ class ConfigOptions:
         self.nwm_source = "s3://noaa-nwm-retrospective-3-0-pds"
 
         self._scratch_dir_has_been_uniquefied = False
-        self.supp_precip_forcings = self.extract_input_variable("SuppPcp")
-        if not self.precip_only_flag:
-            self.input_forcings = self.extract_input_variable("InputForcings")
-
-        # Create temporary array to hold flags if we need input parameter files.
-        self.param_flag = np.zeros([len(self.input_forcings)], int)
-
-        # set list of attibutes from consts.py to None.
-        # These are indexed from the consts dictionary using the class name
+        
+        # These must exist (as None) before the properties are accessed
+        self._supp_precip_forcings = None
+        self._b_date_proc = None
+        self._input_forcings = None
+        self._nwm_geogrid = None
+        self._output_freq = None
+        self._sub_output_hour = None
+        self._sub_output_freq = None
+        self._scratch_dir = None
+        self._useCompression = None
+        self._ana_flag = None
+        self._look_back = None
+        self._fcst_freq = None
+        self._spatial_meta = None
+        self._geopackage = None
+        self._geogrid = None
+        self._grid_type = None
+        
+        # set list of attributes from consts.py to None early on in the init process.
+        # These are indexed from the consts dictionary.
+        # This must happen before accessing properties like precip_only_flag
         for attr in CONFIGOPTIONS[self.__class__.__name__]:
             setattr(self, attr, None)
         self.broadcast_new_64bit_uid()
+
+        # Extract optional forcing inputs (SuppPcp, InputForcings) from config; default to empty lists if not provided since code assumes these are always iterable
+        supp_pcp = self.extract_input_variable("SuppPcp")
+        self.supp_precip_forcings = supp_pcp if supp_pcp is not None else []
+        if not self.precip_only_flag:
+            input_forc = self.extract_input_variable("InputForcings")
+            self.input_forcings = input_forc if input_forc is not None else []
+            # Create temporary array to hold flags if we need input parameter files.
+            self.param_flag = np.zeros([len(self.input_forcings)], int)
+        else:
+            self.input_forcings = []
+            self.param_flag = np.array([], int)
 
         for (
             cfg_bmi_attr,
@@ -107,6 +140,11 @@ class ConfigOptions:
             self.set_attrs(CONFIGOPTIONS["downscaling_attrs_map"])
             if self.grid_type == "unstructured":
                 self.set_attrs(CONFIGOPTIONS["downscaling_unstructred_attrs_map"])
+        else:
+            # Initialize downscaling attributes to None even if downscaling is not performed
+            self.set_attrs(CONFIGOPTIONS["downscaling_attrs_map"], set_none=True)
+            if self.grid_type == "unstructured":
+                self.set_attrs(CONFIGOPTIONS["downscaling_unstructred_attrs_map"], set_none=True)
 
         for cfg_bmi_attr, config_options_attr in CONFIGOPTIONS[
             "extract_input_variable_set_default_attrs_map"
@@ -121,10 +159,28 @@ class ConfigOptions:
                 self.extract_input_variable_set_default(cfg_bmi_attr, default),
             )
 
+        # Call post_init to perform any calculations that depend on multiple attributes
+        self.post_init()
+
+    def post_init(self) -> None:
+        """Attr setting/calculating operations that depend on others already being set.
+
+        This method is called at the end of __init__ to perform any side-effect calculations
+        that require multiple attributes to be initialized. This ensures independence of initialization order
+        and matches the original pre-refactored code behavior, where calculations
+        were performed after all attrs were read.
+        """
+        # Calculate the beginning/ending processing dates if we are running realtime or if look_back != -9999
+        if self.look_back is not None and self.look_back != -9999:
+            calculate_lookback_window(self)
+        elif self.realtime_flag:
+            calculate_lookback_window(self)
+
     @property
     def try_config_get_except_attr_map(self) -> dict:
         """Get the mapping of configuration variable names to class attribute names for variables that are extracted directly from the configuration file without any additional processing. This is used to control how variables are extracted from the configuration file and assigned to class attributes in a consistent way based on the mapping specified in the consts.py file."""
-        dict_map = CONFIGOPTIONS["try_config_get_except_attr_map"]
+        # Don't mutate the module-level CONFIGOPTIONS object.  Operate on a copy instead (and return that modified copy).
+        dict_map = CONFIGOPTIONS["try_config_get_except_attr_map"].copy()
         if self._b_date_proc is not None and "RefcstBDateProc" in dict_map:
             dict_map.pop("RefcstBDateProc")
         if self.geogrid is not None and "GeogridIn" in dict_map:
@@ -161,7 +217,7 @@ class ConfigOptions:
     def precip_only_flag(self) -> bool:
         """Flag to indicate whether the user has chosen to run the supplemental precip forcings module only, which will trigger some different processing pathways and error checking for certain configuration options."""
         precip_only = False
-        if self.number_supp_pcp == 1:
+        if self.supp_precip_forcings is not None and len(self.supp_precip_forcings) > 0:
             if int(self.supp_precip_forcings[0]) == 14:
                 precip_only = True
         return precip_only
@@ -337,7 +393,7 @@ class ConfigOptions:
     @supp_precip_forcings.setter
     def supp_precip_forcings(self, value: list) -> None:
         """Set the list of supplemental precip forcing options specified by the user in the configuration file. This is used to control which supplemental precip forcings are processed and how they are processed based on the other configuration options specified for each supplemental precip forcing."""
-        if len(value) > 0:
+        if value is not None and len(value) > 0:
             self.check_input_values_in_range(
                 [int(i) for i in value],
                 "SuppPcp",
@@ -456,8 +512,7 @@ class ConfigOptions:
         """Set the look back window in hours specified by the user in the configuration file. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
         if value <= 0 and value != -9999:
             err_out_screen("Please specify a positive LookBack or -9999 for realtime.")
-        if value != -9999:
-            calculate_lookback_window(self)
+        # NOTE: Side effect (calculate_lookback_window) removed - now called in post_init()
         self._look_back = value
 
     @property
@@ -510,8 +565,12 @@ class ConfigOptions:
     @b_date_proc.setter
     def b_date_proc(self, value: str | datetime) -> None:
         """Set the beginning date of processing for reforecast simulations. This is used to calculate the processing window for reforecast simulations."""
+        if value is None:
+            self._b_date_proc = None
+            return
         if isinstance(value, datetime):
             self._b_date_proc = value
+            return
         if value != -9999:
             if isinstance(value, str) and len(value) != 12:
                 err_out_screen(
@@ -537,9 +596,7 @@ class ConfigOptions:
             value = True
         else:
             value = False
-        # Calculate the beginning/ending processing dates if we are running realtime
-        if value:
-            calculate_lookback_window(self)
+        # NOTE: Side effect (calculate_lookback_window) removed from property getter - now called in post_init()
         return value
 
     @property
@@ -573,11 +630,13 @@ class ConfigOptions:
     @geogrid.setter
     def geogrid(self, value: str) -> None:
         """Set the pathway to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings, and is only necessary if the user is running a simulation that requires regridding of input forcings."""
+        # If user provided geogrid, use it as-is
         if self.user_provided_geogrid_flag:
             self._geogrid = value
-        if value is None:
+        # If value is None, just set to None
+        elif value is None:
             self._geogrid = value
-            # err_out_screen("Unable to locate GeogridIn in the configuration file.")
+        # Otherwise, process the path value from config with uid prefix
         else:
             geogrid_parent = os.path.dirname(value)
             geogrid_filename = os.path.basename(value)
@@ -607,7 +666,7 @@ class ConfigOptions:
     @input_forcings.setter
     def input_forcings(self, value: list) -> None:
         """Set the list of input forcing options specified by the user in the configuration file. This is used to control which input forcings are processed and how they are processed based on the other configuration options specified for each input forcing."""
-        if not self.precip_only_flag:
+        if value is not None and not self.precip_only_flag:
             self.check_input_values_in_range(
                 value, "InputForcings", list(range(1, self.force_count + 1))
             )
@@ -616,12 +675,15 @@ class ConfigOptions:
     @property
     def number_inputs(self) -> int:
         """Calculate the number of input forcing options specified by the user in the configuration file. This is used for error checking to ensure users specify valid input forcing options in the configuration file, and to control the flow of the program based on how many input forcings are being processed."""
+        if self.input_forcings is None:
+            return 0
         if not self.precip_only_flag:
             if len(self.input_forcings) == 0:
                 err_out_screen(
                     "Please choose at least one InputForcings dataset to process"
                 )
             return len(self.input_forcings)
+        return 0
 
     @property
     def number_custom_inputs(self) -> int:
@@ -635,6 +697,11 @@ class ConfigOptions:
         else:
             return 0
 
+    @number_custom_inputs.setter
+    def number_custom_inputs(self, value: int) -> None:
+        """This is a read-only computed property based on input_forcings."""
+        raise AttributeError(f"number_custom_inputs is read-only (tried to set to: {value})")
+
     @property
     def nwm_geogrid(self) -> str:
         """Only for the NWM v3 retorspective forcing module option (27) that requires the geo_em_NWM_DOMAIN.nc file as input for the NextGen Forcings Engine to properly setup up the ESMF grid object for the NWM forcing files since that information is not readily available in the NWM v3 retrospective forcing files."""
@@ -643,7 +710,7 @@ class ConfigOptions:
     @nwm_geogrid.setter
     def nwm_geogrid(self, value: str) -> None:
         """Set the pathway to the NWM geogrid file specified by the user in the configuration file. This is used to specify the grid information for regridding NWM input forcings, and is only necessary if the user has chosen to regrid NWM input forcings in the configuration file."""
-        if not self.precip_only_flag and 27 in self.input_forcings:
+        if not self.precip_only_flag and self.input_forcings is not None and 27 in self.input_forcings:
             self._nwm_geogrid = value
         else:
             self._nwm_geogrid = None
@@ -746,9 +813,7 @@ class ConfigOptions:
     def fcst_shift(self, value: int) -> None:
         if True:  # was: self.realtime_flag:
             self.check_input_values_non_negative([value], "ForecastShift")
-            # Calculate the beginning/ending processing dates if we are running realtime
-            if self.realtime_flag:
-                calculate_lookback_window(self)
+            # NOTE: Side effect (calculate_lookback_window) removed - now called in post_init()
             self._fcst_shift = value
 
             # NOTE this commented out code copied from pre-refactored code on 5/6/2026
@@ -1284,6 +1349,8 @@ class ConfigOptions:
     @property
     def number_supp_pcp(self) -> int:
         """Get the number of supplemental precipitation input forcings specified by the user in the configuration file. This is used to control how many supplemental precipitation input forcings are processed based on the number of supplemental precipitation input forcings specified in the configuration file."""
+        if self.supp_precip_forcings is None:
+            return 0
         return len(self.supp_precip_forcings)
 
     @property
@@ -1312,7 +1379,7 @@ class ConfigOptions:
         return ["GRIB1", "GRIB2", "NETCDF"]
 
     @property
-    def rqiMethod(self) -> list:
+    def rqiMethod(self) -> int | list[int] | None:
         """Optional RQI method for radar-based data. 0 - Do not use any RQI filtering. Use all radar-based estimates. 1 - Use hourly MRMS Radar Quality Index grids, 2 - Use NWM monthly climatology grids (NWM only!!!!).
 
         Example- RqiMethod: 2
@@ -1322,46 +1389,45 @@ class ConfigOptions:
             for suppOpt in self.supp_precip_forcings:
                 # Read in RQI threshold to apply to radar products.
                 if suppOpt in (1, 2, 7, 10, 11, 12):
-                    value = self.extract_input_variable("RqiMethod")
+                    # Returns None if key missing (not configured for this product)
+                    value = self.cfg_bmi.get("RqiMethod")
+                    if value is not None:
+                        # Validate
+                        if type(value) is list:
+                            self.check_number_of_inputs_supp_pcp(value, "RqiMethod")
+                        elif type(value) in (int, type(None)):
+                            # Support configuration file representing this with a single scalar value, apply to all
+                            value = [value] * self.number_supp_pcp
 
-                    # Check that if we have more than one RqiMethod, it's the correct number
-                    if type(value) is list:
-                        self.check_number_of_inputs_supp_pcp(value, "RqiMethod")
-                    elif type(value) is int:
-                        # Support 'classic' mode of single method
-                        value = [value] * self.number_supp_pcp
-
-                    # Make sure the RqiMethod(s) makes sense.
-                    for method in value:
-                        self.check_input_values_in_range(method, "RqiMethod", [0, 1, 2])
+                        self.check_input_values_in_range(value, "RqiMethod", [0, 1, 2])
         return value
 
     @property
-    def rqiThresh(self):
+    def rqiThresh(self) -> float | list[float] | None:
         """Optional RQI threshold to be used to mask out. Currently used for MRMS products. Please choose a value from 0.0-1.0. Associated radar quality index files will be expected from MRMS data.
 
         Example- RqiThreshold: 0.9
         """
-        value = 1.0
+        value = None
         if self.number_supp_pcp > 0:
             for supp_opt in self.supp_precip_forcings:
                 # Read in RQI threshold to apply to radar products.
                 if supp_opt in (1, 2, 7, 10, 11, 12):
-                    value = self.extract_input_variable("RqiThresh")
+                    # Returns None if key missing (not configured for this product)
+                    value = self.cfg_bmi.get("RqiThresh")
+                    if value is not None:
+                        # Validate
+                        if type(value) is list:
+                            self.check_number_of_inputs_supp_pcp(value, "RqiThresh")
+                        elif type(value) in (int, float, type(None)):
+                            # Support configuration file representing this with a single scalar value, apply to all
+                            value = [value] * self.number_supp_pcp
 
-                    # Check that if we have more than one RqiThresh, it's the correct number
-                    if type(value) is list:
-                        self.check_number_of_inputs_supp_pcp(value, "RqiThresh")
-                    elif type(value) is (int, float):
-                        # Support 'classic' mode of single threshold
-                        value = [value] * self.number_supp_pcp
-
-                    # Make sure the RqiThresh(es) makes sense.
-                    for threshold in value:
-                        if threshold < 0.0 or threshold > 1.0:
-                            err_out_screen(
-                                "Please specify RqiThresholds between 0.0 and 1.0."
-                            )
+                        for threshold in value:
+                            if threshold < 0.0 or threshold > 1.0:
+                                err_out_screen(
+                                    "Please specify RqiThresholds between 0.0 and 1.0."
+                                )
         return value
 
     @property
