@@ -295,6 +295,7 @@ class BMIForcingFixture:
 
         self.keys_to_check = cfg.keys_to_check
         self.keys_to_exclude = cfg.keys_to_exclude
+        self.keys_no_hash = cfg.keys_no_hash
         self.map_old_to_new_var_names = cfg.map_old_to_new_var_names
         self.test_file_name_prefix = cfg.test_file_name_prefix
 
@@ -323,6 +324,46 @@ class BMIForcingFixture:
                 )
                 data_dict[key] = value[: len(input_map_output)]
 
+    def _apply_transformations(self, data: dict, keys_to_exclude: tuple, keys_no_hash: tuple = (), apply_map: bool = True) -> dict:
+        """Apply transformations to live BMI data to produce its final JSON representation.
+        
+        Used only by deserial_actual() to transform raw BMI state. Expected result files are already
+        in their final form (transformed + extra_attrs added), so they are read directly without re-transformation.
+        
+        The processing order is:
+        1. Re-order the keys
+        2. Save raw values for keys_no_hash before hashing
+        3. Convert long lists to hashes (except keys_no_hash which are excluded)
+        4. Restore raw values for keys_no_hash
+        5. Remove excluded keys
+        6. Map old variable names to new (if apply_map=True and self.map_old_to_new_var_names)
+        
+        Args:
+            data: The deserialized data dictionary
+            keys_to_exclude: Tuple of keys to exclude from result
+            keys_no_hash: Tuple of keys that should NOT be hashed (preserved as raw values)
+            apply_map: Whether to apply variable name mapping (converting earlier pre-refactor namespace to later namespace)
+            
+        Returns:
+            Transformed dictionary
+        """
+        # Order and reverse so private attributes are last
+        result = OrderedDict(reversed(list(data.items())))
+        # Save raw values for keys that should not be hashed
+        raw_vals_no_hash = {
+            k: result[k] for k in keys_no_hash if k in result
+        }
+        # Convert long lists to hash strings (this may hash keys_no_hash too)
+        result = convert_long_lists(result, 10)
+        # Restore raw (unhashed) values for keys_no_hash
+        result.update(raw_vals_no_hash)
+        # Remove excluded keys
+        result = remove_key(dict(result), keys_to_exclude)
+        # Map old variable names to new if enabled
+        if apply_map and self.map_old_to_new_var_names:
+            result = self.map_old_to_new_variable_names(result)
+        return result
+
 
 class BMIForcingFixture_Class(BMIForcingFixture):
     """Test fixture for Class-based tests."""
@@ -340,41 +381,32 @@ class BMIForcingFixture_Class(BMIForcingFixture):
         self.actual_sub_dir = "test_data/actual_results"
         self.test_dir = os.path.dirname(os.path.abspath(__file__))
         self.extra_attrs: tuple[ClassAttrFetcher] = cfg.extra_attrs
-        self.keys_no_hash: tuple[str] = cfg.keys_no_hash
         self.keys_to_exclude_at_init: tuple[str] = cfg.keys_to_exclude_at_init
 
     def deserial_actual(
         self, suffix: str, current_output_step: str = "", write_to_file: bool = True
     ) -> dict:
         """Get the actual metadata results as a deserialized dictionary, including any extra_attrs."""
-        deserial_actual = json.loads(
+        data = json.loads(
             serialize_to_json(
                 copy_and_stringify_functions(self.test_class_as_dict), sort_keys=True
             )
         )
-        # order and reverse so private attributes are last
-        deserial_actual = OrderedDict(reversed(list(deserial_actual.items())))
-        # Save raw values for keys that should not be hashed
-        raw_vals = {
-            k: deserial_actual[k] for k in self.keys_no_hash if k in deserial_actual
-        }
-        deserial_actual = convert_long_lists(deserial_actual, 10)
-        deserial_actual.update(raw_vals)
-        deserial_actual = remove_key(dict(deserial_actual), self.keys_to_exclude)
+        data = self._apply_transformations(data, self.keys_to_exclude, keys_no_hash=self.keys_no_hash, apply_map=True)
         # Add any extra attributes to the results
         for ea in self.extra_attrs:
-            deserial_actual[ea.results_key_name] = ea.get(
+            data[ea.results_key_name] = ea.get(
                 self, serialize_and_deserialize=True
             )
 
-        self._trim_arrays_to_input_map_output(deserial_actual)
+        self._trim_arrays_to_input_map_output(data)
 
         if write_to_file:
             self.write_json(
-                deserial_actual,
+                data,
                 self.actual_results_file_path(suffix, current_output_step),
             )
-        return deserial_actual
+        return data
 
     def write_json(self, dictionary_to_write: dict, json_path: str) -> None:
         """Write the deserialized results to a JSON file."""
@@ -388,16 +420,8 @@ class BMIForcingFixture_Class(BMIForcingFixture):
 
         try:
             with open(file_path) as f:
-                deserial_expected = json.load(f)
-            if self.map_old_to_new_var_names:
-                deserial_expected = self.map_old_to_new_variable_names(
-                    deserial_expected
-                )
-            self._trim_arrays_to_input_map_output(deserial_expected)
-            # Remove keys that should be excluded from comparison
-            deserial_expected = remove_key(deserial_expected, self.keys_to_exclude)
-            # order and reverse so private attributes are last
-            return OrderedDict(reversed(list(deserial_expected.items())))
+                # Files are already in their final representation (transformed + trimmed), do not re-transform.
+                return json.load(f)
         except FileNotFoundError as e:
             raise FileNotFoundError(
                 f"Could not find {file_path}. Try running the test using OS var {OS_VAR__CREATE_TEST_EXPECT_DATA}=true first to set up the test results expected data."
