@@ -71,15 +71,14 @@ LOG = logging.getLogger("FORCING")
 try:
     from ewts.helper import getenv_any
     from ewts.logger import configure_existing_logger
+
     FORCING_USE_EWTS = True
 except ImportError:
     FORCING_USE_EWTS = False
 
-class StdoutStyleFormatter(logging.Formatter):
 
-    INFO_FORMAT = (
-        "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
-    )
+class StdoutStyleFormatter(logging.Formatter):
+    INFO_FORMAT = "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
 
     DETAILED_FORMAT = (
         "%(asctime)s %(name)-8s %(levelname)-7s "
@@ -94,7 +93,7 @@ class StdoutStyleFormatter(logging.Formatter):
             self._style._fmt = self.DETAILED_FORMAT
 
         return super().format(record)
-    
+
     def formatTime(self, record, datefmt=None):
         dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
         return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
@@ -110,6 +109,7 @@ def _configure_stdout_logging():
         LOG.addHandler(handler)
 
     LOG.propagate = False
+
 
 # If less than 0, then ESMF.__version__ is greater than 8.7.0
 if ESMF.version_compare("8.7.0", ESMF.__version__) < 0:
@@ -174,7 +174,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 configure_existing_logger(LOG)
             else:
                 _configure_stdout_logging()
-                LOG.warning("ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging.")
+                LOG.warning(
+                    "ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging."
+                )
         else:
             _configure_stdout_logging()
         LOG.info("-" * 30)
@@ -283,9 +285,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         """Create the ESMF mesh for the model and set ``self._cat_ids`` (later used as BMI variable "CAT-ID")."""
         if self._mpi_meta.rank == 0:
             cat_ids = esmf_creation.create_mesh(self._job_meta)
-        cat_count = np.array([
-            len(cat_ids) if self._mpi_meta.rank == 0 else 0
-        ], dtype=np.intc)
+        cat_count = np.array(
+            [len(cat_ids) if self._mpi_meta.rank == 0 else 0], dtype=np.intc
+        )
         self._mpi_meta.comm.Bcast(cat_count, root=0)
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
@@ -735,7 +737,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
         # Ensure dtype is float64 (C double), except for CAT-ID
         if var_name == "CAT-ID":
-            return arr # allow CAT-ID to pass on whatever the dtype is based on the input data
+            return arr  # allow CAT-ID to pass on whatever the dtype is based on the input data
         elif arr.dtype != np.float64:
             LOG.warning(
                 f"[BMI] Array for '{var_name}' has dtype {arr.dtype}, expected float64; converting."

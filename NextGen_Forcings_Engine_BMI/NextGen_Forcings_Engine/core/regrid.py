@@ -45,19 +45,20 @@ if TYPE_CHECKING:
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
         ConfigOptions,
     )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
-        GeoMeta,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
-        supplemental_precip,
-    )
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
         InputForcings,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+        GeoMeta,
     )
     from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
         MpiConfig,
     )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
+        supplemental_precip,
+    )
 import logging
+
 from ..esmf_utils import (
     esmf_field_retry,
     esmf_grid_retry,
@@ -9683,7 +9684,10 @@ def regrid_sbcv2_liquid_water_fraction(
 
 
 def regrid_hourly_nbm(
-    forcings_or_precip:supplemental_precip|InputForcings, config_options:ConfigOptions, wrf_hydro_geo_meta:GeoMeta, mpi_config:MpiConfig
+    forcings_or_precip: supplemental_precip | InputForcings,
+    config_options: ConfigOptions,
+    wrf_hydro_geo_meta: GeoMeta,
+    mpi_config: MpiConfig,
 ):
     """Regrid hourly NBM precipitation.
 
@@ -9739,7 +9743,7 @@ def regrid_hourly_nbm(
         cmd = f'$WGRIB2 -match "({"|".join(fields)})" -not "prob" -not "ens" {forcings_or_precip.file_in1} -netcdf {nbm_tmp_nc}'
     else:
         # Perform a GRIB dump to NetCDF for the precip data.
-        time_str=f"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2} hour acc fcst"
+        time_str = f"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2} hour acc fcst"
         fieldnbm_match1 = f'":APCP:surface:{time_str}:"'
         fieldnbm_match2 = (
             f'"{forcings_or_precip.fcst_hour1}-{forcings_or_precip.fcst_hour2}"'
@@ -11357,10 +11361,14 @@ def check_regrid_status(
             )
         elif config_options.grid_type == "hydrofabric":
             input_forcings.regridded_forcings1 = np.full(
-                [force_count, wrf_hydro_geo_meta.ny_local], np.nan,dtype=np.float32 #NOTE changed to np.full to be deterministic for unit tests.
+                [force_count, wrf_hydro_geo_meta.ny_local],
+                np.nan,
+                dtype=np.float32,  # NOTE changed to np.full to be deterministic for unit tests.
             )
             input_forcings.regridded_forcings2 = np.full(
-                [force_count, wrf_hydro_geo_meta.ny_local], np.nan,dtype=np.float32 #NOTE changed to np.full to be deterministic for unit tests.
+                [force_count, wrf_hydro_geo_meta.ny_local],
+                np.nan,
+                dtype=np.float32,  # NOTE changed to np.full to be deterministic for unit tests.
             )
 
     if mpi_config.rank == 0:
@@ -11855,13 +11863,9 @@ def calculate_weights(
     err_handler.check_program_status(config_options, mpi_config)
 
     # Broadcast the forcing nx/ny values
-    input_forcings.ny_global = mpi_config.broadcast_parameter(
-        input_forcings.ny_global
-    )
+    input_forcings.ny_global = mpi_config.broadcast_parameter(input_forcings.ny_global)
     err_handler.check_program_status(config_options, mpi_config)
-    input_forcings.nx_global = mpi_config.broadcast_parameter(
-        input_forcings.nx_global
-    )
+    input_forcings.nx_global = mpi_config.broadcast_parameter(input_forcings.nx_global)
     err_handler.check_program_status(config_options, mpi_config)
 
     try:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
 import types
+from typing import TYPE_CHECKING, Any
 
 import esmpy as ESMF
 
@@ -10,9 +10,14 @@ import esmpy as ESMF
 import shapely
 
 from . import retry_utils
+
 if TYPE_CHECKING:
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import ConfigOptions
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import MpiConfig
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
+        MpiConfig,
+    )
 
 
 @retry_utils.retry_w_mpi_context(

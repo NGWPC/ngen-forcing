@@ -500,12 +500,10 @@ class NWMv3ForcingEngineModel:
                                 self._bmi.geo_meta,
                             )
                         elif self._bmi._job_meta.nwm_domain == "PR":
-                            self.source_data_processor = (
-                                NWMV3PuertoRicoProcessor(
-                                    self._bmi._job_meta,
-                                    self._bmi._mpi_meta,
-                                    self._bmi.geo_meta,
-                                )
+                            self.source_data_processor = NWMV3PuertoRicoProcessor(
+                                self._bmi._job_meta,
+                                self._bmi._mpi_meta,
+                                self._bmi.geo_meta,
                             )
                         elif self._bmi._job_meta.nwm_domain == "Alaska":
                             proc_cls = NWMV3AlaskaProcessor
