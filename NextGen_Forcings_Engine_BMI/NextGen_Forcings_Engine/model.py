@@ -567,7 +567,6 @@ class NWMv3ForcingEngineModel:
                 self._bmi._output_obj,
                 self._bmi._supp_pcp_mod[supp_pcp_key],
                 self._bmi._job_meta,
-                self._bmi._mpi_meta,
             )
             self.check_program_status()
 
