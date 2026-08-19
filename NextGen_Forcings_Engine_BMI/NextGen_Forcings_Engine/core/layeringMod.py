@@ -26,6 +26,9 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod im
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import (
     OutputObj,
 )
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
+    SupplementalPrecip,
+)
 
 
 class _LayeringMod(ABC):
@@ -205,81 +208,150 @@ def layer_final_forcings(
             layering_mod.apply_layering(force_idx)
 
 
+class _LayeringModSupplemental(ABC):
+    def __init__(
+        self,
+        output_obj: OutputObj,
+        supplemental_precip: SupplementalPrecip,
+        config_options: ConfigOptions,
+    ):
+        self.output_obj = output_obj
+        self.supplemental_precip = supplemental_precip
+        self.config_options = config_options
+
+    @abstractmethod
+    def get_slice(self, obj: Any) -> Any:
+        """Abstract method: Using bracket syntax, return a slice of an object based on its forcing index."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def set_slice(self, obj: Any, value: Any) -> None:
+        """Abstract method: Using bracket syntax, set the value of a slice of an object based on its forcing index."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def apply_layering(self) -> None:
+        """Abstract method: Apply the layering logic (this is the primary function of this class)."""
+        raise NotImplementedError
+
+    def indSet(self, attr_suffix: str = ""):
+        return np.where(
+            getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
+            != self.config_options.globalNdv
+        )
+
+    def layerIn(self, attr_suffix: str = ""):
+        return getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
+
+    def layerOut(self, attr_suffix: str = ""):
+        return self.get_slice(
+            getattr(self.output_obj, f"output_local{attr_suffix}"),
+            self.supplemental_precip.output_var_idx,
+        )
+
+    def update_output_local(self, attr_suffix: str = "") -> None:
+        indSet = self.indSet(attr_suffix)
+        layerIn = self.layerIn(attr_suffix)
+        layerOut = self.layerOut(attr_suffix)
+        # NOTE original TODO comment below was for "gridded" discretization. Unknown intent:
+        # TODO: review test layering for ExtAnA calculation to replace FE QPE with MPE RAINRATE
+        # If this isn't sufficient, replace QPE with MPE here:
+        # if supplemental_precip.keyValue == 11:
+        #    config_options.statusMsg = "Performing ExtAnA calculation"
+        #    err_handler.log_msg(config_options, MpiConfig)
+        if len(indSet[0]) != 0:
+            layerOut[indSet] = layerIn[indSet]
+        # NOTE original TODO comment below was for all discretizations ("gridded", "unstructured", and "hydrofabric"). Unknown intent.
+        # TODO: test that even does anything...?s
+        self.set_slice(
+            getattr(self.output_obj, f"output_local{attr_suffix}"),
+            self.supplemental_precip.output_var_idx,
+            layerOut,
+        )
+
+
+class _LayeringModSupplemental_Gridded(_LayeringModSupplemental):
+    """Implementation of abstract class _LayeringModSupplemental for Gridded discretization.
+    Slicing is 3-dimensional.
+    Primary business logic executes once (no extra "_elem" call).
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+        return obj[first_dim_idx, :, :]
+
+    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+        obj[first_dim_idx, :, :] = value
+
+    def apply_layering(self) -> None:
+        self.update_output_local()
+
+
+class _LayeringModSupplemental_Unstructured(_LayeringModSupplemental):
+    """Implementation of abstract class _LayeringModSupplemental for Unstructured discretization.
+    Slicing is 2-dimensional.
+    Primary business logic executes twice (with extra "_elem" call).
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+        return obj[first_dim_idx, :]
+
+    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+        obj[first_dim_idx, :] = value
+
+    def apply_layering(self) -> None:
+        self.update_output_local()
+        self.update_output_local("_elem")
+
+
+class _LayeringModSupplemental_Hydrofabric(_LayeringModSupplemental):
+    """Implementation of abstract class _LayeringModSupplemental for Unstructured discretization.
+    Slicing is 2-dimensional.
+    Primary business logic executes once (no extra "_elem" call).
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+
+    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+        return obj[first_dim_idx, :]
+
+    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+        obj[first_dim_idx, :] = value
+
+    def apply_layering(self) -> None:
+        self.update_output_local()
+
+
 def layer_supplemental_forcing(
-    OutputObj, supplemental_precip, ConfigOptions, MpiConfig
+    output_obj: OutputObj,
+    supplemental_precip: SupplementalPrecip,
+    config_options: ConfigOptions,
 ):
     """Layer in supplemental precipitation where valid values exist.
 
     Function to layer in supplemental precipitation where we have valid values. Any pixel
     cells that contain missing values will not be layered in, and background input forcings
     will be used instead.
-    :param OutputObj:
+    :param output_obj:
     :param supplemental_precip:
-    :param ConfigOptions:
-    :param MpiConfig:
+    :param config_options:
     :return:
     """
-    if ConfigOptions.grid_type == "gridded":
-        indSet = np.where(
-            supplemental_precip.final_supp_precip != ConfigOptions.globalNdv
+    if config_options.grid_type == "gridded":
+        factory = _LayeringModSupplemental_Gridded
+    elif config_options.grid_type == "unstructured":
+        factory = _LayeringModSupplemental_Unstructured
+    elif config_options.grid_type == "hydrofabric":
+        factory = _LayeringModSupplemental_Hydrofabric
+    else:
+        raise ValueError(
+            f"Unexpected discretization type / grid type: {config_options.grid_type}"
         )
-        layerIn = supplemental_precip.final_supp_precip
-        layerOut = OutputObj.output_local[supplemental_precip.output_var_idx, :, :]
-        # TODO: review test layering for ExtAnA calculation to replace FE QPE with MPE RAINRATE
-        # If this isn't sufficient, replace QPE with MPE here:
-        # if supplemental_precip.keyValue == 11:
-        #    ConfigOptions.statusMsg = "Performing ExtAnA calculation"
-        #    err_handler.log_msg(ConfigOptions, MpiConfig)
-        if len(indSet[0]) != 0:
-            layerOut[indSet] = layerIn[indSet]
-        else:
-            # We have all missing data for the supplemental precip for this step.
-            layerOut = layerOut
-        # TODO: test that even does anything...?s
-        OutputObj.output_local[supplemental_precip.output_var_idx, :, :] = layerOut
-    elif ConfigOptions.grid_type == "unstructured":
-        indSet = np.where(
-            supplemental_precip.final_supp_precip != ConfigOptions.globalNdv
-        )
-        layerIn = supplemental_precip.final_supp_precip
-        layerOut = OutputObj.output_local[supplemental_precip.output_var_idx, :]
-
-        if len(indSet[0]) != 0:
-            layerOut[indSet] = layerIn[indSet]
-        else:
-            # We have all missing data for the supplemental precip for this step.
-            layerOut = layerOut
-        # TODO: test that even does anything...?s
-        OutputObj.output_local[supplemental_precip.output_var_idx, :] = layerOut
-
-        indSet_elem = np.where(
-            supplemental_precip.final_supp_precip_elem != ConfigOptions.globalNdv
-        )
-        layerIn_elem = supplemental_precip.final_supp_precip_elem
-        layerOut_elem = OutputObj.output_local_elem[
-            supplemental_precip.output_var_idx, :
-        ]
-
-        if len(indSet_elem[0]) != 0:
-            layerOut_elem[indSet_elem] = layerIn_elem[indSet_elem]
-        else:
-            # We have all missing data for the supplemental precip for this step.
-            layerOut_elem = layerOut_elem
-        # TODO: test that even does anything...?s
-        OutputObj.output_local_elem[supplemental_precip.output_var_idx, :] = (
-            layerOut_elem
-        )
-    elif ConfigOptions.grid_type == "hydrofabric":
-        indSet = np.where(
-            supplemental_precip.final_supp_precip != ConfigOptions.globalNdv
-        )
-        layerIn = supplemental_precip.final_supp_precip
-        layerOut = OutputObj.output_local[supplemental_precip.output_var_idx, :]
-
-        if len(indSet[0]) != 0:
-            layerOut[indSet] = layerIn[indSet]
-        else:
-            # We have all missing data for the supplemental precip for this step.
-            layerOut = layerOut
-        # TODO: test that even does anything...?s
-        OutputObj.output_local[supplemental_precip.output_var_idx, :] = layerOut
+    layering_mod_supp = factory(output_obj, supplemental_precip, config_options)
+    layering_mod_supp.apply_layering()
