@@ -10,7 +10,7 @@ import typing
 import warnings
 from contextlib import contextmanager
 from datetime import timedelta
-from functools import cached_property, wraps
+from functools import cached_property
 from time import perf_counter, sleep
 
 import geopandas as gpd
@@ -259,7 +259,7 @@ class BaseProcessor:
             # to be safe, we'll use 1.5 GB as the cutoff before breaking it up
             chunk_size = int(1024 * 1024 * 1024 * 1.5)
             chunks_count = np.array([1], dtype=np.int64)
-            if (self.mpi_config.rank == 0 and (ds.nbytes / chunk_size) > 1):
+            if (self.mpi_config.rank == 0 and ds.nbytes > chunk_size):
                 pickled = pickle.dumps(ds, pickle.HIGHEST_PROTOCOL)
                 chunks: list[bytes] = []
                 while True:
