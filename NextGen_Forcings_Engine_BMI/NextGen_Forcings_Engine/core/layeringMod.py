@@ -12,6 +12,7 @@ attr_suffix : str
 Future functionality may include blending, etc.
 """
 
+import numbers
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -36,22 +37,22 @@ class _LayeringMod(ABC):
 
     def __init__(
         self,
-        output_obj,
+        output_obj: Any,
         input_forcings: InputForcings,
         config_options: ConfigOptions,
-    ):
+    ) -> None:
         self.output_obj = output_obj
         self.input_forcings = input_forcings
         self.config_options = config_options
 
     @abstractmethod
-    def get_slice(self, obj: Any, force_idx: int) -> Any:
-        """Abstract method: Using bracket syntax, return a slice of an object based on its forcing index."""
+    def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
+        """Abstract method: Using bracket syntax, return a slice of an array based on its forcing index."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
-        """Abstract method: Using bracket syntax, set the value of a slice of an object based on its forcing index."""
+    def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
+        """Abstract method: Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         raise NotImplementedError
 
     @abstractmethod
@@ -59,13 +60,13 @@ class _LayeringMod(ABC):
         """Abstract method: Apply the layering logic (this is the primary function of this class)."""
         raise NotImplementedError
 
-    def layerIn(self, force_idx: int, attr_suffix: str = "") -> Any:
+    def layerIn(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
         """Return an input dataset used for layering."""
         return self.get_slice(
             getattr(self.input_forcings, f"final_forcings{attr_suffix}"), force_idx
         )
 
-    def indSet(self, force_idx: int, attr_suffix: str = "") -> Any:
+    def indSet(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
         """Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask)."""
         return np.where(
             self.layerIn(force_idx, attr_suffix) != self.config_options.globalNdv
@@ -73,6 +74,11 @@ class _LayeringMod(ABC):
 
     def update_output_local(self, force_idx: int, attr_suffix: str = "") -> None:
         """Apply layering logic to update the output grid with input forcing data.
+
+        This contains much of the primary business logic and comments
+        from the the original function ``layer_final_forcings``.
+        Original code:
+            https://github.com/NGWPC/ngen-forcing/blob/a0f217f06a0045d9f139bfa14abe711fc6f248b0/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/layeringMod.py#L9
 
         This is the primary business logic of the layering module. It retrieves input forcing data,
         applies validity checks (using globalNdv as the no-data value), and updates the output grid
@@ -121,10 +127,10 @@ class _LayeringMod_Gridded(_LayeringMod):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, force_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
         return obj[force_idx, :, :]
 
-    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+    def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
         obj[force_idx, :, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
@@ -137,10 +143,10 @@ class _LayeringMod_Unstructured(_LayeringMod):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, force_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
         return obj[force_idx, :]
 
-    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+    def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
         obj[force_idx, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
@@ -154,10 +160,10 @@ class _LayeringMod_Hydrofabric(_LayeringMod):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, force_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
         return obj[force_idx, :]
 
-    def set_slice(self, obj: Any, force_idx: int, value: Any) -> None:
+    def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
         obj[force_idx, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
@@ -166,7 +172,7 @@ class _LayeringMod_Hydrofabric(_LayeringMod):
 
 def layer_final_forcings(
     output_obj: OutputObj, input_forcings: InputForcings, config_options: ConfigOptions
-):
+) -> None:
     """Layer input forcings onto the output grid.
 
     Function to perform basic layering of input forcings as they are processed. The logic
@@ -179,6 +185,11 @@ def layer_final_forcings(
     :param input_forcings:
     :param config_options:
     :return:
+
+    This sets up and calls ``_LayeringMod.apply_layering`` which contains much of the
+    primary business logic and comments from the the original function ``layer_final_forcings``.
+    Original code:
+        https://github.com/NGWPC/ngen-forcing/blob/a0f217f06a0045d9f139bfa14abe711fc6f248b0/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/layeringMod.py#L9
     """
     # Loop through the 8(or 9) forcing products to layer in:
     # 0.) U-Wind (m/s)
@@ -214,18 +225,18 @@ class _LayeringModSupplemental(ABC):
         output_obj: OutputObj,
         supplemental_precip: SupplementalPrecip,
         config_options: ConfigOptions,
-    ):
+    ) -> None:
         self.output_obj = output_obj
         self.supplemental_precip = supplemental_precip
         self.config_options = config_options
 
     @abstractmethod
-    def get_slice(self, obj: Any) -> Any:
+    def get_slice(self, obj: np.ndarray) -> np.ndarray:
         """Abstract method: Using bracket syntax, return a slice of an object based on its forcing index."""
         raise NotImplementedError
 
     @abstractmethod
-    def set_slice(self, obj: Any, value: Any) -> None:
+    def set_slice(self, obj: np.ndarray, value: numbers.Real) -> None:
         """Abstract method: Using bracket syntax, set the value of a slice of an object based on its forcing index."""
         raise NotImplementedError
 
@@ -234,22 +245,28 @@ class _LayeringModSupplemental(ABC):
         """Abstract method: Apply the layering logic (this is the primary function of this class)."""
         raise NotImplementedError
 
-    def indSet(self, attr_suffix: str = ""):
+    def indSet(self, attr_suffix: str = "") -> np.ndarray:
         return np.where(
             getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
             != self.config_options.globalNdv
         )
 
-    def layerIn(self, attr_suffix: str = ""):
+    def layerIn(self, attr_suffix: str = "") -> np.ndarray:
         return getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
 
-    def layerOut(self, attr_suffix: str = ""):
+    def layerOut(self, attr_suffix: str = "") -> np.ndarray:
         return self.get_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"),
             self.supplemental_precip.output_var_idx,
         )
 
     def update_output_local(self, attr_suffix: str = "") -> None:
+        """This contains much of the primary business logic and comments from the the original function ``layer_supplemental_forcing``.
+
+        Original code:
+            https://github.com/NGWPC/ngen-forcing/blob/a0f217f06a0045d9f139bfa14abe711fc6f248b0/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/layeringMod.py#L113
+        """
+
         indSet = self.indSet(attr_suffix)
         layerIn = self.layerIn(attr_suffix)
         layerOut = self.layerOut(attr_suffix)
@@ -279,10 +296,12 @@ class _LayeringModSupplemental_Gridded(_LayeringModSupplemental):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
         return obj[first_dim_idx, :, :]
 
-    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+    def set_slice(
+        self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
+    ) -> None:
         obj[first_dim_idx, :, :] = value
 
     def apply_layering(self) -> None:
@@ -298,10 +317,12 @@ class _LayeringModSupplemental_Unstructured(_LayeringModSupplemental):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
         return obj[first_dim_idx, :]
 
-    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+    def set_slice(
+        self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
+    ) -> None:
         obj[first_dim_idx, :] = value
 
     def apply_layering(self) -> None:
@@ -318,10 +339,12 @@ class _LayeringModSupplemental_Hydrofabric(_LayeringModSupplemental):
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
 
-    def get_slice(self, obj: Any, first_dim_idx: int) -> Any:
+    def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
         return obj[first_dim_idx, :]
 
-    def set_slice(self, obj: Any, first_dim_idx: int, value: Any) -> None:
+    def set_slice(
+        self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
+    ) -> None:
         obj[first_dim_idx, :] = value
 
     def apply_layering(self) -> None:
@@ -332,7 +355,7 @@ def layer_supplemental_forcing(
     output_obj: OutputObj,
     supplemental_precip: SupplementalPrecip,
     config_options: ConfigOptions,
-):
+) -> None:
     """Layer in supplemental precipitation where valid values exist.
 
     Function to layer in supplemental precipitation where we have valid values. Any pixel
@@ -342,6 +365,11 @@ def layer_supplemental_forcing(
     :param supplemental_precip:
     :param config_options:
     :return:
+
+    This sets up and calls ``_LayeringModSupplemental.apply_layering`` which contains much of the
+    primary business logic and comments from the the original function ``layer_supplemental_forcing``.
+    Original code:
+        https://github.com/NGWPC/ngen-forcing/blob/a0f217f06a0045d9f139bfa14abe711fc6f248b0/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/layeringMod.py#L113
     """
     if config_options.grid_type == "gridded":
         factory = _LayeringModSupplemental_Gridded
