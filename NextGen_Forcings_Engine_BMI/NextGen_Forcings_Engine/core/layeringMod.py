@@ -61,13 +61,13 @@ class _LayeringMod(ABC):
         raise NotImplementedError
 
     def layerIn(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
-        """Return an input dataset used for layering."""
+        """Property-like. Return an input dataset used for layering (named from original codebase)."""
         return self.get_slice(
             getattr(self.input_forcings, f"final_forcings{attr_suffix}"), force_idx
         )
 
     def indSet(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
-        """Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask)."""
+        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named from the original codebase."""
         return np.where(
             self.layerIn(force_idx, attr_suffix) != self.config_options.globalNdv
         )
@@ -128,12 +128,15 @@ class _LayeringMod_Gridded(_LayeringMod):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[force_idx, :, :]
 
     def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[force_idx, :, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local(force_idx)
 
 
@@ -144,12 +147,15 @@ class _LayeringMod_Unstructured(_LayeringMod):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[force_idx, :]
 
     def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[force_idx, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local(force_idx)
         self.update_output_local(force_idx, "_elem")
 
@@ -161,12 +167,15 @@ class _LayeringMod_Hydrofabric(_LayeringMod):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, force_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[force_idx, :]
 
     def set_slice(self, obj: np.ndarray, force_idx: int, value: numbers.Real) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[force_idx, :] = value
 
     def apply_layering(self, force_idx: int) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local(force_idx)
 
 
@@ -232,12 +241,12 @@ class _LayeringModSupplemental(ABC):
 
     @abstractmethod
     def get_slice(self, obj: np.ndarray) -> np.ndarray:
-        """Abstract method: Using bracket syntax, return a slice of an object based on its forcing index."""
+        """Abstract method: Using bracket syntax, return a slice of an array based on its forcing index."""
         raise NotImplementedError
 
     @abstractmethod
     def set_slice(self, obj: np.ndarray, value: numbers.Real) -> None:
-        """Abstract method: Using bracket syntax, set the value of a slice of an object based on its forcing index."""
+        """Abstract method: Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         raise NotImplementedError
 
     @abstractmethod
@@ -246,15 +255,18 @@ class _LayeringModSupplemental(ABC):
         raise NotImplementedError
 
     def indSet(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named from the original codebase."""
         return np.where(
             getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
             != self.config_options.globalNdv
         )
 
     def layerIn(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return an input dataset used for layering (named from original codebase)."""
         return getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
 
     def layerOut(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like method. Return the layerOut array (named from original codebase)."""
         return self.get_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"),
             self.supplemental_precip.output_var_idx,
@@ -297,14 +309,17 @@ class _LayeringModSupplemental_Gridded(_LayeringModSupplemental):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[first_dim_idx, :, :]
 
     def set_slice(
         self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
     ) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[first_dim_idx, :, :] = value
 
     def apply_layering(self) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local()
 
 
@@ -318,14 +333,17 @@ class _LayeringModSupplemental_Unstructured(_LayeringModSupplemental):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[first_dim_idx, :]
 
     def set_slice(
         self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
     ) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[first_dim_idx, :] = value
 
     def apply_layering(self) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local()
         self.update_output_local("_elem")
 
@@ -340,14 +358,17 @@ class _LayeringModSupplemental_Hydrofabric(_LayeringModSupplemental):
         super().__init__(*args, **kwargs)
 
     def get_slice(self, obj: np.ndarray, first_dim_idx: int) -> np.ndarray:
+        """Using bracket syntax, return a slice of an array based on its forcing index."""
         return obj[first_dim_idx, :]
 
     def set_slice(
         self, obj: np.ndarray, first_dim_idx: int, value: numbers.Real
     ) -> None:
+        """Using bracket syntax, set the value of a slice of an array based on its forcing index."""
         obj[first_dim_idx, :] = value
 
     def apply_layering(self) -> None:
+        """Apply the layering logic (this is the primary function of this class)."""
         self.update_output_local()
 
 
