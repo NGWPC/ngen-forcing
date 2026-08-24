@@ -12,24 +12,27 @@ attr_suffix : str
 Future functionality may include blending, etc.
 """
 
+from __future__ import annotations
+
 import numbers
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
-    ConfigOptions,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
-    InputForcings,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import (
-    OutputObj,
-)
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
-    SupplementalPrecip,
-)
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.forcingInputMod import (
+        InputForcings,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.ioMod import (
+        OutputObj,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.suppPrecipMod import (
+        SupplementalPrecip,
+    )
 
 
 class _LayeringMod(ABC):
