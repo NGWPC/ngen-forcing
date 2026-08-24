@@ -63,16 +63,16 @@ class _LayeringMod(ABC):
         """Abstract method: Apply the layering logic (this is the primary function of this class)."""
         raise NotImplementedError
 
-    def layerIn(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
-        """Property-like. Return an input dataset used for layering (named from original codebase)."""
+    def layer_in(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return an input dataset used for layering (named ``layerIn`` in original codebase)."""
         return self.get_slice(
             getattr(self.input_forcings, f"final_forcings{attr_suffix}"), force_idx
         )
 
-    def indSet(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
-        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named from the original codebase."""
+    def indices_set(self, force_idx: int, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named ``indSet`` in the original codebase."""
         return np.where(
-            self.layerIn(force_idx, attr_suffix) != self.config_options.globalNdv
+            self.layer_in(force_idx, attr_suffix) != self.config_options.globalNdv
         )
 
     def update_output_local(self, force_idx: int, attr_suffix: str = "") -> None:
@@ -105,17 +105,17 @@ class _LayeringMod(ABC):
         output_tmp = self.get_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"), force_idx
         )
-        layerIn = self.layerIn(force_idx, attr_suffix)
+        layer_in = self.layer_in(force_idx, attr_suffix)
 
         if (
             self.input_forcings.product_name == "ERA5"
             and [12, 21] in self.config_options.input_forcings
         ):
             mask = getattr(self.input_forcings, f"regridded_mask{attr_suffix}_AORC")
-            output_tmp[np.where(mask == 0)] = layerIn[np.where(mask == 0)]
+            output_tmp[np.where(mask == 0)] = layer_in[np.where(mask == 0)]
         else:
-            indSet = self.indSet(force_idx, attr_suffix)
-            output_tmp[indSet] = layerIn[indSet]
+            indices_set = self.indices_set(force_idx, attr_suffix)
+            output_tmp[indices_set] = layer_in[indices_set]
 
         self.set_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"),
@@ -257,19 +257,19 @@ class _LayeringModSupplemental(ABC):
         """Abstract method: Apply the layering logic (this is the primary function of this class)."""
         raise NotImplementedError
 
-    def indSet(self, attr_suffix: str = "") -> np.ndarray:
-        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named from the original codebase."""
+    def indices_set(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return the indices of the input dataset that are not equal to the global no-data value (a non-no-data mask). Named ``indSet`` in the original codebase."""
         return np.where(
             getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
             != self.config_options.globalNdv
         )
 
-    def layerIn(self, attr_suffix: str = "") -> np.ndarray:
-        """Property-like. Return an input dataset used for layering (named from original codebase)."""
+    def layer_in(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like. Return an input dataset used for layering (named ``layerIn`` in original codebase)."""
         return getattr(self.supplemental_precip, f"final_supp_precip{attr_suffix}")
 
-    def layerOut(self, attr_suffix: str = "") -> np.ndarray:
-        """Property-like method. Return the layerOut array (named from original codebase)."""
+    def layer_out(self, attr_suffix: str = "") -> np.ndarray:
+        """Property-like method. Return the ``layer_out`` array (named ``layerOut`` in original codebase)."""
         return self.get_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"),
             self.supplemental_precip.output_var_idx,
@@ -282,23 +282,23 @@ class _LayeringModSupplemental(ABC):
             https://github.com/NGWPC/ngen-forcing/blob/a0f217f06a0045d9f139bfa14abe711fc6f248b0/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/layeringMod.py#L113
         """
 
-        indSet = self.indSet(attr_suffix)
-        layerIn = self.layerIn(attr_suffix)
-        layerOut = self.layerOut(attr_suffix)
+        indices_set = self.indices_set(attr_suffix)
+        layer_in = self.layer_in(attr_suffix)
+        layer_out = self.layer_out(attr_suffix)
         # NOTE original TODO comment below was for "gridded" discretization. Unknown intent:
         # TODO: review test layering for ExtAnA calculation to replace FE QPE with MPE RAINRATE
         # If this isn't sufficient, replace QPE with MPE here:
         # if supplemental_precip.keyValue == 11:
         #    config_options.statusMsg = "Performing ExtAnA calculation"
         #    err_handler.log_msg(config_options, MpiConfig)
-        if len(indSet[0]) != 0:
-            layerOut[indSet] = layerIn[indSet]
+        if len(indices_set[0]) != 0:
+            layer_out[indices_set] = layer_in[indices_set]
         # NOTE original TODO comment below was for all discretizations ("gridded", "unstructured", and "hydrofabric"). Unknown intent.
         # TODO: test that even does anything...?s
         self.set_slice(
             getattr(self.output_obj, f"output_local{attr_suffix}"),
             self.supplemental_precip.output_var_idx,
-            layerOut,
+            layer_out,
         )
 
 
