@@ -66,7 +66,7 @@ class InputForcings:
 
         # set list of attibutes from consts.py to None.
         # These are indexed from the consts dictionary using the class name
-        for attr in FORCINGINPUTMOD[self.__class__.__base__.__name__]:
+        for attr in FORCINGINPUTMOD[__class__.__name__]:
             setattr(self, attr, None)
 
         self._initialize_config_options()
@@ -313,7 +313,7 @@ class InputForcingsGridded(InputForcings):
 
         """
         super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
-        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -443,7 +443,7 @@ class InputForcingsHydrofabric(InputForcings):
 
         """
         super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
-        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -551,7 +551,7 @@ class InputForcingsUnstructured(InputForcings):
 
         """
         super().__init__(idx, config_options, geo_meta, mpi_config, custom_count)
-        for attr in FORCINGINPUTMOD[self.__class__.__name__]:
+        for attr in FORCINGINPUTMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property
