@@ -488,23 +488,11 @@ class NWMv3ForcingEngineModel:
                     # Flag to indicate the AWS .zarr NWMv3 Forcing file method
                     elif force_key == 27:
                         if self._bmi._job_meta.nwm_domain == "CONUS":
-                            self.source_data_processor = NWMV3ConusProcessor(
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
+                            proc_cls = NWMV3ConusProcessor
                         elif self._bmi._job_meta.nwm_domain == "Hawaii":
-                            self.source_data_processor = NWMV3HawaiiProcessor(
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
+                            proc_cls = NWMV3HawaiiProcessor
                         elif self._bmi._job_meta.nwm_domain == "PR":
-                            self.source_data_processor = NWMV3PuertoRicoProcessor(
-                                self._bmi._job_meta,
-                                self._bmi._mpi_meta,
-                                self._bmi.geo_meta,
-                            )
+                            proc_cls = NWMV3PuertoRicoProcessor
                         elif self._bmi._job_meta.nwm_domain == "Alaska":
                             proc_cls = NWMV3AlaskaProcessor
                         else:
