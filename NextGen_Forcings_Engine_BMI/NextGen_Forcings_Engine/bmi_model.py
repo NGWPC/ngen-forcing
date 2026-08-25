@@ -1550,7 +1550,6 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__(b_date, geogrid, output_path)
-        self.GeoMeta = GriddedGeoMeta
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the gridded domain."""
@@ -1621,7 +1620,6 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__(b_date, geogrid, output_path)
-        self.GeoMeta = HydrofabricGeoMeta
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the hydrofabric domain."""
@@ -1688,7 +1686,6 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         Initializes the model with default values for time, variables, and grid types.
         """
         super().__init__(b_date, geogrid, output_path)
-        self.GeoMeta = UnstructuredGeoMeta
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the unstructured domain."""
