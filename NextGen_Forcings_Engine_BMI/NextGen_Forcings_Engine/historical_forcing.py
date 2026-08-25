@@ -657,10 +657,6 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    # TODO this object_store var is not used
-                    object_store = obstore.store.from_url(
-                        self.url(var), skip_signature=True
-                    )
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
