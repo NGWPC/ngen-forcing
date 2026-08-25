@@ -16,6 +16,7 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import mpi_utils
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
     CONFIGOPTIONS,
     FORCINGINPUTMOD,
+    SUPPPRECIPMOD,
 )
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
     err_out_screen,
@@ -205,15 +206,17 @@ class ConfigOptions:
 
     @property
     def force_count(self) -> int:
-        """Calculate the number of total possible input forcing options based on the length of the InputForcings list in the consts.py file. This is used for error checking to ensure users specify valid input forcing options in the configuration file."""
+        """Calculate the number of total possible input forcing options based on the length of the InputForcings list in consts.py.
+        This is used for error checking to ensure users specify valid input forcing options in the configuration file.
+        """
         return len(FORCINGINPUTMOD["PRODUCT_NAME"])
 
     @property
     def supp_precip_count(self) -> int:
-        """Calculate the number of total possible supplemental precip forcing options based on the length of the SuppPrecipForcings list in the consts.py file. This is used for error checking to ensure users specify valid supplemental precip forcing options in the configuration file."""
-        # TODO make this dynamic based on the length of the SUPPPRECIPMOD list in consts.py, but for now hardcoding to 15 since that is the number of options currently available in consts.py and this will avoid any issues with the formatting of the consts.py file causing errors in the program. This is used for error checking to ensure users specify valid supplemental precip forcing options in the configuration file.
-        # return len(SUPPPRECIPMOD["suppPrecipMod"]["PRODUCT_NAMES"])
-        return 15
+        """Calculate the number of total possible supplemental precip forcing options based on the length of the Supplemental Precip PRODUCT_NAMES dict in consts.py.
+        This is used for error checking to ensure users specify valid supplemental precip forcing options in the configuration file.
+        """
+        return len(SUPPPRECIPMOD["PRODUCT_NAMES"])
 
     @property
     def precip_only_flag(self) -> bool:

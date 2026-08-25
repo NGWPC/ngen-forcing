@@ -280,7 +280,7 @@
   "suppTemporalInterp": null,
   "supp_input_offsets": null,
   "supp_pcp_max_hours": null,
-  "supp_precip_count": 15,
+  "supp_precip_count": 16,
   "supp_precip_dirs": null,
   "supp_precip_file_types": [],
   "supp_precip_forcings": [],
