@@ -1188,6 +1188,8 @@ class ConfigOptions:
     @property
     def perform_downscaling(self) -> bool:
         """Determine whether downscaling of input forcings is necessary based on the downscaling options specified by the user for each input forcing in the configuration file."""
+        if self.precip_only_flag:
+            return False
         if (
             1 in self.q2dDownscaleOpt
             or 1 in self.swDownscaleOpt
