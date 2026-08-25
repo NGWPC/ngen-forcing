@@ -350,6 +350,8 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                 input_forcings.regridded_forcings2_elem = np.empty(
                     [9, wrf_hydro_geo_meta.ny_local_elem], np.float32
                 )
+            # TODO likely a bug, should this be "hydrofabric"?
+            # Issue might be overridden for hydrofabric case in function `check_regrid_status`.
             elif config_options.grid_type == "unstructured":
                 input_forcings.regridded_forcings1 = np.empty(
                     [9, wrf_hydro_geo_meta.ny_local], np.float32
@@ -446,6 +448,9 @@ def regrid_ak_ext_ana(input_forcings, config_options, wrf_hydro_geo_meta, mpi_co
                     ] = input_forcings.regridded_forcings2_elem[
                         input_forcings.input_map_output[force_count], :
                     ]
+            # TODO likely a bug, "hydrofabric" slicing should access 1 dimension, not 2.
+            # See `regridded_forcings2 =` for hydrofabric case in function `check_regrid_status`.
+            # Is AK Extended AnA runnable like this?
             elif config_options.grid_type == "hydrofabric":
                 try:
                     input_forcings.regridded_forcings2[
