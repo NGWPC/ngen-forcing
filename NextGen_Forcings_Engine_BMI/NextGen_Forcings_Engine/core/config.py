@@ -86,6 +86,7 @@ class ConfigOptions:
         self._ana_flag = None
         self._look_back = None
         self._fcst_freq = None
+        self._fcst_input_horizons = None
         self._spatial_meta = None
         self._geopackage = None
         self._geogrid = None
@@ -530,7 +531,18 @@ class ConfigOptions:
 
     @fcst_freq.setter
     def fcst_freq(self, value: int) -> None:
-        """Set the forecast frequency in hours specified by the user in the configuration file. This is used to calculate the processing window for reforecast simulations, and is only necessary if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation."""
+        """Set the forecast frequency in hours specified by the user in the configuration file.
+
+        This is used to calculate the processing window for reforecast simulations, and is only necessary
+        if the user is running a reforecast simulation with a specified processing window rather than a realtime simulation.
+
+        NOTE: this property is hardened such that it allows being set one time, but may not be mutated after that initial set.
+        For rationale, see: https://github.com/NGWPC/ngen-forcing/pull/107
+        """
+        if self._fcst_freq is not None and self._fcst_freq != value:
+            raise ValueError(
+                f"fcst_freq is immutable after initialization. Current: {self._fcst_freq}, Attempted: {value}"
+            )
         self.check_input_values_non_negative([value], "ForecastFrequency")
         if value > 1440:
             err_out_screen(
@@ -864,6 +876,15 @@ class ConfigOptions:
 
     @fcst_input_horizons.setter
     def fcst_input_horizons(self, value: list) -> None:
+        """Setter for ``fcst_input_horizons``.
+
+        NOTE: this property is hardened such that it allows being set one time, but may not be mutated after that initial set.
+        For rationale, see: https://github.com/NGWPC/ngen-forcing/pull/107
+        """
+        if self._fcst_input_horizons is not None and self._fcst_input_horizons != value:
+            raise ValueError(
+                f"fcst_input_horizons is immutable after initialization. Current: {self._fcst_input_horizons}, Attempted: {value}"
+            )
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "ForecastInputHorizons")
             self.check_input_values_non_negative(value, "ForecastInputHorizons")
