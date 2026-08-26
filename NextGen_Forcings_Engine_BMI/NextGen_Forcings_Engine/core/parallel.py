@@ -1,20 +1,28 @@
 from __future__ import annotations
+
 import atexit
-from functools import partial
 import os
 import signal
 import sys
-import typing
-from typing import TypeVar
+from functools import partial
+from typing import TYPE_CHECKING, TypeVar
+
 import mpi4py
 import numpy as np
+
+from . import err_handler, mpi_utils
 
 mpi4py.rc.threads = False
 
 from mpi4py import MPI  # noqa: E402
 
-from . import err_handler
-from . import mpi_utils
+if TYPE_CHECKING:
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
+        ConfigOptions,
+    )
+    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.geoMod import (
+        GriddedGeoMeta,
+    )
 
 # If MPI was initialized outside of python,
 # disable initialization/finalization behavior
@@ -22,9 +30,6 @@ if MPI.Is_initialized():
     mpi4py.rc.initialize = False
     mpi4py.rc.finalize = False
 
-if typing.TYPE_CHECKING:
-    from .geoMod import GriddedGeoMeta
-    from .config import ConfigOptions
 
 _T = TypeVar("_T")
 
@@ -379,7 +384,9 @@ class MpiConfig:
         try:
             self.comm.Allgather([shapes, MPI.INTEGER], [global_shapes, MPI.INTEGER])
         except Exception:
-            self.config_options.errMsg = "Failed all gathering slab shapes at rank" + str(self.rank)
+            self.config_options.errMsg = (
+                "Failed all gathering slab shapes at rank" + str(self.rank)
+            )
             err_handler.log_critical(self.config_options, self)
             return None
 
@@ -450,7 +457,9 @@ class MpiConfig:
                     root=0,
                 )
         except Exception:
-            self.config_options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(self.rank)
+            self.config_options.errMsg = "Failed to Gatherv to rank 0 from rank " + str(
+                self.rank
+            )
             err_handler.log_critical(self.config_options, self)
             return None
 
