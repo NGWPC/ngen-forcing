@@ -114,7 +114,7 @@ class ConfigOptions:
         # set list of attributes from consts.py to None early on in the init process.
         # These are indexed from the consts dictionary.
         # This must happen before accessing properties like precip_only_flag
-        for attr in CONFIGOPTIONS[self.__class__.__name__]:
+        for attr in CONFIGOPTIONS[__class__.__name__]:
             setattr(self, attr, None)
         self.broadcast_new_64bit_uid()
 

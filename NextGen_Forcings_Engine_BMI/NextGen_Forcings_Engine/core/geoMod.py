@@ -120,7 +120,7 @@ class GeoMeta:
         """Initialize GeoMeta class variables."""
         self.config_options = config_options
         self.mpi_config = mpi_config
-        for attr in GEOMOD[self.__class__.__base__.__name__]:
+        for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @cached_property
@@ -272,7 +272,7 @@ class GriddedGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in GEOMOD[self.__class__.__name__]:
+        for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @broadcast
@@ -829,7 +829,7 @@ class HydrofabricGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in GEOMOD[self.__class__.__name__]:
+        for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @cached_property
@@ -984,7 +984,7 @@ class UnstructuredGeoMeta(GeoMeta):
         :return:
         """
         super().__init__(config_options, mpi_config)
-        for attr in GEOMOD[self.__class__.__name__]:
+        for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @broadcast
