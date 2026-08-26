@@ -91,6 +91,24 @@ class ConfigOptions:
         self._geopackage = None
         self._geogrid = None
         self._grid_type = None
+        # Backing vars for setters that guard on precip_only_flag and do not unconditionally assign
+        self._fcst_input_offsets = None
+        self._ignored_border_widths = None
+        self._regrid_opt = None
+        self._weightsDir = None
+        self._forceTemoralInterp = None
+        self._t2dDownscaleOpt = None
+        self._psfcDownscaleOpt = None
+        self._swDownscaleOpt = None
+        self._q2dDownscaleOpt = None
+        self._precipDownscaleOpt = None
+        self._t2BiasCorrectOpt = None
+        self._psfcBiasCorrectOpt = None
+        self._q2BiasCorrectOpt = None
+        self._windBiasCorrect = None
+        self._swBiasCorrectOpt = None
+        self._lwBiasCorrectOpt = None
+        self._precipBiasCorrectOpt = None
 
         # set list of attributes from consts.py to None early on in the init process.
         # These are indexed from the consts dictionary.
@@ -1512,13 +1530,15 @@ class ConfigOptions:
         """
         if not self.precip_only_flag:
             self.check_number_of_inputs_forcings(value, "PrecipDownscaling")
-        self.check_input_values_in_range(value, "PrecipDownscaling", [0, 1])
-        count = 0
-        for opt in value:
-            if opt == 1:
-                self.param_flag[count] = 1
-            count += 1
-        self._precipDownscaleOpt = value
+            self.check_input_values_in_range(value, "PrecipDownscaling", [0, 1])
+            count = 0
+            for opt in value:
+                if opt == 1:
+                    self.param_flag[count] = 1
+                count += 1
+            self._precipDownscaleOpt = value
+        else:
+            self._precipDownscaleOpt = None
 
     @property
     def dScaleParamDirs(self) -> list:
