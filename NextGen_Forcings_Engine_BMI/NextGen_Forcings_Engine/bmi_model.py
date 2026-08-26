@@ -659,13 +659,13 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             LOG.debug(
                 f"[BMI get_value] Special case: 'grid:ids', grid_type: {self._job_meta.grid_type}"
             )
-            dest[:] = self.grid_ids(self)
+            dest[:] = self.grid_ids()
 
         elif var_name == "grid:ranks":
             LOG.debug(
                 f"[BMI get_value] Special case: 'grid:ranks', grid_type: {self._job_meta.grid_type}"
             )
-            dest[:] = self.grid_ranks(self)
+            dest[:] = self.grid_ranks()
         else:
             src = self.get_value_ptr(var_name)
             LOG.debug(
