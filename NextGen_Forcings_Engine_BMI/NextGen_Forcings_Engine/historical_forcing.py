@@ -3,6 +3,7 @@
 import datetime
 import gc
 import logging
+import math
 import os
 import pickle
 import traceback
@@ -256,20 +257,14 @@ class BaseProcessor:
         if self.mpi_config.size > 1:
             self.mpi_config.comm.barrier()
             # if the dataset is too large, it must be broken up to be sent through MPI messages
-            # to be safe, we'll use 1.5 GB as the cutoff before breaking it up
-            chunk_size = int(1024 * 1024 * 1024 * 1.5)
+            # to be safe, we'll use 1.8 GB as the cutoff before breaking it up
+            cutoff = 1024 * 1024 * 1024 * 1.8
+            # 100 MB chunk size to prevent massive copies of sub data
+            chunk_size = 100 * 1024 * 1024
             chunks_count = np.array([1], dtype=np.int64)
-            if (self.mpi_config.rank == 0 and ds.nbytes > chunk_size):
+            if (self.mpi_config.rank == 0 and ds.nbytes > cutoff):
                 pickled = pickle.dumps(ds, pickle.HIGHEST_PROTOCOL)
-                chunks: list[bytes] = []
-                while True:
-                    chunks.append(pickled[:chunk_size])
-                    if len(pickled) <= chunk_size:
-                        pickled = None
-                        break
-                    else:
-                        pickled = pickled[chunk_size:]
-                chunks_count[0] = len(chunks)
+                chunks_count[0] = math.ceil(len(pickled) / chunk_size)
             self.mpi_config.comm.Bcast(chunks_count, root=0)
             if chunks_count[0] == 1:
                 ds = self.mpi_config.comm.bcast(ds, root=0)
@@ -278,8 +273,8 @@ class BaseProcessor:
                     full_data = bytearray()
                 for i in range(chunks_count[0]):
                     if self.mpi_config.rank == 0:
-                        chunk = chunks[i]
-                        chunks[i] = None
+                        index = chunk_size * i
+                        chunk = pickled[index:index + chunk_size]
                         chunks_count[0] = len(chunk)
                     self.mpi_config.comm.Bcast(chunks_count, root=0)
                     if self.mpi_config.rank != 0:
@@ -288,7 +283,9 @@ class BaseProcessor:
                     if self.mpi_config.rank != 0:
                         full_data.extend(chunk)
                     chunk = None
-                if self.mpi_config.rank != 0:
+                if self.mpi_config.rank == 0:
+                    del pickled
+                else:
                     ds = pickle.loads(full_data)
         if self.mpi_config.rank == 0:
             if not os.path.exists(self.nc_path):
