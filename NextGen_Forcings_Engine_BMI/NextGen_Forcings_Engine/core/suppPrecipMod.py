@@ -50,7 +50,7 @@ class SupplementalPrecip:
         self.config_options = config_options
         self.geo_meta = geo_meta
 
-        for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
+        for attr in SUPPPRECIPMOD[__class__.__name__]:
             setattr(self, attr, None)
 
         self._initialize_config_options()
@@ -73,7 +73,7 @@ class SupplementalPrecip:
         For each attribute in SUPPPRECIPMOD["SupplementalPrecip"], check if the
         same-named attribute exists in config_options as a list and set it on self.
         """
-        for attr in SUPPPRECIPMOD[self.__class__.__base__.__name__]:
+        for attr in SUPPPRECIPMOD[__class__.__name__]:
             if hasattr(self.config_options, attr):
                 val = getattr(self.config_options, attr)
                 if isinstance(val, list) and len(val) > 0:
@@ -316,7 +316,7 @@ class SupplementalPrecipGridded(SupplementalPrecip):
     ) -> None:
         """Initialize SupplementalPrecipGridded.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
-        for attr in SUPPPRECIPMOD[self.__class__.__name__]:
+        for attr in SUPPPRECIPMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -361,7 +361,7 @@ class SupplementalPrecipHydrofabric(SupplementalPrecip):
     ) -> None:
         """Initialize SupplementalPrecipHydrofabric.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
-        for attr in SUPPPRECIPMOD[self.__class__.__name__]:
+        for attr in SUPPPRECIPMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property
@@ -404,7 +404,7 @@ class SupplementalPrecipUnstructured(SupplementalPrecip):
     ) -> None:
         """Initialize SupplementalPrecipUnstructured.  Any subclass-specific attr names are sourced from SUPPPRECIPMOD[classname] in consts.py."""
         super().__init__(idx, config_options, geo_meta)
-        for attr in SUPPPRECIPMOD[self.__class__.__name__]:
+        for attr in SUPPPRECIPMOD[__class__.__name__]:
             setattr(self, attr, None)
 
     @property

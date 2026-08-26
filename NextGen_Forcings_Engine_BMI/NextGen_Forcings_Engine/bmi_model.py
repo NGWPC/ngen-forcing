@@ -453,7 +453,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         :raises RuntimeError: If the configuration file is invalid or missing.
         """
         self._config_file = config_file
-        for attr in BMI_MODEL[self.__class__.__base__.__name__]:
+        for attr in BMI_MODEL[__class__.__name__]:
             setattr(self, attr, None)
         self._model = NWMv3ForcingEngineModel(self)
         self.init_log()
