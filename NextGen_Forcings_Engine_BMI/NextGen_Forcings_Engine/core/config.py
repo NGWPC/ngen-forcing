@@ -1906,6 +1906,7 @@ class ConfigOptions:
         input forcing as mandatory or optional in the configuration file.
         """
         if self.number_supp_pcp > 0:
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpMandatory")
             self.check_input_values_in_range(value, "SuppPcpMandatory", [0, 1])
             self._supp_precip_mandatory = value
         else:
@@ -1932,6 +1933,7 @@ class ConfigOptions:
         forcing in the configuration file.
         """
         if self.number_supp_pcp > 0:
+            self.check_number_of_inputs_supp_pcp(value, "RegridOptSuppPcp")
             self.check_input_values_in_range(value, "RegridOptSuppPcp", [1, 2, 3])
             self._regrid_opt_supp_pcp = value
         else:
@@ -1955,6 +1957,7 @@ class ConfigOptions:
         precipitation input forcing in the configuration file.
         """
         if self.number_supp_pcp > 0:
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpTemporalInterpolation")
             self.check_input_values_in_range(
                 value, "SuppPcpTemporalInterpolation", [0, 1, 2]
             )
