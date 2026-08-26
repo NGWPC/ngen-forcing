@@ -691,6 +691,10 @@ class ConfigOptions:
         file. This is used to control how spatial metadata is handled during processing,
         and is necessary for both realtime and reforecast simulations.
         """
+        if value is None:
+            raise TypeError(
+                "spatial_meta setter received None; pass '' to indicate no spatial metadata file."
+            )
         if len(value) == 0:
             # No spatial metadata file found.
             value = None
