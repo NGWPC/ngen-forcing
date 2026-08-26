@@ -2177,9 +2177,26 @@ class ConfigOptions:
 
     @property
     def use_data_at_current_time(self):
-        """Determine if supplemental precipitation data can be used at the current output time."""
+        """Determine if supplemental precipitation data can be used at the current output time.
+
+        TODO: This property has no product context; it asserts that all supp pcp products share
+        the same value for ``SuppPcpMaxHours`` in the config file . Needs revisiting if
+        support is needed for differing values per-product.
+        """
         if self.supp_pcp_max_hours:
             hrs_since_start = self.current_output_date - self.current_fcst_cycle
-            return hrs_since_start <= timedelta(hours=self.supp_pcp_max_hours)
+            if isinstance(self.supp_pcp_max_hours, list):
+                if len(set(self.supp_pcp_max_hours)) != 1:
+                    raise ValueError(
+                        f"use_data_at_current_time does not support differing supp_pcp_max_hours per product: {self.supp_pcp_max_hours}"
+                    )
+                hours = self.supp_pcp_max_hours[0]
+            elif isinstance(self.supp_pcp_max_hours, (int, float)):
+                hours = self.supp_pcp_max_hours
+            else:
+                raise TypeError(
+                    f"Unexpected type for supp_pcp_max_hours: {type(self.supp_pcp_max_hours)}"
+                )
+            return hrs_since_start <= timedelta(hours=hours)
         else:
             return True
