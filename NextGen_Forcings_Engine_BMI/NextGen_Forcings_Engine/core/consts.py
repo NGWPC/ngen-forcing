@@ -1245,7 +1245,7 @@ SUPPPRECIPMOD = {
         0: timeInterpMod.no_interpolation_supp_pcp,
         1: timeInterpMod.nearest_neighbor_supp_pcp,
         2: timeInterpMod.weighted_average_supp_pcp,
-    }
+    },
 }
 
 MODEL = {
@@ -1396,5 +1396,5 @@ CONFIGOPTIONS = {
         "GeogridIn": "geogrid",
         "SpatialMetaIn": "spatial_meta",
     },
-    "file_types": ["GRIB1", "GRIB2", "NETCDF", "NETCDF4", "NWM", "ZARR"],
+    "file_types": ["GRIB1", "GRIB2", "NETCDF", "NETCDF4", "NWM", "ZARR", "GRIB2_CFS"],
 }
