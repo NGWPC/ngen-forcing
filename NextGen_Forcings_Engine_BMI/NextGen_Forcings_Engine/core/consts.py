@@ -1376,12 +1376,12 @@ CONFIGOPTIONS = {
         "COSALPHA": "cosalpha_var",
         "SLOPE": "slope_var",
         "SLOPE_AZIMUTH": "slope_azimuth_var",
-        "HGT": "hgt_var",
+        "HGTVAR": "hgt_var",
     },
     "downscaling_unstructred_attrs_map": {
         "SLOPE_ELEM": "slope_var_elem",
         "SLOPE_AZIMUTH_ELEM": "slope_azimuth_var_elem",
-        "HGT_ELEM": "hgt_elem_var",
+        "HGTVAR_ELEM": "hgt_elem_var",
     },
     "extract_input_variable_set_default_attrs_map": {
         "includeLQFrac": "include_lqfrac",
