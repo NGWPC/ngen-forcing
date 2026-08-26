@@ -1,3 +1,12 @@
+"""BMI model implementation for the forcing engine.
+
+TODO: to support other discretization types ("gridded" and "unstructured"), use self.GeoMeta(...).
+Other changes may be necessary than just this to enable those discretization types.
+See these PRs for pending code that attempts to address this:
+    https://github.com/NGWPC/ngen-forcing/pull/202 -- Adjustments to Support Gridded Forcing
+    https://github.com/NGWPC/ngen-forcing/pull/212 -- Coastal Forcing
+"""
+
 # Need these for BMI
 # This is needed for get_var_bytes
 import gc
@@ -255,8 +264,18 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
 
     @property
     def geo_meta(self) -> GeoMeta:
-        """Return the geospatial metadata object."""
+        """Return the geospatial metadata object.
+
+        TODO: to support other discretization types ("gridded" and "unstructured"), use self.GeoMeta(...).
+        Other changes may be necessary than just this to enable those discretization types.
+        See these PRs for pending code that attempts to address this:
+            https://github.com/NGWPC/ngen-forcing/pull/202 -- Adjustments to Support Gridded Forcing
+            https://github.com/NGWPC/ngen-forcing/pull/212 -- Coastal Forcing
+        """
         if self._geo_meta is None:
+            assert self._job_meta.grid_type == "hydrofabric", (
+                f"Only 'hydrofabric' grid type is currently supported; got '{self._job_meta.grid_type}'. See docstrings for discretization types."
+            )
             self._geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
         return self._geo_meta
 
