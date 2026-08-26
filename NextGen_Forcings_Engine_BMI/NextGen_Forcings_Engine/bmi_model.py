@@ -1578,7 +1578,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         # will support a BMI field for liquid fraction of precipitation
         self._output_var_names = BMI_MODEL["_output_var_names"]
         self._var_name_units_map = BMI_MODEL["_var_name_units_map"]
-        if self.config_options.include_lqfrac == 1:
+        if self._job_meta.include_lqfrac == 1:
             self._output_var_names += ["LQFRAC_ELEMENT"]
             self._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
