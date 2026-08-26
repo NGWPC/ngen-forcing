@@ -2041,6 +2041,7 @@ class ConfigOptions:
         """
         if self.number_supp_pcp > 0:
             self.check_number_of_inputs_supp_pcp(value, "SuppPcpInputOffsets")
+            self.check_input_values_non_negative(value, "SuppPcpInputOffsets")
             self._supp_input_offsets = value
         else:
             self._supp_input_offsets = None
