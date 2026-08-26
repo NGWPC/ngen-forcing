@@ -1776,8 +1776,14 @@ class ConfigOptions:
         control whether the NWM-specific bias correction of CFSv2 input forcings is run
         based on whether the user has chosen to run this bias correction in the
         configuration file.
+
+        NOTE: Returns False immediately when precip_only_flag is truthy because
+        bias correction is never configured for precip-only runs. In that case the
+        correction backing vars are None and iterating them would raise TypeError.
         """
         run_cfs_nldas_bias_correct = False
+        if self.precip_only_flag:
+            return run_cfs_nldas_bias_correct
         for bias_option in self.bias_correction_properties.values():
             for opt in bias_option:
                 if opt == 1:
