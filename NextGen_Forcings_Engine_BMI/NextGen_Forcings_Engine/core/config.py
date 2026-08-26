@@ -108,6 +108,7 @@ class ConfigOptions:
         self._swBiasCorrectOpt = None
         self._lwBiasCorrectOpt = None
         self._precipBiasCorrectOpt = None
+        self._input_force_types = None
 
         # set list of attributes from consts.py to None early on in the init process.
         # These are indexed from the consts dictionary.
