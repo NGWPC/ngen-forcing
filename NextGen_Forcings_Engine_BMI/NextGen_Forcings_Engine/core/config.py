@@ -2030,7 +2030,6 @@ class ConfigOptions:
         file.
         """
         if self.number_supp_pcp > 0:
-            self.check_number_of_inputs_supp_pcp(value, "SuppPcpDirectories")
             # Loop through and ensure all supp pcp directories exist. Also strip out any whitespace
             # or new line characters.
             for dirTmp in range(0, len(value)):
@@ -2038,12 +2037,14 @@ class ConfigOptions:
                 self.try_make_dir(value[dirTmp], " supp pcp")
 
             # Special case for ExtAnA where we treat comma separated stage IV, MRMS data as one SuppPcp input
+            # NOTE: the length check must happen after this join, since ExtAnA may supply 2 dirs for 1 SuppPcp product.
             if 11 in self.supp_precip_forcings or 12 in self.supp_precip_forcings:
                 if len(self.supp_precip_forcings) != 1:
                     err_out_screen(
                         "CONUS or Alaska Stage IV/MRMS SuppPcp option is only supported as a standalone option"
                     )
                 value = [",".join(value)]
+            self.check_number_of_inputs_supp_pcp(value, "SuppPcpDirectories")
             self._supp_precip_dirs = value
         else:
             self._supp_precip_dirs = None
