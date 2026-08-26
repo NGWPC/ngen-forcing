@@ -136,7 +136,7 @@ class ConfigOptions:
                 set_none=True,
             )
             if 27 in self.input_forcings:
-                self.nwm_geogrid = self.extract_input_variable("NWMGeogridIn")
+                self.nwm_geogrid = self.extract_input_variable("NWM_Geogrid")
 
         if self.perform_downscaling:
             self.set_attrs(CONFIGOPTIONS["downscaling_attrs_map"])
@@ -1860,11 +1860,11 @@ class ConfigOptions:
                 # Read in RQI threshold to apply to radar products.
                 if supp_opt in (1, 2, 7, 10, 11, 12):
                     # Returns None if key missing (not configured for this product)
-                    value = self.cfg_bmi.get("RqiThresh")
+                    value = self.cfg_bmi.get("RqiThreshold")
                     if value is not None:
                         # Validate
                         if type(value) is list:
-                            self.check_number_of_inputs_supp_pcp(value, "RqiThresh")
+                            self.check_number_of_inputs_supp_pcp(value, "RqiThreshold")
                         elif type(value) in (int, float, type(None)):
                             # Support configuration file representing this with a single scalar value, apply to all
                             value = [value] * self.number_supp_pcp
