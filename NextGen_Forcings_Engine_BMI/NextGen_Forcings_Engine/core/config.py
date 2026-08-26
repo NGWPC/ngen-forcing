@@ -94,7 +94,6 @@ class ConfigOptions:
         # Backing vars for setters that guard on precip_only_flag and do not unconditionally assign
         self._fcst_input_offsets = None
         self._ignored_border_widths = None
-        self._regrid_opt = None
         self._weightsDir = None
         self._forceTemoralInterp = None
         self._t2dDownscaleOpt = None
@@ -968,8 +967,7 @@ class ConfigOptions:
         """
         if self._input_force_dirs:
             return self._input_force_dirs
-        else:
-            None
+        return None
 
     @input_force_dirs.setter
     def input_force_dirs(self, value: list) -> None:
