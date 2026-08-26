@@ -491,7 +491,7 @@ class ConfigOptions:
 
         Example- OutputFrequency: 60
         """
-        self.check_input_values_non_negative([value], "OutputFrequency")
+        self.check_input_values_positive([value], "OutputFrequency")
         self._output_freq = value
 
     @property
@@ -665,7 +665,7 @@ class ConfigOptions:
             raise ValueError(
                 f"fcst_freq is immutable after initialization. Current: {self._fcst_freq}, Attempted: {value}"
             )
-        self.check_input_values_non_negative([value], "ForecastFrequency")
+        self.check_input_values_positive([value], "ForecastFrequency")
         if value > 1440:
             err_out_screen(
                 "Only forecast cycles of daily or sub-daily are supported at this time"
