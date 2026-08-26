@@ -320,6 +320,10 @@ class ConfigOptions:
         """Check that the number of inputs specified by the user in the configuration
         file matches the expected number of inputs for a given variable.
         """
+        if not isinstance(value, (list, tuple)):
+            raise TypeError(
+                f"Expected list or tuple for `value`, got type {type(value)}"
+            )
         if len(value) != number_inputs:
             err_out_screen(
                 f"Number of {variable_name} values must match the number of {input_type} in the configuration file."
@@ -351,6 +355,10 @@ class ConfigOptions:
         """Check that the input values specified by the user in the configuration file
         are within a valid range for a given variable.
         """
+        if not isinstance(value, (list, tuple)):
+            raise TypeError(
+                f"Expected list or tuple for `value`, got type {type(value)}"
+            )
         for val in value:
             if val not in valid_input_options:
                 err_out_screen(
@@ -2081,7 +2089,7 @@ class ConfigOptions:
                 if opt_tmp == 7:
                     value = self.extract_input_variable("cfsEnsNumber")
                     self.check_input_values_in_range(
-                        value, "cfsEnsNumber", [1, 2, 3, 4]
+                        [value], "cfsEnsNumber", [1, 2, 3, 4]
                     )
             return value
 
