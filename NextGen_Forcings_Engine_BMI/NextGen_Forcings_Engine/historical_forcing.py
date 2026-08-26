@@ -3,7 +3,9 @@
 import datetime
 import gc
 import logging
+import math
 import os
+import pickle
 import traceback
 import typing
 import warnings
@@ -251,10 +253,40 @@ class BaseProcessor:
         ds = None
         if self.mpi_config.rank == 0:
             with self.timing_block("computing dataset", LOG.info):
-                ds = self.sliced_ds.rio.write_crs(self.src_crs)
+                ds: xr.Dataset = self.sliced_ds.rio.write_crs(self.src_crs)
         if self.mpi_config.size > 1:
             self.mpi_config.comm.barrier()
-            ds = self.mpi_config.comm.bcast(ds, root=0)
+            # if the dataset is too large, it must be broken up to be sent through MPI messages
+            # to be safe, we'll use 1.8 GB as the cutoff before breaking it up
+            cutoff = 1024 * 1024 * 1024 * 1.8
+            # 100 MB chunk size to prevent massive copies of sub data
+            chunk_size = 100 * 1024 * 1024
+            chunks_count = np.array([1], dtype=np.int64)
+            if (self.mpi_config.rank == 0 and ds.nbytes > cutoff):
+                pickled = pickle.dumps(ds, pickle.HIGHEST_PROTOCOL)
+                chunks_count[0] = math.ceil(len(pickled) / chunk_size)
+            self.mpi_config.comm.Bcast(chunks_count, root=0)
+            if chunks_count[0] == 1:
+                ds = self.mpi_config.comm.bcast(ds, root=0)
+            else:
+                if self.mpi_config.rank != 0:
+                    full_data = bytearray()
+                for i in range(chunks_count[0]):
+                    if self.mpi_config.rank == 0:
+                        index = chunk_size * i
+                        chunk = pickled[index:index + chunk_size]
+                        chunks_count[0] = len(chunk)
+                    self.mpi_config.comm.Bcast(chunks_count, root=0)
+                    if self.mpi_config.rank != 0:
+                        chunk = bytearray(chunks_count[0])
+                    self.mpi_config.comm.Bcast(chunk, root=0)
+                    if self.mpi_config.rank != 0:
+                        full_data.extend(chunk)
+                    chunk = None
+                if self.mpi_config.rank == 0:
+                    del pickled
+                else:
+                    ds = pickle.loads(full_data)
         if self.mpi_config.rank == 0:
             if not os.path.exists(self.nc_path):
                 tmp_file = (
