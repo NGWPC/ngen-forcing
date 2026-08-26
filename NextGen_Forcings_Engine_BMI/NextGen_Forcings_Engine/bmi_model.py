@@ -395,7 +395,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         try:
             self._output_obj = ioMod.OutputObj(self._job_meta, self.geo_meta)
         except Exception as e:
-            err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
+            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
     def init_input_forcing_mod(self) -> None:
@@ -412,7 +412,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 self._job_meta, self.geo_meta, self._mpi_meta
             )
         except Exception as e:
-            err_handler.err_out_screen_para(self._job_meta, self._mpi_meta)
+            err_handler.err_out_screen_para(self._job_meta.errMsg, self._mpi_meta)
         err_handler.check_program_status(self._job_meta, self._mpi_meta)
 
     def init_supp_pcp_mod(self) -> None:
@@ -741,7 +741,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             LOG.error("Output variable names:")
             for var in self._output_var_names:
                 LOG.error(f" - {var}")
-            LOG.error("Grid type: {self._grid_type}")
+            LOG.error(f"Grid type: {self._grid_type}")
             raise UnknownBMIVariable(f"No known variable in BMI model: '{var_name}'")
 
         arr = self._values[var_name]
