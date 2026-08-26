@@ -1336,7 +1336,6 @@ CONFIGOPTIONS = {
         "ForecastFrequency": "fcst_freq",
         "ForecastShift": "fcst_shift",
         "GRID_TYPE": "grid_type",
-        "DownscalingParamDirs": "dScaleParamDirs",
         "SuppPcpDirectories": "supp_precip_dirs",
         "SuppPcpMandatory": "supp_precip_mandatory",
         "RegridOptSuppPcp": "regrid_opt_supp_pcp",
@@ -1370,6 +1369,7 @@ CONFIGOPTIONS = {
         "InputForcingDirectories": "input_force_dirs",  # np
         "InputMandatory": "input_force_mandatory",  # np
         "custom_input_fcst_freq": "customFcstFreq",  # np
+        "DownscalingParamDirs": "dScaleParamDirs",  # np
     },
     "downscaling_attrs_map": {
         "SINALPHA": "sinalpha_var",
