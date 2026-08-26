@@ -109,6 +109,7 @@ class ConfigOptions:
         self._lwBiasCorrectOpt = None
         self._precipBiasCorrectOpt = None
         self._input_force_types = None
+        self._dScaleParamDirs = None
 
         # set list of attributes from consts.py to None early on in the init process.
         # These are indexed from the consts dictionary.
@@ -1559,15 +1560,21 @@ class ConfigOptions:
         This is used to control where the program looks for downscaling parameter
         files for each input forcing based on the downscaling parameter directory
         specified for each input forcing in the configuration file.
+
+        NOTE: The guard on ``precip_only_flag`` is because DownscalingParamDirs is omitted
+        from precip-only configurations.
         """
-        self.check_number_of_inputs_forcings(value, "DownscalingParamDirs")
-        for dirTmp in range(0, len(value)):
-            dir_path = value[dirTmp]
-            if not os.path.isdir(dir_path):
-                err_out_screen(
-                    f"Unable to locate parameter directory: {os.path.abspath(dir_path)}"
-                )
-        self._dScaleParamDirs = value
+        if not self.precip_only_flag:
+            self.check_number_of_inputs_forcings(value, "DownscalingParamDirs")
+            for dirTmp in range(0, len(value)):
+                dir_path = value[dirTmp]
+                if not os.path.isdir(dir_path):
+                    err_out_screen(
+                        f"Unable to locate parameter directory: {os.path.abspath(dir_path)}"
+                    )
+            self._dScaleParamDirs = value
+        else:
+            self._dScaleParamDirs = None
 
     @property
     def perform_downscaling(self) -> bool:
