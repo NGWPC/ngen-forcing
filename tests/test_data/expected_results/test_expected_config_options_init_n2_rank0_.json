@@ -182,7 +182,8 @@
     "NETCDF",
     "NETCDF4",
     "NWM",
-    "ZARR"
+    "ZARR",
+    "GRIB2_CFS"
   ],
   "first_fcst_cycle": null,
   "forceTemoralInterp": [

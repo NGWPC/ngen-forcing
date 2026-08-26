@@ -372,7 +372,8 @@
     "NETCDF",
     "NETCDF4",
     "NWM",
-    "ZARR"
+    "ZARR",
+    "GRIB2_CFS"
   ],
   "first_fcst_cycle": "2013-07-01T00:00:00",
   "forceTemoralInterp": [
