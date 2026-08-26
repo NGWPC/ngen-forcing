@@ -1108,7 +1108,7 @@ class ConfigOptions:
             self.check_number_of_inputs_forcings(value, "ForecastInputHorizons")
             self.check_input_values_non_negative(value, "ForecastInputHorizons")
         else:
-            if len(self.fcst_input_horizons) != 1:
+            if value is not None and len(value) != 1:
                 err_out_screen(
                     "Please specify ForecastInputHorizon values for each corresponding input forcings for forecasts."
                 )
