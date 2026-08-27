@@ -53,6 +53,20 @@ class BaseProcessor:
         self.config_options = config_options
         self.mpi_config = mpi_config
         self.wrf_hydro_geo_meta = wrf_hydro_geo_meta
+        self._b_date_proc_initial = None  # Cached value to detect mutations
+
+    def _get_b_date_proc_safe(self):
+        """Hardened accessor for ``config_options.b_date_proc`` which ensures that is does not get mutated.
+
+        For rationale, see: https://github.com/NGWPC/ngen-forcing/pull/107
+        """
+        if self._b_date_proc_initial is None:
+            self._b_date_proc_initial = self.config_options.b_date_proc
+        elif self.config_options.b_date_proc != self._b_date_proc_initial:
+            raise ValueError(
+                "b_date_proc was modified after BaseProcessor was created, which is not allowed."
+            )
+        return self.config_options.b_date_proc
 
     @cached_property
     def bounds(self) -> tuple[float, float, float, float]:
@@ -116,7 +130,7 @@ class BaseProcessor:
 
         :return: Minimum time as np.datetime64
         """
-        return np.datetime64(self.config_options.b_date_proc) + np.timedelta64(1, "h")
+        return np.datetime64(self._get_b_date_proc_safe()) + np.timedelta64(1, "h")
 
     @property
     def datetimes(self) -> pd.DatetimeIndex:
@@ -198,10 +212,12 @@ class BaseProcessor:
         start and end date pairs based on the cache size.
          :return: Dictionary of start and end dates as pd.Timestamp
 
-         TODO for lru_cache / cached_property safety, confirm or enforce that these are never mutated:
-            self.config_options.b_date_proc
-            self.config_options.fcst_input_horizons
-            self.config_options.fcst_freq
+        NOTE:
+            ``b_date_proc`` is protected by _get_``b_date_proc_safe()``.
+            ``fcst_input_horizons`` is protected by its own setter in ConfigOptions.
+            ``fcst_freq`` is protected by its own setter in ConfigOptions.
+        For rationale, see: https://github.com/NGWPC/ngen-forcing/pull/107
+
         """
         start_end_datetimes = {}
         for start, end in self.year_start_stop_dict.values():
@@ -641,10 +657,6 @@ class NWMV3ConusProcessor(NWMV3Processor):
         for var in self.vars:
             try:
                 with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    # TODO this object_store var is not used
-                    object_store = obstore.store.from_url(
-                        self.url(var), skip_signature=True
-                    )
                     datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
             except Exception as e:
                 LOG.critical(
