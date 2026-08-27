@@ -1,19 +1,9 @@
-from __future__ import annotations
-
+from . import retry_utils
 import traceback
 import types
 import typing
-from typing import TYPE_CHECKING
-
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine import retry_utils
-
-if TYPE_CHECKING:
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
-        ConfigOptions,
-    )
-    from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.parallel import (
-        MpiConfig,
-    )
+from .core.parallel import MpiConfig
+from .core.config import ConfigOptions
 import os
 
 

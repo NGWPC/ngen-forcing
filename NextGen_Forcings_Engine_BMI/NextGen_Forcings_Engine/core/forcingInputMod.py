@@ -25,7 +25,6 @@ if TYPE_CHECKING:
         MpiConfig,
     )
 import logging
-
 LOG = logging.getLogger("FORCING")
 
 
@@ -94,8 +93,7 @@ class InputForcings:
 
         Check if the attibute allready exists before setting.
         """
-        for key in dir(self.config_options):
-            val = getattr(self.config_options, key)
+        for key, val in list(vars(self.config_options).items()):
             if (
                 isinstance(val, list)
                 and len(val) > 0
