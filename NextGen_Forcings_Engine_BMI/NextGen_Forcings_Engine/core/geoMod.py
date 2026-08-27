@@ -92,7 +92,12 @@ def scatter(prop) -> Any:
             assert isinstance(post_slice, bool)
             assert isinstance(name, str)
             assert isinstance(config_options, ConfigOptions)
-            assert isinstance(var, np.ndarray)
+            # var is only populated on rank 0 -- every other rank gets its
+            # share via scatter_array() below, which is None-safe on
+            # non-zero ranks (confirmed in parallel.py). Asserting here
+            # unconditionally rejected every rank but 0.
+            if self.mpi_config.rank == 0:
+                assert isinstance(var, np.ndarray)
 
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
@@ -131,12 +136,33 @@ class GeoMeta:
         else:
             return True
 
+    # All config_options attributes that hold geogrid variable names.
+    # Used to select only the needed variables when opening the geogrid file.
+    _GEOGRID_VAR_ATTRS = (
+        "lat_var", "lon_var", "hgt_var", "cosalpha_var", "sinalpha_var",
+        "slope_var", "slope_azimuth_var", "slope_var_elem", "slope_azimuth_var_elem",
+        "nodecoords_var", "elemcoords_var", "elemconn_var", "numelemconn_var",
+        "element_id_var", "hgt_elem_var",
+    )
+
     @cached_property
     def geogrid_ds(self) -> xr.Dataset:
-        """Open the geogrid file and return the xarray dataset object."""
+        """Open the geogrid file and load only the variables needed by this run.
+
+        geo_em_CONUS.nc is ~8.9 GB; loading the whole file with ds.load() exhausts
+        RAM on standard instances. We open lazily, select only the variables
+        referenced by config_options, then load that subset into memory.
+        Global attributes (DX, DY, etc.) are preserved on the subset dataset.
+        """
         try:
             with xr.open_dataset(self.config_options.geogrid) as ds:
-                return ds.load()
+                needed = [
+                    getattr(self.config_options, attr)
+                    for attr in self._GEOGRID_VAR_ATTRS
+                    if getattr(self.config_options, attr, None) is not None
+                    and getattr(self.config_options, attr) in ds
+                ]
+                return ds[needed].load()
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             log_critical(self.config_options, self.mpi_config)
@@ -274,12 +300,13 @@ class GriddedGeoMeta(GeoMeta):
         if self.mpi_config.rank == 0:
             try:
                 if self.ndim_lat == 3:
-                    return self.lat_var.shape[2]
+                    nx = self.lat_var.shape[2]
                 elif self.ndim_lat == 2:
-                    return self.lat_var.shape[1]
+                    nx = self.lat_var.shape[1]
                 else:
                     # NOTE Is this correct? using lon_var
-                    return self.lon_var.shape[0]
+                    nx = self.lon_var.shape[0]
+                return nx
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract X dimension size from {self.config_options.lon_var} in: {self.config_options.geogrid}"
                 log_critical(self.config_options, self.mpi_config)
@@ -387,9 +414,9 @@ class GriddedGeoMeta(GeoMeta):
         # Scatter global XLAT_M grid to processors..
         if self.mpi_config.rank == 0:
             if self.ndim_lat == 3:
-                var_tmp = self.lat_var[0, :, :]
+                var_tmp = np.asarray(self.lat_var[0, :, :])
             elif self.ndim_lat == 2:
-                var_tmp = self.lat_var[:, :]
+                var_tmp = np.asarray(self.lat_var[:, :])
             elif self.ndim_lat == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
@@ -421,9 +448,9 @@ class GriddedGeoMeta(GeoMeta):
             if (
                 self.ndim_lat == 3
             ):  # NOTE The original code has lat here... should it maybe be lon instead?
-                var_tmp = self.lon_var[0, :, :]
+                var_tmp = np.asarray(self.lon_var[0, :, :])
             elif self.ndim_lon == 2:
-                var_tmp = self.lon_var[:, :]
+                var_tmp = np.asarray(self.lon_var[:, :])
             elif self.ndim_lon == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
