@@ -21,22 +21,11 @@ TEST_CONFIGS = [
         config_file=consts.RETRO_FORCING_CONFIG_FILE__AORC_CONUS,
         keys_to_check=(),
         keys_to_exclude=tuple(
-            set(consts.KEYS_TO_EXCLUDE)
-            | {
-                "d_program_init",
-                "geogrid",
-                "scratch_dir",
-                "Element_Elevation",
-                "Element_Slope",
-                "Element_Slope_Azmuith",
-                "geo_meta.config_options.cfg_bmi",
-                "geo_meta.mpi_config.config_options",
-                "mpi_config.config_options",
-            }
+            set(consts.KEYS_TO_EXCLUDE) | {"d_program_init", "geogrid", "scratch_dir", "Element_Elevation", "Element_Slope", "Element_Slope_Azmuith"}
         ),
         grid_type=consts.GRID_TYPE,
         test_file_name_prefix="bmi_model",
-        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID")],
+        extra_attrs=[ClassAttrFetcher("bmi_model_values", "CAT-ID")]
     ),
 ]
 
