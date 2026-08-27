@@ -190,10 +190,21 @@ def assert_equal_with_tol(
                             rtol=1e-10,
                         )
                     except (TypeError, ValueError):
-                        close = (
-                            v_expect[key_with_vals_not_matching]
-                            == v_actual[key_with_vals_not_matching]
-                        )
+                        sub_e = v_expect[key_with_vals_not_matching]
+                        sub_a = v_actual[key_with_vals_not_matching]
+                        if isinstance(sub_e, (dict, OrderedDict)) and isinstance(sub_a, (dict, OrderedDict)):
+                            try:
+                                assert_equal_with_tol(
+                                    expect=sub_e,
+                                    actual=sub_a,
+                                    absolute_tolerance=absolute_tolerance,
+                                    relative_tolerance=relative_tolerance,
+                                )
+                                close = True
+                            except ExpectVsActualError:
+                                close = False
+                        else:
+                            close = sub_e == sub_a
                     if not close:
                         failing.append(
                             (
