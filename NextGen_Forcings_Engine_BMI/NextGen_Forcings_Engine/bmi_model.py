@@ -178,6 +178,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         self._job_meta = None
         self._mpi_meta = None
         self.geo_meta = None
+        self.GeoMeta = HydrofabricGeoMeta
         self._grid_type = None
         self._grids = None
         self._grid_map = None
@@ -290,7 +291,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # Initialize MPI communication
         self._mpi_meta = MpiConfig(self._job_meta)
 
-        self.geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+        self.geo_meta = self.GeoMeta(self._job_meta, self._mpi_meta)
 
         try:
             comm = MPI.Comm.f2py(self._comm) if self._comm is not None else None
@@ -305,7 +306,15 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         # LOG.debug(f"self._job_meta type: {type(self._job_meta)}")
         # Call ESMF mesh creation process
         if self._mpi_meta.rank == 0:
-            cat_ids = esmf_creation.create_mesh(self._job_meta)
+            if self._job_meta.grid_type == "gridded":
+                # Gridded output regrids directly onto the target grid and has no
+                # catchments/hydrofabric divides -- ESMF mesh creation (which
+                # requires a hydrofabric geopackage) does not apply here. See
+                # consts.py's COASTAL_CONFIG_OVERRIDES in nwm-rte, which
+                # deliberately leaves "Geopackage" empty for gridded runs.
+                cat_ids = np.array([], dtype=np.int64)
+            else:
+                cat_ids = esmf_creation.create_mesh(self._job_meta)
         cat_count = np.array([
             len(cat_ids) if self._mpi_meta.rank == 0 else 0
         ], dtype=np.intc)
@@ -1665,7 +1674,7 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         # will support a BMI field for liquid fraction of precipitation
         self._output_var_names = BMI_MODEL["_output_var_names"]
         self._var_name_units_map = BMI_MODEL["_var_name_units_map"]
-        if self.config_options.include_lqfrac == 1:
+        if self._job_meta.include_lqfrac == 1:
             self._output_var_names += ["LQFRAC_ELEMENT"]
             self._var_name_units_map |= {
                 "LQFRAC_ELEMENT": ["Liquid Fraction of Precipitation", "%"]
