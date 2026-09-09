@@ -11,6 +11,9 @@ name: Dependencies Image
 # explicit DEPS_BASE_SUFFIX=bookworm override (the suffix auto-derived from
 # python:3.12-slim-bookworm would not be "bookworm"). Change DEPS_BASE_REPO /
 # DEPS_BASE_TAG to change the base; set DEPS_BASE_SUFFIX to control the name.
+# The default base is pinned by digest (DEPS_BASE_DIGEST below, same value as
+# Dockerfile.dependencies PYTHON_IMAGE_DIGEST); the pin applies only while the
+# default repo:tag is in use.
 #
 # Outputs the published repo and tag so the caller can build FROM exactly what
 # was just built.
@@ -24,7 +27,7 @@ on:
         type: string
         default: ''
       DEPS_BASE_TAG:
-        description: 'Base image tag (default 3.12-slim-bookworm)'
+        description: 'Base image tag (default 3.12-slim-bookworm, pinned by digest in this workflow)'
         required: false
         type: string
         default: ''
@@ -105,16 +108,35 @@ jobs:
           DEPS_BASE_TAG="${{ inputs.DEPS_BASE_TAG }}"
           [ -n "$DEPS_BASE_TAG" ] || DEPS_BASE_TAG="3.12-slim-bookworm"
 
+          # the default base is pinned by digest so it cannot change underneath
+          # the same tag (same value as Dockerfile.dependencies PYTHON_IMAGE_DIGEST,
+          # keep them in sync). The pin applies only to the default repo:tag; an
+          # override of either means a different base and builds unpinned.
+          DEPS_BASE_DIGEST=""
+          if [ "${DEPS_BASE_REPO}:${DEPS_BASE_TAG}" = "python:3.12-slim-bookworm" ]; then
+            DEPS_BASE_DIGEST="sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254"
+          fi
+          # full reference the image builds FROM (tag@digest when pinned)
+          DEPS_BASE_REF="${DEPS_BASE_REPO}:${DEPS_BASE_TAG}"
+          if [ -n "$DEPS_BASE_DIGEST" ]; then
+            DEPS_BASE_REF="${DEPS_BASE_REF}@${DEPS_BASE_DIGEST}"
+          fi
+
           # resolve the base image's manifest digest for the OCI base.digest
           # label (passed through as the BASE_IMAGE_DIGEST build-arg below). skopeo
           # inspect reads the manifest without pulling; --override-os/--override-arch
           # pin the amd64 digest (the platform this image builds for) so the value
-          # does not vary with the runner's own architecture.
+          # does not vary with the runner's own architecture. skopeo rejects
+          # tag@digest references, so a pinned base is inspected as name@digest.
           if ! command -v skopeo >/dev/null 2>&1; then
             sudo apt-get update -y
             sudo apt-get install -y --no-install-recommends skopeo
           fi
-          DEPS_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${DEPS_BASE_REPO}:${DEPS_BASE_TAG}" 2>/dev/null || echo '{}')
+          SKOPEO_REF="${DEPS_BASE_REPO}:${DEPS_BASE_TAG}"
+          if [ -n "$DEPS_BASE_DIGEST" ]; then
+            SKOPEO_REF="${DEPS_BASE_REPO}@${DEPS_BASE_DIGEST}"
+          fi
+          DEPS_BASE_INSPECT=$(skopeo inspect --override-os linux --override-arch amd64 "docker://${SKOPEO_REF}" 2>/dev/null || echo '{}')
           DEPS_BASE_DIGEST=$(echo "$DEPS_BASE_INSPECT" | jq -r '.Digest // "unknown"')
 
           # derive the published name suffix from the base image (unless overridden)
@@ -155,7 +177,7 @@ jobs:
           ARGS=(
             "IMAGE_SOURCE=https://github.com/${{ github.repository }}"
             "IMAGE_REVISION=${REAL_SHA}"
-            "BASE_IMAGE=${DEPS_BASE_REPO}:${DEPS_BASE_TAG}"
+            "BASE_IMAGE=${DEPS_BASE_REF}"
             "BASE_IMAGE_DIGEST=${DEPS_BASE_DIGEST}"
           )
           # add NAME VALUE -> appends "NAME=VALUE" to ARGS when VALUE is non-empty
@@ -273,21 +295,11 @@ jobs:
             --all \
             "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
 
-          # Branch-keyed promotion: development promotes 'latest' (bookworm/AWS
-          # lane); development-pw promotes 'latest-pw' (rocky8/PW lane). Do not
-          # manually dispatch a cross-lane build from either branch: promotion
-          # keys off the branch name, so the built image would promote under
-          # the wrong alias.
+          # pushes to development also promote 'latest'
           if [ "$GITHUB_REF_NAME" = "development" ]; then
             skopeo copy \
               --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
-          elif [ "$GITHUB_REF_NAME" = "development-pw" ]; then
-            skopeo copy \
-              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-              --all \
-              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest-pw"
           fi

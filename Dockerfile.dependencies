@@ -15,15 +15,27 @@
 #   - Boost
 #   - ESMF + ESMPy
 #   - ecFlow Python client
+#
+# The base is pinned by digest so it cannot change underneath the same tag.
+# The digest is what gets pulled; the tag stays for readability. It is the
+# multi-arch index digest, so builds still resolve the right platform. Refresh
+# the tag and PYTHON_IMAGE_DIGEST together (CI carries the same value in
+# .github/workflows/dependencies.yml, keep them in sync):
+#   docker buildx imagetools inspect python:<version>-slim-bookworm
 ############################################################################
 
-ARG BASE_IMAGE=python:3.12-slim-bookworm
+ARG PYTHON_IMAGE_DIGEST=sha256:782412e85d0f0984994c290652577d4018aff08145c85b262bb63dc0c7522254
+ARG BASE_IMAGE=python:3.12-slim-bookworm@${PYTHON_IMAGE_DIGEST}
 
 FROM ${BASE_IMAGE}
 
 ARG BASE_IMAGE
+ARG PYTHON_IMAGE_DIGEST
 ARG BASE_IMAGE_NAME="${BASE_IMAGE}"
-ARG BASE_IMAGE_DIGEST="unknown"
+# The base is pinned by digest above, so the label defaults to that same
+# digest (CI passes the inspected value, which is the same). Override
+# BASE_IMAGE and BASE_IMAGE_DIGEST together when building from a different base.
+ARG BASE_IMAGE_DIGEST="${PYTHON_IMAGE_DIGEST}"
 ARG IMAGE_SOURCE="unknown"
 ARG IMAGE_REVISION="unknown"
 
