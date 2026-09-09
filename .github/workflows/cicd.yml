@@ -8,7 +8,6 @@ on:
       - master
       - nwm-master
       - development
-      - development-pw
       - release-candidate
   pull_request:
     branches:
@@ -17,7 +16,6 @@ on:
       - main
       - nwm-master
       - development
-      - development-pw
       - release-candidate
   workflow_dispatch:
     inputs:
@@ -31,7 +29,7 @@ on:
         required: false
         type: string
       DEPS_BASE_TAG:
-        description: 'Dependencies base image tag (default 3.12-slim-bookworm)'
+        description: 'Dependencies base image tag (default 3.12-slim-bookworm, pinned by digest in dependencies.yml)'
         required: false
         type: string
       DEPS_BASE_SUFFIX:
@@ -162,11 +160,11 @@ jobs:
           SHORT_SHA="${REAL_SHA:0:7}"
 
           # default source-repo ref: follow the release-line branch we're building from
-          # (development / development-pw / ngwpc-candidate / ngwpc-release); tags and
-          # other branches fall back to development. Override per source repo via the
-          # *_REF dispatch inputs.
+          # (development / ngwpc-candidate / ngwpc-release); tags and other branches
+          # fall back to development. Override per source repo via the *_REF
+          # dispatch inputs.
           case "${GITHUB_REF_TYPE}:${GITHUB_REF_NAME}" in
-            branch:development|branch:development-pw|branch:ngwpc-candidate|branch:ngwpc-release)
+            branch:development|branch:ngwpc-candidate|branch:ngwpc-release)
               DEFAULT_REF="$GITHUB_REF_NAME" ;;
             *)
               DEFAULT_REF="development" ;;
@@ -237,9 +235,8 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           # on push the filter's default base is the repo default branch, which
-          # makes every development-pw push diff against development and report
-          # the deps files as changed (they differ across the two branches by
-          # design). compare against the pushed branch itself instead.
+          # would make a push to any other release-line branch diff against
+          # development. compare against the pushed branch itself instead.
           base: ${{ github.ref_name }}
           filters: |
             deps:
@@ -444,23 +441,13 @@ jobs:
             --all \
             "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:${ALIAS_TAG}"
 
-          # Branch-keyed promotion: development promotes 'latest' (bookworm/AWS
-          # lane); development-pw promotes 'latest-pw' (rocky/PW lane). Do not
-          # manually dispatch a cross-lane build from either branch: promotion
-          # keys off the branch name, so the tested image would promote under
-          # the wrong alias.
+          # pushes to development also promote 'latest'
           if [ "$GITHUB_REF_NAME" = "development" ]; then
             skopeo copy \
               --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
               --all \
               "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest"
-          elif [ "$GITHUB_REF_NAME" = "development-pw" ]; then
-            skopeo copy \
-              --src-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-              --dest-creds "${{ github.actor }}:${{ secrets.GITHUB_TOKEN }}" \
-              --all \
-              "docker://${IMAGE_BASE}:${TEST_TAG}" "docker://${IMAGE_BASE}:latest-pw"
           fi
 
   # trigger downstream repo ngen
@@ -474,7 +461,6 @@ jobs:
           github.event_name == 'push' &&
           (
             github.ref_name == 'development' ||
-            github.ref_name == 'development-pw' ||
             github.ref_name == 'ngwpc-candidate' ||
             github.ref_name == 'ngwpc-release'
           )
