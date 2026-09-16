@@ -161,13 +161,17 @@ class MpiConfig:
             self.try_remove_empty_dir_no_reraise(self.config_options.scratch_dir)
 
     def _cleanup_geogrid(self) -> None:
-        """Remove temporary geogrid file if it exists."""
+        """Remove engine-created geogrids while preserving caller-supplied files.
+
+        Coastal forcing workflows provide their target geogrid to the BMI, so it
+        must remain available after finalization.
+        """
         self.log_debug("Cleanup: starting geogrid cleanup")
         if self.config_options is None:
             self.log_debug("Cleanup: config_options is not set")
             return
-        if getattr(self.config_options, "grid_type", None) == "gridded":
-            self.log_debug("Cleanup: skipping geogrid cleanup for gridded mode")
+        if self.config_options.user_provided_geogrid_flag:
+            self.log_debug("Cleanup: preserving caller-supplied geogrid")
             return
         geogrid = getattr(self.config_options, "geogrid", None)
         if geogrid is not None:
