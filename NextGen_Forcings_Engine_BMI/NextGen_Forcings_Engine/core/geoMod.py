@@ -406,7 +406,7 @@ class GriddedGeoMeta(GeoMeta):
     @cached_property
     def esmf_grid(self) -> ESMF.Grid:
         """Create the ESMF grid object for the gridded domain."""
-        return esmf_grid_retry(
+        esmf_grid = esmf_grid_retry(
             self.mpi_config,
             self.config_options,
             err_handler,
@@ -414,6 +414,10 @@ class GriddedGeoMeta(GeoMeta):
             staggerloc=ESMF.StaggerLoc.CENTER,
             coord_sys=ESMF.CoordSys.SPH_DEG,
         )
+        # NOTE Populating the destination coordinates before creating fields or regridding.
+        esmf_grid.get_coords(1)[:, :] = self.latitude_grid
+        esmf_grid.get_coords(0)[:, :] = self.longitude_grid
+        return esmf_grid
 
     @cached_property
     def esmf_lat(self) -> np.ndarray:
