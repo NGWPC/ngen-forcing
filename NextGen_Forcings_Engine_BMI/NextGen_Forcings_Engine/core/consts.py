@@ -139,8 +139,6 @@ GEOMOD = {
         "nodeCoords",
         "centerCoords",
         "inds",
-        "esmf_lat",
-        "esmf_lon",
     ],
     "UnstructuredGeoMeta": [
         "x_lower_bound",
