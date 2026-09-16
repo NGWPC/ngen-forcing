@@ -12419,7 +12419,9 @@ def calculate_supp_pcp_weights(
         # load_weight_file, also used by calculate_weights() for InputForcings) --
         # this code path previously always recomputed weights in memory, with no
         # on-disk caching, unlike the InputForcings path.
-        weight_file, _ = get_weight_file_names(mpi_config, config_options, supplemental_precip)
+        weight_file, _ = get_weight_file_names(
+            mpi_config, config_options, supplemental_precip
+        )
         if config_options.weightsDir is not None:
             if not os.path.exists(weight_file):
                 supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
@@ -12431,7 +12433,11 @@ def calculate_supp_pcp_weights(
                     filename=weight_file,
                 )
             load_weight_file(
-                mpi_config, config_options, supplemental_precip, weight_file, element_mode=False
+                mpi_config,
+                config_options,
+                supplemental_precip,
+                weight_file,
+                element_mode=False,
             )
         else:
             supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(

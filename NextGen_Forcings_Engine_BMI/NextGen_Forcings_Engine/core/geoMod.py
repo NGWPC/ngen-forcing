@@ -141,7 +141,9 @@ class GeoMeta:
         try:
             _class = lookup[grid_type]
         except KeyError as error:
-            raise ValueError(f"Unsupported grid type: {grid_type}, expected one of: {list(lookup.keys())}") from error
+            raise ValueError(
+                f"Unsupported grid type: {grid_type}, expected one of: {list(lookup.keys())}"
+            ) from error
         return _class(config_options, mpi_config)
 
     @cached_property
@@ -155,10 +157,21 @@ class GeoMeta:
     # All config_options attributes that hold geogrid variable names.
     # Used to select only the needed variables when opening the geogrid file.
     _GEOGRID_VAR_ATTRS = (
-        "lat_var", "lon_var", "hgt_var", "cosalpha_var", "sinalpha_var",
-        "slope_var", "slope_azimuth_var", "slope_var_elem", "slope_azimuth_var_elem",
-        "nodecoords_var", "elemcoords_var", "elemconn_var", "numelemconn_var",
-        "element_id_var", "hgt_elem_var",
+        "lat_var",
+        "lon_var",
+        "hgt_var",
+        "cosalpha_var",
+        "sinalpha_var",
+        "slope_var",
+        "slope_azimuth_var",
+        "slope_var_elem",
+        "slope_azimuth_var_elem",
+        "nodecoords_var",
+        "elemcoords_var",
+        "elemconn_var",
+        "numelemconn_var",
+        "element_id_var",
+        "hgt_elem_var",
     )
 
     @cached_property

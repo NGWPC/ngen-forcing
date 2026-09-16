@@ -314,9 +314,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 cat_ids = np.array([], dtype=np.int64)
             else:
                 cat_ids = esmf_creation.create_mesh(self._job_meta)
-        cat_count = np.array([
-            len(cat_ids) if self._mpi_meta.rank == 0 else 0
-        ], dtype=np.intc)
+        cat_count = np.array(
+            [len(cat_ids) if self._mpi_meta.rank == 0 else 0], dtype=np.intc
+        )
         self._mpi_meta.comm.Bcast(cat_count, root=0)
         if self._mpi_meta.rank != 0:
             cat_ids = np.empty(cat_count[0], dtype=np.int64)
