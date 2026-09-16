@@ -12021,9 +12021,8 @@ def calculate_weights(
     err_handler.check_program_status(config_options, mpi_config)
 
     if mpi_config.rank == 0 and lat_tmp is not None and lon_tmp is not None:
-        # Normalize source longitudes from 0-360 to -180/+180 to match geo_em geogrid convention
-        if lon_tmp.max() > 180:
-            lon_tmp = np.where(lon_tmp > 180, lon_tmp - 360, lon_tmp)
+        # Normalize source longitudes to [-180, 180) to match geo_em geogrids.
+        lon_tmp = ((lon_tmp + 180) % 360) - 180
 
     # Scatter global GFS latitude grid to processors..
     if mpi_config.rank == 0:
