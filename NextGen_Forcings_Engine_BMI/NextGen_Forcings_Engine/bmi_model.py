@@ -509,7 +509,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 )
 
             self._output_obj.init_forcing_file(
-                self._job_meta, self.geo_meta, self._mpi_meta, self._values["CAT-ID"]
+                self._job_meta, self.geo_meta, self._mpi_meta, self._cat_ids
             )
             self._output_configured = True
 
