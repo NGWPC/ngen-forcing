@@ -24,7 +24,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import err_handler
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOMOD
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
+    GEOGRID_FILE_INPUT_VARIABLE_NAME_ATTRS,
+    GEOMOD,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
     log_critical,
 )
@@ -156,26 +159,6 @@ class GeoMeta:
         else:
             return True
 
-    # All config_options attributes that hold geogrid variable names.
-    # Used to select only the needed variables when opening the geogrid file.
-    _GEOGRID_VAR_ATTRS = (
-        "lat_var",
-        "lon_var",
-        "hgt_var",
-        "cosalpha_var",
-        "sinalpha_var",
-        "slope_var",
-        "slope_azimuth_var",
-        "slope_var_elem",
-        "slope_azimuth_var_elem",
-        "nodecoords_var",
-        "elemcoords_var",
-        "elemconn_var",
-        "numelemconn_var",
-        "element_id_var",
-        "hgt_elem_var",
-    )
-
     @cached_property
     def geogrid_ds(self) -> xr.Dataset:
         """Open the geogrid file and load only the variables needed by this run.
@@ -189,7 +172,7 @@ class GeoMeta:
             with xr.open_dataset(self.config_options.geogrid) as ds:
                 needed = [
                     getattr(self.config_options, attr)
-                    for attr in self._GEOGRID_VAR_ATTRS
+                    for attr in GEOGRID_FILE_INPUT_VARIABLE_NAME_ATTRS
                     if getattr(self.config_options, attr, None) is not None
                     and getattr(self.config_options, attr) in ds
                 ]

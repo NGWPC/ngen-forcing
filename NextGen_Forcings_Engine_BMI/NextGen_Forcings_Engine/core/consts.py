@@ -9,6 +9,26 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.timeInterpMod impo
     weighted_average,
 )
 
+# These are the variable names as stored in the input geogrid files,
+# which need to be read when using the "gridded" grid_type aka discretization type.
+GEOGRID_FILE_INPUT_VARIABLE_NAME_ATTRS = (
+    "lat_var",
+    "lon_var",
+    "hgt_var",
+    "cosalpha_var",
+    "sinalpha_var",
+    "slope_var",
+    "slope_azimuth_var",
+    "slope_var_elem",
+    "slope_azimuth_var_elem",
+    "nodecoords_var",
+    "elemcoords_var",
+    "elemconn_var",
+    "numelemconn_var",
+    "element_id_var",
+    "hgt_elem_var",
+)
+
 BMI_MODEL = {
     "NWMv3_Forcing_Engine_BMI_model_Base": [
         "_model",
