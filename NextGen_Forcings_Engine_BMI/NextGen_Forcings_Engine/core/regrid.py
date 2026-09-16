@@ -11283,17 +11283,6 @@ def check_regrid_status(
     """
     pt = Partials(mpi_config, config_options)
 
-    # For gridded domains, esmf_lat/esmf_lon on GriddedGeoMeta are shadowed to None by
-    # GeoMeta.__init__ (via GEOMOD["GeoMeta"]), so the @cached_property never runs and the
-    # destination ESMF Grid's coordinate arrays are never populated.  Populate them once here.
-    if config_options.grid_type == "gridded" and wrf_hydro_geo_meta.esmf_lat is None:
-        esmf_lat = wrf_hydro_geo_meta.esmf_grid.get_coords(1)
-        esmf_lat[:, :] = wrf_hydro_geo_meta.latitude_grid
-        wrf_hydro_geo_meta.esmf_lat = esmf_lat
-        esmf_lon = wrf_hydro_geo_meta.esmf_grid.get_coords(0)
-        esmf_lon[:, :] = wrf_hydro_geo_meta.longitude_grid
-        wrf_hydro_geo_meta.esmf_lon = esmf_lon
-
     # If the destination ESMF field hasn't been created, create it here.
     if not input_forcings.esmf_field_out:
         if config_options.grid_type == "gridded":
