@@ -276,7 +276,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             assert self._job_meta.grid_type in ["gridded", "hydrofabric"], (
                 f"Only 'gridded' and 'hydrofabric' grid types are currently supported. Got '{self._job_meta.grid_type}'. See docstrings for discretization types."
             )
-            self._geo_meta = GeoMeta(self._job_meta, self._mpi_meta)
+            self._geo_meta = GeoMeta.for_grid_type(
+                self._job_meta.grid_type, self._job_meta, self._mpi_meta
+            )
         return self._geo_meta
 
     @geo_meta.setter

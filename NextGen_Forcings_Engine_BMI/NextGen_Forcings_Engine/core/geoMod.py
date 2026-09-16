@@ -128,6 +128,22 @@ class GeoMeta:
         for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
+    @classmethod
+    def for_grid_type(
+        cls, grid_type: str, config_options: ConfigOptions, mpi_config: MpiConfig
+    ) -> GeoMeta:
+        """Create the geometry metadata implementation for a grid type."""
+        lookup = {
+            "gridded": GriddedGeoMeta,
+            "unstructured": UnstructuredGeoMeta,
+            "hydrofabric": HydrofabricGeoMeta,
+        }
+        try:
+            _class = lookup[grid_type]
+        except KeyError as error:
+            raise ValueError(f"Unsupported grid type: {grid_type}, expected one of: {list(lookup.keys())}") from error
+        return _class(config_options, mpi_config)
+
     @cached_property
     def spatial_metadata_exists(self) -> bool:
         """Check to make sure the geospatial metadata file exists in the config_options."""
