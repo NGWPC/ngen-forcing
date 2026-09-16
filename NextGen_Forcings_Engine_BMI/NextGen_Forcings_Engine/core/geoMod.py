@@ -98,6 +98,8 @@ def scatter(prop) -> Any:
             # unconditionally rejected every rank but 0.
             if self.mpi_config.rank == 0:
                 assert isinstance(var, np.ndarray)
+            else:
+                assert isinstance(var, (np.ndarray, type(None)))
 
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
