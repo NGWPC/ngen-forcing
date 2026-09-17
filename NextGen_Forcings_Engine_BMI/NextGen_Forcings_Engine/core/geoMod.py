@@ -415,6 +415,9 @@ class GriddedGeoMeta(GeoMeta):
             coord_sys=ESMF.CoordSys.SPH_DEG,
         )
         # NOTE Populating the destination coordinates before creating fields or regridding.
+        # Coordinate scattering reads this grid's local bounds. Need to cache the grid
+        # first so that lookup does not re-enter this cached property (avoid infinite recursion)
+        self.esmf_grid = esmf_grid
         esmf_grid.get_coords(1)[:, :] = self.latitude_grid
         esmf_grid.get_coords(0)[:, :] = self.longitude_grid
         return esmf_grid
