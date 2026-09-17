@@ -11638,7 +11638,8 @@ def get_weight_file_names(
     grid_key = input_forcings.product_name
     file_key = f"{grid_key}_{config_options.geogrid}"
     hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
-    hash_key += f"_{mpi_config.uid64}"
+    if config_options.should_randomize_weight_file_name:
+        hash_key += f"_{mpi_config.uid64}"
 
     weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
 

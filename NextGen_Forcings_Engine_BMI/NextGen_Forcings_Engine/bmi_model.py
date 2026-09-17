@@ -140,6 +140,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     It includes methods for initializing the model, updating it, accessing model variables,
     and managing model configuration. This class is responsible for interacting with
     geospatial data and forcing inputs for the model simulation.
+
+    For the init arguments that are optional, they act as overrides on the equivalent
+    values set in the provided configuration file (provided when calling ``initialize()``).
     """
 
     def __init__(
@@ -147,14 +150,29 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_steps: int = None,
     ) -> None:
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
+
+        Args:
+            b_date: Optional processing-cycle timestamp in ``YYYYMMDDHHMM`` format.
+                Overrides the ``RefcstBDateProc`` configuration value.
+            geogrid: Optional path to the target geogrid.
+                Overrides the ``GeogridIn`` configuration value.
+            output_path: Optional path for gridded forcing output.
+                Overrides the output location otherwise derived from ``ScratchDir``.
+            output_steps: Optional positive override for the number of output steps.
+                When not provided, the output-step count is derived dynamically from
+                the forcing configuration's timing settings. This must be ``None``
+                for AnA aka Analysis & Assimilation runs, whose output count is
+                controlled by their configured lookback window.
         """
         self.output_path = output_path
         self._geogrid = geogrid
         self._b_date = b_date
+        self._output_steps = output_steps
 
         self._values = {}
         self._start_time = 0.0
@@ -236,7 +254,10 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         if value is None:
             try:
                 value = ConfigOptions(
-                    self.cfg_bmi, b_date=self._b_date, geogrid=self._geogrid
+                    self.cfg_bmi,
+                    b_date=self._b_date,
+                    geogrid=self._geogrid,
+                    output_steps=self._output_steps,
                 )
             except KeyboardInterrupt as e:
                 err_handler.err_out_screen("User keyboard interrupt", e)
@@ -1575,12 +1596,13 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_steps: int = None,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        super().__init__(b_date, geogrid, output_path, output_steps)
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the gridded domain."""
