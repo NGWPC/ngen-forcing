@@ -139,6 +139,7 @@ class NWMv3ForcingEngineModel:
         self.log_cycle()
         input_forcings = self.loop_through_forcing_products(future_time)
         self.process_suplemental_precip(input_forcings)
+        self.write_t0_output()
         self.write_output()
         self.update_bmi_output_dict()
 
@@ -638,6 +639,36 @@ class NWMv3ForcingEngineModel:
                 for supp_pcp_key in self._bmi._job_meta.supp_precip_forcings:
                     if supp_pcp_key == 14:
                         self.__process_supp_precip_key(input_forcings, supp_pcp_key)
+
+    def write_t0_output(self) -> None:
+        """Write an additional T0 record before the first forecast output, with identical forcing values as T1.
+
+        An independent T0 state cannot be reliably computed because several forecast
+        products omit required fields at hour zero and substitute hour one. Examples:
+
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1202-L1206
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1444-L1448
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L2043-L2047
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L4129-L4135
+        """
+        job_meta = self._bmi._job_meta
+        if not job_meta._output_t0 or job_meta.bmi_time_index != 0:
+            return
+
+        time_step = datetime.timedelta(seconds=self._bmi.get_time_step())
+        saved_time = job_meta.current_time
+        saved_output_date = job_meta.current_output_date
+        saved_out_date = self._bmi._output_obj.outDate
+        try:
+            job_meta.current_time -= time_step
+            job_meta.current_output_date -= time_step
+            self._bmi._output_obj.outDate -= time_step
+            self.write_output()
+            job_meta.bmi_time_index += 1
+        finally:
+            job_meta.current_time = saved_time
+            job_meta.current_output_date = saved_output_date
+            self._bmi._output_obj.outDate = saved_out_date
 
     @time_function
     def write_output(self) -> None:
