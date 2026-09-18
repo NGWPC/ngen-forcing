@@ -31,7 +31,13 @@ LOG = logging.getLogger("FORCING")
 class ConfigOptions:
     """Configuration abstract class for configuration options read in from the file specified by the user."""
 
-    def __init__(self, cfg_bmi: dict, b_date: str = None, geogrid: str = None) -> None:
+    def __init__(
+        self,
+        cfg_bmi: dict,
+        b_date: str = None,
+        geogrid: str = None,
+        output_steps: int = None,
+    ) -> None:
         """Initialize the configuration class to empty None attributes.
 
         The attributes of this class are populated by the validate_config function, which reads in the configuration file and checks that all necessary options are provided and properly formatted. The attributes of this class are used to control the flow of the program and the processing of input forcings.
@@ -40,12 +46,18 @@ class ConfigOptions:
             cfg_bmi (dict): The configuration dictionary read in from the configuration file specified by the user. This should be read in using the config_utils.read_config function, which also handles any necessary preprocessing of the configuration file.
             b_date (str, optional): The beginning date of processing in the format YYYYMMDDHHMM. This is used to calculate the processing window for realtime simulations. If not provided, it will be read from the configuration file.
             geogrid (str, optional): The filepath to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings. If not provided, it will be read from the configuration file.
+            output_steps (int, optional): Override the configured output count. When set,
+                this must be at least one and takes precedence over analysis and
+                forecast-cycle output-step calculations.
 
         """
-        if geogrid is not None:
-            self.user_provided_geogrid_flag = True
-        else:
-            self.user_provided_geogrid_flag = False
+        self._b_date_proc = None
+        self._geogrid = None
+        self.user_provided_geogrid_flag = geogrid is not None
+
+        if output_steps is not None and output_steps < 1:
+            raise ValueError(f"output_steps must be at least 1, but got {output_steps}")
+        self.output_steps = output_steps
 
         # If b_date not provided, try to read from config file
         if b_date is None:
@@ -58,6 +70,11 @@ class ConfigOptions:
         self.b_date_proc = b_date
         self.cfg_bmi = cfg_bmi
         self.geogrid = geogrid
+        self.reuse_regrid_weights = cfg_bmi.get("ReuseRegridWeights", False)
+        if not isinstance(self.reuse_regrid_weights, bool):
+            raise TypeError(
+                f"ReuseRegridWeights must be a boolean, but got: {self.reuse_regrid_weights}"
+            )
 
         self.bmi_time_index = 0
         self.globalNdv = -9999.0
@@ -75,7 +92,6 @@ class ConfigOptions:
 
         # These must exist (as None) before the properties are accessed
         self._supp_precip_forcings = None
-        self._b_date_proc = None
         self._input_forcings = None
         self._nwm_geogrid = None
         self._output_freq = None
@@ -89,7 +105,6 @@ class ConfigOptions:
         self._fcst_input_horizons = None
         self._spatial_meta = None
         self._geopackage = None
-        self._geogrid = None
         self._grid_type = None
         # Backing vars for setters that guard on precip_only_flag and do not unconditionally assign
         self._fcst_input_offsets = None
@@ -1203,12 +1218,30 @@ class ConfigOptions:
         whether the user has chosen to run a reforecast simulation with a specified
         processing window, which will only output time steps for which input forcings
         are available based on the processing window and forecast time horizons
-        specified by the user in the configuration file.
+        specified by the user in the configuration file. An explicit ``output_steps``
+        override takes precedence over forecast-cycle calculations, but is not
+        compatible with analysis configurations, whose output count is determined by
+        their lookback window.
         """
+        if self.output_steps is not None:
+            if self.ana_flag:
+                raise ValueError(
+                    "output_steps is not supported for analysis configurations"
+                )
+            return np.int32(self.output_steps)
         if self.ana_flag:
             return np.int32(self.nFcsts)
         else:
             return np.int32(self.num_output_steps)
+
+    @property
+    def should_randomize_weight_file_name(self) -> bool:
+        """Boolean, if resolves to True then the intermediary regridding weights file
+        will include a random string. This is used so that "gridded" workflows, for
+        example those used to produce coastal forcing inputs, can reuse regrid weights."""
+        if self.grid_type == "gridded" and self.reuse_regrid_weights:
+            return False
+        return True
 
     @property
     def grid_type(self) -> str:
