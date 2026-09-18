@@ -151,6 +151,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         geogrid: str = None,
         output_path: str = None,
         output_steps: int = None,
+        output_t0: bool = False,
     ) -> None:
         """Create a model that is ready for initialization.
 
@@ -168,11 +169,14 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 the forcing configuration's timing settings. This must be ``None``
                 for AnA aka Analysis & Assimilation runs, whose output count is
                 controlled by their configured lookback window.
+            output_t0: Whether T0 precedes the configured output steps. By default
+                (when this is False), T0 will not exist in the output timesteps.
         """
         self.output_path = output_path
         self._geogrid = geogrid
         self._b_date = b_date
         self._output_steps = output_steps
+        self._output_t0 = output_t0
 
         self._values = {}
         self._start_time = 0.0
@@ -258,6 +262,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                     b_date=self._b_date,
                     geogrid=self._geogrid,
                     output_steps=self._output_steps,
+                    output_t0=self._output_t0,
                 )
             except KeyboardInterrupt as e:
                 err_handler.err_out_screen("User keyboard interrupt", e)
@@ -1597,12 +1602,19 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         geogrid: str = None,
         output_path: str = None,
         output_steps: int = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path, output_steps)
+        super().__init__(
+            b_date,
+            geogrid,
+            output_path,
+            output_steps,
+            output_t0,
+        )
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the gridded domain."""
@@ -1667,12 +1679,15 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        if output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
+        super().__init__(b_date, geogrid, output_path, output_t0=output_t0)
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the hydrofabric domain."""
@@ -1733,12 +1748,15 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        if output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
+        super().__init__(b_date, geogrid, output_path, output_t0=output_t0)
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the unstructured domain."""

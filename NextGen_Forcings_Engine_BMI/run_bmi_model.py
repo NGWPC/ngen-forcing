@@ -326,6 +326,7 @@ class ForcingRunner(ABC):
         output_path: pathlib.Path = None,
         config: dict | None = None,
         num_updates: int | None = None,
+        output_t0: bool = False,
     ) -> None:
         self.config_path = self.resolve_config_path(config_path)
         self.cycle_datetime = cycle_datetime
@@ -336,6 +337,7 @@ class ForcingRunner(ABC):
         self.output_path = output_path
         self.config = config
         self.requested_num_updates = num_updates
+        self.output_t0 = output_t0
         self.model = None
         self.output_steps = None
         self.ngen_datetimes = None
@@ -457,6 +459,8 @@ class ForcingRunnerGeneral(ForcingRunner):
         super().validate_config()
         if self.config["GRID_TYPE"] == "gridded":
             raise ValueError("ForcingRunnerGeneral does not support GRID_TYPE: gridded")
+        if self.output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
 
     def _create_model(self):
         """Construct the configured BMI model."""
@@ -512,6 +516,8 @@ class ForcingRunnerGridded(ForcingRunner):
         """Validate gridded configuration and derive its output count."""
         if self.config["GRID_TYPE"] != "gridded":
             raise ValueError("ForcingRunnerGridded requires GRID_TYPE: gridded")
+        if self.output_t0 and self.config["AnAFlag"]:
+            raise ValueError("output_t0 is not supported for analysis configurations")
         if self.explicit_window and self.config["AnAFlag"]:
             raise ValueError(
                 "Explicit windows are not supported for analysis configurations; "
@@ -529,20 +535,33 @@ class ForcingRunnerGridded(ForcingRunner):
     def _create_model(self):
         """Construct the gridded BMI model with timing overrides."""
         reference_time = self.cycle_datetime or self.start_time
+
+        # Do some math in case the user asked for the T0 output to be included.
+        forecast_output_steps = self.output_steps
+        if self.output_t0 and forecast_output_steps is not None:
+            forecast_output_steps -= 1
+        elif (
+            self.output_t0
+            and self.requested_num_updates is not None
+            and not self.config["AnAFlag"]
+        ):
+            forecast_output_steps = self.requested_num_updates
+
         return BMIMODEL["gridded"](
             b_date=self.b_date or reference_time.strftime(REFERENCE_TIME_FORMAT),
             geogrid=self.geogrid,
             output_path=str(self.output_path) if self.output_path else None,
-            output_steps=self.output_steps,
+            output_steps=forecast_output_steps,
+            output_t0=self.output_t0,
         )
 
     def _get_update_plan(self) -> int:
         """Use the configured or requested update count."""
         if self.explicit_window:
-            return self.output_steps
+            return self.output_steps - int(self.output_t0)
         if self.requested_num_updates is not None:
             return self.requested_num_updates
-        return self.model._job_meta.actual_output_steps
+        return self.model._job_meta.actual_output_steps - int(self.output_t0)
 
 
 def run_bmi(
@@ -554,6 +573,7 @@ def run_bmi(
     output_path: pathlib.Path = None,
     cycle_datetime: datetime.datetime | None = None,
     num_updates: int | None = None,
+    output_t0: bool = False,
 ):
     """Execute the NextGen Forcings Engine BMI model.
 
@@ -568,6 +588,15 @@ def run_bmi(
     :param output_path: Path to the output file. If omitted, a default output path is generated.
     :param cycle_datetime: Optional gridded forecast cycle time. Cannot be combined with start_time or end_time.
     :param num_updates: Optional positive update count for a gridded cycle. This limits iteration count without changing an analysis lookback window.
+    :param output_t0:
+        Write an additional T0 record before the normal gridded forecast outputs, with identical forcing values as T1.
+        Not supported for analysis configurations.
+        Only supported for ``gridded`` configurations.
+        An independent T0 state cannot be reliably computed because several forecast products omit required fields at hour zero and substitute hour one. Examples:
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1202-L1206
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1444-L1448
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L2043-L2047
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L4129-L4135
 
     :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
     """
@@ -581,6 +610,7 @@ def run_bmi(
         geogrid=geogrid,
         output_path=output_path,
         num_updates=num_updates,
+        output_t0=output_t0,
     )
     runner.validate_args()
     runner.load_config()

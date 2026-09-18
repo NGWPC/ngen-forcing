@@ -37,6 +37,7 @@ class ConfigOptions:
         b_date: str = None,
         geogrid: str = None,
         output_steps: int = None,
+        output_t0: bool = False,
     ) -> None:
         """Initialize the configuration class to empty None attributes.
 
@@ -47,17 +48,30 @@ class ConfigOptions:
             b_date (str, optional): The beginning date of processing in the format YYYYMMDDHHMM. This is used to calculate the processing window for realtime simulations. If not provided, it will be read from the configuration file.
             geogrid (str, optional): The filepath to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings. If not provided, it will be read from the configuration file.
             output_steps (int, optional): Override the configured output count. When set,
-                this must be at least one and takes precedence over analysis and
-                forecast-cycle output-step calculations.
+                this must be nonnegative when including T0 and otherwise at least
+                one. It takes precedence over forecast-cycle output-step calculations.
+            output_t0 (bool, optional):
+                Write an additional T0 record before the normal gridded forecast outputs, with identical forcing values as T1.
+                Not supported for analysis configurations.
+                Only supported for ``gridded`` configurations.
+                An independent T0 state cannot be reliably computed because several forecast products omit required fields at hour zero and substitute hour one. Examples:
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1202-L1206
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1444-L1448
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L2043-L2047
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L4129-L4135
 
         """
         self._b_date_proc = None
         self._geogrid = None
         self.user_provided_geogrid_flag = geogrid is not None
 
-        if output_steps is not None and output_steps < 1:
-            raise ValueError(f"output_steps must be at least 1, but got {output_steps}")
+        minimum_output_steps = 0 if output_t0 else 1
+        if output_steps is not None and output_steps < minimum_output_steps:
+            raise ValueError(
+                f"output_steps must be at least {minimum_output_steps}, but got {output_steps}"
+            )
         self.output_steps = output_steps
+        self._output_t0 = output_t0
 
         # If b_date not provided, try to read from config file
         if b_date is None:
@@ -1223,16 +1237,19 @@ class ConfigOptions:
         compatible with analysis configurations, whose output count is determined by
         their lookback window.
         """
+        if self._output_t0 and self.ana_flag:
+            raise ValueError("output_t0 is not supported for analysis configurations")
         if self.output_steps is not None:
             if self.ana_flag:
                 raise ValueError(
                     "output_steps is not supported for analysis configurations"
                 )
-            return np.int32(self.output_steps)
-        if self.ana_flag:
-            return np.int32(self.nFcsts)
+            output_steps = self.output_steps
+        elif self.ana_flag:
+            output_steps = self.nFcsts
         else:
-            return np.int32(self.num_output_steps)
+            output_steps = self.num_output_steps
+        return np.int32(output_steps + int(self._output_t0))
 
     @property
     def should_randomize_weight_file_name(self) -> bool:
