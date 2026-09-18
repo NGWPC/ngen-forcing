@@ -140,6 +140,9 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     It includes methods for initializing the model, updating it, accessing model variables,
     and managing model configuration. This class is responsible for interacting with
     geospatial data and forcing inputs for the model simulation.
+
+    For the init arguments that are optional, they act as overrides on the equivalent
+    values set in the provided configuration file (provided when calling ``initialize()``).
     """
 
     def __init__(
@@ -147,14 +150,33 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_steps: int = None,
+        output_t0: bool = False,
     ) -> None:
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
+
+        Args:
+            b_date: Optional processing-cycle timestamp in ``YYYYMMDDHHMM`` format.
+                Overrides the ``RefcstBDateProc`` configuration value.
+            geogrid: Optional path to the target geogrid.
+                Overrides the ``GeogridIn`` configuration value.
+            output_path: Optional path for gridded forcing output.
+                Overrides the output location otherwise derived from ``ScratchDir``.
+            output_steps: Optional positive override for the number of output steps.
+                When not provided, the output-step count is derived dynamically from
+                the forcing configuration's timing settings. This must be ``None``
+                for AnA aka Analysis & Assimilation runs, whose output count is
+                controlled by their configured lookback window.
+            output_t0: Whether T0 precedes the configured output steps. By default
+                (when this is False), T0 will not exist in the output timesteps.
         """
         self.output_path = output_path
         self._geogrid = geogrid
         self._b_date = b_date
+        self._output_steps = output_steps
+        self._output_t0 = output_t0
 
         self._values = {}
         self._start_time = 0.0
@@ -236,7 +258,11 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
         if value is None:
             try:
                 value = ConfigOptions(
-                    self.cfg_bmi, b_date=self._b_date, geogrid=self._geogrid
+                    self.cfg_bmi,
+                    b_date=self._b_date,
+                    geogrid=self._geogrid,
+                    output_steps=self._output_steps,
+                    output_t0=self._output_t0,
                 )
             except KeyboardInterrupt as e:
                 err_handler.err_out_screen("User keyboard interrupt", e)
@@ -273,10 +299,12 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
             https://github.com/NGWPC/ngen-forcing/pull/212 -- Coastal Forcing
         """
         if self._geo_meta is None:
-            assert self._job_meta.grid_type == "hydrofabric", (
-                f"Only 'hydrofabric' grid type is currently supported; got '{self._job_meta.grid_type}'. See docstrings for discretization types."
+            assert self._job_meta.grid_type in ["gridded", "hydrofabric"], (
+                f"Only 'gridded' and 'hydrofabric' grid types are currently supported. Got '{self._job_meta.grid_type}'. See docstrings for discretization types."
             )
-            self._geo_meta = HydrofabricGeoMeta(self._job_meta, self._mpi_meta)
+            self._geo_meta = GeoMeta.for_grid_type(
+                self._job_meta.grid_type, self._job_meta, self._mpi_meta
+            )
         return self._geo_meta
 
     @geo_meta.setter
@@ -303,7 +331,17 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
     def create_esmf_mesh(self) -> None:
         """Create the ESMF mesh for the model and set ``self._cat_ids`` (later used as BMI variable "CAT-ID")."""
         if self._mpi_meta.rank == 0:
-            cat_ids = esmf_creation.create_mesh(self._job_meta)
+            if self._job_meta.grid_type == "gridded":
+                # Gridded output regrids directly onto the target grid and has no
+                # catchments/hydrofabric divides -- ESMF mesh creation (which
+                # requires a hydrofabric geopackage) does not apply here.
+                cat_ids = np.array([], dtype=np.int64)
+            elif self._job_meta.grid_type == "hydrofabric":
+                cat_ids = esmf_creation.create_mesh(self._job_meta)
+            else:
+                raise ValueError(
+                    f"Unsupported grid_type {self._job_meta.grid_type} for this function"
+                )
         cat_count = np.array(
             [len(cat_ids) if self._mpi_meta.rank == 0 else 0], dtype=np.intc
         )
@@ -501,7 +539,7 @@ class NWMv3_Forcing_Engine_BMI_model_Base(Bmi):
                 )
 
             self._output_obj.init_forcing_file(
-                self._job_meta, self.geo_meta, self._mpi_meta, self._values["CAT-ID"]
+                self._job_meta, self.geo_meta, self._mpi_meta, self._cat_ids
             )
             self._output_configured = True
 
@@ -1563,12 +1601,20 @@ class NWMv3_Forcing_Engine_BMI_model_Gridded(NWMv3_Forcing_Engine_BMI_model_Base
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_steps: int = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        super().__init__(
+            b_date,
+            geogrid,
+            output_path,
+            output_steps,
+            output_t0,
+        )
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the gridded domain."""
@@ -1633,12 +1679,15 @@ class NWMv3_Forcing_Engine_BMI_model_HydroFabric(NWMv3_Forcing_Engine_BMI_model_
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        if output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
+        super().__init__(b_date, geogrid, output_path, output_t0=output_t0)
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the hydrofabric domain."""
@@ -1699,12 +1748,15 @@ class NWMv3_Forcing_Engine_BMI_model_Unstructured(NWMv3_Forcing_Engine_BMI_model
         b_date: str = None,
         geogrid: str = None,
         output_path: str = None,
+        output_t0: bool = False,
     ):
         """Create a model that is ready for initialization.
 
         Initializes the model with default values for time, variables, and grid types.
         """
-        super().__init__(b_date, geogrid, output_path)
+        if output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
+        super().__init__(b_date, geogrid, output_path, output_t0=output_t0)
 
     def grid_ranks(self) -> list[int]:
         """Get the grid ranks for the unstructured domain."""
