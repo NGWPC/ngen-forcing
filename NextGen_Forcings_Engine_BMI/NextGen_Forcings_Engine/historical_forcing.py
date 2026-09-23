@@ -319,7 +319,7 @@ class BaseProcessor:
                     os.replace(tmp_file, self.nc_path)
                     LOG.info(f"Renamed: {tmp_file} -> {self.nc_path}")
                 except Exception as e:
-                    pass
+                    LOG.warning(f"Unable to write cache file {self.nc_path}: {e}")
         return ds
 
     @cached_property
@@ -653,19 +653,19 @@ class NWMV3ConusProcessor(NWMV3Processor):
         :return: xarray Dataset
         :raises Exception: If zarr open fails
         """
-        datasets = []
-        for var in self.vars:
-            try:
-                with self.timing_block(f"lazy loading {self.dataset_name} data"):
-                    datasets.append(self.slice_ds(self.s3_lazy_ds[var]))
-            except Exception as e:
-                LOG.critical(
-                    f"Error opening {self.dataset_name} data from {self.url(var)}: {e}\n"
-                )
-                raise e
-        return xr.merge(datasets, compat="override").rename(
-            {self.x_label: "x", self.y_label: "y"}
-        )
+        cached_data = self.load_cache()
+        if cached_data is not None:
+            return cached_data
+        try:
+            with self.timing_block(f"Loading {self.dataset_name} data"):
+                ds = xr.merge(self.s3_lazy_ds.values(), compat="override")
+                ds = self.slice_ds(ds).rename({self.x_label: "x", self.y_label: "y"})
+                for variable in ds.data_vars.values():
+                    variable.load()
+                return ds
+        except Exception as e:
+            LOG.critical(f"Error opening {self.dataset_name} data: {e}\n")
+            raise e
 
     @cached_property
     def s3_lazy_ds(self) -> dict[str, xr.Dataset]:
