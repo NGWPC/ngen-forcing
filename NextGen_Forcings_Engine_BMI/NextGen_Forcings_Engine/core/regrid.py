@@ -11638,7 +11638,8 @@ def get_weight_file_names(
     grid_key = input_forcings.product_name
     file_key = f"{grid_key}_{config_options.geogrid}"
     hash_key = hashlib.md5(file_key.encode()).hexdigest()[:8]
-    hash_key += f"_{mpi_config.uid64}"
+    if config_options.should_randomize_weight_file_name:
+        hash_key += f"_{mpi_config.uid64}"
 
     weight_file = os.path.join(config_options.weightsDir, f"ESMF_weight_{hash_key}.nc4")
 
@@ -12020,6 +12021,10 @@ def calculate_weights(
 
     err_handler.check_program_status(config_options, mpi_config)
 
+    if mpi_config.rank == 0 and lat_tmp is not None and lon_tmp is not None:
+        # Normalize source longitudes to [-180, 180) to match geo_em geogrids.
+        lon_tmp = ((lon_tmp + 180) % 360) - 180
+
     # Scatter global GFS latitude grid to processors..
     if mpi_config.rank == 0:
         var_tmp = lat_tmp
@@ -12399,13 +12404,38 @@ def calculate_supp_pcp_weights(
         supplemental_precip.esmf_field_in.data[:] = var_sub_tmp
         # mpi_config.comm.barrier()
 
-        supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
-            supplemental_precip.esmf_field_in,
-            supplemental_precip.esmf_field_out,
-            src_mask_values=np.array([0]),
-            regrid_method=ESMF.RegridMethod.BILINEAR,
-            unmapped_action=ESMF.UnmappedAction.IGNORE,
+        # Reuse a cached weight file if one exists (see get_weight_file_names /
+        # load_weight_file, also used by calculate_weights() for InputForcings) --
+        # this code path previously always recomputed weights in memory, with no
+        # on-disk caching, unlike the InputForcings path.
+        weight_file, _ = get_weight_file_names(
+            mpi_config, config_options, supplemental_precip
         )
+        if config_options.weightsDir is not None:
+            if not os.path.exists(weight_file):
+                supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
+                    supplemental_precip.esmf_field_in,
+                    supplemental_precip.esmf_field_out,
+                    src_mask_values=np.array([0]),
+                    regrid_method=ESMF.RegridMethod.BILINEAR,
+                    unmapped_action=ESMF.UnmappedAction.IGNORE,
+                    filename=weight_file,
+                )
+            load_weight_file(
+                mpi_config,
+                config_options,
+                supplemental_precip,
+                weight_file,
+                element_mode=False,
+            )
+        else:
+            supplemental_precip.regridObj = pt.esmf_regrid_retry_partial(
+                supplemental_precip.esmf_field_in,
+                supplemental_precip.esmf_field_out,
+                src_mask_values=np.array([0]),
+                regrid_method=ESMF.RegridMethod.BILINEAR,
+                unmapped_action=ESMF.UnmappedAction.IGNORE,
+            )
 
         # Run the regridding object on this test dataset. Check the output grid for
         # any 0 values.

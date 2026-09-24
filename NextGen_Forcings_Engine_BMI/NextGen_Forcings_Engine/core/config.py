@@ -31,7 +31,14 @@ LOG = logging.getLogger("FORCING")
 class ConfigOptions:
     """Configuration abstract class for configuration options read in from the file specified by the user."""
 
-    def __init__(self, cfg_bmi: dict, b_date: str = None, geogrid: str = None) -> None:
+    def __init__(
+        self,
+        cfg_bmi: dict,
+        b_date: str = None,
+        geogrid: str = None,
+        output_steps: int = None,
+        output_t0: bool = False,
+    ) -> None:
         """Initialize the configuration class to empty None attributes.
 
         The attributes of this class are populated by the validate_config function, which reads in the configuration file and checks that all necessary options are provided and properly formatted. The attributes of this class are used to control the flow of the program and the processing of input forcings.
@@ -40,12 +47,31 @@ class ConfigOptions:
             cfg_bmi (dict): The configuration dictionary read in from the configuration file specified by the user. This should be read in using the config_utils.read_config function, which also handles any necessary preprocessing of the configuration file.
             b_date (str, optional): The beginning date of processing in the format YYYYMMDDHHMM. This is used to calculate the processing window for realtime simulations. If not provided, it will be read from the configuration file.
             geogrid (str, optional): The filepath to the geogrid file to be used for processing. This is used to specify the grid information for regridding input forcings. If not provided, it will be read from the configuration file.
+            output_steps (int, optional): Override the configured output count. When set,
+                this must be nonnegative when including T0 and otherwise at least
+                one. It takes precedence over forecast-cycle output-step calculations.
+            output_t0 (bool, optional):
+                Write an additional T0 record before the normal gridded forecast outputs, with identical forcing values as T1.
+                Not supported for analysis configurations.
+                Only supported for ``gridded`` configurations.
+                An independent T0 state cannot be reliably computed because several forecast products omit required fields at hour zero and substitute hour one. Examples:
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1202-L1206
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1444-L1448
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L2043-L2047
+                https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L4129-L4135
 
         """
-        if geogrid is not None:
-            self.user_provided_geogrid_flag = True
-        else:
-            self.user_provided_geogrid_flag = False
+        self._b_date_proc = None
+        self._geogrid = None
+        self.user_provided_geogrid_flag = geogrid is not None
+
+        minimum_output_steps = 0 if output_t0 else 1
+        if output_steps is not None and output_steps < minimum_output_steps:
+            raise ValueError(
+                f"output_steps must be at least {minimum_output_steps}, but got {output_steps}"
+            )
+        self.output_steps = output_steps
+        self._output_t0 = output_t0
 
         # If b_date not provided, try to read from config file
         if b_date is None:
@@ -58,6 +84,11 @@ class ConfigOptions:
         self.b_date_proc = b_date
         self.cfg_bmi = cfg_bmi
         self.geogrid = geogrid
+        self.reuse_regrid_weights = cfg_bmi.get("ReuseRegridWeights", False)
+        if not isinstance(self.reuse_regrid_weights, bool):
+            raise TypeError(
+                f"ReuseRegridWeights must be a boolean, but got: {self.reuse_regrid_weights}"
+            )
 
         self.bmi_time_index = 0
         self.globalNdv = -9999.0
@@ -75,7 +106,6 @@ class ConfigOptions:
 
         # These must exist (as None) before the properties are accessed
         self._supp_precip_forcings = None
-        self._b_date_proc = None
         self._input_forcings = None
         self._nwm_geogrid = None
         self._output_freq = None
@@ -89,7 +119,6 @@ class ConfigOptions:
         self._fcst_input_horizons = None
         self._spatial_meta = None
         self._geopackage = None
-        self._geogrid = None
         self._grid_type = None
         # Backing vars for setters that guard on precip_only_flag and do not unconditionally assign
         self._fcst_input_offsets = None
@@ -1203,12 +1232,33 @@ class ConfigOptions:
         whether the user has chosen to run a reforecast simulation with a specified
         processing window, which will only output time steps for which input forcings
         are available based on the processing window and forecast time horizons
-        specified by the user in the configuration file.
+        specified by the user in the configuration file. An explicit ``output_steps``
+        override takes precedence over forecast-cycle calculations, but is not
+        compatible with analysis configurations, whose output count is determined by
+        their lookback window.
         """
-        if self.ana_flag:
-            return np.int32(self.nFcsts)
+        if self._output_t0 and self.ana_flag:
+            raise ValueError("output_t0 is not supported for analysis configurations")
+        if self.output_steps is not None:
+            if self.ana_flag:
+                raise ValueError(
+                    "output_steps is not supported for analysis configurations"
+                )
+            output_steps = self.output_steps
+        elif self.ana_flag:
+            output_steps = self.nFcsts
         else:
-            return np.int32(self.num_output_steps)
+            output_steps = self.num_output_steps
+        return np.int32(output_steps + int(self._output_t0))
+
+    @property
+    def should_randomize_weight_file_name(self) -> bool:
+        """Boolean, if resolves to True then the intermediary regridding weights file
+        will include a random string. This is used so that "gridded" workflows, for
+        example those used to produce coastal forcing inputs, can reuse regrid weights."""
+        if self.grid_type == "gridded" and self.reuse_regrid_weights:
+            return False
+        return True
 
     @property
     def grid_type(self) -> str:
