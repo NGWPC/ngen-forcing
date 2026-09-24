@@ -24,7 +24,10 @@ from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core import err_handler
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.config import (
     ConfigOptions,
 )
-from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import GEOMOD
+from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.consts import (
+    GEOGRID_FILE_INPUT_VARIABLE_NAME_ATTRS,
+    GEOMOD,
+)
 from NextGen_Forcings_Engine_BMI.NextGen_Forcings_Engine.core.err_handler import (
     log_critical,
 )
@@ -92,7 +95,14 @@ def scatter(prop) -> Any:
             assert isinstance(post_slice, bool)
             assert isinstance(name, str)
             assert isinstance(config_options, ConfigOptions)
-            assert isinstance(var, np.ndarray)
+            # var is only populated on rank 0 -- every other rank gets its
+            # share via scatter_array() below, which is None-safe on
+            # non-zero ranks (confirmed in parallel.py). Asserting here
+            # unconditionally rejected every rank but 0.
+            if self.mpi_config.rank == 0:
+                assert isinstance(var, np.ndarray)
+            else:
+                assert isinstance(var, (np.ndarray, type(None)))
 
             var = self.mpi_config.scatter_array(self, var, config_options)
             if post_slice:
@@ -123,6 +133,24 @@ class GeoMeta:
         for attr in GEOMOD[__class__.__name__]:
             setattr(self, attr, None)
 
+    @classmethod
+    def for_grid_type(
+        cls, grid_type: str, config_options: ConfigOptions, mpi_config: MpiConfig
+    ) -> GeoMeta:
+        """Create the geometry metadata implementation for a grid type."""
+        lookup = {
+            "gridded": GriddedGeoMeta,
+            "unstructured": UnstructuredGeoMeta,
+            "hydrofabric": HydrofabricGeoMeta,
+        }
+        try:
+            _class = lookup[grid_type]
+        except KeyError as error:
+            raise ValueError(
+                f"Unsupported grid type: {grid_type}, expected one of: {list(lookup.keys())}"
+            ) from error
+        return _class(config_options, mpi_config)
+
     @cached_property
     def spatial_metadata_exists(self) -> bool:
         """Check to make sure the geospatial metadata file exists in the config_options."""
@@ -133,10 +161,22 @@ class GeoMeta:
 
     @cached_property
     def geogrid_ds(self) -> xr.Dataset:
-        """Open the geogrid file and return the xarray dataset object."""
+        """Open the geogrid file and load only the variables needed by this run.
+
+        geo_em_CONUS.nc is ~8.9 GB; loading the whole file with ds.load() exhausts
+        RAM on standard instances. We open lazily, select only the variables
+        referenced by config_options, then load that subset into memory.
+        Global attributes (DX, DY, etc.) are preserved on the subset dataset.
+        """
         try:
             with xr.open_dataset(self.config_options.geogrid) as ds:
-                return ds.load()
+                needed = [
+                    getattr(self.config_options, attr)
+                    for attr in GEOGRID_FILE_INPUT_VARIABLE_NAME_ATTRS
+                    if getattr(self.config_options, attr, None) is not None
+                    and getattr(self.config_options, attr) in ds
+                ]
+                return ds[needed].load()
         except Exception as e:
             self.config_options.errMsg = "Unable to open geogrid file with xarray"
             log_critical(self.config_options, self.mpi_config)
@@ -282,12 +322,13 @@ class GriddedGeoMeta(GeoMeta):
         if self.mpi_config.rank == 0:
             try:
                 if self.ndim_lat == 3:
-                    return self.lat_var.shape[2]
+                    nx = self.lat_var.shape[2]
                 elif self.ndim_lat == 2:
-                    return self.lat_var.shape[1]
+                    nx = self.lat_var.shape[1]
                 else:
                     # NOTE Is this correct? using lon_var
-                    return self.lon_var.shape[0]
+                    nx = self.lon_var.shape[0]
+                return nx
             except Exception as e:
                 self.config_options.errMsg = f"Unable to extract X dimension size from {self.config_options.lon_var} in: {self.config_options.geogrid}"
                 log_critical(self.config_options, self.mpi_config)
@@ -365,7 +406,7 @@ class GriddedGeoMeta(GeoMeta):
     @cached_property
     def esmf_grid(self) -> ESMF.Grid:
         """Create the ESMF grid object for the gridded domain."""
-        return esmf_grid_retry(
+        esmf_grid = esmf_grid_retry(
             self.mpi_config,
             self.config_options,
             err_handler,
@@ -373,6 +414,13 @@ class GriddedGeoMeta(GeoMeta):
             staggerloc=ESMF.StaggerLoc.CENTER,
             coord_sys=ESMF.CoordSys.SPH_DEG,
         )
+        # NOTE Populating the destination coordinates before creating fields or regridding.
+        # Coordinate scattering reads this grid's local bounds. Need to cache the grid
+        # first so that lookup does not re-enter this cached property (avoid infinite recursion)
+        self.esmf_grid = esmf_grid
+        esmf_grid.get_coords(1)[:, :] = self.latitude_grid
+        esmf_grid.get_coords(0)[:, :] = self.longitude_grid
+        return esmf_grid
 
     @cached_property
     def esmf_lat(self) -> np.ndarray:
@@ -395,9 +443,9 @@ class GriddedGeoMeta(GeoMeta):
         # Scatter global XLAT_M grid to processors..
         if self.mpi_config.rank == 0:
             if self.ndim_lat == 3:
-                var_tmp = self.lat_var[0, :, :]
+                var_tmp = np.asarray(self.lat_var[0, :, :])
             elif self.ndim_lat == 2:
-                var_tmp = self.lat_var[:, :]
+                var_tmp = np.asarray(self.lat_var[:, :])
             elif self.ndim_lat == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]
@@ -429,9 +477,9 @@ class GriddedGeoMeta(GeoMeta):
             if (
                 self.ndim_lat == 3
             ):  # NOTE The original code has lat here... should it maybe be lon instead?
-                var_tmp = self.lon_var[0, :, :]
+                var_tmp = np.asarray(self.lon_var[0, :, :])
             elif self.ndim_lon == 2:
-                var_tmp = self.lon_var[:, :]
+                var_tmp = np.asarray(self.lon_var[:, :])
             elif self.ndim_lon == 1:
                 lat = self.lat_var[:]
                 lon = self.lon_var[:]

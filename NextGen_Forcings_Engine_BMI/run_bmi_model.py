@@ -1,7 +1,7 @@
 import argparse
 import datetime
 import pathlib
-from pathlib import Path
+from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
@@ -13,6 +13,8 @@ from NextGen_Forcings_Engine.bmi_model import (
     NWMv3_Forcing_Engine_BMI_model,
     parse_config,
 )
+
+REFERENCE_TIME_FORMAT = "%Y%m%d%H%M"
 
 
 def get_date_times(start_time: str, end_time: str) -> tuple:
@@ -35,7 +37,7 @@ def print_init(model: NWMv3_Forcing_Engine_BMI_model, num_iterations: int) -> No
 def print_pre_update(num, num_iterations, timestamp) -> None:
     """Print the current iteration number and timestamp before updating the model."""
     print("\n---------------------------------------------------")
-    print(f"Iteration #{num} of {num_iterations} for {timestamp}")
+    print(f"Iteration #{num} of {num_iterations} for timestamp={timestamp}")
 
 
 def print_post_update(model, start_time) -> None:
@@ -310,13 +312,268 @@ def get_options():
     return parser.parse_args()
 
 
+class ForcingRunner(ABC):
+    """Define the shared forcing-engine execution lifecycle."""
+
+    def __init__(
+        self,
+        config_path: pathlib.Path | None = None,
+        cycle_datetime: datetime.datetime | None = None,
+        start_time: str | datetime.datetime | None = None,
+        end_time: str | datetime.datetime | None = None,
+        b_date: str | None = None,
+        geogrid: str = None,
+        output_path: pathlib.Path = None,
+        config: dict | None = None,
+        num_updates: int | None = None,
+        output_t0: bool = False,
+    ) -> None:
+        self.config_path = self.resolve_config_path(config_path)
+        self.cycle_datetime = cycle_datetime
+        self.start_time = start_time
+        self.end_time = end_time
+        self.b_date = b_date
+        self.geogrid = geogrid
+        self.output_path = output_path
+        self.config = config
+        self.requested_num_updates = num_updates
+        self.output_t0 = output_t0
+        self.model = None
+        self.output_steps = None
+        self.ngen_datetimes = None
+        self.is_general = False
+        self.num_updates = None
+
+    @classmethod
+    def create(
+        cls,
+        config_path: pathlib.Path | None = None,
+        **kwargs,
+    ) -> "ForcingRunner":
+        """Create the runner child class appropriate for the configured grid type."""
+        config_path = cls.resolve_config_path(config_path)
+        config = cls._read_config(config_path)
+
+        if config["GRID_TYPE"] == "gridded":
+            child = ForcingRunnerGridded
+        else:
+            child = ForcingRunnerGeneral
+
+        return child(config_path, config=config, **kwargs)
+
+    @staticmethod
+    def resolve_config_path(config_path: pathlib.Path | None) -> pathlib.Path:
+        """Resolve a supplied config path or use the bundled default."""
+        if config_path is not None:
+            return pathlib.Path(config_path)
+        return pathlib.Path(__file__).parent.resolve() / "config.yml"
+
+    @staticmethod
+    def _read_config(config_path: pathlib.Path) -> dict:
+        """Read and parse a forcing configuration file."""
+        with config_path.open("r") as config_file:
+            return parse_config(yaml.safe_load(config_file))
+
+    def validate_args(self) -> None:
+        """Validate arguments shared by every runner."""
+        if (self.start_time is None) != (self.end_time is None):
+            raise ValueError("start_time and end_time must be provided together")
+        if self.requested_num_updates is not None and self.requested_num_updates < 1:
+            raise ValueError("num_updates must be a positive integer")
+
+    def load_config(self) -> None:
+        """Load and parse the forcing configuration."""
+        if self.config is None:
+            self.config = self._read_config(self.config_path)
+
+    def validate_config(self) -> None:
+        """Validate configuration shared by every runner."""
+        if self.config["GRID_TYPE"] not in BMIMODEL:
+            raise ValueError(f"Unsupported GRID_TYPE: {self.config['GRID_TYPE']}")
+
+    @abstractmethod
+    def _create_model(self):
+        """Construct the BMI model for this runner type."""
+        raise NotImplementedError
+
+    @abstractmethod
+    def _get_update_plan(self) -> int:
+        """Return the number of model updates to run."""
+        raise NotImplementedError
+
+    def initialize_model(self) -> None:
+        """Construct and initialize the BMI model."""
+        print("Creating an instance of the BMI model object")
+        self.model = self._create_model()
+        self.model.initialize(str(self.config_path))
+        self.num_updates = self._get_update_plan()
+        print_init(self.model, self.num_updates)
+
+    def _update_model(self, num_updates: int) -> None:
+        """Run model updates with standard progress output when available."""
+        for num in range(num_updates):
+            if self.is_general:
+                print_pre_update(num, num_updates, self.ngen_datetimes[num])
+            self.model.update()
+            if self.is_general:
+                print_post_update(self.model, self.start_time)
+
+    def _run_updates(self) -> None:
+        """Run the update plan supplied by the concrete runner."""
+        self._update_model(self.num_updates)
+
+    def run_model(self) -> None:
+        """Initialize, run, and finalize the BMI model."""
+        try:
+            self.initialize_model()
+            self._run_updates()
+        finally:
+            if self.model is not None:
+                print("\nFinalizing the BMI model")
+                self.model.finalize()
+
+
+class ForcingRunnerGeneral(ForcingRunner):
+    """Run a hydrofabric or unstructured forcing configuration."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_general = True
+
+    def validate_args(self) -> None:
+        """Validate and normalize the standard start and end times."""
+        super().validate_args()
+        if self.cycle_datetime is not None:
+            raise ValueError(
+                "cycle_datetime is only supported for gridded configurations"
+            )
+        if self.start_time is None or self.end_time is None:
+            raise ValueError("start_time and end_time are required")
+        self.ngen_datetimes, self.start_time, self.end_time = get_date_times(
+            self.start_time, self.end_time
+        )
+        self.num_updates = len(self.ngen_datetimes)
+
+    def validate_config(self) -> None:
+        """Validate a non-gridded forcing configuration."""
+        super().validate_config()
+        if self.config["GRID_TYPE"] == "gridded":
+            raise ValueError("ForcingRunnerGeneral does not support GRID_TYPE: gridded")
+        if self.output_t0 is not False:
+            raise ValueError("output_t0 is only supported for gridded configurations")
+
+    def _create_model(self):
+        """Construct the configured BMI model."""
+        return BMIMODEL[self.config["GRID_TYPE"]](
+            self.b_date,
+            self.geogrid,
+            output_path=str(self.output_path) if self.output_path else None,
+        )
+
+    def _get_update_plan(self) -> int:
+        """Run one update for every requested timestamp."""
+        return self.num_updates
+
+
+class ForcingRunnerGridded(ForcingRunner):
+    """Run a gridded forcing cycle or explicit retrospective window."""
+
+    @property
+    def explicit_window(self) -> bool:
+        """Whether the runner was given a fixed start/end time window."""
+        return self.start_time is not None or self.end_time is not None
+
+    def validate_args(self) -> None:
+        """Validate and normalize timing inputs."""
+        super().validate_args()
+        self.validate_gridded_args()
+
+    def validate_gridded_args(self) -> None:
+        """Validate and normalize gridded timing inputs."""
+        if self.cycle_datetime is not None and self.explicit_window:
+            raise ValueError(
+                "cycle_datetime cannot be combined with start_time/end_time"
+            )
+        if self.requested_num_updates is not None and self.cycle_datetime is None:
+            raise ValueError("num_updates requires cycle_datetime")
+        if self.cycle_datetime is None and (
+            self.start_time is None or self.end_time is None
+        ):
+            raise ValueError("Provide cycle_datetime or both start_time and end_time")
+        if isinstance(self.start_time, str) and isinstance(self.end_time, str):
+            _, self.start_time, self.end_time = get_date_times(
+                self.start_time, self.end_time
+            )
+        if self.explicit_window and self.end_time < self.start_time:
+            raise ValueError("end_time must not be earlier than start_time")
+
+    def validate_config(self) -> None:
+        """Load configuration and derive the gridded output count."""
+        super().validate_config()
+        self.validate_gridded_config()
+
+    def validate_gridded_config(self) -> None:
+        """Validate gridded configuration and derive its output count."""
+        if self.config["GRID_TYPE"] != "gridded":
+            raise ValueError("ForcingRunnerGridded requires GRID_TYPE: gridded")
+        if self.output_t0 and self.config["AnAFlag"]:
+            raise ValueError("output_t0 is not supported for analysis configurations")
+        if self.explicit_window and self.config["AnAFlag"]:
+            raise ValueError(
+                "Explicit windows are not supported for analysis configurations; "
+                "provide cycle_datetime so LookBack controls the window"
+            )
+        if self.explicit_window:
+            duration_seconds = (self.end_time - self.start_time).total_seconds()
+            step_seconds = self.config["time_step_seconds"]
+            if duration_seconds % step_seconds:
+                raise ValueError(
+                    "The explicit window must be evenly divisible by time_step_seconds"
+                )
+            self.output_steps = int(duration_seconds / step_seconds) + 1
+
+    def _create_model(self):
+        """Construct the gridded BMI model with timing overrides."""
+        reference_time = self.cycle_datetime or self.start_time
+
+        # Do some math in case the user asked for the T0 output to be included.
+        forecast_output_steps = self.output_steps
+        if self.output_t0 and forecast_output_steps is not None:
+            forecast_output_steps -= 1
+        elif (
+            self.output_t0
+            and self.requested_num_updates is not None
+            and not self.config["AnAFlag"]
+        ):
+            forecast_output_steps = self.requested_num_updates
+
+        return BMIMODEL["gridded"](
+            b_date=self.b_date or reference_time.strftime(REFERENCE_TIME_FORMAT),
+            geogrid=self.geogrid,
+            output_path=str(self.output_path) if self.output_path else None,
+            output_steps=forecast_output_steps,
+            output_t0=self.output_t0,
+        )
+
+    def _get_update_plan(self) -> int:
+        """Use the configured or requested update count."""
+        if self.explicit_window:
+            return self.output_steps - int(self.output_t0)
+        if self.requested_num_updates is not None:
+            return self.requested_num_updates
+        return self.model._job_meta.actual_output_steps - int(self.output_t0)
+
+
 def run_bmi(
-    start_time: str,
-    end_time: str,
+    start_time: str | None = None,
+    end_time: str | None = None,
     config_path: pathlib.Path = None,
     b_date: str = None,
     geogrid: str = None,
     output_path: pathlib.Path = None,
+    cycle_datetime: datetime.datetime | None = None,
+    num_updates: int | None = None,
+    output_t0: bool = False,
 ):
     """Execute the NextGen Forcings Engine BMI model.
 
@@ -325,40 +582,40 @@ def run_bmi(
 
     :param start_time: The start time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
     :param end_time: The end time for the simulation, in the format 'YYYY-MM-DD HH:mm:ss'.
-    :param config_path: Optional path to the configuration file. Defaults to './config.yml' if not provided.
+    :param config_path: Optional path to the configuration file. Defaults to the config.yml bundled with this module.
     :param b_date: The begin date for the forecast cycle, in the format 'YYYYMMDDHHmm'. If omitted, reads from config.
     :param geogrid: Path to the geospatial grid file. If omitted, reads from the config file.
     :param output_path: Path to the output file. If omitted, a default output path is generated.
+    :param cycle_datetime: Optional gridded forecast cycle time. Cannot be combined with start_time or end_time.
+    :param num_updates: Optional positive update count for a gridded cycle. This limits iteration count without changing an analysis lookback window.
+    :param output_t0:
+        Write an additional T0 record before the normal gridded forecast outputs, with identical forcing values as T1.
+        Not supported for analysis configurations.
+        Only supported for ``gridded`` configurations.
+        An independent T0 state cannot be reliably computed because several forecast products omit required fields at hour zero and substitute hour one. Examples:
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1202-L1206
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L1444-L1448
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L2043-L2047
+        https://github.com/NGWPC/ngen-forcing/blob/27e03ba138478dd449ce957b1c3ba4c36fc33d8f/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/core/time_handling.py#L4129-L4135
 
     :raises RuntimeError: If the model fails to initialize or if required arguments are missing.
     """
     print("Initializing the BMI model")
-    # Set the path for the config file, using the default if none is provided
-    cfg_path = (
-        str(config_path)
-        if config_path is not None
-        else str(Path(__file__).parent.resolve() / "config.yml")
+    runner = ForcingRunner.create(
+        config_path,
+        cycle_datetime=cycle_datetime,
+        start_time=start_time,
+        end_time=end_time,
+        b_date=b_date,
+        geogrid=geogrid,
+        output_path=output_path,
+        num_updates=num_updates,
+        output_t0=output_t0,
     )
-    with open(cfg_path, "r") as fp:
-        config = parse_config(yaml.safe_load(fp))
-
-    print("Creating an instance of the BMI model object")
-    model = BMIMODEL[config.get("GRID_TYPE")](
-        b_date, geogrid, output_path=str(output_path) if output_path else None
-    )
-    model.initialize(cfg_path)
-
-    ngen_datetimes, start_time, end_time = get_date_times(start_time, end_time)
-    num_iterations = len(ngen_datetimes)
-    print_init(model, num_iterations)
-
-    for num, timestamp in enumerate(ngen_datetimes):
-        print_pre_update(num, num_iterations, timestamp)
-        model.update()
-        print_post_update(model, start_time)
-
-    print("\nFinalizing the BMI model")
-    model.finalize()
+    runner.validate_args()
+    runner.load_config()
+    runner.validate_config()
+    runner.run_model()
 
 
 def main():
