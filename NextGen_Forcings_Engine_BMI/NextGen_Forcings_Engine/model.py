@@ -163,31 +163,40 @@ class NWMv3ForcingEngineModel:
             # If we're in an AnA configuration, then must offset the BMI future
             # timestamp to account for the "lookback" period being properly iterated
             # over between 3-28 hour look back time period and operation configuration
-            # TODO confirm these codes, and should they consider all input_forcings not just [0]?
-            if self._bmi._job_meta.input_forcings[0] in [20, 22]:
-                # NOTE This appears to be intending to operate on Alaska-only AnA.
-                delta = pd.TimedeltaIndex(
-                    np.array([future_time - 7200.0], dtype=float), "s"
-                )[0]
-                self._bmi._job_meta.current_fcst_cycle = (
-                    self._bmi._job_meta.b_date_proc + delta
-                )
-                self._bmi._job_meta.current_time = (
-                    self._bmi._job_meta.b_date_proc + delta
-                )
-                self._bmi._job_meta.future_time = future_time
-            else:
-                # NOTE below comment was original, but this appears to be operating on all non-Alaska AnA, not just Puerto Rico / Hawaii AnA.
-                # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
-                delta = pd.TimedeltaIndex(
-                    np.array([future_time - 3600.0], dtype=float), "s"
-                )[0]
-                self._bmi._job_meta.current_fcst_cycle = (
-                    self._bmi._job_meta.b_date_proc + delta
-                )
-                self._bmi._job_meta.current_time = (
-                    self._bmi._job_meta.b_date_proc + delta
-                )
+            ###
+            ### NOTE: PR #172 deactivated this Alaska-specific behavior: https://github.com/NGWPC/ngen-forcing/pull/172/changes#diff-1b679c51fe8034429f64ecbc71a5f4f46c19c0cd98115d97692a6d0971420946R223-R252
+            ###
+            ### The Alaska-specific behavior was reactivated with PR #191 (into a refactoring branch),
+            ### which then later landed in `development` via PR #238: https://github.com/NGWPC/ngen-forcing/blame/396ef48467ef80e8d52c28628a14ee890e703f2b/NextGen_Forcings_Engine_BMI/NextGen_Forcings_Engine/model.py#L166-L178
+            ###
+            ### 9/23/26: Test team reports a time handling bug for Alaska Coldstart.
+            ### 9/25/26: Update to re-deactivate this block, to match PR #172.
+            ###
+            # if self._bmi._job_meta.input_forcings[0] in [20, 22]:
+            #     self._bmi._job_meta.current_fcst_cycle = (
+            #         self._bmi._job_meta.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     self._bmi._job_meta.current_time = (
+            #         self._bmi._job_meta.b_date_proc
+            #         + pd.TimedeltaIndex(
+            #             np.array([future_time - 7200.0], dtype=float), "s"
+            #         )[0]
+            #     )
+            #     self._bmi._job_meta.future_time = future_time
+            # else:
+
+            ### NOTE below comment was original, but this appears to be operating on more than just Puerto Rico / Hawaii AnA.
+            # Puerto Rico / Hawaii AnA: 1-hour lookback (based on 6-hourly forecast cycles)
+            delta = pd.TimedeltaIndex(
+                np.array([future_time - 3600.0], dtype=float), "s"
+            )[0]
+            self._bmi._job_meta.current_fcst_cycle = (
+                self._bmi._job_meta.b_date_proc + delta
+            )
+            self._bmi._job_meta.current_time = self._bmi._job_meta.b_date_proc + delta
         else:
             # Forecast-only mode — use BMI timestamp as-is
             self._bmi._job_meta.current_fcst_cycle = self._bmi._job_meta.b_date_proc
