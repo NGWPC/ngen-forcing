@@ -1,6 +1,6 @@
 # .github/workflows/podman-smoke.yml
 # ADDITIVE WORKFLOW: Proves Podman build and smoke verification for ngen-forcing.
-# Focuses on Dockerfile.bmi-forcings (primary CI/CD and downstream ngen dependency).
+# Supports both Dockerfile.bmi-forcings (fast-path) and Dockerfile.dependencies (compiled stack).
 # Leaves existing .github/workflows/cicd.yml and release paths untouched.
 
 name: Podman Build & Smoke (Additive)
@@ -13,12 +13,18 @@ on:
         required: true
         type: boolean
         default: false
+      rebuild_dependencies:
+        description: "Rebuild Dockerfile.dependencies with Podman (~45-60m)"
+        required: false
+        type: boolean
+        default: false
   pull_request:
     branches:
       - development
     paths:
       - '.github/workflows/podman-smoke.yml'
       - 'Dockerfile.bmi-forcings'
+      - 'Dockerfile.dependencies'
       - 'pyproject.toml'
       - 'NextGen_Forcings_Engine_BMI/**'
       - 'Forcing_Extraction_Scripts/**'
@@ -30,9 +36,9 @@ permissions:
 
 jobs:
   podman-build-smoke:
-    name: Podman Build & Smoke (BMI Forcing)
+    name: Podman Build & Smoke (Forcing & Deps)
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 90
 
     steps:
       - name: Checkout Repository
@@ -45,22 +51,93 @@ jobs:
           podman version
           podman info --format 'OS: {{.Host.Distribution.Distribution}} {{.Host.Distribution.Version}} | Storage: {{.Store.GraphDriverName}}'
 
-      - name: Log in to GitHub Container Registry (for base image pull)
+      - name: Determine Dependencies Rebuild Strategy
+        id: strategy
+        run: |
+          set -euo pipefail
+          REBUILD_DEPS="false"
+
+          if [ "${{ inputs.rebuild_dependencies }}" = "true" ]; then
+            echo "Manual workflow_dispatch requested dependencies rebuild."
+            REBUILD_DEPS="true"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Check if this PR touched Dockerfile.dependencies
+            if git diff --name-only "origin/${{ github.base_ref }}"...HEAD | grep -q "^Dockerfile.dependencies"; then
+              echo "Changes to Dockerfile.dependencies detected in PR diff; triggering dependencies rebuild."
+              REBUILD_DEPS="true"
+            else
+              echo "No changes to Dockerfile.dependencies in PR diff; using fast path with published base."
+            fi
+          fi
+
+          echo "REBUILD_DEPS=${REBUILD_DEPS}" >> "${GITHUB_ENV}"
+          echo "rebuild_deps=${REBUILD_DEPS}" >> "${GITHUB_OUTPUT}"
+
+      - name: Log in to GitHub Container Registry
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io \
             -u "${{ github.actor }}" --password-stdin
 
+      # ------------------------------------------------------------------------
+      # Conditional Tier 1: Build Dockerfile.dependencies with Podman
+      # ------------------------------------------------------------------------
+      - name: Build Dependencies Image with Podman (Docker Format)
+        if: env.REBUILD_DEPS == 'true'
+        id: build-deps
+        run: |
+          set -euo pipefail
+          ulimit -n 65535 || true
+          DEPS_IMAGE_TAG="localhost/ngen-dependencies-bookworm:podman-test"
+
+          echo "Building ${DEPS_IMAGE_TAG} using Dockerfile.dependencies with --format docker..."
+          podman build \
+            --ulimit nofile=65535:65535 \
+            --format docker \
+            -f Dockerfile.dependencies \
+            -t "${DEPS_IMAGE_TAG}" \
+            .
+
+          echo "DEPS_IMAGE_LOCAL=${DEPS_IMAGE_TAG}" >> "${GITHUB_ENV}"
+
+      - name: Smoke Probe Deps - WGRIB2, ESMF, GDAL & Boost Headers
+        if: env.REBUILD_DEPS == 'true'
+        run: |
+          set -euo pipefail
+          echo "Verifying wgrib2 utility..."
+          podman run --rm "${DEPS_IMAGE_LOCAL}" wgrib2 -v
+          echo "Verifying Python ESMF/ESMPy module..."
+          podman run --rm "${DEPS_IMAGE_LOCAL}" python -c "import ESMF; print('ESMF Version:', ESMF.__version__)"
+          echo "Verifying GDAL utility..."
+          podman run --rm "${DEPS_IMAGE_LOCAL}" gdalinfo --version
+          echo "Verifying Boost headers in /opt/boost..."
+          podman run --rm "${DEPS_IMAGE_LOCAL}" test -d /opt/boost
+          echo "Dependencies Probe Passed: wgrib2, ESMF, GDAL, and Boost verified."
+
+      - name: Resolve Target Dependencies Base Image
+        run: |
+          if [ "${REBUILD_DEPS}" = "true" ]; then
+            TARGET_DEPS="${DEPS_IMAGE_LOCAL}"
+            echo "Using freshly built local dependencies image: ${TARGET_DEPS}"
+          else
+            TARGET_DEPS="ghcr.io/ngwpc/ngen-dependencies-bookworm:latest"
+            echo "Using published base dependencies image: ${TARGET_DEPS}"
+          fi
+          echo "DEPS_BASE_IMAGE=${TARGET_DEPS}" >> "${GITHUB_ENV}"
+
+      # ------------------------------------------------------------------------
+      # Tier 2: Build Dockerfile.bmi-forcings with Podman
+      # ------------------------------------------------------------------------
       - name: Build BMI Forcing Image with Podman (Docker Format)
-        id: build
+        id: build-forcing
         run: |
           set -euo pipefail
           ulimit -n 65535 || true
           IMAGE_TAG="localhost/ngen-bmi-forcing:podman-test"
 
-          echo "Building ${IMAGE_TAG} using Dockerfile.bmi-forcings with --format docker..."
+          echo "Building ${IMAGE_TAG} using Dockerfile.bmi-forcings with base ${DEPS_BASE_IMAGE}..."
           podman build \
             --ulimit nofile=65535:65535 \
-            --build-arg DEPS_IMAGE="ghcr.io/ngwpc/ngen-dependencies-bookworm:latest" \
+            --build-arg DEPS_IMAGE="${DEPS_BASE_IMAGE}" \
             --build-arg CI_COMMIT_REF_NAME="${GITHUB_REF_NAME}" \
             --format docker \
             -f Dockerfile.bmi-forcings \
@@ -110,4 +187,4 @@ jobs:
           podman push "${TAG_SHA}"
 
           echo "Pushed ${TAG_TEST} and ${TAG_SHA}"
-          echo "NOTICE: Production aliases (:latest, branch tags) remain untouched."
+          echo "NOTICE: Production aliases (:latest, release tags) remain untouched."
