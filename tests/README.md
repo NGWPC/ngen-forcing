@@ -4,20 +4,9 @@ This directory contains tests for the NextGen Forcing BMI Engine.
 
 ## Initial test data
 
-Tests data is included in the `test_data` directory and includes configs, gpkgs, esmf_meshes, expected results and actual results. While the configs, gpkgs, esmf_meshes and expectd results are included in the repo and can be used as is, the following steps can be taken to re-create these test inputs.
+Test data is included in the `test_data` directory and includes configs, gpkgs,
+ESMF meshes, and expected results.  The initial test data was generated using nwm-rte.
 
----
-The initial test data was generated using `nwm-rte` to create a calibration realization
-for gage 01123000, starting at time 2013-07-01 00:00:00, and running for 3 timesteps,
-using `nwm-rte's` run_suite.sh.  See RETRO_FORCING_CONFIG_FILE__AORC_CONUS.
-
-
-And these two commands in `nwm-rte's` `run_suite.sh`:
-```bash
-docker_run python "/ngen-app/bin/bin_mounted/run_calibration.py" -n 2 -fsrc "aorc" -start "2013-07-01 00:00:00" -dur 3
-
-docker_run python "/ngen-app/bin/bin_mounted/run_forecast.py" -fconfig "short_range" -dt "2025-07-10 04:00:00" -rname "fcst_run1_short_range"
-```
 ## Test Structure
 
 The test suite is organized into the following modules:
@@ -31,14 +20,24 @@ The test suite is organized into the following modules:
 - **`test_utils.py`** - Shared test utilities and fixtures
 - **`conftest.py`** - Pytest configuration and shared fixtures
 
-## Prerequisite Steps
-    1. Clone the nwm-rte repository
-    2. Build a Docker image using nwm-rte.
-    3. Enter a Dev Container using nwm-rte.
-
 ## Running Tests
 
+The tests can run either in the BMI Forcings image built directly from this
+repository or in the `nwm-rte` Dev Container.
+
+### Run Tests Without the nwm-rte Dev Container
+
+To run the pytest without nwm-rte, follow the dependency-image, BMI-image, and pytest
+commands in [DOCKER.md](../DOCKER.md).
+
 ### Run All Tests From the Dev Container
+
+To run the pytest with the nwm-rte Dev Container:
+
+1. Clone the nwm-rte repository
+2. Build the ngen RTE Docker image using nwm-rte.
+3. Enter a Dev Container using nwm-rte.
+4. Use any of the commands below to run tests.
 
 ```bash
 Single processor: (cd src/ngen-forcing && pytest )
